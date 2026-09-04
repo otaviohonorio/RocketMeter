@@ -11,11 +11,13 @@ read_globals = {
     "issecretvalue", "scrubsecretvalues", "print", "UnitGUID",
     "C_DamageMeter", "C_AddOns", "C_Timer", "C_Secrets", "Enum", "C_ChallengeMode",
     "GetNumGroupMembers", "IsInRaid", "GetDifficultyInfo", "select", "math",
+    "IsShiftKeyDown", "IsControlKeyDown", "GetLocale", "tonumber", "tostring", "ipairs", "pairs",
     "Settings", "CreateSettingsListSectionHeaderInitializer", "SlashCmdList",
 }
 
 globals = {
     "RocketMeterDB",
+    "RocketMeterCharDB",
     "RocketMeter_OnCompartmentClick",
     "SLASH_ROCKETMETER1",
     "SLASH_ROCKETMETER2",

@@ -24,6 +24,17 @@ local columnProxy = setmetatable({}, {
     end,
 })
 
+-- A opção de perfil não é um campo do banco: liga e desliga o próprio banco ativo.
+local profileProxy = setmetatable({}, {
+    __index = function(_, key)
+        if key == "perCharacter" then return ns.Profile.IsPerCharacter() end
+        return nil
+    end,
+    __newindex = function(_, key, value)
+        if key == "perCharacter" then ns.Profile.SetPerCharacter(value and true or false) end
+    end,
+})
+
 function ns.SetupOptions()
     local category, layout = Settings.RegisterVerticalLayoutCategory("Rocket Meter")
     ns.category = category
@@ -60,6 +71,16 @@ function ns.SetupOptions()
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_col" .. key, key,
             columnProxy, "boolean", attr.label, false)
         Settings.CreateCheckbox(category, setting, attr.label .. " — " .. L["Show as a column."])
+    end
+
+    -- Perfil -----------------------------------------------------------------
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Profile"]))
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_perCharacter", "perCharacter",
+            profileProxy, "boolean", L["Settings for this character only"], false)
+        Settings.CreateCheckbox(category, setting,
+            L["Off: every character shares the same setup. On: this character keeps its own."])
     end
 
     -- Janela -----------------------------------------------------------------

@@ -60,6 +60,33 @@ commands["col"] = function(rest)
     end
 end
 
+commands["perfil"] = function(rest)
+    local arg = rest:lower():match("^%S*")
+    if arg == "char" or arg == "personagem" then
+        ns.Profile.SetPerCharacter(true)
+    elseif arg == "conta" or arg == "account" then
+        ns.Profile.SetPerCharacter(false)
+    elseif arg == "reset" then
+        ns.Profile.Reset()
+        ns.Print(L["settings restored to the defaults."])
+    else
+        ns.Print(ns.Profile.IsPerCharacter()
+            and L["settings for this character only."]
+            or L["settings shared by the account."])
+        print("  /rm perfil char|conta|reset")
+    end
+end
+
+commands["move"] = function(rest)
+    local from, direction = rest:match("^(%d+)%s*(%S*)$")
+    from = tonumber(from)
+    if not from then
+        ns.Print("/rm move <coluna> <esq|dir>")
+        return
+    end
+    ns.Window.MoveColumn(from, (direction == "dir" or direction == "right") and 1 or -1)
+end
+
 commands["help"] = function()
     ns.Print(L["version"] .. " " .. ns.version .. " — " .. L["commands:"])
     print("  /rm                          " .. L["opens or closes the window"])
@@ -68,6 +95,8 @@ commands["help"] = function()
     print("  /rm score                    " .. L["opens the scoreboard of the last run"])
     print("  /rm geral                    " .. L["switches current fight / overall"])
     print("  /rm reset                    " .. L["clears the sessions"])
+    print("  /rm move <n> esq|dir         " .. L["moves a column left or right"])
+    print("  /rm perfil char|conta|reset  " .. L["account-wide or per-character settings"])
     print("  /rm config                   " .. L["opens the options"])
     print("  " .. L["(click a column header to sort by it)"])
 end

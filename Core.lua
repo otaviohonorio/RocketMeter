@@ -10,6 +10,7 @@ ns.defaults = {
     columns = nil,
     sortBy = nil,
     sessionType = 0,      -- 0 = sessão atual; 1 = geral
+    sortDesc = true,      -- maior primeiro
     rows = 8,
     scale = 1.0,
     locked = false,
@@ -49,13 +50,8 @@ local handlers = {}
 function handlers:ADDON_LOADED(addon)
     if addon ~= ADDON then return end
 
-    RocketMeterDB = RocketMeterDB or {}
-    for k, v in pairs(ns.defaults) do
-        if RocketMeterDB[k] == nil then
-            RocketMeterDB[k] = v
-        end
-    end
-    ns.db = RocketMeterDB
+    -- O perfil decide se a configuração vem da conta ou deste personagem.
+    ns.Profile.Init()
 end
 
 function handlers:PLAYER_LOGIN()

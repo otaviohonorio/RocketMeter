@@ -41,6 +41,20 @@ L["Mythic+"] = "Mítico+"
 L["Raid"] = "Raide"
 L["Damage only"] = "Só dano"
 
+-- Ordenação e perfil
+L["Click again to reverse the order."] = "Clique de novo para inverter a ordem."
+L["Shift-click moves it left, Ctrl-click moves it right."] =
+    "Shift+clique move para a esquerda, Ctrl+clique para a direita."
+L["Profile"] = "Perfil"
+L["Settings for this character only"] = "Configuração só deste personagem"
+L["Off: every character shares the same setup. On: this character keeps its own."] =
+    "Desligado: todos os personagens usam a mesma configuração. Ligado: este guarda a dele."
+L["settings for this character only."] = "configuração própria deste personagem."
+L["settings shared by the account."] = "configuração compartilhada pela conta."
+L["settings restored to the defaults."] = "configuração restaurada para o padrão."
+L["moves a column left or right"] = "move uma coluna para a esquerda ou direita"
+L["account-wide or per-character settings"] = "configuração da conta ou do personagem"
+
 -- Opções
 L["Presets"] = "Conjuntos prontos"
 L["Visible columns"] = "Colunas visíveis"

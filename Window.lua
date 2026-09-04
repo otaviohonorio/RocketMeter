@@ -82,13 +82,27 @@ local function BuildHeader()
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             button.text:SetPoint("RIGHT", -4, 0)
             button:SetScript("OnClick", function(self)
-                ns.db.sortBy = ns.db.columns[self.columnIndex]
-                Window.Refresh(true)
+                local attributeId = ns.db.columns[self.columnIndex]
+
+                if IsShiftKeyDown() then
+                    Window.MoveColumn(self.columnIndex, -1)
+                elseif IsControlKeyDown() then
+                    Window.MoveColumn(self.columnIndex, 1)
+                elseif ns.db.sortBy == attributeId then
+                    ns.db.sortDesc = not ns.db.sortDesc   -- mesma coluna: inverte a direção
+                    Window.Refresh(true)
+                else
+                    ns.db.sortBy = attributeId
+                    ns.db.sortDesc = true
+                    Window.Refresh(true)
+                end
             end)
             button:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 GameTooltip:SetText(ns.Data.GetAttributeLabel(ns.db.columns[self.columnIndex]), 1, 1, 1)
                 GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
+                GameTooltip:AddLine(L["Click again to reverse the order."], 0.7, 0.7, 0.7)
+                GameTooltip:AddLine(L["Shift-click moves it left, Ctrl-click moves it right."], 0.7, 0.7, 0.7)
                 GameTooltip:Show()
             end)
             button:SetScript("OnLeave", GameTooltip_Hide)
@@ -103,7 +117,9 @@ local function BuildHeader()
 
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == ns.db.sortBy then
-            button.text:SetText("|cffff6a00" .. label .. "|r")
+            local arrow = ns.db.sortDesc and "|TInterface\Buttons\Arrow-Down-Up:12|t"
+                or "|TInterface\Buttons\Arrow-Up-Up:12|t"
+            button.text:SetText("|cffff6a00" .. label .. "|r" .. arrow)
         else
             button.text:SetText("|cffb0b0b0" .. label .. "|r")
         end
@@ -266,7 +282,8 @@ end
 function Window.Draw()
     if not frame or not frame:IsShown() then return end
 
-    local data, session = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns, ns.db.rows)
+    local data, session = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
+        ns.db.rows, not ns.db.sortDesc)
     local maxAmount = session and session.maxAmount
 
     if frame.SetTitle then
@@ -336,6 +353,16 @@ function Window.ToggleColumn(attributeId)
     end
 
     columns[#columns + 1] = attributeId
+    Window.Rebuild()
+end
+
+---Move uma coluna uma casa para a esquerda (-1) ou direita (+1).
+function Window.MoveColumn(index, direction)
+    local columns = ns.db.columns
+    local target = index + direction
+    if target < 1 or target > #columns then return end
+
+    columns[index], columns[target] = columns[target], columns[index]
     Window.Rebuild()
 end
 

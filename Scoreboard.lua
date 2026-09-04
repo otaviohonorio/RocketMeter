@@ -18,6 +18,7 @@ local MAX_ROWS = 20
 
 local frame, headerRow, rows
 local columns, sortBy
+local sortDesc = true
 local lastContext
 
 --------------------------------------------------------------------------------
@@ -84,7 +85,12 @@ local function BuildHeader()
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             button.text:SetPoint("RIGHT", -4, 0)
             button:SetScript("OnClick", function(self)
-                sortBy = columns[self.columnIndex]
+                local attributeId = columns[self.columnIndex]
+                if sortBy == attributeId then
+                    sortDesc = not sortDesc
+                else
+                    sortBy, sortDesc = attributeId, true
+                end
                 Scoreboard.Draw()
             end)
             headerRow.labels[c] = button
@@ -97,7 +103,13 @@ local function BuildHeader()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
 
         local label = ns.Data.GetShortLabel(attributeId)
-        button.text:SetText((attributeId == sortBy and "|cffff6a00" or "|cffb0b0b0") .. label .. "|r")
+        if attributeId == sortBy then
+            local arrow = sortDesc and "|TInterface\Buttons\Arrow-Down-Up:12|t"
+                or "|TInterface\Buttons\Arrow-Up-Up:12|t"
+            button.text:SetText("|cffff6a00" .. label .. "|r" .. arrow)
+        else
+            button.text:SetText("|cffb0b0b0" .. label .. "|r")
+        end
         button:Show()
     end
 end
@@ -185,7 +197,7 @@ function Scoreboard.Draw()
     if not frame or not lastContext then return end
 
     local rowCount = lastContext.rowCount
-    local data, session = ns.Data.GetRows(lastContext.sessionType, sortBy, columns, rowCount)
+    local data, session = ns.Data.GetRows(lastContext.sessionType, sortBy, columns, rowCount, not sortDesc)
     local maxAmount = session and session.maxAmount
 
     frame:SetSize(PanelWidth(), PanelHeight(rowCount))

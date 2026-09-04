@@ -113,9 +113,11 @@ end
 ---A ordem vem da API (consulta do atributo de ordenação) porque ordenar no Lua exigiria
 ---comparar valores — proibido em combate. As demais colunas são buscadas ator a ator,
 ---passando o GUID de volta para a API.
+---A direção é obtida percorrendo a lista de trás para frente quando `ascending` é true —
+---inverter não exige comparar nada, então funciona mesmo com valores secret.
 ---@return table[]|nil rows cada uma: { source = <combat_source>, values = { [coluna] = valor } }
 ---@return table|nil session
-function Data.GetRows(sessionType, sortAttr, columns, maxRows)
+function Data.GetRows(sessionType, sortAttr, columns, maxRows, ascending)
     local session = Data.GetSession(sessionType, sortAttr)
     local sources = session and session.combatSources
     if not sources then return nil, nil end
@@ -124,8 +126,10 @@ function Data.GetRows(sessionType, sortAttr, columns, maxRows)
     local count = #sources
     if count > maxRows then count = maxRows end
 
+    local total = #sources
+
     for i = 1, count do
-        local source = sources[i]
+        local source = sources[ascending and (total - i + 1) or i]
         local values = {}
 
         for c = 1, #columns do

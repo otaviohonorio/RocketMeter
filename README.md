@@ -26,6 +26,7 @@ fraco do Details!.
 | `Scoreboard.lua` | placar de fim de Mítico+ e de encontro de raide |
 | `Options.lua` | painel na Settings API |
 | `Commands.lua` | `/rm` e subcomandos |
+| `Profile.lua` | onde a configuração mora: conta ou personagem |
 | `Locales/` | `enUS.lua` (chaves = inglês) e `ptBR.lua` |
 
 ### A regra que orienta tudo
@@ -66,6 +67,28 @@ inteira liga os totais; quem quer os dois, liga os quatro.
 Clique no cabeçalho de uma coluna para ordenar por ela. Conjuntos prontos para **Mítico+**
 (dano, DPS, cura, CPS, interrupções, dano evitável, mortes) e **Raide** (o mesmo, com absorções
 no lugar das interrupções) — um clique troca tudo.
+
+### Ordenação
+
+Clique no cabeçalho para ordenar por aquela coluna; clique de novo para **inverter a direção**
+(a seta ▼/▲ mostra qual está valendo). A inversão é feita percorrendo a lista da API de trás para
+frente — inverter não exige comparar nada, então funciona mesmo com os valores secret do combate.
+
+**Shift+clique** move a coluna uma casa para a esquerda, **Ctrl+clique** para a direita. Pelo
+chat: `/rm move 3 esq`.
+
+### Perfil por personagem
+
+Por padrão a configuração é da conta inteira. A opção *"Configuração só deste personagem"*
+passa a guardar tudo em `SavedVariablesPerCharacter` — e ao ligar pela primeira vez o personagem
+**herda** o que estava valendo, em vez de recomeçar do zero. Desligar volta para a configuração
+da conta, sem perder a do personagem.
+
+`ns.db` é um proxy que aponta para o armazenamento ativo. Isso não é firula: a Settings API
+guarda a referência da tabela no momento do registro, então trocar `ns.db` por outra tabela
+faria o painel de opções continuar escrevendo na antiga.
+
+Comandos: `/rm perfil char`, `/rm perfil conta`, `/rm perfil reset`.
 
 ### Idiomas
 
@@ -108,8 +131,8 @@ Reabre com `/rm score`; desliga nas opções.
 
 ## Estado
 
-**0.4.0 — colunas independentes (total e por segundo), pt-BR e inglês, placar de fim de
-corrida. Nada testado no jogo.**
+**0.5.0 — colunas independentes e reordenáveis, ordenação com direção, perfil por
+personagem, pt-BR e inglês, placar de fim de corrida. Nada testado no jogo.**
 
 ## Roteiro
 
