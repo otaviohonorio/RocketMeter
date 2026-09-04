@@ -1,5 +1,6 @@
 -- RocketMeter | Core.lua
 local ADDON, ns = ...
+local L = ns.L
 
 ns.version = C_AddOns.GetAddOnMetadata(ADDON, "Version") or "0.0.0"
 
@@ -13,7 +14,6 @@ ns.defaults = {
     scale = 1.0,
     locked = false,
     autoScoreboard = true,
-    showPercent = true,
     pos = nil,
 }
 
@@ -69,7 +69,7 @@ function handlers:PLAYER_LOGIN()
     end
 
     if not ns.Data.IsAvailable() then
-        ns.Print("o medidor nativo (C_DamageMeter) não está disponível neste cliente.")
+        ns.Print(L["the native meter (C_DamageMeter) is not available on this client."])
         return
     end
 

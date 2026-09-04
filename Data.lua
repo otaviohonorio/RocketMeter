@@ -5,57 +5,53 @@
 -- SECRET VALUES. Não dá para comparar, somar ou formatar — só repassar a widget.
 -- Fora de combate os mesmos campos voltam a ser números/strings legíveis.
 local ADDON, ns = ...
+local L = ns.L
 
 local Data = {}
 ns.Data = Data
 
--- Atributos que o medidor nativo expõe, na ordem em que aparecem na UI.
+-- Cada métrica é uma coluna independente: total e por segundo são colunas separadas,
+-- para você ligar só o que quiser ver.
 function Data.GetAttributes()
     local E = Enum.DamageMeterType
     if not E then return {} end
     return {
-        { id = E.Dps,                  label = _G.DAMAGE_METER_TYPE_DPS                   or "DPS" },
-        { id = E.DamageDone,           label = _G.DAMAGE_METER_TYPE_DAMAGE_DONE           or "Dano causado" },
-        { id = E.Hps,                  label = _G.DAMAGE_METER_TYPE_HPS                   or "HPS" },
-        { id = E.HealingDone,          label = _G.DAMAGE_METER_TYPE_HEALING_DONE          or "Cura" },
-        { id = E.Absorbs,              label = _G.DAMAGE_METER_TYPE_ABSORBS               or "Absorções" },
-        { id = E.DamageTaken,          label = _G.DAMAGE_METER_TYPE_DAMAGE_TAKEN          or "Dano recebido" },
-        { id = E.AvoidableDamageTaken, label = _G.DAMAGE_METER_TYPE_AVOIDABLE_DAMAGE_TAKEN or "Dano evitável" },
-        { id = E.Interrupts,           label = _G.DAMAGE_METER_TYPE_INTERRUPTS            or "Interrupções" },
-        { id = E.Dispels,              label = _G.DAMAGE_METER_TYPE_DISPELS               or "Dissipações" },
-        { id = E.Deaths,               label = _G.DAMAGE_METER_TYPE_DEATHS                or "Mortes" },
-        { id = E.EnemyDamageTaken,     label = _G.DAMAGE_METER_TYPE_ENEMY_DAMAGE_TAKEN    or "Dano nos inimigos" },
+        { id = E.DamageDone,           short = L["Dmg"],     label = L["Total damage"] },
+        { id = E.Dps,                  short = L["DPS"],     label = L["Damage per second"] },
+        { id = E.HealingDone,          short = L["Heal"],    label = L["Total healing"] },
+        { id = E.Hps,                  short = L["HPS"],     label = L["Healing per second"] },
+        { id = E.Absorbs,              short = L["Absorb"],  label = L["Absorbs"] },
+        { id = E.DamageTaken,          short = L["Taken"],   label = L["Damage taken"] },
+        { id = E.AvoidableDamageTaken, short = L["Avoid"],   label = L["Avoidable damage"] },
+        { id = E.Interrupts,           short = L["Interr"],  label = L["Interrupts"] },
+        { id = E.Dispels,              short = L["Dispel"],  label = L["Dispels"] },
+        { id = E.Deaths,               short = L["Deaths"],  label = L["Player deaths"] },
+        { id = E.EnemyDamageTaken,     short = L["Enemies"], label = L["Damage on enemies"] },
     }
 end
 
----Colunas "duplas" mostram total e valor por segundo na mesma célula — é o caso de dano e
----cura, em que os dois números importam. `amountPerSecond` vem no mesmo objeto que o total.
-function Data.IsDualColumn(attributeId)
+local function FindAttribute(attributeId)
+    for _, attr in ipairs(Data.GetAttributes()) do
+        if attr.id == attributeId then return attr end
+    end
+    return nil
+end
+
+function Data.GetAttributeLabel(attributeId)
+    local attr = FindAttribute(attributeId)
+    return attr and attr.label or "?"
+end
+
+function Data.GetShortLabel(attributeId)
+    local attr = FindAttribute(attributeId)
+    return attr and attr.short or "?"
+end
+
+---Métricas que já são "por segundo": mostradas com o sufixo /s quando legíveis.
+function Data.IsRateColumn(attributeId)
     local E = Enum.DamageMeterType
     if not E then return false end
-    return attributeId == E.DamageDone
-        or attributeId == E.HealingDone
-        or attributeId == E.DamageTaken
-end
-
--- Rótulos curtos, para caber no cabeçalho das colunas.
-function Data.GetShortLabel(attributeId)
-    local E = Enum.DamageMeterType
-    if not E then return "?" end
-    local short = {
-        [E.Dps] = "DPS",
-        [E.DamageDone] = "Dano",
-        [E.Hps] = "HPS",
-        [E.HealingDone] = "Cura",
-        [E.Absorbs] = "Absor",
-        [E.DamageTaken] = "Recebi",
-        [E.AvoidableDamageTaken] = "Evitáv",
-        [E.Interrupts] = "Interr",
-        [E.Dispels] = "Dissip",
-        [E.Deaths] = "Mortes",
-        [E.EnemyDamageTaken] = "Inimig",
-    }
-    return short[attributeId] or "?"
+    return attributeId == E.Dps or attributeId == E.Hps
 end
 
 -- Conjuntos prontos, pensados no que se olha de verdade em cada conteúdo.
@@ -63,48 +59,53 @@ function Data.GetPresets()
     local E = Enum.DamageMeterType
     if not E then return {} end
     return {
-        -- Dano e cura entram como colunas duplas: total em cima, por segundo embaixo.
         mplus = {
-            label = "Mítico+",
-            columns = { E.DamageDone, E.HealingDone, E.Interrupts, E.AvoidableDamageTaken, E.Deaths },
+            label = L["Mythic+"],
+            columns = { E.DamageDone, E.Dps, E.HealingDone, E.Hps, E.Interrupts,
+                        E.AvoidableDamageTaken, E.Deaths },
         },
         raid = {
-            label = "Raide",
-            columns = { E.DamageDone, E.HealingDone, E.Absorbs, E.AvoidableDamageTaken, E.Deaths },
+            label = L["Raid"],
+            columns = { E.DamageDone, E.Dps, E.HealingDone, E.Hps, E.Absorbs,
+                        E.AvoidableDamageTaken, E.Deaths },
         },
         dano = {
-            label = "Só dano",
-            columns = { E.DamageDone },
+            label = L["Damage only"],
+            columns = { E.DamageDone, E.Dps },
         },
     }
 end
 
-function Data.GetAttributeLabel(attributeId)
-    for _, attr in ipairs(Data.GetAttributes()) do
-        if attr.id == attributeId then
-            return attr.label
-        end
-    end
-    return "?"
-end
-
+--------------------------------------------------------------------------------
+-- API
+--------------------------------------------------------------------------------
 function Data.IsAvailable()
     return C_DamageMeter and C_DamageMeter.IsDamageMeterAvailable and C_DamageMeter.IsDamageMeterAvailable()
 end
 
----Sessão atual para um tipo de sessão e um atributo.
 ---@return table|nil session campos: combatSources, totalAmount, maxAmount, durationSeconds
 function Data.GetSession(sessionType, attributeId)
     if not Data.IsAvailable() then return nil end
     return C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
 end
 
----Detalhe de um ator dentro de um atributo: totalAmount daquele ator naquela métrica,
----mais a lista de magias. O `guid` pode ser secret em combate — a API aceita de volta o
----valor opaco que ela mesma produziu, e é isso que torna possível cruzar métricas.
+---Detalhe de um ator dentro de um atributo: o total daquele ator naquela métrica.
+---O `guid` pode ser secret em combate — a API aceita de volta o valor opaco que ela mesma
+---produziu, e é isso que torna possível cruzar métricas.
 function Data.GetSource(sessionType, attributeId, guid, creatureId)
     if not Data.IsAvailable() or guid == nil then return nil end
     return C_DamageMeter.GetCombatSessionSourceFromType(sessionType, attributeId, guid, creatureId)
+end
+
+function Data.GetDuration(sessionType)
+    if not Data.IsAvailable() then return 0 end
+    return C_DamageMeter.GetSessionDurationSeconds(sessionType) or 0
+end
+
+function Data.ResetAll()
+    if Data.IsAvailable() then
+        C_DamageMeter.ResetAllCombatSessions()
+    end
 end
 
 ---Monta as linhas da janela: uma por ator, com um valor por coluna.
@@ -112,10 +113,6 @@ end
 ---A ordem vem da API (consulta do atributo de ordenação) porque ordenar no Lua exigiria
 ---comparar valores — proibido em combate. As demais colunas são buscadas ator a ator,
 ---passando o GUID de volta para a API.
----@param sessionType number 0 = combate atual, 1 = geral
----@param sortAttr number atributo que define a ordem das linhas
----@param columns number[] atributos a exibir, na ordem das colunas
----@param maxRows number
 ---@return table[]|nil rows cada uma: { source = <combat_source>, values = { [coluna] = valor } }
 ---@return table|nil session
 function Data.GetRows(sessionType, sortAttr, columns, maxRows)
@@ -133,12 +130,10 @@ function Data.GetRows(sessionType, sortAttr, columns, maxRows)
 
         for c = 1, #columns do
             if columns[c] == sortAttr then
-                values[c] = { total = source.totalAmount, perSecond = source.amountPerSecond }
+                values[c] = source.totalAmount
             else
                 local other = Data.GetSource(sessionType, columns[c], source.sourceGUID, source.sourceCreatureID)
-                if other then
-                    values[c] = { total = other.totalAmount, perSecond = other.amountPerSecond }
-                end
+                values[c] = other and other.totalAmount or nil
             end
         end
 
@@ -148,26 +143,16 @@ function Data.GetRows(sessionType, sortAttr, columns, maxRows)
     return rows, session
 end
 
-function Data.GetDuration(sessionType)
-    if not Data.IsAvailable() then return 0 end
-    return C_DamageMeter.GetSessionDurationSeconds(sessionType) or 0
-end
-
-function Data.ResetAll()
-    if Data.IsAvailable() then
-        C_DamageMeter.ResetAllCombatSessions()
-    end
-end
-
+--------------------------------------------------------------------------------
+-- Formatação
+--------------------------------------------------------------------------------
 ---True quando a sessão está com dados protegidos (combate em andamento).
----Serve para decidir entre "mostrar número formatado" e "só repassar ao widget".
 function Data.IsSessionSecret(session)
     if not session then return false end
     local first = session.combatSources and session.combatSources[1]
     return first ~= nil and issecretvalue(first.name)
 end
 
----Formata um valor que pode ser secret.
 ---@return string|nil texto pronto, ou nil se o valor for secret (aí use SetText direto)
 function Data.FormatAmount(value)
     if value == nil or issecretvalue(value) then
@@ -176,7 +161,6 @@ function Data.FormatAmount(value)
     return AbbreviateNumbers(value)
 end
 
----Percentual só existe quando os dois valores são legíveis.
 function Data.FormatPercent(value, total)
     if value == nil or total == nil then return nil end
     if issecretvalue(value) or issecretvalue(total) then return nil end

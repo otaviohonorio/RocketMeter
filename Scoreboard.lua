@@ -2,6 +2,7 @@
 -- O painel de fim de Mítico+ e de encontro de raide: a foto completa da corrida,
 -- com todas as métricas de uma vez, sem precisar configurar coluna nenhuma.
 local ADDON, ns = ...
+local L = ns.L
 
 local Scoreboard = {}
 ns.Scoreboard = Scoreboard
@@ -9,8 +10,7 @@ ns.Scoreboard = Scoreboard
 local ROW_HEIGHT = 24
 local ROW_SPACING = 1
 local HEADER_HEIGHT = 20
-local COLUMN_WIDTH = 54
-local DUAL_COLUMN_WIDTH = 68
+local COLUMN_WIDTH = 56
 local NAME_WIDTH = 120
 local TOP_INSET = 46          -- título + subtítulo
 local SIDE_INSET = 10
@@ -27,7 +27,9 @@ local function DefaultColumns()
     local E = Enum.DamageMeterType
     return {
         E.DamageDone,
+        E.Dps,
         E.HealingDone,
+        E.Hps,
         E.Interrupts,
         E.Dispels,
         E.DamageTaken,
@@ -36,15 +38,15 @@ local function DefaultColumns()
     }
 end
 
-local function ColumnWidth(attributeId)
-    return ns.Data.IsDualColumn(attributeId) and DUAL_COLUMN_WIDTH or COLUMN_WIDTH
+local function ColumnWidth()
+    return COLUMN_WIDTH
 end
 
 local function ColumnOffsets()
     local offsets, running = {}, 0
     for c = #columns, 1, -1 do
         offsets[c] = running
-        running = running + ColumnWidth(columns[c])
+        running = running + ColumnWidth()
     end
     return offsets, running
 end
@@ -90,7 +92,7 @@ local function BuildHeader()
 
         local attributeId = columns[c]
         button.columnIndex = c
-        button:SetWidth(ColumnWidth(attributeId))
+        button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
 
@@ -134,33 +136,16 @@ local function BuildRow(index)
     local offsets = ColumnOffsets()
 
     for c = 1, #columns do
-        local attributeId = columns[c]
         local cell = row.cells[c]
         if not cell then
-            cell = {
-                main = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"),
-                sub = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"),
-            }
-            cell.main:SetJustifyH("RIGHT")
-            cell.sub:SetJustifyH("RIGHT")
+            cell = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end
-
-        local width = ColumnWidth(attributeId) - 6
-        cell.main:SetWidth(width)
-        cell.sub:SetWidth(width)
-        cell.main:ClearAllPoints()
-        cell.sub:ClearAllPoints()
-
-        if ns.Data.IsDualColumn(attributeId) then
-            cell.main:SetPoint("TOPRIGHT", row, "TOPRIGHT", -offsets[c] - 4, -2)
-            cell.sub:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -offsets[c] - 4, 2)
-            cell.sub:Show()
-        else
-            cell.main:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
-            cell.sub:Hide()
-        end
-        cell.main:Show()
+        cell:SetWidth(ColumnWidth() - 6)
+        cell:ClearAllPoints()
+        cell:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
+        cell:Show()
     end
 
     return row
@@ -226,12 +211,8 @@ function Scoreboard.Draw()
             row.name:SetText(source.name)
 
             for c = 1, #columns do
-                local cell = row.cells[c]
-                local value = entry.values[c]
-                ns.SetAmountText(cell.main, value and value.total)
-                if ns.Data.IsDualColumn(columns[c]) then
-                    ns.SetAmountText(cell.sub, value and value.perSecond, "/s")
-                end
+                local suffix = ns.Data.IsRateColumn(columns[c]) and "/s" or nil
+                ns.SetAmountText(row.cells[c], entry.values[c], suffix)
             end
             row:Show()
         end
@@ -248,7 +229,7 @@ function Scoreboard.Show(context)
 
     lastContext = context or lastContext
     if not lastContext then
-        ns.Print("nenhuma corrida registrada nesta sessão ainda.")
+        ns.Print(L["no run recorded in this session yet."])
         return
     end
 
@@ -288,9 +269,10 @@ function Scoreboard.OnChallengeCompleted()
         mapID, level, timeMs, onTime = a, b, c, d
     end
 
-    local mapName = mapID and C_ChallengeMode.GetMapUIInfo(mapID) or "Masmorra"
+    local mapName = mapID and C_ChallengeMode.GetMapUIInfo(mapID) or L["Dungeon"]
     local clock = timeMs and SecondsToClock(timeMs / 1000) or "?"
-    local result = onTime and "|cff33ff99no tempo|r" or "|cffff5555fora do tempo|r"
+    local result = onTime and ("|cff33ff99" .. L["on time"] .. "|r")
+        or ("|cffff5555" .. L["over time"] .. "|r")
 
     -- sessionType 1 = geral: a corrida inteira, não só o último pacote.
     Scoreboard.Show({
@@ -304,7 +286,7 @@ end
 ---Fim de encontro de raide (só quando vence).
 function Scoreboard.OnEncounterEnd(encounterName, difficultyName)
     Scoreboard.Show({
-        title = "Rocket Meter — " .. (encounterName or "Encontro"),
+        title = "Rocket Meter — " .. (encounterName or L["Encounter"]),
         subtitle = difficultyName or "",
         sessionType = 0,   -- o combate que acabou de terminar
         rowCount = GroupRowCount(),

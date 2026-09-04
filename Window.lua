@@ -1,17 +1,17 @@
 -- RocketMeter | Window.lua
 -- Uma janela só, com a moldura nativa do jogo, e colunas escolhidas pelo usuário.
--- Cada linha é um jogador; cada coluna, uma métrica. Colunas de dano e cura mostram
--- dois números: total e valor por segundo.
+-- Cada linha é um jogador; cada coluna, uma métrica (total e por segundo são colunas
+-- separadas, ligadas de forma independente).
 local ADDON, ns = ...
+local L = ns.L
 
 local Window = {}
 ns.Window = Window
 
-local ROW_HEIGHT = 22
+local ROW_HEIGHT = 18
 local ROW_SPACING = 1
 local HEADER_HEIGHT = 18
-local COLUMN_WIDTH = 52
-local DUAL_COLUMN_WIDTH = 66
+local COLUMN_WIDTH = 54
 local NAME_MIN_WIDTH = 84
 local TOP_INSET = 26          -- barra de título do DefaultPanelTemplate
 local SIDE_INSET = 8
@@ -22,8 +22,8 @@ local dirty, throttle = false, 0
 --------------------------------------------------------------------------------
 -- Geometria das colunas
 --------------------------------------------------------------------------------
-local function ColumnWidth(attributeId)
-    return ns.Data.IsDualColumn(attributeId) and DUAL_COLUMN_WIDTH or COLUMN_WIDTH
+local function ColumnWidth()
+    return COLUMN_WIDTH
 end
 
 ---Distância da borda direita até o início de cada coluna.
@@ -32,7 +32,7 @@ local function ColumnOffsets()
     local offsets, running = {}, 0
     for c = #columns, 1, -1 do
         offsets[c] = running
-        running = running + ColumnWidth(columns[c])
+        running = running + ColumnWidth()
     end
     return offsets, running
 end
@@ -88,7 +88,7 @@ local function BuildHeader()
             button:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 GameTooltip:SetText(ns.Data.GetAttributeLabel(ns.db.columns[self.columnIndex]), 1, 1, 1)
-                GameTooltip:AddLine("Clique para ordenar por esta coluna.", 0.7, 0.7, 0.7)
+                GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
                 GameTooltip:Show()
             end)
             button:SetScript("OnLeave", GameTooltip_Hide)
@@ -97,7 +97,7 @@ local function BuildHeader()
 
         local attributeId = ns.db.columns[c]
         button.columnIndex = c
-        button:SetWidth(ColumnWidth(attributeId))
+        button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
 
@@ -141,46 +141,22 @@ local function BuildRow(index)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE_INSET, offsetY)
 
     for _, cell in pairs(row.cells) do
-        cell.main:Hide()
-        cell.sub:Hide()
+        cell:Hide()
     end
 
     local offsets, columnsWidth = ColumnOffsets()
 
     for c = 1, #ns.db.columns do
-        local attributeId = ns.db.columns[c]
-        local isDual = ns.Data.IsDualColumn(attributeId)
-
         local cell = row.cells[c]
         if not cell then
-            cell = {
-                main = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"),
-                sub = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"),
-            }
-            cell.main:SetJustifyH("RIGHT")
-            cell.sub:SetJustifyH("RIGHT")
+            cell = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end
-
-        local width = ColumnWidth(attributeId) - 6
-        cell.main:SetWidth(width)
-        cell.sub:SetWidth(width)
-
-        cell.main:ClearAllPoints()
-        cell.sub:ClearAllPoints()
-
-        if isDual then
-            -- Total em cima, por segundo embaixo: dois FontStrings, porque em combate os
-            -- valores são secret e não podem ser concatenados numa string só.
-            cell.main:SetPoint("TOPRIGHT", row, "TOPRIGHT", -offsets[c] - 4, -1)
-            cell.sub:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -offsets[c] - 4, 1)
-            cell.sub:Show()
-        else
-            cell.main:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
-            cell.sub:Hide()
-        end
-
-        cell.main:Show()
+        cell:SetWidth(ColumnWidth() - 6)
+        cell:ClearAllPoints()
+        cell:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
+        cell:Show()
     end
 
     row.name:SetWidth(WindowWidth() - SIDE_INSET * 2 - columnsWidth - 8)
@@ -296,7 +272,7 @@ function Window.Draw()
     if frame.SetTitle then
         local duration = ns.Data.GetDuration(ns.db.sessionType)
         local clock = (duration and not issecretvalue(duration)) and (" — " .. SecondsToClock(duration)) or ""
-        local scope = ns.db.sessionType == 0 and "Combate atual" or "Geral"
+        local scope = ns.db.sessionType == 0 and L["Current fight"] or L["Overall"]
         frame:SetTitle("Rocket Meter |cff909090" .. scope .. clock .. "|r")
     end
 
@@ -318,14 +294,8 @@ function Window.Draw()
             row.name:SetText(source.name)
 
             for c = 1, #ns.db.columns do
-                local cell = row.cells[c]
-                local value = entry.values[c]
-
-                ns.SetAmountText(cell.main, value and value.total)
-
-                if ns.Data.IsDualColumn(ns.db.columns[c]) then
-                    ns.SetAmountText(cell.sub, value and value.perSecond, "/s")
-                end
+                local suffix = ns.Data.IsRateColumn(ns.db.columns[c]) and "/s" or nil
+                ns.SetAmountText(row.cells[c], entry.values[c], suffix)
             end
 
             row:Show()
@@ -353,7 +323,7 @@ function Window.ToggleColumn(attributeId)
     for i = 1, #columns do
         if columns[i] == attributeId then
             if #columns == 1 then
-                ns.Print("é preciso manter ao menos uma coluna.")
+                ns.Print(L["at least one column must stay."])
                 return
             end
             tremove(columns, i)

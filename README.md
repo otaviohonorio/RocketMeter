@@ -26,6 +26,7 @@ fraco do Details!.
 | `Scoreboard.lua` | placar de fim de Mítico+ e de encontro de raide |
 | `Options.lua` | painel na Settings API |
 | `Commands.lua` | `/rm` e subcomandos |
+| `Locales/` | `enUS.lua` (chaves = inglês) e `ptBR.lua` |
 
 ### A regra que orienta tudo
 
@@ -51,22 +52,26 @@ Depois uma terceira para interrupts. O Rocket Meter faz o contrário: **uma jane
 cada métrica é uma **coluna** que você liga ou desliga.
 
 ```
-┌ Rocket Meter — Combate atual — 02:14 ──────────────────────┐
-│                        Dano     Cura   Interr Evitáv Mortes│
-│ ███████████ Thalyra    1,2M       —      3     820k    0   │
-│                       9,1k/s                                │
-│ ████████    Brumm      980k     12k      1     1,4M    1   │
-│                       7,4k/s   91/s                         │
-└─────────────────────────────────────────────────────────────┘
+┌ Rocket Meter — Combate atual — 02:14 ─────────────────────────────┐
+│                   Dano    DPS    Cura    CPS  Interr Evitáv Mortes│
+│ ███████ Thalyra   1,2M  9,1k/s     —      —      3    820k    0   │
+│ █████   Brumm     980k  7,4k/s   12k    91/s     1    1,4M    1   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
-Dano, cura e dano recebido são **colunas duplas**: total em cima, valor por segundo embaixo — os
-dois números que importam, sem ocupar duas colunas. São dois `FontString` separados e não uma
-string concatenada, porque em combate os valores são secret e não podem ser juntados.
+Total e valor por segundo são **colunas separadas** — dano total, dano por segundo, cura total,
+cura por segundo. Quem só quer o ritmo liga DPS e CPS; quem quer a contribuição da corrida
+inteira liga os totais; quem quer os dois, liga os quatro.
 
 Clique no cabeçalho de uma coluna para ordenar por ela. Conjuntos prontos para **Mítico+**
-(Dano, Cura, Interrupções, Dano evitável, Mortes) e **Raide** (Dano, Cura, Absorções, Dano
-evitável, Mortes) — um clique troca tudo.
+(dano, DPS, cura, CPS, interrupções, dano evitável, mortes) e **Raide** (o mesmo, com absorções
+no lugar das interrupções) — um clique troca tudo.
+
+### Idiomas
+
+Português e inglês. As chaves de tradução **são** o texto em inglês, então um idioma sem arquivo
+cai no inglês em vez de mostrar chave crua. `Locales/ptBR.lua` só carrega quando
+`GetLocale() == "ptBR"`. Nomes de métrica que o próprio cliente já traduz continuam vindo dele.
 
 A moldura é a nativa do jogo (`DefaultPanelTemplate`), então combina com a UI padrão sem skin
 própria e sem configuração.
@@ -103,7 +108,8 @@ Reabre com `/rm score`; desliga nas opções.
 
 ## Estado
 
-**0.3.0 — janela com colunas configuráveis + placar de fim de corrida. Nada testado no jogo.**
+**0.4.0 — colunas independentes (total e por segundo), pt-BR e inglês, placar de fim de
+corrida. Nada testado no jogo.**
 
 ## Roteiro
 
