@@ -75,7 +75,7 @@ Clique no cabeçalho para ordenar por aquela coluna; clique de novo para **inver
 frente — inverter não exige comparar nada, então funciona mesmo com os valores secret do combate.
 
 **Shift+clique** move a coluna uma casa para a esquerda, **Ctrl+clique** para a direita. Pelo
-chat: `/rm move 3 esq`.
+chat: `/rm move 3 left`.
 
 ### Perfil por personagem
 
@@ -88,7 +88,7 @@ da conta, sem perder a do personagem.
 guarda a referência da tabela no momento do registro, então trocar `ns.db` por outra tabela
 faria o painel de opções continuar escrevendo na antiga.
 
-Comandos: `/rm perfil char`, `/rm perfil conta`, `/rm perfil reset`.
+Comandos: `/rm profile char`, `/rm profile account`, `/rm profile reset`.
 
 ### Idiomas
 
@@ -128,6 +128,24 @@ ao scoreboard do `Details_MythicPlus`, mas nativo, sem addon extra.
 O título traz masmorra e nível da chave (ou o nome do chefe), com tempo e se fechou no tempo.
 Em M+ os dados vêm da sessão **geral** (a corrida inteira); em raide, do combate que acabou.
 Reabre com `/rm score`; desliga nas opções.
+
+### Comandos
+
+Os comandos e seus argumentos são **sempre em inglês**, independentemente do idioma do cliente —
+só as descrições da ajuda são traduzidas. Assim um comando copiado de um guia, de um vídeo ou de
+um colega funciona em qualquer instalação.
+
+```
+/rm                             abre ou fecha a janela
+/rm col [n]                     lista as colunas ou liga/desliga uma
+/rm move <n> left|right         move uma coluna
+/rm preset mplus|raid|damage    troca o conjunto de colunas
+/rm score                       placar da última corrida
+/rm overall                     alterna combate atual / geral
+/rm profile char|account|reset  configuração da conta ou do personagem
+/rm reset                       zera as sessões
+/rm config                      abre as opções
+```
 
 ## Estado
 

@@ -22,7 +22,7 @@ commands["reset"] = function()
     ns.Print(L["sessions cleared."])
 end
 
-commands["geral"] = function()
+commands["overall"] = function()
     ns.db.sessionType = ns.db.sessionType == 0 and 1 or 0
     ns.Window.Refresh(true)
     ns.Print(ns.db.sessionType == 0 and L["showing the current fight."] or L["showing the overall."])
@@ -60,11 +60,11 @@ commands["col"] = function(rest)
     end
 end
 
-commands["perfil"] = function(rest)
+commands["profile"] = function(rest)
     local arg = rest:lower():match("^%S*")
-    if arg == "char" or arg == "personagem" then
+    if arg == "char" then
         ns.Profile.SetPerCharacter(true)
-    elseif arg == "conta" or arg == "account" then
+    elseif arg == "account" then
         ns.Profile.SetPerCharacter(false)
     elseif arg == "reset" then
         ns.Profile.Reset()
@@ -73,7 +73,7 @@ commands["perfil"] = function(rest)
         ns.Print(ns.Profile.IsPerCharacter()
             and L["settings for this character only."]
             or L["settings shared by the account."])
-        print("  /rm perfil char|conta|reset")
+        print("  /rm profile char|account|reset")
     end
 end
 
@@ -81,23 +81,23 @@ commands["move"] = function(rest)
     local from, direction = rest:match("^(%d+)%s*(%S*)$")
     from = tonumber(from)
     if not from then
-        ns.Print("/rm move <coluna> <esq|dir>")
+        ns.Print("/rm move <column> <left|right>")
         return
     end
-    ns.Window.MoveColumn(from, (direction == "dir" or direction == "right") and 1 or -1)
+    ns.Window.MoveColumn(from, direction == "right" and 1 or -1)
 end
 
 commands["help"] = function()
     ns.Print(L["version"] .. " " .. ns.version .. " — " .. L["commands:"])
-    print("  /rm                          " .. L["opens or closes the window"])
-    print("  /rm col [n]                  " .. L["lists the columns or toggles one"])
-    print("  /rm preset mplus|raid|dano   " .. L["switches the column preset"])
-    print("  /rm score                    " .. L["opens the scoreboard of the last run"])
-    print("  /rm geral                    " .. L["switches current fight / overall"])
-    print("  /rm reset                    " .. L["clears the sessions"])
-    print("  /rm move <n> esq|dir         " .. L["moves a column left or right"])
-    print("  /rm perfil char|conta|reset  " .. L["account-wide or per-character settings"])
-    print("  /rm config                   " .. L["opens the options"])
+    print("  /rm                             " .. L["opens or closes the window"])
+    print("  /rm col [n]                     " .. L["lists the columns or toggles one"])
+    print("  /rm move <n> left|right         " .. L["moves a column left or right"])
+    print("  /rm preset mplus|raid|damage    " .. L["switches the column preset"])
+    print("  /rm score                       " .. L["opens the scoreboard of the last run"])
+    print("  /rm overall                     " .. L["switches current fight / overall"])
+    print("  /rm profile char|account|reset  " .. L["account-wide or per-character settings"])
+    print("  /rm reset                       " .. L["clears the sessions"])
+    print("  /rm config                      " .. L["opens the options"])
     print("  " .. L["(click a column header to sort by it)"])
 end
 

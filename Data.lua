@@ -69,7 +69,7 @@ function Data.GetPresets()
             columns = { E.DamageDone, E.Dps, E.HealingDone, E.Hps, E.Absorbs,
                         E.AvoidableDamageTaken, E.Deaths },
         },
-        dano = {
+        damage = {
             label = L["Damage only"],
             columns = { E.DamageDone, E.Dps },
         },

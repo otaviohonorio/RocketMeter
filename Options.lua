@@ -43,7 +43,7 @@ function ns.SetupOptions()
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Presets"]))
 
     local presets = ns.Data.GetPresets()
-    local presetOrder = { "mplus", "raid", "dano" }
+    local presetOrder = { "mplus", "raid", "damage" }
 
     local presetSetting = Settings.RegisterAddOnSetting(category, ADDON .. "_preset", "preset",
         ns.db, "string", L["Apply preset"], "")
