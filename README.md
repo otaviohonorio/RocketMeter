@@ -65,8 +65,8 @@ dois números que importam, sem ocupar duas colunas. São dois `FontString` sepa
 string concatenada, porque em combate os valores são secret e não podem ser juntados.
 
 Clique no cabeçalho de uma coluna para ordenar por ela. Conjuntos prontos para **Mítico+**
-(DPS, HPS, Interrupções, Dano evitável, Mortes) e **Raide** (DPS, HPS, Absorções, Dano evitável,
-Mortes) — um clique troca tudo.
+(Dano, Cura, Interrupções, Dano evitável, Mortes) e **Raide** (Dano, Cura, Absorções, Dano
+evitável, Mortes) — um clique troca tudo.
 
 A moldura é a nativa do jogo (`DefaultPanelTemplate`), então combina com a UI padrão sem skin
 própria e sem configuração.
