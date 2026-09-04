@@ -23,27 +23,47 @@ commands["geral"] = function()
     ns.Print(ns.db.sessionType == 0 and "mostrando o combate atual." or "mostrando o geral.")
 end
 
-commands["attr"] = function(rest)
-    local list = ns.Data.GetAttributes()
-    local wanted = tonumber(rest)
-    if wanted and list[wanted] then
-        ns.Window.SetAttribute(list[wanted].id)
-        ns.Print("exibindo " .. list[wanted].label .. ".")
+commands["preset"] = function(rest)
+    local presets = ns.Data.GetPresets()
+    local key = rest:lower():match("^%S*")
+    if presets[key] and ns.Window.ApplyPreset(key) then
+        ns.Print("colunas de " .. presets[key].label .. " aplicadas.")
         return
     end
-    ns.Print("atributos disponíveis:")
+    ns.Print("conjuntos disponíveis:")
+    for name, preset in pairs(presets) do
+        print("  /rm preset " .. name .. "  —  " .. preset.label)
+    end
+end
+
+commands["col"] = function(rest)
+    local list = ns.Data.GetAttributes()
+    local index = tonumber(rest)
+    if index and list[index] then
+        ns.Window.ToggleColumn(list[index].id)
+        ns.Print("coluna " .. list[index].label .. " alternada.")
+        return
+    end
+
+    ns.Print("colunas (número liga/desliga):")
     for i, attr in ipairs(list) do
-        print("  " .. i .. " - " .. attr.label)
+        local isOn = false
+        for _, id in ipairs(ns.db.columns) do
+            if id == attr.id then isOn = true break end
+        end
+        print(("  %d - %s%s|r"):format(i, isOn and "|cff33ff99" or "|cff808080", attr.label))
     end
 end
 
 commands["help"] = function()
     ns.Print("versão " .. ns.version .. " — comandos:")
-    print("  /rm            abre ou fecha a janela")
-    print("  /rm attr [n]   lista ou escolhe o que medir")
-    print("  /rm geral      alterna combate atual / geral")
-    print("  /rm reset      zera as sessões")
-    print("  /rm config     abre as opções")
+    print("  /rm              abre ou fecha a janela")
+    print("  /rm col [n]      lista as colunas ou liga/desliga uma")
+    print("  /rm preset mplus|raid|dano   troca o conjunto de colunas")
+    print("  /rm geral        alterna combate atual / geral")
+    print("  /rm reset        zera as sessões")
+    print("  /rm config       abre as opções")
+    print("  (clique num cabeçalho de coluna para ordenar por ela)")
 end
 
 SLASH_ROCKETMETER1 = "/rocketmeter"

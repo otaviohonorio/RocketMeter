@@ -43,16 +43,56 @@ row.right:SetText(texto or source.totalAmount)  -- formatado fora de combate, cr
 
 Nada de ordenar a lista no Lua: a ordem vem pronta da API, porque comparar seria proibido.
 
+## A decisão de design: uma janela, várias colunas
+
+O Details! resolve "quero ver dano e cura ao mesmo tempo" mandando você abrir uma segunda janela.
+Depois uma terceira para interrupts. O Rocket Meter faz o contrário: **uma janela só**, em que
+cada métrica é uma **coluna** que você liga ou desliga.
+
+```
+┌ Rocket Meter — Combate atual — 02:14 ─────────────────┐
+│                        DPS    HPS  Interr Evitáv Mortes│
+│ ███████████ Thalyra   1,2M    —      3     820k    0   │
+│ ████████    Brumm     980k   12k     1     1,4M    1   │
+│ ██████      Sarien    740k  1,1M     2     210k    0   │
+└────────────────────────────────────────────────────────┘
+```
+
+Clique no cabeçalho de uma coluna para ordenar por ela. Conjuntos prontos para **Mítico+**
+(DPS, HPS, Interrupções, Dano evitável, Mortes) e **Raide** (DPS, HPS, Absorções, Dano evitável,
+Mortes) — um clique troca tudo.
+
+A moldura é a nativa do jogo (`DefaultPanelTemplate`), então combina com a UI padrão sem skin
+própria e sem configuração.
+
+### Como isso é possível em tempo real
+
+Cada métrica é uma consulta separada em `C_DamageMeter`, e cruzar as consultas exigiria casar o
+mesmo jogador entre elas — mas em combate até o GUID é secret, e valor secret não pode ser chave
+de tabela. A saída: **o cruzamento é feito pela própria API**. A consulta da métrica de ordenação
+devolve a lista já ordenada; para cada jogador dela, o GUID (mesmo opaco) é devolvido à API para
+buscar o valor nas outras métricas:
+
+```lua
+local session = C_DamageMeter.GetCombatSessionFromType(sessionType, sortAttr)
+for _, source in ipairs(session.combatSources) do
+    local outra = C_DamageMeter.GetCombatSessionSourceFromType(
+        sessionType, outroAtributo, source.sourceGUID, source.sourceCreatureID)
+    -- outra.totalAmount é o valor daquele jogador naquela métrica
+end
+```
+
+É o mesmo caminho que o Details! usa internamente no `parser_nocleu1.lua`.
+
 ## Estado
 
-**0.1.0 — esqueleto funcional, ainda não testado no jogo.** Mostra o ranking da sessão atual com
-barra por classe, alterna atributo (`/rm attr`), alterna atual/geral, zera sessões e tem painel de
-opções com escala, travar janela e percentual.
+**0.2.0 — janela com colunas configuráveis, ainda não testada no jogo.**
 
 ## Roteiro
 
 - [ ] Validar in-game os campos de `C_DamageMeter` e o comportamento em combate
-- [ ] Drill-down: clicar num nome e ver as magias (`GetCombatSessionSourceFromType`)
+- [ ] Medir o custo do cruzamento em raide de 20 (linhas × colunas consultas por refresh)
+- [ ] Drill-down: clicar num nome e ver as magias daquela métrica
 - [ ] Histórico de segmentos (`GetAvailableCombatSessions` / `GetCombatSessionFromID`)
-- [ ] Temas visuais prontos e escolha de fonte/textura
+- [ ] Colunas específicas de M+: dano em adds prioritários, uso de defensivos, dispels perdidos
 - [ ] Relatório para o chat (só fora de combate — os dados são secret durante)

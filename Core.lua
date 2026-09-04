@@ -4,8 +4,10 @@ local ADDON, ns = ...
 ns.version = C_AddOns.GetAddOnMetadata(ADDON, "Version") or "0.0.0"
 
 ns.defaults = {
-    -- Enum.DamageMeterType.Dps; resolvido no PLAYER_LOGIN porque Enum pode não existir no load.
-    attribute = nil,
+    -- columns/sortBy usam Enum.DamageMeterType, resolvido no PLAYER_LOGIN (o Enum não
+    -- existe ainda quando os arquivos carregam). Padrão: o conjunto de Mítico+.
+    columns = nil,
+    sortBy = nil,
     sessionType = 0,      -- 0 = sessão atual; 1 = geral
     rows = 8,
     scale = 1.0,
@@ -57,8 +59,12 @@ end
 
 function handlers:PLAYER_LOGIN()
     -- Enum.DamageMeterType só existe com o cliente carregado.
-    if ns.db.attribute == nil then
-        ns.db.attribute = Enum.DamageMeterType and Enum.DamageMeterType.Dps or 1
+    if not ns.db.columns or #ns.db.columns == 0 then
+        local preset = ns.Data.GetPresets().mplus
+        ns.db.columns = preset and CopyTable(preset.columns) or { Enum.DamageMeterType.Dps }
+    end
+    if not ns.db.sortBy then
+        ns.db.sortBy = ns.db.columns[1]
     end
 
     if not ns.Data.IsAvailable() then

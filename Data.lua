@@ -28,6 +28,46 @@ function Data.GetAttributes()
     }
 end
 
+-- Rótulos curtos, para caber no cabeçalho das colunas.
+function Data.GetShortLabel(attributeId)
+    local E = Enum.DamageMeterType
+    if not E then return "?" end
+    local short = {
+        [E.Dps] = "DPS",
+        [E.DamageDone] = "Dano",
+        [E.Hps] = "HPS",
+        [E.HealingDone] = "Cura",
+        [E.Absorbs] = "Absor",
+        [E.DamageTaken] = "Recebi",
+        [E.AvoidableDamageTaken] = "Evitáv",
+        [E.Interrupts] = "Interr",
+        [E.Dispels] = "Dissip",
+        [E.Deaths] = "Mortes",
+        [E.EnemyDamageTaken] = "Inimig",
+    }
+    return short[attributeId] or "?"
+end
+
+-- Conjuntos prontos, pensados no que se olha de verdade em cada conteúdo.
+function Data.GetPresets()
+    local E = Enum.DamageMeterType
+    if not E then return {} end
+    return {
+        mplus = {
+            label = "Mítico+",
+            columns = { E.Dps, E.Hps, E.Interrupts, E.AvoidableDamageTaken, E.Deaths },
+        },
+        raid = {
+            label = "Raide",
+            columns = { E.Dps, E.Hps, E.Absorbs, E.AvoidableDamageTaken, E.Deaths },
+        },
+        dano = {
+            label = "Só dano",
+            columns = { E.Dps, E.DamageDone },
+        },
+    }
+end
+
 function Data.GetAttributeLabel(attributeId)
     for _, attr in ipairs(Data.GetAttributes()) do
         if attr.id == attributeId then
@@ -48,10 +88,51 @@ function Data.GetSession(sessionType, attributeId)
     return C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
 end
 
----Detalhe de um ator (lista de magias) — usado no drill-down.
-function Data.GetSource(sessionType, attributeId, guid)
-    if not Data.IsAvailable() then return nil end
-    return C_DamageMeter.GetCombatSessionSourceFromType(sessionType, attributeId, guid)
+---Detalhe de um ator dentro de um atributo: totalAmount daquele ator naquela métrica,
+---mais a lista de magias. O `guid` pode ser secret em combate — a API aceita de volta o
+---valor opaco que ela mesma produziu, e é isso que torna possível cruzar métricas.
+function Data.GetSource(sessionType, attributeId, guid, creatureId)
+    if not Data.IsAvailable() or guid == nil then return nil end
+    return C_DamageMeter.GetCombatSessionSourceFromType(sessionType, attributeId, guid, creatureId)
+end
+
+---Monta as linhas da janela: uma por ator, com um valor por coluna.
+---
+---A ordem vem da API (consulta do atributo de ordenação) porque ordenar no Lua exigiria
+---comparar valores — proibido em combate. As demais colunas são buscadas ator a ator,
+---passando o GUID de volta para a API.
+---@param sessionType number 0 = combate atual, 1 = geral
+---@param sortAttr number atributo que define a ordem das linhas
+---@param columns number[] atributos a exibir, na ordem das colunas
+---@param maxRows number
+---@return table[]|nil rows cada uma: { source = <combat_source>, values = { [coluna] = valor } }
+---@return table|nil session
+function Data.GetRows(sessionType, sortAttr, columns, maxRows)
+    local session = Data.GetSession(sessionType, sortAttr)
+    local sources = session and session.combatSources
+    if not sources then return nil, nil end
+
+    local rows = {}
+    local count = #sources
+    if count > maxRows then count = maxRows end
+
+    for i = 1, count do
+        local source = sources[i]
+        local values = {}
+
+        for c = 1, #columns do
+            if columns[c] == sortAttr then
+                values[c] = source.totalAmount
+            else
+                local other = Data.GetSource(sessionType, columns[c], source.sourceGUID, source.sourceCreatureID)
+                values[c] = other and other.totalAmount or nil
+            end
+        end
+
+        rows[i] = { source = source, values = values }
+    end
+
+    return rows, session
 end
 
 function Data.GetDuration(sessionType)

@@ -1,16 +1,20 @@
 -- RocketMeter | Window.lua
--- A janela. Tudo aqui é apresentação: recebe dados do Data.lua e desenha.
+-- Uma janela só, com a moldura nativa do jogo, e colunas escolhidas pelo usuário.
+-- Cada linha é um jogador; cada coluna, uma métrica.
 local ADDON, ns = ...
 
 local Window = {}
 ns.Window = Window
 
-local ROW_HEIGHT = 20
+local ROW_HEIGHT = 18
 local ROW_SPACING = 1
-local HEADER_HEIGHT = 22
-local BAR_TEXTURE = "Interface\\AddOns\\" .. ADDON .. "\\Media\\bar"  -- cai no padrão se não existir
+local HEADER_HEIGHT = 18
+local COLUMN_WIDTH = 52
+local NAME_MIN_WIDTH = 78
+local TOP_INSET = 26          -- barra de título do DefaultPanelTemplate
+local SIDE_INSET = 8
 
-local frame, rows
+local frame, listArea, headerRow, rows
 local dirty, throttle = false, 0
 
 local function ClassColor(classFilename)
@@ -21,52 +25,146 @@ local function ClassColor(classFilename)
     return 0.55, 0.55, 0.58
 end
 
-local function CreateRow(index, parent)
-    local row = CreateFrame("StatusBar", nil, parent)
-    row:SetHeight(ROW_HEIGHT)
-    row:SetStatusBarTexture(BAR_TEXTURE)
-    if not row:GetStatusBarTexture() or not row:GetStatusBarTexture():GetTexture() then
-        row:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+local function ColumnCount()
+    return #ns.db.columns
+end
+
+local function WindowWidth()
+    return SIDE_INSET * 2 + NAME_MIN_WIDTH + ColumnCount() * COLUMN_WIDTH
+end
+
+local function WindowHeight()
+    return TOP_INSET + HEADER_HEIGHT + ns.db.rows * (ROW_HEIGHT + ROW_SPACING) + SIDE_INSET
+end
+
+--------------------------------------------------------------------------------
+-- Cabeçalho: rótulo por coluna, clicável para trocar a ordenação.
+--------------------------------------------------------------------------------
+local function BuildHeader()
+    if not headerRow then
+        headerRow = CreateFrame("Frame", nil, frame)
+        headerRow.labels = {}
     end
-    row:SetMinMaxValues(0, 1)
-    row:SetValue(0)
 
-    row.bg = row:CreateTexture(nil, "BACKGROUND")
-    row.bg:SetAllPoints()
-    row.bg:SetColorTexture(1, 1, 1, 0.05)
+    headerRow:ClearAllPoints()
+    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE_INSET, -TOP_INSET)
+    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE_INSET, -TOP_INSET)
+    headerRow:SetHeight(HEADER_HEIGHT)
 
-    row.left = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.left:SetPoint("LEFT", 6, 0)
-    row.left:SetJustifyH("LEFT")
+    for _, button in pairs(headerRow.labels) do
+        button:Hide()
+    end
 
-    row.right = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.right:SetPoint("RIGHT", -6, 0)
-    row.right:SetJustifyH("RIGHT")
+    for c = 1, ColumnCount() do
+        local button = headerRow.labels[c]
+        if not button then
+            button = CreateFrame("Button", nil, headerRow)
+            button:SetSize(COLUMN_WIDTH, HEADER_HEIGHT)
+            button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            button.text:SetPoint("RIGHT", -4, 0)
+            button:SetScript("OnClick", function(self)
+                ns.db.sortBy = ns.db.columns[self.columnIndex]
+                Window.Refresh(true)
+            end)
+            button:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText(ns.Data.GetAttributeLabel(ns.db.columns[self.columnIndex]), 1, 1, 1)
+                GameTooltip:AddLine("Clique para ordenar por esta coluna.", 0.7, 0.7, 0.7)
+                GameTooltip:Show()
+            end)
+            button:SetScript("OnLeave", GameTooltip_Hide)
+            headerRow.labels[c] = button
+        end
 
-    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -(HEADER_HEIGHT + (index - 1) * (ROW_HEIGHT + ROW_SPACING)))
-    row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -4, -(HEADER_HEIGHT + (index - 1) * (ROW_HEIGHT + ROW_SPACING)))
+        button.columnIndex = c
+        button:ClearAllPoints()
+        button:SetPoint("RIGHT", headerRow, "RIGHT", -((ColumnCount() - c) * COLUMN_WIDTH), 0)
+
+        local attributeId = ns.db.columns[c]
+        local label = ns.Data.GetShortLabel(attributeId)
+        if attributeId == ns.db.sortBy then
+            button.text:SetText("|cffff6a00" .. label .. "|r")
+        else
+            button.text:SetText("|cffb0b0b0" .. label .. "|r")
+        end
+        button:Show()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Linhas
+--------------------------------------------------------------------------------
+local function BuildRow(index)
+    local row = rows[index]
+    if not row then
+        row = CreateFrame("StatusBar", nil, frame)
+        row:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+        row:SetMinMaxValues(0, 1)
+        row:SetValue(0)
+        row:SetHeight(ROW_HEIGHT)
+
+        row.bg = row:CreateTexture(nil, "BACKGROUND")
+        row.bg:SetAllPoints()
+        row.bg:SetColorTexture(1, 1, 1, 0.04)
+
+        row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.name:SetPoint("LEFT", 4, 0)
+        row.name:SetJustifyH("LEFT")
+
+        row.cells = {}
+        rows[index] = row
+    end
+
+    row:ClearAllPoints()
+    local offsetY = -(TOP_INSET + HEADER_HEIGHT + (index - 1) * (ROW_HEIGHT + ROW_SPACING))
+    row:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE_INSET, offsetY)
+    row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE_INSET, offsetY)
+
+    for _, cell in pairs(row.cells) do
+        cell:Hide()
+    end
+
+    for c = 1, ColumnCount() do
+        local cell = row.cells[c]
+        if not cell then
+            cell = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            cell:SetJustifyH("RIGHT")
+            cell:SetWidth(COLUMN_WIDTH - 6)
+            row.cells[c] = cell
+        end
+        cell:ClearAllPoints()
+        cell:SetPoint("RIGHT", row, "RIGHT", -((ColumnCount() - c) * COLUMN_WIDTH) - 4, 0)
+        cell:Show()
+    end
+
+    row.name:SetWidth(WindowWidth() - SIDE_INSET * 2 - ColumnCount() * COLUMN_WIDTH - 8)
     return row
 end
 
+--------------------------------------------------------------------------------
+-- Montagem
+--------------------------------------------------------------------------------
 function Window.Create()
     if frame then return frame end
 
-    frame = CreateFrame("Frame", ADDON .. "Frame", UIParent, "BackdropTemplate")
-    frame:SetSize(240, HEADER_HEIGHT + ns.db.rows * (ROW_HEIGHT + ROW_SPACING) + 6)
+    -- DefaultPanelTemplate = moldura padrão do jogo (borda, barra de título, fundo).
+    frame = CreateFrame("Frame", ADDON .. "Frame", UIParent, "DefaultPanelTemplate")
+    frame:SetSize(WindowWidth(), WindowHeight())
     frame:SetScale(ns.db.scale)
     frame:SetClampedToScreen(true)
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    frame:SetBackdropColor(0.05, 0.05, 0.07, 0.85)
-    frame:SetBackdropBorderColor(0, 0, 0, 0.9)
+    if frame.SetTitle then
+        frame:SetTitle("Rocket Meter")
+    end
+
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", 2, 1)
+    close:SetScript("OnClick", function() frame:Hide() end)
+    frame.closeButton = close
 
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
     else
-        frame:SetPoint("CENTER", UIParent, "CENTER", 300, 0)
+        frame:SetPoint("CENTER", UIParent, "CENTER", 320, 0)
     end
 
     frame:SetMovable(true)
@@ -84,32 +182,9 @@ function Window.Create()
         if button == "RightButton" then ns.OpenOptions() end
     end)
 
-    -- Cabeçalho
-    local header = CreateFrame("Frame", nil, frame)
-    header:SetPoint("TOPLEFT", 0, 0)
-    header:SetPoint("TOPRIGHT", 0, 0)
-    header:SetHeight(HEADER_HEIGHT)
-
-    header.bg = header:CreateTexture(nil, "BACKGROUND")
-    header.bg:SetAllPoints()
-    header.bg:SetColorTexture(1, 0.42, 0, 0.75)
-
-    header.title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    header.title:SetPoint("LEFT", 6, 0)
-    header.title:SetTextColor(1, 1, 1)
-
-    header.info = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    header.info:SetPoint("RIGHT", -6, 0)
-    header.info:SetTextColor(1, 1, 1)
-
-    frame.header = header
-
     rows = {}
-    for i = 1, ns.db.rows do
-        rows[i] = CreateRow(i, frame)
-    end
+    Window.Rebuild()
 
-    -- Throttle: DAMAGE_METER_CURRENT_SESSION_UPDATED dispara muitas vezes por segundo.
     frame:SetScript("OnUpdate", function(_, elapsed)
         if not dirty then return end
         throttle = throttle + elapsed
@@ -120,6 +195,23 @@ function Window.Create()
 
     tinsert(UISpecialFrames, frame:GetName())
     return frame
+end
+
+---Refaz cabeçalho e linhas — chamado quando as colunas ou a quantidade de linhas mudam.
+function Window.Rebuild()
+    if not frame then return end
+
+    frame:SetSize(WindowWidth(), WindowHeight())
+    BuildHeader()
+
+    for i = 1, ns.db.rows do
+        BuildRow(i)
+    end
+    for i = ns.db.rows + 1, #rows do
+        rows[i]:Hide()
+    end
+
+    Window.Refresh(true)
 end
 
 function Window.Refresh(immediate)
@@ -135,42 +227,43 @@ end
 function Window.Draw()
     if not frame or not frame:IsShown() then return end
 
-    local session = ns.Data.GetSession(ns.db.sessionType, ns.db.attribute)
-    local sources = session and session.combatSources or nil
-    local total = session and session.totalAmount
+    local data, session = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns, ns.db.rows)
     local maxAmount = session and session.maxAmount
 
-    frame.header.title:SetText(ns.Data.GetAttributeLabel(ns.db.attribute))
-
-    local duration = ns.Data.GetDuration(ns.db.sessionType)
-    if duration and not issecretvalue(duration) then
-        frame.header.info:SetText(SecondsToClock(duration))
-    else
-        frame.header.info:SetText("")
+    if frame.SetTitle then
+        local duration = ns.Data.GetDuration(ns.db.sessionType)
+        local clock = (duration and not issecretvalue(duration)) and (" — " .. SecondsToClock(duration)) or ""
+        local scope = ns.db.sessionType == 0 and "Combate atual" or "Geral"
+        frame:SetTitle("Rocket Meter |cff909090" .. scope .. clock .. "|r")
     end
 
-    for i = 1, #rows do
+    for i = 1, ns.db.rows do
         local row = rows[i]
-        local source = sources and sources[i]
+        local entry = data and data[i]
 
-        if not source then
+        if not entry then
             row:Hide()
         else
-            -- Barra: o widget aceita secret value. Nada de dividir por maxAmount no Lua.
+            local source = entry.source
+
+            -- Barra: preenchida pela métrica de ordenação. Widget aceita secret value.
             row:SetMinMaxValues(0, maxAmount or 1)
             row:SetValue(source.totalAmount or 0)
             row:SetStatusBarColor(ClassColor(source.classFilename))
 
-            -- Nome pode ser secret em combate: SetText repassa e o motor renderiza.
-            row.left:SetText(source.name)
+            -- Nome pode ser secret em combate; o motor renderiza mesmo assim.
+            row.name:SetText(source.name)
 
-            local amount = ns.Data.FormatAmount(source.totalAmount)
-            if amount then
-                local percent = ns.db.showPercent and ns.Data.FormatPercent(source.totalAmount, total)
-                row.right:SetText(percent and (amount .. "  " .. percent) or amount)
-            else
-                -- Em combate: sem formatação possível, repassa o valor cru.
-                row.right:SetText(source.totalAmount)
+            for c = 1, ColumnCount() do
+                local value = entry.values[c]
+                local cell = row.cells[c]
+                if value == nil then
+                    cell:SetText("|cff5a5a5a—|r")
+                else
+                    local text = ns.Data.FormatAmount(value)
+                    -- Fora de combate formata; dentro, repassa o valor cru ao FontString.
+                    cell:SetText(text or value)
+                end
             end
 
             row:Show()
@@ -188,11 +281,37 @@ function Window.Toggle()
     end
 end
 
-function Window.SetAttribute(attributeId)
-    ns.db.attribute = attributeId
-    Window.Refresh(true)
-end
-
 function Window.ApplyScale()
     if frame then frame:SetScale(ns.db.scale) end
+end
+
+---Liga ou desliga uma coluna, mantendo a ordem canônica dos atributos.
+function Window.ToggleColumn(attributeId)
+    local columns = ns.db.columns
+    for i = 1, #columns do
+        if columns[i] == attributeId then
+            if #columns == 1 then
+                ns.Print("é preciso manter ao menos uma coluna.")
+                return
+            end
+            tremove(columns, i)
+            if ns.db.sortBy == attributeId then
+                ns.db.sortBy = columns[1]
+            end
+            Window.Rebuild()
+            return
+        end
+    end
+
+    columns[#columns + 1] = attributeId
+    Window.Rebuild()
+end
+
+function Window.ApplyPreset(name)
+    local preset = ns.Data.GetPresets()[name]
+    if not preset then return false end
+    ns.db.columns = CopyTable(preset.columns)
+    ns.db.sortBy = ns.db.columns[1]
+    Window.Rebuild()
+    return true
 end
