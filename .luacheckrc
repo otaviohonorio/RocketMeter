@@ -9,7 +9,8 @@ read_globals = {
     "InCombatLockdown", "RAID_CLASS_COLORS", "SecondsToClock", "AbbreviateNumbers",
     "CopyTable", "wipe", "tinsert", "tremove", "format", "hooksecurefunc",
     "issecretvalue", "scrubsecretvalues", "print", "UnitGUID",
-    "C_DamageMeter", "C_AddOns", "C_Timer", "C_Secrets", "Enum",
+    "C_DamageMeter", "C_AddOns", "C_Timer", "C_Secrets", "Enum", "C_ChallengeMode",
+    "GetNumGroupMembers", "IsInRaid", "GetDifficultyInfo", "select", "math",
     "Settings", "CreateSettingsListSectionHeaderInitializer", "SlashCmdList",
 }
 

@@ -7,6 +7,10 @@ commands[""] = function()
     ns.Window.Toggle()
 end
 
+commands["score"] = function()
+    ns.Scoreboard.Toggle()
+end
+
 commands["config"] = function()
     ns.OpenOptions()
 end
@@ -60,6 +64,7 @@ commands["help"] = function()
     print("  /rm              abre ou fecha a janela")
     print("  /rm col [n]      lista as colunas ou liga/desliga uma")
     print("  /rm preset mplus|raid|dano   troca o conjunto de colunas")
+    print("  /rm score        abre o placar da última corrida")
     print("  /rm geral        alterna combate atual / geral")
     print("  /rm reset        zera as sessões")
     print("  /rm config       abre as opções")

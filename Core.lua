@@ -12,6 +12,7 @@ ns.defaults = {
     rows = 8,
     scale = 1.0,
     locked = false,
+    autoScoreboard = true,
     showPercent = true,
     pos = nil,
 }
@@ -89,6 +90,28 @@ end
 
 function handlers:DAMAGE_METER_RESET()
     ns.Window.Refresh(true)
+end
+
+--------------------------------------------------------------------------------
+-- Scoreboard de fim de conteúdo
+--------------------------------------------------------------------------------
+function handlers:CHALLENGE_MODE_COMPLETED()
+    if not ns.db.autoScoreboard then return end
+    -- Pequena espera: a sessão ainda está sendo fechada quando o evento dispara.
+    C_Timer.After(1.5, function()
+        ns.Scoreboard.OnChallengeCompleted()
+    end)
+end
+
+function handlers:ENCOUNTER_END(encounterID, encounterName, difficultyID, groupSize, success)
+    if not ns.db.autoScoreboard then return end
+    if success ~= 1 and success ~= true then return end
+    if not IsInRaid() then return end   -- em M+ quem manda é o CHALLENGE_MODE_COMPLETED
+
+    local difficultyName = difficultyID and select(1, GetDifficultyInfo(difficultyID)) or nil
+    C_Timer.After(1, function()
+        ns.Scoreboard.OnEncounterEnd(encounterName, difficultyName)
+    end)
 end
 
 -- Ao sair do combate os valores deixam de ser secret: vale um refresh completo.

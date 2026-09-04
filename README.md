@@ -23,6 +23,7 @@ fraco do Details!.
 | `Core.lua` | ciclo de vida, SavedVariables, eventos, fila de combate |
 | `Data.lua` | **única** camada que fala com `C_DamageMeter`; trata secret values |
 | `Window.lua` | desenho: janela, cabeçalho, linhas, barras |
+| `Scoreboard.lua` | placar de fim de Mítico+ e de encontro de raide |
 | `Options.lua` | painel na Settings API |
 | `Commands.lua` | `/rm` e subcomandos |
 
@@ -50,13 +51,18 @@ Depois uma terceira para interrupts. O Rocket Meter faz o contrário: **uma jane
 cada métrica é uma **coluna** que você liga ou desliga.
 
 ```
-┌ Rocket Meter — Combate atual — 02:14 ─────────────────┐
-│                        DPS    HPS  Interr Evitáv Mortes│
-│ ███████████ Thalyra   1,2M    —      3     820k    0   │
-│ ████████    Brumm     980k   12k     1     1,4M    1   │
-│ ██████      Sarien    740k  1,1M     2     210k    0   │
-└────────────────────────────────────────────────────────┘
+┌ Rocket Meter — Combate atual — 02:14 ──────────────────────┐
+│                        Dano     Cura   Interr Evitáv Mortes│
+│ ███████████ Thalyra    1,2M       —      3     820k    0   │
+│                       9,1k/s                                │
+│ ████████    Brumm      980k     12k      1     1,4M    1   │
+│                       7,4k/s   91/s                         │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+Dano, cura e dano recebido são **colunas duplas**: total em cima, valor por segundo embaixo — os
+dois números que importam, sem ocupar duas colunas. São dois `FontString` separados e não uma
+string concatenada, porque em combate os valores são secret e não podem ser juntados.
 
 Clique no cabeçalho de uma coluna para ordenar por ela. Conjuntos prontos para **Mítico+**
 (DPS, HPS, Interrupções, Dano evitável, Mortes) e **Raide** (DPS, HPS, Absorções, Dano evitável,
@@ -84,9 +90,20 @@ end
 
 É o mesmo caminho que o Details! usa internamente no `parser_nocleu1.lua`.
 
+## Placar de fim de corrida
+
+No fim de um Mítico+ (`CHALLENGE_MODE_COMPLETED`) ou de um encontro de raide vencido
+(`ENCOUNTER_END`), abre sozinho um painel com o grupo inteiro e **todas** as métricas de uma vez
+— dano, cura, interrupções, dissipações, dano recebido, dano evitável e mortes. É o equivalente
+ao scoreboard do `Details_MythicPlus`, mas nativo, sem addon extra.
+
+O título traz masmorra e nível da chave (ou o nome do chefe), com tempo e se fechou no tempo.
+Em M+ os dados vêm da sessão **geral** (a corrida inteira); em raide, do combate que acabou.
+Reabre com `/rm score`; desliga nas opções.
+
 ## Estado
 
-**0.2.0 — janela com colunas configuráveis, ainda não testada no jogo.**
+**0.3.0 — janela com colunas configuráveis + placar de fim de corrida. Nada testado no jogo.**
 
 ## Roteiro
 
@@ -95,4 +112,6 @@ end
 - [ ] Drill-down: clicar num nome e ver as magias daquela métrica
 - [ ] Histórico de segmentos (`GetAvailableCombatSessions` / `GetCombatSessionFromID`)
 - [ ] Colunas específicas de M+: dano em adds prioritários, uso de defensivos, dispels perdidos
+- [ ] Placar: pontuação de M+ por jogador e loot recebido (`ENCOUNTER_LOOT_RECEIVED`)
+- [ ] Placar: histórico das últimas corridas (`GetAvailableCombatSessions`)
 - [ ] Relatório para o chat (só fora de combate — os dados são secret durante)

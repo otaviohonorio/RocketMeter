@@ -1,40 +1,57 @@
 -- RocketMeter | Window.lua
 -- Uma janela só, com a moldura nativa do jogo, e colunas escolhidas pelo usuário.
--- Cada linha é um jogador; cada coluna, uma métrica.
+-- Cada linha é um jogador; cada coluna, uma métrica. Colunas de dano e cura mostram
+-- dois números: total e valor por segundo.
 local ADDON, ns = ...
 
 local Window = {}
 ns.Window = Window
 
-local ROW_HEIGHT = 18
+local ROW_HEIGHT = 22
 local ROW_SPACING = 1
 local HEADER_HEIGHT = 18
 local COLUMN_WIDTH = 52
-local NAME_MIN_WIDTH = 78
+local DUAL_COLUMN_WIDTH = 66
+local NAME_MIN_WIDTH = 84
 local TOP_INSET = 26          -- barra de título do DefaultPanelTemplate
 local SIDE_INSET = 8
 
-local frame, listArea, headerRow, rows
+local frame, headerRow, rows
 local dirty, throttle = false, 0
 
-local function ClassColor(classFilename)
+--------------------------------------------------------------------------------
+-- Geometria das colunas
+--------------------------------------------------------------------------------
+local function ColumnWidth(attributeId)
+    return ns.Data.IsDualColumn(attributeId) and DUAL_COLUMN_WIDTH or COLUMN_WIDTH
+end
+
+---Distância da borda direita até o início de cada coluna.
+local function ColumnOffsets()
+    local columns = ns.db.columns
+    local offsets, running = {}, 0
+    for c = #columns, 1, -1 do
+        offsets[c] = running
+        running = running + ColumnWidth(columns[c])
+    end
+    return offsets, running
+end
+
+local function WindowWidth()
+    local _, columnsWidth = ColumnOffsets()
+    return SIDE_INSET * 2 + NAME_MIN_WIDTH + columnsWidth
+end
+
+local function WindowHeight()
+    return TOP_INSET + HEADER_HEIGHT + ns.db.rows * (ROW_HEIGHT + ROW_SPACING) + SIDE_INSET
+end
+
+function ns.ClassColor(classFilename)
     local color = classFilename and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFilename]
     if color then
         return color.r, color.g, color.b
     end
     return 0.55, 0.55, 0.58
-end
-
-local function ColumnCount()
-    return #ns.db.columns
-end
-
-local function WindowWidth()
-    return SIDE_INSET * 2 + NAME_MIN_WIDTH + ColumnCount() * COLUMN_WIDTH
-end
-
-local function WindowHeight()
-    return TOP_INSET + HEADER_HEIGHT + ns.db.rows * (ROW_HEIGHT + ROW_SPACING) + SIDE_INSET
 end
 
 --------------------------------------------------------------------------------
@@ -55,11 +72,13 @@ local function BuildHeader()
         button:Hide()
     end
 
-    for c = 1, ColumnCount() do
+    local offsets = ColumnOffsets()
+
+    for c = 1, #ns.db.columns do
         local button = headerRow.labels[c]
         if not button then
             button = CreateFrame("Button", nil, headerRow)
-            button:SetSize(COLUMN_WIDTH, HEADER_HEIGHT)
+            button:SetHeight(HEADER_HEIGHT)
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             button.text:SetPoint("RIGHT", -4, 0)
             button:SetScript("OnClick", function(self)
@@ -76,11 +95,12 @@ local function BuildHeader()
             headerRow.labels[c] = button
         end
 
-        button.columnIndex = c
-        button:ClearAllPoints()
-        button:SetPoint("RIGHT", headerRow, "RIGHT", -((ColumnCount() - c) * COLUMN_WIDTH), 0)
-
         local attributeId = ns.db.columns[c]
+        button.columnIndex = c
+        button:SetWidth(ColumnWidth(attributeId))
+        button:ClearAllPoints()
+        button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
+
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == ns.db.sortBy then
             button.text:SetText("|cffff6a00" .. label .. "|r")
@@ -121,23 +141,49 @@ local function BuildRow(index)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE_INSET, offsetY)
 
     for _, cell in pairs(row.cells) do
-        cell:Hide()
+        cell.main:Hide()
+        cell.sub:Hide()
     end
 
-    for c = 1, ColumnCount() do
+    local offsets, columnsWidth = ColumnOffsets()
+
+    for c = 1, #ns.db.columns do
+        local attributeId = ns.db.columns[c]
+        local isDual = ns.Data.IsDualColumn(attributeId)
+
         local cell = row.cells[c]
         if not cell then
-            cell = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            cell:SetJustifyH("RIGHT")
-            cell:SetWidth(COLUMN_WIDTH - 6)
+            cell = {
+                main = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"),
+                sub = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"),
+            }
+            cell.main:SetJustifyH("RIGHT")
+            cell.sub:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end
-        cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row, "RIGHT", -((ColumnCount() - c) * COLUMN_WIDTH) - 4, 0)
-        cell:Show()
+
+        local width = ColumnWidth(attributeId) - 6
+        cell.main:SetWidth(width)
+        cell.sub:SetWidth(width)
+
+        cell.main:ClearAllPoints()
+        cell.sub:ClearAllPoints()
+
+        if isDual then
+            -- Total em cima, por segundo embaixo: dois FontStrings, porque em combate os
+            -- valores são secret e não podem ser concatenados numa string só.
+            cell.main:SetPoint("TOPRIGHT", row, "TOPRIGHT", -offsets[c] - 4, -1)
+            cell.sub:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -offsets[c] - 4, 1)
+            cell.sub:Show()
+        else
+            cell.main:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
+            cell.sub:Hide()
+        end
+
+        cell.main:Show()
     end
 
-    row.name:SetWidth(WindowWidth() - SIDE_INSET * 2 - ColumnCount() * COLUMN_WIDTH - 8)
+    row.name:SetWidth(WindowWidth() - SIDE_INSET * 2 - columnsWidth - 8)
     return row
 end
 
@@ -224,6 +270,23 @@ function Window.Refresh(immediate)
     end
 end
 
+---Escreve um valor que pode ser secret: formatado fora de combate, cru dentro.
+---@param fontString table
+---@param value any
+---@param suffix string|nil sufixo aplicado só quando o valor é legível
+function ns.SetAmountText(fontString, value, suffix)
+    if value == nil then
+        fontString:SetText("|cff5a5a5a—|r")
+        return
+    end
+    local text = ns.Data.FormatAmount(value)
+    if text then
+        fontString:SetText(suffix and (text .. suffix) or text)
+    else
+        fontString:SetText(value)
+    end
+end
+
 function Window.Draw()
     if not frame or not frame:IsShown() then return end
 
@@ -249,20 +312,19 @@ function Window.Draw()
             -- Barra: preenchida pela métrica de ordenação. Widget aceita secret value.
             row:SetMinMaxValues(0, maxAmount or 1)
             row:SetValue(source.totalAmount or 0)
-            row:SetStatusBarColor(ClassColor(source.classFilename))
+            row:SetStatusBarColor(ns.ClassColor(source.classFilename))
 
             -- Nome pode ser secret em combate; o motor renderiza mesmo assim.
             row.name:SetText(source.name)
 
-            for c = 1, ColumnCount() do
-                local value = entry.values[c]
+            for c = 1, #ns.db.columns do
                 local cell = row.cells[c]
-                if value == nil then
-                    cell:SetText("|cff5a5a5a—|r")
-                else
-                    local text = ns.Data.FormatAmount(value)
-                    -- Fora de combate formata; dentro, repassa o valor cru ao FontString.
-                    cell:SetText(text or value)
+                local value = entry.values[c]
+
+                ns.SetAmountText(cell.main, value and value.total)
+
+                if ns.Data.IsDualColumn(ns.db.columns[c]) then
+                    ns.SetAmountText(cell.sub, value and value.perSecond, "/s")
                 end
             end
 
@@ -285,7 +347,7 @@ function Window.ApplyScale()
     if frame then frame:SetScale(ns.db.scale) end
 end
 
----Liga ou desliga uma coluna, mantendo a ordem canônica dos atributos.
+---Liga ou desliga uma coluna.
 function Window.ToggleColumn(attributeId)
     local columns = ns.db.columns
     for i = 1, #columns do

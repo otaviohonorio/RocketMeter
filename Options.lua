@@ -65,6 +65,12 @@ function ns.SetupOptions()
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer("Janela"))
 
     do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_autoScoreboard", "autoScoreboard",
+            ns.db, "boolean", "Placar ao fim de M+ e raide", ns.defaults.autoScoreboard)
+        Settings.CreateCheckbox(category, setting, "Abre sozinho o resumo da corrida quando ela termina.")
+    end
+
+    do
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_locked", "locked",
             ns.db, "boolean", "Travar posição", ns.defaults.locked)
         Settings.CreateCheckbox(category, setting, "Impede arrastar a janela sem querer.")

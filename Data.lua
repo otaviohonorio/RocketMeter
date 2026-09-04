@@ -28,6 +28,16 @@ function Data.GetAttributes()
     }
 end
 
+---Colunas "duplas" mostram total e valor por segundo na mesma célula — é o caso de dano e
+---cura, em que os dois números importam. `amountPerSecond` vem no mesmo objeto que o total.
+function Data.IsDualColumn(attributeId)
+    local E = Enum.DamageMeterType
+    if not E then return false end
+    return attributeId == E.DamageDone
+        or attributeId == E.HealingDone
+        or attributeId == E.DamageTaken
+end
+
 -- Rótulos curtos, para caber no cabeçalho das colunas.
 function Data.GetShortLabel(attributeId)
     local E = Enum.DamageMeterType
@@ -53,17 +63,18 @@ function Data.GetPresets()
     local E = Enum.DamageMeterType
     if not E then return {} end
     return {
+        -- Dano e cura entram como colunas duplas: total em cima, por segundo embaixo.
         mplus = {
             label = "Mítico+",
-            columns = { E.Dps, E.Hps, E.Interrupts, E.AvoidableDamageTaken, E.Deaths },
+            columns = { E.DamageDone, E.HealingDone, E.Interrupts, E.AvoidableDamageTaken, E.Deaths },
         },
         raid = {
             label = "Raide",
-            columns = { E.Dps, E.Hps, E.Absorbs, E.AvoidableDamageTaken, E.Deaths },
+            columns = { E.DamageDone, E.HealingDone, E.Absorbs, E.AvoidableDamageTaken, E.Deaths },
         },
         dano = {
             label = "Só dano",
-            columns = { E.Dps, E.DamageDone },
+            columns = { E.DamageDone },
         },
     }
 end
@@ -122,10 +133,12 @@ function Data.GetRows(sessionType, sortAttr, columns, maxRows)
 
         for c = 1, #columns do
             if columns[c] == sortAttr then
-                values[c] = source.totalAmount
+                values[c] = { total = source.totalAmount, perSecond = source.amountPerSecond }
             else
                 local other = Data.GetSource(sessionType, columns[c], source.sourceGUID, source.sourceCreatureID)
-                values[c] = other and other.totalAmount or nil
+                if other then
+                    values[c] = { total = other.totalAmount, perSecond = other.amountPerSecond }
+                end
             end
         end
 
