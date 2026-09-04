@@ -1,0 +1,114 @@
+-- RocketMeter | Core.lua
+local ADDON, ns = ...
+
+ns.version = C_AddOns.GetAddOnMetadata(ADDON, "Version") or "0.0.0"
+
+ns.defaults = {
+    -- Enum.DamageMeterType.Dps; resolvido no PLAYER_LOGIN porque Enum pode não existir no load.
+    attribute = nil,
+    sessionType = 0,      -- 0 = sessão atual; 1 = geral
+    rows = 8,
+    scale = 1.0,
+    locked = false,
+    showPercent = true,
+    pos = nil,
+}
+
+function ns.Print(...)
+    print("|cffff6a00Rocket|rMeter:", ...)
+end
+
+--------------------------------------------------------------------------------
+-- Fila de combate
+--------------------------------------------------------------------------------
+local queue = {}
+
+function ns.RunWhenSafe(fn)
+    if InCombatLockdown() then
+        queue[#queue + 1] = fn
+    else
+        fn()
+    end
+end
+
+local function FlushQueue()
+    for i = 1, #queue do
+        queue[i]()
+    end
+    wipe(queue)
+end
+
+--------------------------------------------------------------------------------
+-- Eventos
+--------------------------------------------------------------------------------
+local handlers = {}
+
+function handlers:ADDON_LOADED(addon)
+    if addon ~= ADDON then return end
+
+    RocketMeterDB = RocketMeterDB or {}
+    for k, v in pairs(ns.defaults) do
+        if RocketMeterDB[k] == nil then
+            RocketMeterDB[k] = v
+        end
+    end
+    ns.db = RocketMeterDB
+end
+
+function handlers:PLAYER_LOGIN()
+    -- Enum.DamageMeterType só existe com o cliente carregado.
+    if ns.db.attribute == nil then
+        ns.db.attribute = Enum.DamageMeterType and Enum.DamageMeterType.Dps or 1
+    end
+
+    if not ns.Data.IsAvailable() then
+        ns.Print("o medidor nativo (C_DamageMeter) não está disponível neste cliente.")
+        return
+    end
+
+    ns.Window.Create()
+    ns.SetupOptions()
+    ns.Window.Refresh(true)
+end
+
+-- Dados da sessão em andamento mudaram (dispara muito durante o combate).
+function handlers:DAMAGE_METER_CURRENT_SESSION_UPDATED()
+    ns.Window.Refresh()
+end
+
+-- Uma sessão registrada mudou (fim de combate, novo segmento).
+function handlers:DAMAGE_METER_COMBAT_SESSION_UPDATED()
+    ns.Window.Refresh(true)
+end
+
+function handlers:DAMAGE_METER_RESET()
+    ns.Window.Refresh(true)
+end
+
+-- Ao sair do combate os valores deixam de ser secret: vale um refresh completo.
+function handlers:PLAYER_REGEN_ENABLED()
+    FlushQueue()
+    ns.Window.Refresh(true)
+end
+
+function handlers:PLAYER_REGEN_DISABLED()
+    ns.Window.Refresh(true)
+end
+
+local frame = CreateFrame("Frame", ADDON .. "EventFrame")
+for event in pairs(handlers) do
+    frame:RegisterEvent(event)
+end
+frame:SetScript("OnEvent", function(self, event, ...)
+    handlers[event](self, ...)
+end)
+
+ns.frame = frame
+
+function RocketMeter_OnCompartmentClick(_, buttonName)
+    if buttonName == "RightButton" then
+        ns.OpenOptions()
+    else
+        ns.Window.Toggle()
+    end
+end

@@ -1,0 +1,16 @@
+## Interface: 120105
+## Title: |cffff6a00Rocket|r Meter
+## Notes: Medidor de dano e estatísticas sobre a API oficial C_DamageMeter — bonito por padrão e fácil de configurar.
+## Author: Otávio Honório
+## Version: 0.1.0
+## SavedVariables: RocketMeterDB
+## Category: Combat
+## IconTexture: Interface\Icons\INV_Misc_MissileLarge_Red
+## AllowAddOnTableAccess: 1
+## AddonCompartmentFunc: RocketMeter_OnCompartmentClick
+
+Core.lua
+Data.lua
+Window.lua
+Options.lua
+Commands.lua
