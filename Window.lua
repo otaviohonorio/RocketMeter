@@ -18,8 +18,15 @@ ns.Window = Window
 local FONT = "Fonts\\FRIZQT__.TTF"
 -- Medido no print oficial lado a lado: os dígitos do medidor nativo têm 11px de altura de
 -- caixa alta; os nossos, com corpo 13, tinham 9px. FRIZQT rende ~0,69px de caixa por ponto,
--- então 11px pede corpo 16. Conferido em 18 grupos de glifos, sempre 11 contra 9.
-local FONT_SIZE = 16
+-- então 11px pediria corpo 16 — e 16 foi testado in-game e reprovado por ficar grande.
+--
+-- O motivo de não copiar o número dele: a janela da Blizzard mostra **uma** métrica, a nossa
+-- mostra seis colunas de números. A mesma altura de letra rende muito mais tinta aqui, e o
+-- que lá é confortável aqui vira bloco. Igualar o corpo não igualaria a densidade.
+--
+-- 14 é o meio-termo com respaldo na rasterização: 13 rende 9px de caixa e 16 rende 11px, então
+-- entre os dois existe um único degrau inteiro, 10px, onde 14 e 15 caem igual. 14 é esse degrau.
+local FONT_SIZE = 14
 -- O título da faixa e o cabeçalho de colunas NÃO acompanham o corpo da linha: no nativo o
 -- título mede 9px de caixa (corpo 13) enquanto a linha mede 11px. O título é menor que o
 -- conteúdo, e é isso que dá a hierarquia da janela dele.
