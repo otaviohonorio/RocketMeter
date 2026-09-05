@@ -666,27 +666,25 @@ end
 -- Só que cor de classe crua não serve para texto: vermelho de cavaleiro da morte e roxo de
 -- bruxo são escuros demais sobre fundo escuro. A cor é **clareada em direção ao branco**, o
 -- que preserva a identidade e garante a leitura.
--- A cor **real** da classe, sem clarear ninguém.
+-- Texto do líder: cor da classe **escurecida**, com halo branco.
 --
--- O problema das classes escuras (cavaleiro da morte, bruxo) não se resolve mexendo na cor —
--- isso destrói a identidade. Resolve-se no **contorno**: sombra clara em vez de escura cria um
--- halo que separa a letra do fundo. É o mesmo princípio de legenda de vídeo sobre cena escura.
-local LEADER_DARK_LIMIT = 0.55      -- abaixo disso, a sombra vira clara
-local LEADER_FALLBACK = { 1, 0.94, 0.78 }
+-- A versão anterior pintava com a cor da classe pura — e a barra atrás também é a cor da
+-- classe, então o texto sumia dentro dela (vermelho sobre vermelho). Escurecer o texto cria a
+-- separação que a cor pura não dava, e o halo branco garante a leitura tanto sobre a barra
+-- quanto sobre o fundo escuro na parte vazia da linha.
+local LEADER_DARKEN = 0.42          -- quanto sobra da cor original
+local LEADER_HALO = { 1, 1, 1, 0.9 }
+local LEADER_FALLBACK = { 0.42, 0.40, 0.33 }
 local NORMAL = { 0.86, 0.87, 0.90 }
 
-local function Luminance(r, g, b)
-    return 0.299 * r + 0.587 * g + 0.114 * b
-end
-
----Cor do texto de quem lidera: a da classe, sem correção nenhuma.
+---Cor do texto de quem lidera: a da classe, escurecida para destacar da barra.
 local function LeaderColor(classFilename)
     local class = SafeClass(classFilename)
     local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
     if not color then
         return LEADER_FALLBACK[1], LEADER_FALLBACK[2], LEADER_FALLBACK[3]
     end
-    return color.r, color.g, color.b
+    return color.r * LEADER_DARKEN, color.g * LEADER_DARKEN, color.b * LEADER_DARKEN
 end
 
 ---Estiliza a célula: presença, cor e a placa de destaque de quem lidera a coluna.
@@ -704,15 +702,9 @@ function ns.StyleCell(row, index, isBest)
     if highlight then
         ns.ApplyFont(cell, delta + 1, "")
 
-        local r, g, b = LeaderColor(row.classFilename)
-        cell:SetTextColor(r, g, b)
-
-        -- Classe escura ganha halo claro; classe clara mantém a sombra preta.
-        if Luminance(r, g, b) < LEADER_DARK_LIMIT then
-            cell:SetShadowColor(1, 1, 1, 0.45)
-        else
-            cell:SetShadowColor(0, 0, 0, 1)
-        end
+        cell:SetTextColor(LeaderColor(row.classFilename))
+        -- Halo branco sempre: é ele que separa o texto escuro da barra e do fundo.
+        cell:SetShadowColor(LEADER_HALO[1], LEADER_HALO[2], LEADER_HALO[3], LEADER_HALO[4])
     else
         ns.ApplyFont(cell, delta, "")
         cell:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
@@ -764,11 +756,9 @@ function ns.SetCellText(fontString, value, columnKey)
         return
     end
 
-    if ns.Data.IsRateColumn(columnKey) then
-        fontString:SetText(text .. "|cff777777/s|r")
-    else
-        fontString:SetText(text)
-    end
+    -- Sem sufixo "/s": o rótulo da coluna (DPS, CPS) já diz que é por segundo, e repetir
+    -- em cada linha só rouba espaço da coluna.
+    fontString:SetText(text)
 end
 
 function Window.Draw()
