@@ -662,7 +662,7 @@ end
 -- Líder num branco **quente** (creme), os demais num branco levemente **frio**. A diferença
 -- de temperatura soma-se ao corpo maior e à placa, sem colidir com cor de classe — nenhuma
 -- classe é bege — e ainda conversa com o dourado do cabeçalho.
-local LEADER = { 1, 0.96, 0.86 }
+local LEADER = { 1, 0.94, 0.78 }
 local NORMAL = { 0.86, 0.87, 0.90 }
 
 ---Estiliza a célula: presença, cor e a placa de destaque de quem lidera a coluna.
