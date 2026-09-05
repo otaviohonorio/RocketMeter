@@ -18,6 +18,15 @@
 --
 -- 2) Em combate os campos são SECRET VALUES: não dá para comparar, somar ou formatar — só
 --    repassar a widget. Fora de combate voltam a ser números legíveis.
+--
+-- 3) **A métrica `Deaths` não é uma soma, é uma LISTA DE MORTES.** Cada entrada de
+--    `combatSources` ali é *um óbito*, não um jogador com contagem: a estrutura
+--    `DamageMeterCombatSource` traz `deathRecapID` e `deathTimeSeconds`, e o medidor da
+--    Blizzard trata a linha como evento — `GetValueText` devolve o **horário** da morte
+--    ("3m 22s") e `GetStatusValue` devolve **1 fixo**, porque não existe "amount"
+--    (`DamageMeterEntry.lua:562-604`). Ler `totalAmount` ali dá 0 para quem morreu e nada
+--    para quem não morreu, que foi exatamente o que apareceu na primeira corrida real.
+--    Por isso a coluna de mortes tem `field = "count"` e é **contada**, não somada.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -46,7 +55,9 @@ local function BuildColumns()
         { key = "avoidable",  attr = E.AvoidableDamageTaken, field = "total",     short = L["Avoid"],  label = L["Avoidable damage"] },
         { key = "interrupts", attr = E.Interrupts,           field = "total",     short = L["Interr"], label = L["Interrupts"] },
         { key = "dispels",    attr = E.Dispels,              field = "total",     short = L["Dispel"], label = L["Dispels"] },
-        { key = "deaths",     attr = E.Deaths,               field = "total",     short = L["Deaths"], label = L["Player deaths"] },
+        -- `count`, não `total`: na métrica de mortes cada entrada da lista é UMA MORTE, não um
+        -- jogador com contagem. Ver a lição 3 no topo do arquivo.
+        { key = "deaths",     attr = E.Deaths,               field = "count",     short = L["Deaths"], label = L["Player deaths"] },
         { key = "enemies",    attr = E.EnemyDamageTaken,     field = "total",     short = L["Enemies"],label = L["Damage on enemies"] },
     }
 
@@ -288,6 +299,25 @@ function Data.GetLocalPlayerSource(session)
     return nil
 end
 
+---Quantas entradas o próprio jogador tem nesta métrica.
+---
+---Existe por causa das mortes, onde a lista tem uma entrada por óbito. `isLocalPlayer` é
+---`NeverSecret`, então esta contagem funciona **inclusive em combate** — é a única linha que
+---continua contável quando o GUID some.
+function Data.CountLocalPlayerEntries(session)
+    local list = session and session.combatSources
+    if not list then return nil end
+
+    local n = 0
+    for i = 1, #list do
+        local flag = list[i].isLocalPlayer
+        if flag ~= nil and not issecretvalue(flag) and flag == true then
+            n = n + 1
+        end
+    end
+    return n
+end
+
 function Data.GetDuration(sessionType)
     if not Data.IsAvailable() then return 0 end
     return C_DamageMeter.GetSessionDurationSeconds(Data.SessionValue(sessionType)) or 0
@@ -393,26 +423,116 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     -- as colunas de taxa cruzada (CPS) ficavam em branco enquanto o total aparecia.
     -- A lista da sessão traz o ator completo; um índice por métrica resolve, e ainda troca N
     -- chamadas de API por linha por uma só por coluna.
-    local sourceMaps = {}
-    local function SourceFor(attr, wantedGuid)
-        local map = sourceMaps[attr]
-        if map == nil then
-            map = false
+    ---Identidade de um ator sem usar o GUID.
+    ---
+    ---`classFilename` e `specIconID` são **`NeverSecret`** na documentação da estrutura
+    ---(`DamageMeterCombatSource`), então continuam legíveis onde o GUID não está — dentro de
+    ---combate e durante a chave inteira, que é justamente quando o cruzamento falhava e o
+    ---healer aparecia sem cura nenhuma.
+    ---
+    ---Não é identidade de verdade: dois jogadores da mesma especialização colidem. Por isso a
+    ---chave só é usada quando é **única nas duas listas** — na de origem e na da métrica. Em
+    ---caso de empate o addon devolve nil e a célula fica vazia, que é melhor que trocar os
+    ---números de dois jogadores.
+    local function IdentityKey(source)
+        local class, icon = source.classFilename, source.specIconID
+        if class == nil or issecretvalue(class) then return nil end
+        if icon == nil or issecretvalue(icon) then return nil end
+        return tostring(class) .. "/" .. tostring(icon)
+    end
+
+    -- Identidades ambíguas na LISTA DE ORIGEM: se duas linhas têm a mesma classe+spec,
+    -- nenhuma das duas pode ser casada por identidade.
+    local rowIdentityAmbiguous = {}
+    do
+        local seen = {}
+        for i = 1, #sources do
+            local key = IdentityKey(sources[i])
+            if key then
+                if seen[key] then rowIdentityAmbiguous[key] = true end
+                seen[key] = true
+            end
+        end
+    end
+
+    -- Índice por métrica: ator por GUID, ator por identidade, e CONTAGEM por ambos.
+    --
+    -- A contagem existe por causa da métrica de mortes, onde cada entrada é um óbito e não um
+    -- jogador (ver a lição 3 no topo). Nas outras métricas ela não é usada.
+    local indexes = {}
+    local function IndexFor(attr)
+        local index = indexes[attr]
+        if index == nil then
+            index = false
             local other = SessionFor(attr)
             local list = other and other.combatSources
             if list then
-                map = {}
+                index = { byGuid = {}, byIdentity = {}, countByGuid = {}, countByIdentity = {} }
+                local identitySeen = {}
                 for i = 1, #list do
                     local candidate = list[i]
-                    local candidateGuid = candidate.sourceGUID
-                    if candidateGuid ~= nil and not issecretvalue(candidateGuid) then
-                        map[candidateGuid] = candidate
+
+                    local guid = candidate.sourceGUID
+                    if guid ~= nil and not issecretvalue(guid) then
+                        index.byGuid[guid] = index.byGuid[guid] or candidate
+                        index.countByGuid[guid] = (index.countByGuid[guid] or 0) + 1
+                    end
+
+                    local key = IdentityKey(candidate)
+                    if key then
+                        -- Repetição só é ambiguidade para BUSCAR ator. Para CONTAR, repetir é
+                        -- o dado: são duas mortes do mesmo jogador.
+                        if identitySeen[key] then
+                            index.byIdentity[key] = false
+                        elseif index.byIdentity[key] == nil then
+                            index.byIdentity[key] = candidate
+                        end
+                        identitySeen[key] = true
+                        index.countByIdentity[key] = (index.countByIdentity[key] or 0) + 1
                     end
                 end
             end
-            sourceMaps[attr] = map
+            indexes[attr] = index
         end
-        return map and map[wantedGuid] or nil
+        return index or nil
+    end
+
+    ---Acha o ator desta linha dentro de outra métrica.
+    ---@return table|nil ator, boolean conclusivo  (conclusivo = "não achar" significa zero)
+    local function MatchIn(attr, guid, guidReadable, identityKey)
+        local index = IndexFor(attr)
+        if not index then return nil, false end
+
+        if guidReadable then
+            return index.byGuid[guid], true
+        end
+
+        if identityKey and not rowIdentityAmbiguous[identityKey] then
+            local hit = index.byIdentity[identityKey]
+            -- `false` = a métrica tem duas linhas com esta classe+spec: ambíguo, não conclusivo.
+            if hit ~= false then return hit or nil, true end
+        end
+
+        return nil, false
+    end
+
+    ---Quantas entradas esta linha tem na métrica. Só faz sentido em `Deaths`.
+    ---@return number|nil contagem, boolean conclusivo
+    local function CountIn(attr, guid, guidReadable, identityKey)
+        local index = IndexFor(attr)
+        if not index then return nil, false end
+
+        if guidReadable then
+            return index.countByGuid[guid] or 0, true
+        end
+
+        -- Para CONTAR, repetição na métrica não é ambiguidade — é o próprio dado. O que
+        -- precisa ser único é a identidade da LINHA.
+        if identityKey and not rowIdentityAmbiguous[identityKey] then
+            return index.countByIdentity[identityKey] or 0, true
+        end
+
+        return nil, false
     end
 
     local total = #sources
@@ -445,23 +565,47 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         local guidReadable = guid ~= nil and not issecretvalue(guid)
         local isLocal = source.isLocalPlayer
         isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
+        local identityKey = IdentityKey(source)
+
+        -- `conclusive[attr]`: nesta métrica, "não achei o ator" quer dizer **zero** ou quer
+        -- dizer **não sei**? A diferença é visível: o Details escreve `0`, e escrever `0` onde
+        -- não se sabe é mentir. Só é conclusivo quando a linha pôde ser identificada — por
+        -- GUID legível, ou por classe+spec única nas duas listas.
+        local conclusive = {}
 
         for c = 1, #columns do
             local def = Data.GetColumn(columns[c])
             if def then
-                local from = cache[def.attr]
-                if from == nil then
-                    if guidReadable then
-                        from = SourceFor(def.attr, guid) or false
-                    elseif isLocal then
-                        -- Em combate: sem GUID legível, só a própria linha pode ser casada.
-                        from = Data.GetLocalPlayerSource(SessionFor(def.attr)) or false
-                    else
-                        from = false
+                if def.field == "count" then
+                    -- Mortes: contagem de entradas, não soma de `totalAmount`.
+                    local n, ok = CountIn(def.attr, guid, guidReadable, identityKey)
+                    if not ok and isLocal then
+                        n = Data.CountLocalPlayerEntries(SessionFor(def.attr))
+                        ok = n ~= nil
                     end
-                    cache[def.attr] = from
+                    values[c] = ok and n or nil
+                else
+                    local from = cache[def.attr]
+                    if from == nil then
+                        local hit, ok = MatchIn(def.attr, guid, guidReadable, identityKey)
+                        if not ok and isLocal then
+                            -- Última cartada em combate: `isLocalPlayer` é `NeverSecret`.
+                            hit = Data.GetLocalPlayerSource(SessionFor(def.attr))
+                            ok = hit ~= nil
+                        end
+                        from = hit or false
+                        conclusive[def.attr] = ok
+                        cache[def.attr] = from
+                    end
+
+                    local value = ValueFromSource(from or nil, def, sessionTotals[def.attr] or nil)
+                    -- Ausente numa lista que sabemos ler = o jogador não pontuou ali. É zero.
+                    if value == nil and from == false and conclusive[def.attr]
+                        and def.field ~= "percent" then
+                        value = 0
+                    end
+                    values[c] = value
                 end
-                values[c] = ValueFromSource(from or nil, def, sessionTotals[def.attr] or nil)
             end
         end
 
@@ -600,21 +744,44 @@ end
 ---`AbbreviateNumbers` depende do idioma do cliente e devolve textos longos em pt-BR
 ---("365.594"), que estouravam a largura da coluna e viravam reticências. A referência mostra
 ---`2.9M` e `112K` — três a quatro caracteres, sempre.
+---**Teto rígido de 5 caracteres.** A célula tem 50px e um texto maior não é cortado: vira
+---reticências, que é o que o usuário viu numa corrida de 28 minutos. Duas faixas existem só
+---por causa disso:
+---
+---  * **bilhão** — sem ela, 1,2 bilhão de dano dava `"1234.6M"`, sete caracteres. Uma raide
+---    longa chega lá.
+---  * **centena** — `%.1f` de 339 dá `"339.1M"`, seis. Acima de 100 a casa decimal não
+---    informa nada (0,03% do valor) e custa a coluna inteira.
 function Data.FormatAmount(value)
     if value == nil or issecretvalue(value) then
         return nil
     end
 
+    -- Os limiares são o valor JÁ ARREDONDADO, não o redondo. 99.999.999 com `%.1f` vira
+    -- "100.0M" — seis caracteres — porque o arredondamento empurra a mantissa para três
+    -- dígitos antes de o limiar redondo (100.000.000) ser alcançado. Cortar em 99,95M põe
+    -- esse caso na faixa de cima, onde ele vira "100M".
     local absolute = value < 0 and -value or value
-    if absolute >= 1000000 then
-        return format("%.1fM", value / 1000000)
-    elseif absolute >= 10000 then
-        return format("%.0fK", value / 1000)
+    if absolute >= 999500000 then
+        return format("%.1fB", value / 1000000000)      -- 1.2B
+    elseif absolute >= 99950000 then
+        return format("%.0fM", value / 1000000)         -- 339M
+    elseif absolute >= 1000000 then
+        return format("%.1fM", value / 1000000)         -- 33.9M
+    elseif absolute >= 9995 then
+        return format("%.0fK", value / 1000)            -- 786K
     elseif absolute >= 1000 then
-        return format("%.1fK", value / 1000)
+        return format("%.1fK", value / 1000)            -- 9.6K
     end
-    return format("%d", value + 0.5)
+    return format("%d", value + 0.5)                    -- 847
 end
+
+---Quantos caracteres uma célula aguenta antes de virar reticências.
+---
+---Vale para o texto pronto, venha ele de `FormatAmount` (que respeita isto por construção) ou
+---do cliente, no caminho dos valores secret — onde não dá para abreviar na mão e a única
+---defesa é **recusar** um formato que volte longo demais.
+Data.MAX_CELL_CHARS = 6
 
 --------------------------------------------------------------------------------
 -- Formatação de valores secret
@@ -651,10 +818,26 @@ local STRATEGIES = {
 
 local chosenStrategy      -- índice da estratégia que funcionou; false = nenhuma
 
+---A saída desta estratégia cabe na célula?
+---
+---`AbbreviateNumbers` **só abrevia acima de um limiar**; abaixo dele devolve o número por
+---extenso com separador de milhar, e em pt-BR isso é `"365.594"` — sete caracteres numa
+---célula que aguenta seis. O aviso já estava escrito no comentário de `FormatAmount`, mas a
+---sondagem não o obedecia: `AbbreviateNumbers` é a **primeira** da lista, então bastava
+---funcionar para ser escolhida, e a partir daí toda célula grande virava reticências.
+---
+---Um resultado ainda secret passa: não dá para medir, e o widget é quem vai desenhar.
+local function FitsCell(text)
+    if text == nil then return false end
+    if issecretvalue(text) then return true end
+    if type(text) ~= "string" then return true end
+    return #text <= Data.MAX_CELL_CHARS
+end
+
 local function ProbeStrategies(value)
     for index, strategy in ipairs(STRATEGIES) do
         local ok, result = pcall(strategy.run, value)
-        if ok and result ~= nil then
+        if ok and result ~= nil and FitsCell(result) then
             chosenStrategy = index
             if ns.Log then
                 ns.Log.Add("formatador", {
@@ -675,6 +858,15 @@ end
 
 ---Texto de um valor que pode ser secret. Devolve nil quando não há como formatar — aí o
 ---chamador repassa o valor cru ao FontString, que o motor renderiza.
+---A estratégia escolhida vale como **preferência**, não como veredito final.
+---
+---Motivo: se cabe ou não depende do VALOR, não só do cliente. `AbbreviateNumbers` devolve
+---`"2.9M"` para 2,9 milhões e `"365.594"` para 365 mil — abaixo do limiar de abreviação ela
+---escreve o número por extenso. Uma sondagem única, feita com o primeiro valor que aparecer,
+---decide errado para metade dos outros: foi assim que a coluna de dano virou reticências
+---enquanto a de CPS, com números menores, continuava certa.
+---
+---Por isso o encaixe é conferido **a cada valor**, e as outras estratégias ficam como reserva.
 function Data.FormatSecretAmount(value)
     if chosenStrategy == nil then
         return ProbeStrategies(value)
@@ -684,10 +876,21 @@ function Data.FormatSecretAmount(value)
     end
 
     local ok, result = pcall(STRATEGIES[chosenStrategy].run, value)
-    if ok then return result end
+    if not ok then
+        -- A restrição pode mudar no meio do caminho: refaz a sondagem uma vez.
+        chosenStrategy = nil
+        return nil
+    end
+    if FitsCell(result) then return result end
 
-    -- A restrição pode mudar no meio do caminho: refaz a sondagem uma vez.
-    chosenStrategy = nil
+    -- A preferida não serve para ESTE número. Tenta as outras, sem trocar a preferência —
+    -- ela continua sendo a que serve para a maioria.
+    for index, strategy in ipairs(STRATEGIES) do
+        if index ~= chosenStrategy then
+            local fine, alternative = pcall(strategy.run, value)
+            if fine and FitsCell(alternative) then return alternative end
+        end
+    end
     return nil
 end
 

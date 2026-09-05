@@ -42,6 +42,15 @@ function Profile.EnsureRuntimeDefaults()
     if not active.sortBy or not ns.Data.GetColumn(active.sortBy) then
         active.sortBy = active.columns[1]
     end
+
+    -- `autoScoreboard` (uma chave) virou duas: Mítico+ e raide. Quem tinha desligado o painel
+    -- teria ele de volta ligado, porque as chaves novas nascem `true` — então a escolha antiga
+    -- é herdada uma vez e a chave velha some, para a herança não se repetir.
+    if active.autoScoreboard ~= nil then
+        active.autoScoreboardMPlus = active.autoScoreboard
+        active.autoScoreboardRaid = active.autoScoreboard
+        active.autoScoreboard = nil
+    end
 end
 
 function Profile.Init()

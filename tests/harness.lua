@@ -68,10 +68,30 @@ end
 
 local frames = {}
 
+-- FILHOS QUE O TEMPLATE JA TRAZ.
+--
+-- Sem isto, `check.Text` cai no `__index` generico e volta uma FUNCAO -- que e verdadeira, e
+-- portanto passa por `if check.Text then` -- e o `SetText` seguinte estoura so no jogo. E a
+-- mesma armadilha do `frame.Inset` no RocketSwap: stub que diverge do template testa a si
+-- mesmo. `UICheckButtonTemplate` traz um `Text` posicionado a direita da caixa
+-- (`UIPanelTemplates.xml`), e `DefaultPanelTemplate`/`ButtonFrameTemplate` trazem o `Inset`.
+local TEMPLATE_PARTS = {
+    UICheckButtonTemplate = { "Text" },
+    DefaultPanelTemplate = { "Inset" },
+    ButtonFrameTemplate = { "Inset" },
+    PortraitFrameTemplate = { "Inset" },
+}
+
 function CreateFrame(frameType, name, parent, template)
     local f = widget(frameType or "Frame")
     f.__name = name
     f.__template = template
+
+    for _, part in ipairs(TEMPLATE_PARTS[template] or {}) do
+        -- Com template: a fonte ja vem definida, como no jogo.
+        f[part] = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    end
+
     frames[#frames + 1] = f
     return f
 end
@@ -86,8 +106,12 @@ UIParent.GetHeight = function() return 1080 end
 Minimap = widget("Frame")
 GameTooltip = widget("GameTooltip")
 UISpecialFrames = {}
-RAID_CLASS_COLORS = { MAGE = { r = 0.4, g = 0.8, b = 0.9 } }
-CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.49, 0, 0.25 } }
+RAID_CLASS_COLORS = { MAGE = { r = 0.4, g = 0.8, b = 0.9 },
+                      PRIEST = { r = 1, g = 1, b = 1 },
+                      ROGUE = { r = 1, g = 0.96, b = 0.41 } }
+CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.49, 0, 0.25 },
+                       PRIEST = { 0.49, 0.73, 0.25, 0.5 },
+                       ROGUE = { 0, 0.24, 0.25, 0.5 } }
 unpack = unpack or table.unpack
 
 function GameTooltip_Hide() end
@@ -203,13 +227,26 @@ Enum = {
 }
 
 -- Dados falsos, no formato lido do Details!
-local function fakeSource(name, total)
-    return {
+-- Classe e spec DISTINTAS por ator. Nao e enfeite: `classFilename` e `specIconID` sao
+-- `NeverSecret` e por isso viraram a chave de casamento entre metricas quando o GUID esta
+-- secret. Com os tres atores como "MAGE/1" o casamento por identidade ficava sempre ambiguo
+-- e o caminho novo nunca era exercitado.
+local FAKE_IDENTITY = {
+    Thalyra = { class = "MAGE",   spec = 101 },
+    Brumm   = { class = "PRIEST", spec = 102 },
+    Sarien  = { class = "ROGUE",  spec = 103 },
+}
+
+local function fakeSource(name, total, extra)
+    local id = FAKE_IDENTITY[name] or { class = "MAGE", spec = 199 }
+    local src = {
         name = name, sourceGUID = "Player-" .. name, sourceCreatureID = 0,
         totalAmount = total, amountPerSecond = total / 120,
-        classFilename = "MAGE", specIconID = 1, deathRecapID = 0,
+        classFilename = id.class, specIconID = id.spec, deathRecapID = 0,
         deathTimeSeconds = 0, classification = "player", isLocalPlayer = name == "Thalyra",
     }
+    for k, v in pairs(extra or {}) do src[k] = v end
+    return src
 end
 
 C_DamageMeter = {
@@ -220,17 +257,46 @@ C_DamageMeter = {
     GetCombatSessionFromType = function(sessionType, attribute)
         -- Cada metrica tem seus proprios valores: e o que torna os testes de cruzamento
         -- significativos. Antes tudo devolvia a sessao de dano e o teste passava por acidente.
+        -- MORTES TEM FORMA PROPRIA: cada entrada da lista e UM OBITO, nao um jogador com
+        -- contagem em `totalAmount`. Quem nao morreu simplesmente NAO APARECE. Confirmado na
+        -- documentacao da API (`DamageMeterCombatSource` traz `deathRecapID` e
+        -- `deathTimeSeconds`), no consumidor da Blizzard (`DamageMeterEntry.lua:562-604`,
+        -- onde `GetValueText` devolve o HORARIO e `GetStatusValue` devolve 1 fixo) e no
+        -- retrato da primeira corrida real, onde os dois que morreram vieram com 0.
+        --
+        -- Brumm morreu 2x, Sarien 1x, Thalyra nenhuma.
+        if attribute == Enum.DamageMeterType.Deaths then
+            return {
+                combatSources = {
+                    fakeSource("Brumm",  0, { deathRecapID = 11, deathTimeSeconds = 42 }),
+                    fakeSource("Sarien", 0, { deathRecapID = 12, deathTimeSeconds = 88 }),
+                    fakeSource("Brumm",  0, { deathRecapID = 13, deathTimeSeconds = 130 }),
+                },
+                combatSourcesCount = 3, totalAmount = 0, maxAmount = 0, durationSeconds = 134,
+            }
+        end
+
         local perAttribute = {
             [Enum.DamageMeterType.HealingDone] = { 120000, 900000, 50000 },
             [Enum.DamageMeterType.Interrupts] = { 1, 0, 5 },
-            [Enum.DamageMeterType.Deaths] = { 0, 2, 1 },
+            [Enum.DamageMeterType.Dispels] = { 0, 0, 3 },
+            [Enum.DamageMeterType.Absorbs] = { 0, 0, 0 },
         }
         local values = perAttribute[attribute]
         if values then
-            local sources = { fakeSource("Thalyra", values[1]), fakeSource("Brumm", values[2]),
-                              fakeSource("Sarien", values[3]) }
-            local total = values[1] + values[2] + values[3]
-            local maximum = math.max(values[1], values[2], values[3])
+            -- ATOR COM ZERO NAO APARECE. E assim na API -- foi o que o retrato da corrida real
+            -- mostrou: o Delzoka nao tinha a chave `avoidable` porque o dele era 0, e o
+            -- Details escrevia 0 na mesma celula. Com o stub criando os tres sempre, a
+            -- diferenca entre "zero" e "nao sei" nao existia aqui dentro.
+            local names = { "Thalyra", "Brumm", "Sarien" }
+            local sources, total, maximum = {}, 0, 0
+            for i = 1, 3 do
+                if values[i] > 0 then
+                    sources[#sources + 1] = fakeSource(names[i], values[i])
+                    total = total + values[i]
+                    if values[i] > maximum then maximum = values[i] end
+                end
+            end
             return {
                 combatSources = sources, totalAmount = total,
                 maxAmount = maximum, durationSeconds = 134,
@@ -456,6 +522,93 @@ local migrated = ns.Data.MigrateColumns({ Enum.DamageMeterType.DamageDone, Enum.
 check("migracao converte id em chave", migrated[1], "damage")
 check("migracao converte Hps em hps", migrated[2], "hps")
 
+print("== mortes sao CONTADAS, nao somadas ==")
+-- Primeira corrida real (05/09/2026) trouxe o defeito inteiro num retrato: os tres que NAO
+-- morreram vieram sem a chave `deaths`, e os DOIS que morreram vieram com `deaths = 0`.
+-- A causa nao era o placar: e que a metrica de mortes lista UM OBITO POR ENTRADA, e
+-- `totalAmount` ali nao significa nada. Quem le `totalAmount` acerta zero e erra o resto.
+do
+    local cols = { "damage", "deaths" }
+    local r = ns.Data.GetRows(0, "damage", cols, 5, false)
+
+    -- ordem por dano: Thalyra (1.2M), Brumm (980K), Sarien (740K)
+    check("quem nao morreu tem 0, nao vazio", r[1].values[2], 0)
+    check("duas mortes do mesmo jogador contam 2", r[2].values[2], 2)
+    check("uma morte conta 1", r[3].values[2], 1)
+end
+
+print("== ausente numa metrica e ZERO, nao desconhecido ==")
+-- O Details escreve `0`. Nos escreviamos "." porque `SourceFor` devolvia nil e o valor virava
+-- nil. Quem nao aparece na lista de uma metrica nao pontuou nela -- desde que a lista tenha
+-- sido lida, que e o caso fora de combate.
+do
+    local semDispel = ns.Data.GetRows(0, "damage", { "damage", "dispels" }, 5, false)
+    check("sem dissipacoes = 0", semDispel[1].values[2], 0)
+end
+
+print("== cruzamento por classe+spec quando o GUID esta secret ==")
+-- Durante a chave inteira o GUID e secret (restricao de ChallengeMode) e
+-- `GetCombatSessionSourceFromType` recusa receber o valor opaco de volta
+-- (`SecretArguments = "AllowedWhenUntainted"` e addon e codigo tainted). Resultado no jogo:
+-- so o proprio jogador tinha Cura/CPS e o HEALER aparecia zerado -- reclamacao do usuario.
+--
+-- `classFilename` e `specIconID` sao `NeverSecret`: dao para casar o ator entre metricas.
+do
+    local marker = setmetatable({}, { __tostring = function() return "SECRET" end })
+    local realIsSecret = issecretvalue
+    issecretvalue = function(v) return v == marker end
+
+    local plain = C_DamageMeter.GetCombatSessionFromType
+    C_DamageMeter.GetCombatSessionFromType = function(sessionType, attribute)
+        local session = plain(sessionType, attribute)
+        for i, src in ipairs(session.combatSources) do
+            src.sourceGUID = marker
+            src.isLocalPlayer = i == 1
+        end
+        return session
+    end
+
+    local r = ns.Data.GetRows(0, "damage", { "damage", "healing" }, 5, false)
+    -- Brumm e o healer e esta em SEGUNDO no dano: sem o casamento por identidade a celula
+    -- dele fica vazia, que foi o "healer sem informacoes de healer" do print.
+    check("healer tem cura mesmo com GUID secret", r[2].values[2], 900000)
+    check("terceiro tambem, nao so o jogador local", r[3].values[2], 50000)
+
+    -- E a contagem de mortes tem que sobreviver ao mesmo cenario.
+    local d = ns.Data.GetRows(0, "damage", { "damage", "deaths" }, 5, false)
+    check("mortes contadas com GUID secret", d[2].values[2], 2)
+
+    C_DamageMeter.GetCombatSessionFromType = plain
+    issecretvalue = realIsSecret
+end
+
+print("== identidade ambigua nao inventa numero ==")
+-- Dois jogadores da mesma classe E spec colidem na chave. Nesse caso o addon tem que devolver
+-- vazio, nao o numero do outro: trocar os valores de dois jogadores e pior que nao mostrar.
+do
+    local marker = setmetatable({}, { __tostring = function() return "SECRET" end })
+    local realIsSecret = issecretvalue
+    issecretvalue = function(v) return v == marker end
+
+    local plain = C_DamageMeter.GetCombatSessionFromType
+    C_DamageMeter.GetCombatSessionFromType = function(sessionType, attribute)
+        local session = plain(sessionType, attribute)
+        for i, src in ipairs(session.combatSources) do
+            src.sourceGUID = marker
+            src.isLocalPlayer = false          -- ninguem e o jogador local: so resta a identidade
+            src.classFilename = "MAGE"         -- todos iguais de proposito
+            src.specIconID = 101
+        end
+        return session
+    end
+
+    local r = ns.Data.GetRows(0, "damage", { "damage", "healing" }, 5, false)
+    check("empate de classe+spec deixa vazio", r[2].values[2], nil)
+
+    C_DamageMeter.GetCombatSessionFromType = plain
+    issecretvalue = realIsSecret
+end
+
 print("== combate: guid secret ==")
 -- SIMULA_SECRET: reproduz o bug real relatado no log do usuario. Em combate o GUID e secret,
 -- e devolver esse valor para a API responde "Secret values are only allowed during untainted".
@@ -529,6 +682,28 @@ check("milhoes", ns.Data.FormatAmount(2900000), "2.9M")
 check("centenas de milhar", ns.Data.FormatAmount(786000), "786K")
 check("milhares com decimal", ns.Data.FormatAmount(9600), "9.6K")
 check("valor pequeno inteiro", ns.Data.FormatAmount(847), "847")
+
+-- TETO DE LARGURA. A celula tem 50px; texto maior nao e cortado, vira reticencias -- foi a
+-- reclamacao "esses pontos me incomoda" depois de uma corrida de 28 minutos. As duas faixas
+-- abaixo nao existiam: 339 milhoes davam "339.1M" (6) e 1,2 bilhao dava "1234.6M" (7).
+check("centenas de milhao sem decimal", ns.Data.FormatAmount(339123456), "339M")
+check("bilhoes tem faixa propria", ns.Data.FormatAmount(1234567890), "1.2B")
+check("negativo grande tambem", ns.Data.FormatAmount(-339123456), "-339M")
+
+do
+    -- Inclui os pontos de ARREDONDAMENTO, nao so os limiares redondos: e ali que a mantissa
+    -- ganha um digito e o texto estoura (99.999.999 dava "100.0M").
+    local piores = { 0, 1, 999, 1000, 9994, 9995, 9999, 10000, 999999, 1000000,
+                     99949999, 99950000, 99999999, 100000000, 999499999, 999500000,
+                     999999999, 1000000000, 9999999999 }
+    local maior, culpado = 0, nil
+    for _, v in ipairs(piores) do
+        local t = ns.Data.FormatAmount(v)
+        if #t > maior then maior, culpado = #t, t end
+    end
+    check("nenhum valor passa do teto (" .. tostring(culpado) .. ")",
+        maior <= ns.Data.MAX_CELL_CHARS, true)
+end
 
 print("== linhas ==")
 ns.Window.SetRows(5)

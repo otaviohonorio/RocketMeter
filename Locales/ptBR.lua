@@ -186,3 +186,15 @@ L["%d d ago"] = "há %d dia(s)"
 L["checks the labels taken from the game"] = "confere os rotulos que vem do jogo"
 L["locale %s, %d game label(s):"] = "idioma %s, %d rotulo(s) vindos do jogo:"
 L["%d game label(s) are not usable here."] = "%d rotulo(s) do jogo nao servem neste cliente."
+
+-- Seção Placar e opção de reino (0.54.0)
+L["Scoreboard"] = "Placar"
+L["Open at the end of a Mythic+ run"] = "Abrir ao fim de uma corrida de Mítico+"
+L["When the keystone ends, the summary of the run opens by itself."] =
+    "Quando a chave termina, o resumo da corrida abre sozinho."
+L["Open when a raid boss dies"] = "Abrir quando um chefe de raide morrer"
+L["When an encounter is defeated, the summary of the fight opens by itself."] =
+    "Quando o encontro é vencido, o resumo da luta abre sozinho."
+L["Show the realm next to the name"] = "Mostrar o reino ao lado do nome"
+L["Off by default: the realm eats the column and the name is what ends up cut."] =
+    "Desligado por padrão: o reino come a coluna e quem acaba cortado é o nome."

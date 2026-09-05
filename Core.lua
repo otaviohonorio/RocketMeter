@@ -35,7 +35,19 @@ ns.defaults = {
     combatOnly = false,       -- só aparece em combate
     hideDelay = 5,            -- segundos para sumir depois da luta, no modo acima
     minimap = { hide = false, angle = 200 },
-    autoScoreboard = true,
+
+    -- Reino do jogador ("-Tichondrius") ao lado do nome. **Desligado por padrão**: ele come a
+    -- largura da coluna e o nome é que vira reticências. Quem joga cross-realm liga em
+    -- `/rm columns`.
+    showRealm = false,
+
+    -- O painel de fim de corrida abre sozinho? Duas chaves, não uma: quem faz Mítico+ toda
+    -- noite pode querer o resumo lá e não a cada chefe de raide, e vice-versa. A chave antiga
+    -- `autoScoreboard` continua sendo lida uma vez, para não desligar o painel de quem já
+    -- tinha escolhido (ver `Profile.MigrateScoreboard`).
+    autoScoreboardMPlus = true,
+    autoScoreboardRaid = true,
+
     pos = nil,
 }
 

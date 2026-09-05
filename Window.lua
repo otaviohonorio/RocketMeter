@@ -246,10 +246,24 @@ end
 -- Contorno com espessura ajustável
 --------------------------------------------------------------------------------
 -- O WoW só tem três níveis de contorno (nenhum, `OUTLINE`, `THICKOUTLINE`) — nada entre eles.
--- Para um meio-termo, o contorno é **desenhado**: duas cópias pretas do texto, deslocadas 1px,
--- atrás do original. A opacidade delas (`HALO_ALPHA`) dá a espessura contínua que faltava,
--- somando-se à sombra que já existe do outro lado.
-local HALO_OFFSETS = { { -1, 0 }, { 0, 1 } }
+-- Para um meio-termo, o contorno é **desenhado**: cópias pretas do texto deslocadas 1px atrás
+-- do original, com `HALO_ALPHA` dando a espessura contínua que faltava.
+--
+-- ESTÁ DESLIGADO (lista vazia), e o motivo é medido, não de gosto.
+--
+-- O usuário apontou a janela de chat dele como o padrão de legibilidade — "olha na primeira
+-- imagem como tá o meu chat". Medido no print de 05/09/2026: o chat **não tem contorno**, só
+-- `SetShadowOffset(1, -1)` preto, que é exatamente a sombra que `ns.ApplyFont` já aplica. O
+-- que sobrava aqui era o halo POR CIMA dela.
+--
+-- E ele era assimétrico: `{-1,0}` e `{0,1}` põem cópia à esquerda e acima, enquanto a sombra
+-- fica embaixo à direita. Três lados cobertos, um não — daí "umas colunas parece tá com mais
+-- borda a fonte, outras não". Não era impressão: dependia de qual lado do glifo encostava no
+-- vizinho, e mudava de coluna para coluna.
+--
+-- A máquina fica: `HALO_OFFSETS` com quatro deslocamentos simétricos devolve o contorno sem
+-- reintroduzir a assimetria, se um dia fizer falta.
+local HALO_OFFSETS = {}
 
 ---Cria as cópias de contorno para um FontString.
 local function CreateHalo(parent, source)
@@ -339,18 +353,39 @@ end
 ---Quem tem os dois campos é `row` porque a janela e o placar montam a linha do mesmo jeito;
 ---a função vive aqui para as duas telas não divergirem.
 ---@param row table linha com `name`, `nameHalo`, `realm`, `realmHalo` e `nameArea`
+---Escreve o nome (e, se o jogador quiser, o reino) dentro da área da linha.
+---
+---**A largura do halo tem que ser mexida junto com a do texto, nos DOIS ramos.** Só o ramo
+---com reino fazia isso; o ramo sem reino trocava a largura do texto e deixava as cópias
+---pretas com a largura da linha anterior. Como o halo é o contorno, o efeito era o nome sair
+---com um traçado diferente dos outros — e aparecia justamente no personagem do próprio
+---jogador, que é quem costuma estar no mesmo reino e portanto não tem sufixo.
+local function SetNameWidth(row, width)
+    row.name:SetWidth(width)
+    for _, echo in ipairs(row.nameHalo) do echo:SetWidth(width) end
+end
+
+local function SetRealmWidth(row, width)
+    row.realm:SetWidth(width)
+    for _, echo in ipairs(row.realmHalo) do echo:SetWidth(width) end
+end
+
 function ns.DrawName(row, full)
     local name, realm = ns.SplitName(full)
 
+    -- O reino é opcional e vem DESLIGADO: ele come a largura do que importa e, com a coluna
+    -- estreita, transformava "Frenchmiku-Tichondrius" em "Frenchmiku-Tich…". Quem joga em
+    -- grupo cross-realm e quer ver de onde a pessoa é liga em `/rm columns`.
+    if not ns.db.showRealm then realm = nil end
+
     local area = row.nameArea or 0
-    row.name:SetWidth(area)
+    SetNameWidth(row, area)
     ns.SetHaloText(row.name, row.nameHalo, name)
     row.name:SetTextColor(1, 1, 1)
 
     if not realm or area <= 0 then
         ns.SetHaloText(row.realm, row.realmHalo, "")
-        row.realm:SetWidth(0)
-        row.name:SetWidth(area)
+        SetRealmWidth(row, 0)
         return
     end
 
@@ -358,20 +393,18 @@ function ns.DrawName(row, full)
     -- realmente ocupa antes de decidir a divisão.
     local used = row.name:GetStringWidth() or 0
     if used > area then used = area end
-    row.name:SetWidth(used)
-    for _, echo in ipairs(row.nameHalo) do echo:SetWidth(used) end
+    SetNameWidth(row, used)
 
     local left = area - used
     if left < 12 then
         -- Nome sozinho já toma a área: o reino não cabe e some. Melhor sumir inteiro do que
         -- aparecer como um hífen solto seguido de reticências.
         ns.SetHaloText(row.realm, row.realmHalo, "")
-        row.realm:SetWidth(0)
+        SetRealmWidth(row, 0)
         return
     end
 
-    row.realm:SetWidth(left)
-    for _, echo in ipairs(row.realmHalo) do echo:SetWidth(left) end
+    SetRealmWidth(row, left)
     ns.SetHaloText(row.realm, row.realmHalo, "-" .. realm)
     row.realm:SetTextColor(unpack(ns.Skin.dim))
 end

@@ -63,7 +63,12 @@ local BOSS_ICON = 18
 local DEATH_ICON = 11
 local CHEST_ICON = 26            -- nativo 257x226 escalado; aqui só a altura importa
 -- A barra de classe é fundo, não bloco: ver o comentário em `DrawRows`.
-local BAR_ALPHA = 0.45
+-- A faixa fina no rodapé da linha, na cor da classe. Mesma linguagem da janela de combate
+-- (`PROGRESS_HEIGHT` lá), que é o formato do medidor nativo: a linha NÃO é preenchida de cor.
+local BAR_STRIP_HEIGHT = 3
+-- Cheia: a faixa é fina agora, e a 0.45 ela sumia. O que precisava ser lavado era o
+-- preenchimento da linha inteira, que deixou de existir.
+local BAR_ALPHA = 1.0
 
 -- Todo atlas usado pelo painel, num lugar só, para `/rm atlas` conferir a lista inteira de uma
 -- vez em vez de descobrir um nome quebrado por rodada de teste.
@@ -545,9 +550,17 @@ local function BuildRow(index)
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
 
+        -- FAIXA FINA NO RODAPÉ, não preenchimento da linha.
+        --
+        -- A barra preenchia a linha inteira na cor da classe, e o usuário reprovou: "a cor de
+        -- fundo de cada classe fica ruim para ver os números da tabela, tem que tirar". Estava
+        -- certo, e a alternativa não é apagar a informação — é a mesma faixa fina que a janela
+        -- de combate já usa e que ele já aprovou lá. A escala continua visível, o número passa
+        -- a ser lido sobre fundo neutro, e as duas telas ficam com a mesma linguagem.
         row.bar = CreateFrame("StatusBar", nil, row)
-        row.bar:SetPoint("TOPLEFT", 0, 0)
+        row.bar:SetPoint("BOTTOMLEFT", 0, 0)
         row.bar:SetPoint("BOTTOMRIGHT", 0, 0)
+        row.bar:SetHeight(BAR_STRIP_HEIGHT)
         row.bar:SetStatusBarTexture(ns.BarTexture())
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)
@@ -1294,7 +1307,12 @@ local function CaptureAndShow(base, kind, auto)
         end
 
         Scoreboard.SaveRun(kind, snapshot)
-        if auto == false or ns.db.autoScoreboard then
+
+        -- `auto == false` é a abertura pedida à mão (botão, `/rm score`): essa sempre mostra.
+        -- A automática obedece à caixa do tipo de conteúdo — são duas, porque quem quer o
+        -- resumo de toda chave não necessariamente quer o de todo chefe de raide.
+        local wanted = kind == "mplus" and ns.db.autoScoreboardMPlus or ns.db.autoScoreboardRaid
+        if auto == false or wanted then
             Scoreboard.Show(snapshot)
         end
     end)
