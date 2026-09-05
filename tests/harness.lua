@@ -84,6 +84,8 @@ function CopyTable(t)
     return out
 end
 function issecretvalue() return false end
+function securecallfunction(fn, ...) return fn(...) end
+function BreakUpLargeNumbers(v) return tostring(v) end
 tinsert, tremove, wipe = table.insert, table.remove, function(t) for k in pairs(t) do t[k] = nil end end
 format = string.format
 

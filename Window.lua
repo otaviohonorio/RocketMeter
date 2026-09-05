@@ -15,8 +15,7 @@ ns.Window = Window
 
 local HEADER_HEIGHT = 22
 local COLHEAD_HEIGHT = 14
-local NAME_MIN_WIDTH = 110
-local RANK_WIDTH = 16
+local NAME_MIN_WIDTH = 96
 local PADDING = 3
 local GRIP = 14
 
@@ -298,13 +297,8 @@ local function BuildRow(index)
         row.highlight:SetAllPoints()
         row.highlight:SetColorTexture(1, 1, 1, 0.12)
 
-        row.rank = row.text:CreateFontString(nil, "OVERLAY")
-        row.rank:SetPoint("LEFT", 5, 0)
-        row.rank:SetWidth(RANK_WIDTH)
-        row.rank:SetJustifyH("LEFT")
-
         row.icon = row.text:CreateTexture(nil, "OVERLAY")
-        row.icon:SetPoint("LEFT", row.rank, "RIGHT", 0, 0)
+        row.icon:SetPoint("LEFT", 4, 0)
 
         row.name = row.text:CreateFontString(nil, "OVERLAY")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
@@ -333,7 +327,6 @@ local function BuildRow(index)
 
     local iconSize = height - 4
     row.icon:SetSize(iconSize, iconSize)
-    ns.ApplyFont(row.rank, -2)
     ns.ApplyFont(row.name, 0)
 
     for _, cell in pairs(row.cells) do
@@ -357,7 +350,7 @@ local function BuildRow(index)
         cell:Show()
     end
 
-    row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - RANK_WIDTH - iconSize - 14)
+    row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 12)
     return row
 end
 
@@ -599,7 +592,13 @@ function ns.SetCellText(fontString, value, columnKey)
 
     local text = ns.Data.FormatAmount(value)
     if not text then
-        fontString:SetText(value)
+        -- Valor secret: tenta a estratégia de formatação que funcionou neste cliente.
+        local secretText = ns.Data.FormatSecretAmount(value)
+        if secretText ~= nil then
+            fontString:SetText(secretText)
+        else
+            fontString:SetText(value)
+        end
         return
     end
 
@@ -649,8 +648,6 @@ function Window.Draw()
             row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
             row.bg:SetColorTexture(ns.RowBackdropColor(source.classFilename))
 
-            row.rank:SetText(i .. ".")
-            row.rank:SetTextColor(0.85, 0.85, 0.88)
             ns.ApplyRowIcon(row.icon, source)
             row.name:SetText(source.name)
             row.name:SetTextColor(1, 1, 1)

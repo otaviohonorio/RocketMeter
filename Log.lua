@@ -96,6 +96,8 @@ function Log.Snapshot(reason)
         }
     end
 
+    data.formatter = ns.Data.GetFormatterName and ns.Data.GetFormatterName() or "?"
+
     local lastError = ns.Window and ns.Window.GetLastError and ns.Window.GetLastError()
     if lastError then
         data.drawError = tostring(lastError)

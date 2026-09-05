@@ -448,6 +448,87 @@ function Data.FormatAmount(value)
     return AbbreviateNumbers(value)
 end
 
+--------------------------------------------------------------------------------
+-- Formatação de valores secret
+--------------------------------------------------------------------------------
+-- Abreviar (603K) exige dividir, e aritmética com secret value é proibida em código de addon.
+-- A wiki diz que `string.format` é permitido, e `securecallfunction` executa uma função da
+-- Blizzard fora do nosso contexto tainted — o que **pode** liberar a conta lá dentro.
+--
+-- Nada disso é chute: as estratégias são testadas no próprio jogo, na primeira vez que um
+-- valor secret aparece, e a que funcionar fica registrada no log. Se nenhuma funcionar, o
+-- número aparece cru, como hoje.
+local STRATEGIES = {
+    {
+        name = "securecallfunction(AbbreviateNumbers)",
+        run = function(value)
+            if not securecallfunction or not AbbreviateNumbers then return nil end
+            return securecallfunction(AbbreviateNumbers, value)
+        end,
+    },
+    {
+        name = "securecallfunction(BreakUpLargeNumbers)",
+        run = function(value)
+            if not securecallfunction or not BreakUpLargeNumbers then return nil end
+            return securecallfunction(BreakUpLargeNumbers, value)
+        end,
+    },
+    {
+        name = "format('%s')",
+        run = function(value)
+            return format("%s", value)
+        end,
+    },
+}
+
+local chosenStrategy      -- índice da estratégia que funcionou; false = nenhuma
+
+local function ProbeStrategies(value)
+    for index, strategy in ipairs(STRATEGIES) do
+        local ok, result = pcall(strategy.run, value)
+        if ok and result ~= nil then
+            chosenStrategy = index
+            if ns.Log then
+                ns.Log.Add("formatador", {
+                    escolhido = strategy.name,
+                    resultadoSecret = issecretvalue(result) and true or false,
+                })
+            end
+            return result
+        end
+    end
+
+    chosenStrategy = false
+    if ns.Log then
+        ns.Log.Add("formatador", { escolhido = "nenhuma; valor cru" })
+    end
+    return nil
+end
+
+---Texto de um valor que pode ser secret. Devolve nil quando não há como formatar — aí o
+---chamador repassa o valor cru ao FontString, que o motor renderiza.
+function Data.FormatSecretAmount(value)
+    if chosenStrategy == nil then
+        return ProbeStrategies(value)
+    end
+    if chosenStrategy == false then
+        return nil
+    end
+
+    local ok, result = pcall(STRATEGIES[chosenStrategy].run, value)
+    if ok then return result end
+
+    -- A restrição pode mudar no meio do caminho: refaz a sondagem uma vez.
+    chosenStrategy = nil
+    return nil
+end
+
+function Data.GetFormatterName()
+    if chosenStrategy == nil then return "ainda não sondado" end
+    if chosenStrategy == false then return "nenhuma (valor cru)" end
+    return STRATEGIES[chosenStrategy].name
+end
+
 function Data.FormatPercent(value)
     if value == nil or issecretvalue(value) then
         return nil

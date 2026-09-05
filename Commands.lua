@@ -126,6 +126,7 @@ commands["debug"] = function()
     end
 
     print("  caminhos:", ns.Data.DescribeSources(ns.db.sessionType, def.attr))
+    print("  formatador de secret:", ns.Data.GetFormatterName())
 
     local erro = ns.Window.GetLastError()
     if erro then
