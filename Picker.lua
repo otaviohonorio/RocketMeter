@@ -93,7 +93,10 @@ local function BuildRow(index, column)
     if enabled then
         local position = IndexOf(column.key)
         row.label:SetTextColor(1, 1, 1)
-        row.order:SetText(position .. "º")
+        -- "1." e não "1º": o ordinal masculino só existe em algumas línguas latinas, e em
+        -- inglês, alemão ou coreano vira lixo. O ponto é o que o próprio medidor nativo usa
+        -- para numerar linha (`DAMAGE_METER_SOURCE_NAME = "%d. %s"`).
+        row.order:SetText(position .. ".")
         row.order:Show()
         row.up:Show()
         row.down:Show()

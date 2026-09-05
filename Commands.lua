@@ -146,59 +146,81 @@ commands["log"] = function(rest)
         return
     end
 
-    ns.Log.Snapshot("pedido pelo usuario")
+    ns.Log.Snapshot("requested by the user")
     ns.Print(format(L["snapshot saved (%d entries). Type /reload so the file is written."],
         ns.Log.Count()))
-    print("  WTF\\Account\\<conta>\\SavedVariables\\RocketMeter.lua")
+    print("  WTF\\Account\\<account>\\SavedVariables\\RocketMeter.lua")
 end
 
 commands["debug"] = function()
-    ns.Print("--- diagnóstico ---")
-    print("  C_DamageMeter disponível:", tostring(ns.Data.IsAvailable()))
-    print("  em combate:", tostring(InCombatLockdown()))
-    print("  sessão:", ns.db.sessionType == 0 and "atual" or "geral",
-        "| ordenando por:", tostring(ns.db.sortBy))
+    ns.Print("--- diagnostics ---")
+    print("  C_DamageMeter available:", tostring(ns.Data.IsAvailable()))
+    print("  in combat:", tostring(InCombatLockdown()))
+    print("  session:", ns.db.sessionType == 0 and "current" or "overall",
+        "| sorting by:", tostring(ns.db.sortBy))
 
     local def = ns.Data.GetColumn(ns.db.sortBy)
     if not def then
-        print("  |cffff5555coluna de ordenação inválida:|r", tostring(ns.db.sortBy))
+        print("  |cffff5555invalid sort column:|r", tostring(ns.db.sortBy))
         return
     end
 
-    print("  caminhos:", ns.Data.DescribeSources(ns.db.sessionType, def.attr))
-    print("  formatador de secret:", ns.Data.GetFormatterName())
-    print("  linhas clicaveis:", tostring(ns.Window.RowsAreClickable()))
-    print("  tipos de sessao:", ns.Data.DescribeSessionEnum())
+    print("  paths:", ns.Data.DescribeSources(ns.db.sessionType, def.attr))
+    print("  secret formatter:", ns.Data.GetFormatterName())
+    print("  rows clickable:", tostring(ns.Window.RowsAreClickable()))
+    print("  session types:", ns.Data.DescribeSessionEnum())
 
     -- Varredura na tela: qual tipo tem o grupo.
     local def2 = ns.Data.GetColumn(ns.db.sortBy)
     for candidate = 0, 3 do
         local probe = C_DamageMeter.GetCombatSessionFromType(candidate, def2.attr)
         local list = probe and probe.combatSources
-        print(format("  tipo %d -> %d ator(es)", candidate, list and #list or 0))
+        print(format("  type %d -> %d source(s)", candidate, list and #list or 0))
     end
 
     local erro = ns.Window.GetLastError()
     if erro then
-        print("  |cffff5555último erro de desenho:|r", tostring(erro))
+        print("  |cffff5555last draw error:|r", tostring(erro))
     end
 
     local session = ns.Data.GetSession(ns.db.sessionType, def.attr)
     if not session then
-        print("  |cffff5555a API não devolveu sessão|r")
+        print("  |cffff5555the API returned no session|r")
         return
     end
 
     local sources = session.combatSources
-    print("  atores na sessão:", sources and #sources or 0)
-    print("  duração:", tostring(ns.Data.GetDuration(ns.db.sessionType)))
+    print("  sources in session:", sources and #sources or 0)
+    print("  duration:", tostring(ns.Data.GetDuration(ns.db.sessionType)))
 
     local first = sources and sources[1]
     if first then
-        print("  primeiro ator — nome secret?", tostring(issecretvalue(first.name)),
+        print("  first source — name secret?", tostring(issecretvalue(first.name)),
             "| total secret?", tostring(issecretvalue(first.totalAmount)))
         local amount = ns.Data.FormatAmount(first.totalAmount)
-        print("  valor legível:", amount or "(secret)")
+        print("  readable value:", amount or "(secret)")
+    end
+end
+
+-- Instrumentacao, pelo mesmo motivo do `/rm atlas`: `FROM_GAME` depende de globais do cliente,
+-- e global que nao existe nao avisa nada — o rotulo apenas continua em ingles, o que e
+-- indistinguivel de "esta certo assim". Uma linha de saida encerra a duvida.
+commands["i18n"] = function()
+    local report = ns.CheckGameStrings()
+    ns.Print(format(L["locale %s, %d game label(s):"], GetLocale(), #report))
+
+    local broken = 0
+    for _, row in ipairs(report) do
+        if row.text then
+            print(format("  |cff33ff99ok|r    %-46s %s", row.tag, row.text))
+        else
+            broken = broken + 1
+            print(format("  |cffff5555--|r    %-46s %s  (%s)", row.tag, row.key, row.why))
+        end
+    end
+
+    if broken > 0 then
+        ns.Print(format(L["%d game label(s) are not usable here."], broken))
     end
 end
 
@@ -214,6 +236,7 @@ commands["help"] = function()
     print("  /rm score raid                  " .. L["opens the last raid scoreboard"])
     print("  /rm score demo                  " .. L["opens the scoreboard with invented data"])
     print("  /rm atlas [name]                " .. L["checks whether the panel art exists"])
+    print("  /rm i18n                        " .. L["checks the labels taken from the game"])
     print("  /rm overall                     " .. L["switches current fight / overall"])
     print("  /rm profile char|account|reset  " .. L["account-wide or per-character settings"])
     print("  /rm reset                       " .. L["clears the sessions"])

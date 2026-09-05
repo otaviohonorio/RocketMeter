@@ -149,7 +149,16 @@ C_Spell = {
 }
 function UnitGUID() return "Player-Thalyra" end
 
-C_AddOns = { GetAddOnMetadata = function() return "0.6.0" end }
+-- Le o .toc de verdade em vez de devolver um numero fixo: com constante aqui, um teste
+-- sobre versao passaria a confirmar o stub em vez do addon.
+C_AddOns = {
+    GetAddOnMetadata = function(_, field)
+        for line in io.lines(ADDON .. ".toc") do
+            local value = line:match("^## " .. field .. ":%s*(.-)%s*$")
+            if value then return (value:gsub("%c", "")) end
+        end
+    end,
+}
 C_Texture = {
     GetAtlasInfo = function()
         return { file = "atlas.blp", leftTexCoord = 0, rightTexCoord = 1,
@@ -802,11 +811,96 @@ ns.Run.OnEncounterEnd("Chefe fora da corrida", 1)
 check("fora de corrida nao grava", #ns.Run.GetCombatTimeline(), before)
 check("boss fora da corrida nao entra", #ns.Run.GetBosses(), 1)
 
+print("== localizacao: rotulos que vem do jogo ==")
+-- `FROM_GAME` troca nossos rotulos pelas palavras que o CLIENTE ja traduziu, o que vale para os
+-- ~12 idiomas de uma vez. O modo de falha e silencioso e grave: global que nao existe e `nil`,
+-- e `nil` no lugar de um rotulo faz o texto SUMIR da tela.
+--
+-- Roda em namespace proprio, carregando so o enUS.lua. Motivo: num cliente pt-BR o ptBR.lua
+-- sobrescreve TODAS as 25 chaves, entao pelo `L` de verdade este caminho e invisivel — e teste
+-- que nao consegue ver o que testa nao testa nada.
+do
+    local saved, touched = {}, {}
+    local function setglobal(name, value)
+        if not touched[name] then
+            saved[name], touched[name] = _G[name], true
+        end
+        _G[name] = value
+    end
+
+    -- Os quatro casos que as guardas precisam separar:
+    setglobal("DAMAGE_METER_TYPE_DEATHS", "Todesfaelle")   -- 1. global limpa
+    setglobal("DAMAGE_METER_TYPE_DISPELS", nil)            -- 2. nao existe neste cliente
+    setglobal("DAMAGE_METER_CATEGORY_DAMAGE", "%d. %s")    -- 3. e modelo de frase, nao rotulo
+    setglobal("DAMAGE_METER_CATEGORY_HEALING", "")         -- 4. existe mas esta vazia
+    -- Esta e limpa DE PROPOSITO: e a isca do teste de "conferir nao escreve" la embaixo.
+    -- Sem uma global valida ali, a sabotagem nao teria o que sobrescrever e o teste
+    -- passaria em cima do bug.
+    setglobal("DAMAGE_METER_TYPE_ABSORBS", "Absorption-DE")
+
+    local probe = {}
+    assert(loadfile("Locales/enUS.lua"))(ADDON, probe)
+    local PL = probe.L
+
+    check("global limpa vira o rotulo", PL["Player deaths"], "Todesfaelle")
+    check("global ausente cai no ingles, nao em nil", PL["Dispels"], "Dispels")
+    check("global com marcador de formato e recusada", PL["Damage"], "Damage")
+    check("global vazia e recusada", PL["Healing"], "Healing")
+
+    -- O relatorio do `/rm i18n` precisa dizer exatamente qual global nao serviu e por que: e
+    -- ele que transforma "o rotulo esta estranho" em dado, sem rodada de teste in-game.
+    local why = {}
+    for _, row in ipairs(probe.CheckGameStrings()) do
+        why[row.tag] = row.why or false
+    end
+    check("ausente entra no relatorio", why["DAMAGE_METER_TYPE_DISPELS"], "ausente")
+    check("com formato entra no relatorio", why["DAMAGE_METER_CATEGORY_DAMAGE"], "modelo de frase")
+    check("vazia entra no relatorio", why["DAMAGE_METER_CATEGORY_HEALING"], "vazia")
+    check("limpa NAO entra no relatorio", why["DAMAGE_METER_TYPE_DEATHS"], false)
+
+    -- O relatorio nao pode ESCREVER. `/rm i18n` roda muito depois da carga, e reaplicar ali
+    -- apagaria o que o arquivo de idioma sobrescreveu: num cliente pt-BR "Absorcoes" viraria
+    -- "Absorve" ate o proximo /reload. Aqui: o ptBR ja rodou sobre o L de verdade, entao
+    -- chamar o relatorio nao pode mexer nele.
+    local antes = ns.L["Absorbs"]
+    ns.CheckGameStrings()
+    check("conferir NAO reaplica por cima da traducao", ns.L["Absorbs"], antes)
+
+    -- Chave de FROM_GAME que o codigo nao usa e peso morto que ninguem descobre sozinho.
+    local usedKeys = {}
+    for _, file in ipairs(files) do
+        local fh = io.open(file)
+        for key in fh:read("*a"):gmatch('L%[%s*"([^"]*)"%s*%]') do
+            usedKeys[key] = true
+        end
+        fh:close()
+    end
+    local orphan = false
+    for key in pairs(probe.FROM_GAME) do
+        if not usedKeys[key] then
+            orphan = key
+        end
+    end
+    check("nenhuma chave de FROM_GAME esta morta", orphan, false)
+
+    -- REGRESSAO 0.53.0: `DAMAGE_METER_TYPE_DPS` e `_HPS` chegaram a entrar em FROM_GAME porque
+    -- em enUS e ptBR sao a sigla "DPS"/"CPS" e pareciam perfeitas para o cabecalho de coluna.
+    -- Nos outros nove idiomas nao sao sigla: deDE da "Schadensklassen" (15 caracteres, e quer
+    -- dizer *classes de dano* -- o tradutor leu DPS como FUNCAO), ruRU da "Бойцы"
+    -- (*combatentes*), esMX da "Sanacion por segundo" (20). O cabecalho tem 58px.
+    check("DPS nao volta para FROM_GAME", probe.FROM_GAME["DPS"] or false, false)
+    check("HPS nao volta para FROM_GAME", probe.FROM_GAME["HPS"] or false, false)
+
+    for name in pairs(touched) do
+        _G[name] = saved[name]
+    end
+end
+
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",
                        "move 2 right", "score", "score demo", "score mplus", "score raid",
-                       "atlas", "atlas ChallengeMode-SpikeyStar", "config", "reset" }) do
+                       "atlas", "atlas ChallengeMode-SpikeyStar", "i18n", "config", "reset" }) do
     local ok, err = pcall(SlashCmdList.ROCKETMETER, cmd)
     print(ok and ("  ok    /rm " .. cmd) or ("  ERRO  /rm " .. cmd .. ": " .. tostring(err)))
     if not ok then os.exit(1) end

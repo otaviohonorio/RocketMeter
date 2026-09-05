@@ -184,7 +184,7 @@ end
 ---Os valores reais deste cliente, para o log e para o /rm debug.
 function Data.DescribeSessionEnum()
     local E = Enum.DamageMeterSessionType
-    if not E then return "Enum.DamageMeterSessionType nao existe" end
+    if not E then return "Enum.DamageMeterSessionType does not exist" end
     return format("Current=%s Overall=%s Expired=%s",
         tostring(E.Current), tostring(E.Overall), tostring(E.Expired))
 end
@@ -237,7 +237,7 @@ end
 
 ---Usado pelo /rm debug: diz por qual caminho os dados vieram.
 function Data.DescribeSources(sessionType, attributeId)
-    if not Data.IsAvailable() then return "API indisponível" end
+    if not Data.IsAvailable() then return "API unavailable" end
 
     local byType = C_DamageMeter.GetCombatSessionFromType(Data.SessionValue(sessionType), attributeId)
     local typeCount = byType and byType.combatSources and #byType.combatSources or 0
@@ -249,7 +249,7 @@ function Data.DescribeSources(sessionType, attributeId)
         idCount = byId and byId.combatSources and #byId.combatSources or 0
     end
 
-    return format("por tipo: %d ator(es) | por id (%s): %d ator(es)",
+    return format("by type: %d source(s) | by id (%s): %d source(s)",
         typeCount, tostring(id), idCount)
 end
 
@@ -692,8 +692,8 @@ function Data.FormatSecretAmount(value)
 end
 
 function Data.GetFormatterName()
-    if chosenStrategy == nil then return "ainda não sondado" end
-    if chosenStrategy == false then return "nenhuma (valor cru)" end
+    if chosenStrategy == nil then return "not probed yet" end
+    if chosenStrategy == false then return "none (raw value)" end
     return STRATEGIES[chosenStrategy].name
 end
 

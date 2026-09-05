@@ -203,15 +203,6 @@ local LOCK_ICON = "Interface\\PetBattles\\PetBattle-LockIcon"
 
 local CLASS_ICONS = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
 
--- Texturas do próprio jogo (nenhum arquivo nosso, nenhuma biblioteca de mídia).
-ns.BAR_TEXTURES = {
-    { key = "flat",     path = "Interface\\Buttons\\WHITE8X8",                        label = "Chapada" },
-    { key = "blizzard", path = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",              label = "Blizzard" },
-    { key = "classic",  path = "Interface\\TargetingFrame\\UI-StatusBar",             label = "Clássica" },
-    { key = "skills",   path = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar", label = "Perícias" },
-    { key = "score",    path = "Interface\\WorldStateFrame\\WORLDSTATEFINALSCORE-HIGHLIGHT", label = "Placar" },
-}
-
 function ns.BarTexture()
     return BAR_TEXTURE
 end
