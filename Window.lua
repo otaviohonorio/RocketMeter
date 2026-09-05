@@ -25,7 +25,7 @@ local WINDOW_ALPHA = 0.92
 local ROW_HEIGHT_FIXED = 20
 local COLUMN_WIDTH_FIXED = 58
 
-local HEADER_HEIGHT = 19            -- a faixa da referência é baixa
+local HEADER_HEIGHT = 20            -- faixa da referência (a skin usa 32 na escala dela)
 local COLHEAD_HEIGHT = 13
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
@@ -317,16 +317,6 @@ local function BuildRow(index)
         row.text:SetAllPoints()
         row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
 
-        -- Relevo: um brilho fraco na metade de cima. É o que tira a barra da aparência
-        -- "retângulo chapado" sem cair no degradê exagerado.
-        row.gloss = row.text:CreateTexture(nil, "ARTWORK")
-        row.gloss:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
-        row.gloss:SetPoint("BOTTOMRIGHT", row, "RIGHT", -1, 0)
-        row.gloss:SetColorTexture(1, 1, 1, 1)
-        row.gloss:SetGradient("VERTICAL",
-            CreateColor(1, 1, 1, 0.00),
-            CreateColor(1, 1, 1, 0.10))
-
         row.highlight = row.text:CreateTexture(nil, "HIGHLIGHT")
         row.highlight:SetAllPoints()
         row.highlight:SetColorTexture(1, 1, 1, 0.12)
@@ -419,16 +409,6 @@ function Window.Create()
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
     frame:SetBackdropBorderColor(0, 0, 0, 1)
 
-    -- Segunda borda, um tom acima: dá a profundidade que a referência tem.
-    frame.innerBorder = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    frame.innerBorder:SetPoint("TOPLEFT", 1, -1)
-    frame.innerBorder:SetPoint("BOTTOMRIGHT", -1, 1)
-    frame.innerBorder:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    frame.innerBorder:SetBackdropBorderColor(0.28, 0.25, 0.18, 0.9)
-    frame.innerBorder:SetFrameLevel(frame:GetFrameLevel())
 
     local header = CreateFrame("Frame", nil, frame)
     header:SetPoint("TOPLEFT", 0, 0)
@@ -441,14 +421,31 @@ function Window.Create()
     header.bg = header:CreateTexture(nil, "BACKGROUND")
     header.bg:SetAllPoints()
 
-    -- O atlas `ui-damagemeters-header-bar` existe, mas é escuro (confirmado no log) — por
-    -- isso o gradiente antigo, escrito no ramo do fallback, nunca aparecia.
-    -- A faixa da referência é um bege **claro e quase uniforme**, com um leve escurecimento
-    -- na base. Texto escuro só funciona sobre isso.
-    header.bg:SetColorTexture(1, 1, 1, 1)
-    header.bg:SetGradient("VERTICAL",
-        CreateColor(0.63, 0.57, 0.37, 1),      -- base, levemente mais escura
-        CreateColor(0.82, 0.76, 0.52, 1))      -- topo, claro
+    -- A arte É o atlas `ui-damagemeters-header-bar` — a mesma que a skin Midnight do Details
+    -- usa (ela empacota o PNG e recorta com texCoord 0.045..0.965 na horizontal e 4/60..56/60
+    -- na vertical, para tirar o padding transparente das bordas).
+    --
+    -- O erro anterior não era a arte: era o **texto escuro** por cima dela. O padrão da
+    -- Blizzard — rastreador de missões, medidor nativo — é faixa escura com **texto dourado**.
+    local info = C_Texture and C_Texture.GetAtlasInfo
+        and C_Texture.GetAtlasInfo("ui-damagemeters-header-bar")
+
+    if info and (info.file or info.filename) then
+        header.bg:SetTexture(info.file or info.filename)
+
+        local left = info.leftTexCoord or 0
+        local right = info.rightTexCoord or 1
+        local top = info.topTexCoord or 0
+        local bottom = info.bottomTexCoord or 1
+        local width, height = right - left, bottom - top
+
+        header.bg:SetTexCoord(
+            left + width * 0.045, left + width * 0.965,
+            top + height * (4 / 60), top + height * (56 / 60))
+    else
+        -- Sem o atlas: faixa escura equivalente, para o texto dourado continuar legível.
+        header.bg:SetColorTexture(0.13, 0.11, 0.07, 0.95)
+    end
 
     header.line = header:CreateTexture(nil, "BORDER")
     header.line:SetPoint("BOTTOMLEFT")
@@ -461,7 +458,7 @@ function Window.Create()
     header.segment:SetPoint("LEFT", 6, 0)
     header.segment.text = header.segment:CreateFontString(nil, "OVERLAY")
     header.segment.text:SetPoint("LEFT")
-    header.segment.text:SetTextColor(0.10, 0.08, 0.03)
+    header.segment.text:SetTextColor(1, 0.82, 0)      -- dourado padrão da Blizzard
     header.segment:SetScript("OnClick", function()
         ns.db.sessionType = ns.db.sessionType == 0 and 1 or 0
         Window.Refresh(true)
@@ -475,7 +472,7 @@ function Window.Create()
 
     header.clock = header:CreateFontString(nil, "OVERLAY")
     header.clock:SetPoint("LEFT", header.segment, "RIGHT", 2, 0)
-    header.clock:SetTextColor(0.20, 0.17, 0.09)
+    header.clock:SetTextColor(0.85, 0.72, 0.36)
 
     frame.header = header
 
@@ -484,19 +481,19 @@ function Window.Create()
         b:SetSize(14, 14)
         b:SetNormalTexture(texture)
         local tex = b:GetNormalTexture()
-        if tex then tex:SetVertexColor(0.25, 0.21, 0.12) end
+        if tex then tex:SetVertexColor(0.80, 0.74, 0.55) end
         b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
         b:SetScript("OnClick", onClick)
         b:SetScript("OnEnter", function(self)
             local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(0, 0, 0) end
+            if t then t:SetVertexColor(1, 1, 1) end
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText(tooltip, 1, 1, 1)
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
             local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(0.25, 0.21, 0.12) end
+            if t then t:SetVertexColor(0.80, 0.74, 0.55) end
             GameTooltip_Hide()
         end)
         return b
@@ -590,7 +587,7 @@ function Window.Rebuild()
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
 
     -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
-    ns.ApplyFont(frame.header.segment.text, 0, "")
+    ns.ApplyFont(frame.header.segment.text, 1, "")   -- 13pt, como a skin
     ns.ApplyFont(frame.header.clock, -1, "")
 
     BuildColumnHeader()

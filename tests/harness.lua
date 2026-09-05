@@ -97,6 +97,12 @@ tinsert, tremove, wipe = table.insert, table.remove, function(t) for k in pairs(
 format = string.format
 
 C_AddOns = { GetAddOnMetadata = function() return "0.6.0" end }
+C_Texture = {
+    GetAtlasInfo = function()
+        return { file = "atlas.blp", leftTexCoord = 0, rightTexCoord = 1,
+                 topTexCoord = 0, bottomTexCoord = 1 }
+    end,
+}
 C_Timer = { After = function(_, fn) fn() end }
 C_ChallengeMode = {
     GetChallengeCompletionInfo = function() return { mapChallengeModeID = 2, level = 12, time = 1500000, onTime = true } end,
