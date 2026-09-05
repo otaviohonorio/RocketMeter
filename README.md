@@ -132,135 +132,28 @@ E a janela **encolhe para o número de jogadores que existem**: solo é uma linh
 são cinco. Caixa vazia esperando gente é justamente o que deixava a janela com cara de painel
 solto — o medidor da Blizzard não faz isso, e agora o Rocket Meter também não.
 
-### Como isso é possível em tempo real
+### O que da para cruzar em combate, e o que nao da
 
-Cada métrica é uma consulta separada em `C_DamageMeter`, e cruzar as consultas exigiria casar o
-mesmo jogador entre elas — mas em combate até o GUID é secret, e valor secret não pode ser chave
-de tabela. A saída: **o cruzamento é feito pela própria API**. A consulta da métrica de ordenação
-devolve a lista já ordenada; para cada jogador dela, o GUID (mesmo opaco) é devolvido à API para
-buscar o valor nas outras métricas:
+Cada metrica e uma consulta separada. Cruzar duas exige casar o mesmo jogador entre elas — e e
+aqui que o Midnight impoe um limite duro:
 
-```lua
-local session = C_DamageMeter.GetCombatSessionFromType(sessionType, sortAttr)
-for _, source in ipairs(session.combatSources) do
-    local outra = C_DamageMeter.GetCombatSessionSourceFromType(
-        sessionType, outroAtributo, source.sourceGUID, source.sourceCreatureID)
-    -- outra.totalAmount é o valor daquele jogador naquela métrica
-end
-```
+> `GetCombatSessionSourceFromType(...)`: **Secret values are only allowed during untainted**
 
-É o mesmo caminho que o Details! usa internamente no `parser_nocleu1.lua`.
+Ou seja: em combate o `sourceGUID` e secret, e **addon nao pode devolver um secret value para a
+API**. So o codigo da Blizzard pode. Isso derruba a ideia obvia de cruzar metricas por GUID
+durante a luta.
 
-### A linha é uma barra, não uma célula
+O que sobra, e o que o addon faz:
 
-Cada jogador é uma **barra**: fundo escuro, preenchimento sólido na cor da classe proporcional ao
-valor, ícone de **especialização** (opcional: classe) e nome por cima, número à direita. É o
-formato do medidor nativo do jogo. As métricas extras entram como colunas à direita — e é aí que
-está o ganho: no Details essa mesma informação exige uma janela por métrica.
-
-Ajustável nas opções: **fonte** (Friz Quadrata, Arial Narrow, 2002, Skurri, Morpheus),
-**tamanho da fonte**, **altura da barra**, **largura das colunas** e o **ícone da linha**.
-A janela também redimensiona pela alça do canto inferior direito: a largura vai para o nome, e a
-altura vira quantidade de linhas.
-
-### O líder de cada coluna fica realçado
-
-A ordenação conta a história de **uma** coluna. O resto da tabela perderia a informação de quem
-lidera — então cada coluna realça o seu próprio líder:
-
-```
-                    Dano     DPS     Cura     CPS  Interr Mortes
- 1. Thalyra         1,2M   9,1k/s   120K    1,0k/s     1      0
- 2. Brumm           980K   7,4k/s   900K    7,5k/s     0      2
- 3. Sarien          740K   5,6k/s    50K     416/s     5      1
-```
-
-Thalyra lidera o dano (e por isso está em primeiro), mas quem cura mais é o Brumm e quem mais
-interrompe é o Sarien — e cada um desses números aparece **dourado**. Nas métricas em que
-liderar é má notícia — dano recebido, dano evitável, mortes — o realce é **vermelho**: a
-informação é útil mesmo sendo ruim.
-
-**Só funciona fora de combate**, e por um motivo de fundo: achar o maior valor exige comparar,
-e comparar secret values é proibido. Durante a luta os números aparecem normalmente, sem realce;
-quando o combate termina, o realce aparece. Preferível a inventar um líder errado.
-
-### Uma coluna e (metrica, campo)
-
-O erro que mais custou: `Enum.DamageMeterType.Dps` **nao e** "a metrica de DPS". Os atributos
-`Dps` e `Hps` devolvem os mesmos totais de dano e cura — quem carrega o valor por segundo e o
-campo `amountPerSecond`, no mesmo objeto que traz `totalAmount`. E assim que o Details! faz.
-
-Por isso uma coluna aqui e um par:
-
-| Coluna | metrica (`attr`) | campo |
-|---|---|---|
-| Dano | `DamageDone` | `totalAmount` |
-| DPS | `DamateDone` | `amountPerSecond` |
-| Dano% | `DamageDone` | percentual do total do grupo |
-| Cura | `HealingDone` | `totalAmount` |
-| CPS | `HealingDone` | `amountPerSecond` |
-
-O percentual custa uma consulta por coluna (nao por linha) para obter o total do grupo naquela
-metrica, e so aparece fora de combate — calcular exige aritmetica, proibida com secret values.
-
-### Limpar os dados
-
-O botão de refresh no cabeçalho zera as sessões — e **pergunta antes**, porque a API só sabe
-apagar tudo de uma vez: o combate atual e o geral juntos, sem desfazer. O mesmo botão está no
-rodapé do painel de colunas e no placar. Por chat, `/rm reset` pergunta e `/rm reset now` não.
-
-### Contraste: por que a barra nao usa a cor pura da classe
-
-A cor de classe pura e clara demais atras de texto branco. No medidor da Blizzard — e no Details
-com a skin nativa — a barra e uma versao **escurecida** dela. Aqui isso e o `barBrightness`
-(padrao 0.65): a cor da classe multiplicada, com o fundo da linha tingido da mesma cor bem
-apagada, para a parte vazia nao virar um buraco preto.
-
-Some-se a isso o **contorno** no texto (padrao fino), que e o que garante leitura sobre qualquer
-cor de barra.
-
-A **textura** da barra e escolhivel, entre as que o proprio jogo traz — nenhum arquivo nosso,
-nenhuma biblioteca de midia:
-
-| Opcao | Textura |
+| Situacao | Como preenche as colunas |
 |---|---|
-| Blizzard (padrao) | `RaidFrame\Raid-Bar-Hp-Fill` |
-| Chapada | `Buttons\WHITE8X8` |
-| Classica | `TargetingFrame\UI-StatusBar` |
-| Pericias | `PaperDollInfoFrame\UI-Character-Skills-Bar` |
-| Placar | `WorldStateFrame\WORLDSTATEFINALSCORE-HIGHLIGHT` |
+| **Fora de combate** | GUID e legivel: cruza tudo, todas as colunas para todos |
+| **Em combate, sua linha** | `isLocalPlayer` continua legivel: cruza tudo para voce |
+| **Em combate, os outros** | so a coluna de ordenacao; as demais mostram `-` |
 
-**Icone por especializacao, cor por classe** — como no Details. A Blizzard nao define cor por
-especializacao; `RAID_CLASS_COLORS` e a tabela oficial.
-
-### Diagnóstico: log em SavedVariables
-
-Addon não escreve arquivo onde quer, mas SavedVariables vira um `.lua` legível fora do jogo —
-então é por ali que o addon conta o que aconteceu:
-
-```
-WTF\Account\<conta>\SavedVariables\RocketMeter.lua
-```
-
-O log tira uma foto sozinho no **início do combate**, aos **3 segundos de luta** e no **fim**, e
-`/rm log` grava uma sob demanda. Cada foto registra por qual caminho a sessão veio (por tipo ×
-por id), quantos atores apareceram, quais campos estavam *secret* e o último erro de desenho.
-
-**Regra de ouro:** o log nunca guarda um valor cru vindo da API. Gravar um secret value em
-SavedVariables é erro na certa — então ele guarda *fatos sobre* o dado (`SECRET`, `nil`, ou o
-número já legível).
-
-O arquivo só é escrito no **logout ou `/reload`**.
-
-### Comportamento da janela
-
-- **Volta como você deixou**: a visibilidade é salva, então a janela reaparece sozinha na posição
-  de sempre — sem precisar clicar no minimapa a cada login.
-- **ESC não fecha.** Fecha só no X. (A janela fica fora de `UISpecialFrames` justamente por isso.)
-- **Só em combate**, opcional: aparece quando a luta começa e some alguns segundos depois.
-- **Atual / Geral** alternam clicando no próprio título. O combate atual zera a cada luta nova;
-  o geral acumula sempre — os dois vêm prontos do motor do jogo (`sessionType` 0 e 1), não somos
-  nós que zeramos nada.
+Nao e limitacao de implementacao: e o que a API permite. Durante a luta voce ve o ranking da
+metrica ordenada com todo mundo, e o seu proprio detalhe completo; ao sair do combate a tabela
+inteira se completa.
 
 ## Placar de fim de corrida
 
@@ -293,7 +186,8 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.14.0 — textura de barra escolhível, contraste corrigido, log de diagnóstico, realce do líder por coluna, linhas em formato de barra, ícone de especialização,
+**0.15.0 — corrigido o bug que deixava a janela vazia em combate, textura de barra
+escolhível, contraste corrigido, log de diagnóstico, realce do líder por coluna, linhas em formato de barra, ícone de especialização,
 fonte e tamanhos configuráveis, redimensionamento, botão de limpar dados.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,

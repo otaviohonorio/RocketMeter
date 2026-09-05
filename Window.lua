@@ -623,6 +623,8 @@ function Window.Draw()
     local duration = ns.Data.GetDuration(ns.db.sessionType)
     if duration ~= nil and not issecretvalue(duration) and duration > 0 then
         frame.header.clock:SetText(SecondsToClock(duration))
+    elseif InCombatLockdown() then
+        frame.header.clock:SetText("|cff909090" .. L["in combat"] .. "|r")
     else
         frame.header.clock:SetText("")
     end

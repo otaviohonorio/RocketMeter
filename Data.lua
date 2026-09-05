@@ -1,7 +1,15 @@
 -- RocketMeter | Data.lua
 -- Camada única sobre C_DamageMeter. Nenhum outro arquivo fala com a API do jogo.
 --
--- DUAS LIÇÕES QUE CUSTARAM CARO:
+-- TRÊS LIÇÕES QUE CUSTARAM CARO:
+--
+-- 0) **Addon não pode devolver um secret value para a API.** Tentar
+--    `GetCombatSessionSourceFromType(tipo, atributo, guidSecret)` responde
+--    "Secret values are only allowed during untainted", e o erro derruba o desenho inteiro.
+--    Era a base do cruzamento de métricas e estava errado: em combate o GUID é secret, então
+--    só dá para cruzar métricas **fora** de combate. Dentro dela, cada métrica é uma lista
+--    própria e ordenada, e a única linha que dá para casar é a do próprio jogador
+--    (`isLocalPlayer`, que continua legível).
 --
 -- 1) Uma coluna é **(métrica, campo)**, não só uma métrica. O valor por segundo vem no campo
 --    `amountPerSecond` do MESMO objeto que traz o total — é assim que o Details! faz. Os
@@ -225,9 +233,37 @@ end
 
 ---O `guid` pode ser secret em combate — a API aceita de volta o valor opaco que ela mesma
 ---produziu, e é isso que torna possível cruzar métricas.
+---Dados de um ator dentro de outra métrica.
+---
+---Só funciona com GUID **legível**: passar um secret de volta para a API é recusado. O `pcall`
+---é rede de segurança para o dia em que outra restrição aparecer — um erro aqui não pode
+---derrubar o desenho da janela inteira.
 function Data.GetSource(sessionType, attributeId, guid, creatureId)
     if not Data.IsAvailable() or guid == nil then return nil end
-    return C_DamageMeter.GetCombatSessionSourceFromType(sessionType, attributeId, guid, creatureId)
+    if issecretvalue(guid) then return nil end
+
+    local ok, result = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
+        sessionType, attributeId, guid, creatureId)
+    if ok then return result end
+    return nil
+end
+
+---O próprio jogador dentro de uma métrica.
+---
+---`isLocalPlayer` continua legível em combate, então é o único jeito de casar uma linha com
+---outra métrica enquanto a luta acontece — e é a linha que mais importa para quem está jogando.
+function Data.GetLocalPlayerSource(session)
+    local list = session and session.combatSources
+    if not list then return nil end
+
+    for i = 1, #list do
+        local candidate = list[i]
+        local flag = candidate.isLocalPlayer
+        if flag ~= nil and not issecretvalue(flag) and flag == true then
+            return candidate
+        end
+    end
+    return nil
 end
 
 function Data.GetDuration(sessionType)
@@ -303,17 +339,26 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
     local sources = session and session.combatSources
     if not sources then return nil, nil end
 
-    -- Totais por métrica: uma consulta por coluna (não por linha), para os percentuais.
-    local sessionTotals, needTotals = {}, false
+    -- Uma consulta por métrica (não por linha): serve para o percentual e para achar a
+    -- linha do próprio jogador quando o GUID está secret.
+    local sessions = { [sortDef.attr] = session }
+    local function SessionFor(attr)
+        local cached = sessions[attr]
+        if cached == nil then
+            cached = Data.GetSession(sessionType, attr) or false
+            sessions[attr] = cached
+        end
+        return cached or nil
+    end
+
+    local sessionTotals = {}
     for c = 1, #columns do
         local def = Data.GetColumn(columns[c])
         if def and def.field == "percent" and sessionTotals[def.attr] == nil then
-            needTotals = true
-            local other = def.attr == sortDef.attr and session or Data.GetSession(sessionType, def.attr)
+            local other = SessionFor(def.attr)
             sessionTotals[def.attr] = other and other.totalAmount or false
         end
     end
-    if not needTotals then sessionTotals = nil end
 
     local rows = {}
     local count = #sources
@@ -325,17 +370,27 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
         local values = {}
         local cache = { [sortDef.attr] = source }
 
+        local guid = source.sourceGUID
+        local guidReadable = guid ~= nil and not issecretvalue(guid)
+        local isLocal = source.isLocalPlayer
+        isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
+
         for c = 1, #columns do
             local def = Data.GetColumn(columns[c])
             if def then
                 local from = cache[def.attr]
                 if from == nil then
-                    from = Data.GetSource(sessionType, def.attr, source.sourceGUID, source.sourceCreatureID)
-                        or false
+                    if guidReadable then
+                        from = Data.GetSource(sessionType, def.attr, guid, source.sourceCreatureID) or false
+                    elseif isLocal then
+                        -- Em combate: sem GUID legível, só a própria linha pode ser casada.
+                        from = Data.GetLocalPlayerSource(SessionFor(def.attr)) or false
+                    else
+                        from = false
+                    end
                     cache[def.attr] = from
                 end
-                values[c] = ValueFromSource(from or nil, def,
-                    sessionTotals and sessionTotals[def.attr] or nil)
+                values[c] = ValueFromSource(from or nil, def, sessionTotals[def.attr] or nil)
             end
         end
 

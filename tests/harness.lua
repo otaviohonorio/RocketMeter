@@ -317,6 +317,51 @@ local migrated = ns.Data.MigrateColumns({ Enum.DamageMeterType.DamageDone, Enum.
 check("migracao converte id em chave", migrated[1], "damage")
 check("migracao converte Hps em hps", migrated[2], "hps")
 
+print("== combate: guid secret ==")
+-- SIMULA_SECRET: reproduz o bug real relatado no log do usuario. Em combate o GUID e secret,
+-- e devolver esse valor para a API responde "Secret values are only allowed during untainted".
+-- Antes da correcao, o erro derrubava o desenho e a janela ficava vazia a luta inteira.
+local secretMarker = setmetatable({}, { __tostring = function() return "SECRET" end })
+local realIsSecret = issecretvalue
+issecretvalue = function(v) return v == secretMarker end
+
+local plainFromType = C_DamageMeter.GetCombatSessionFromType
+C_DamageMeter.GetCombatSessionFromType = function(sessionType, attribute)
+    local session = plainFromType(sessionType, attribute)
+    for i, src in ipairs(session.combatSources) do
+        src.sourceGUID = secretMarker           -- em combate o GUID e opaco
+        src.isLocalPlayer = i == 1              -- so a propria linha da para casar
+    end
+    return session
+end
+C_DamageMeter.GetCombatSessionSourceFromType = function(_, _, guid)
+    if guid == secretMarker then
+        error("Secret values are only allowed during untainted execution")
+    end
+    return { totalAmount = 1, amountPerSecond = 1 }
+end
+
+local combatRows = ns.Data.GetRows(0, "damage", { "damage", "healing" }, 5, false)
+if not combatRows or not combatRows[1] then
+    print("  ERRO  nenhuma linha em combate — a janela ficaria vazia")
+    os.exit(1)
+end
+print("  ok    " .. #combatRows .. " linha(s) mesmo com guid secret")
+if combatRows[1].values[1] == nil then
+    print("  ERRO  a coluna ordenada precisa de valor mesmo em combate")
+    os.exit(1)
+end
+print("  ok    coluna ordenada preenchida em combate")
+
+issecretvalue = realIsSecret
+C_DamageMeter.GetCombatSessionFromType = plainFromType
+C_DamageMeter.GetCombatSessionSourceFromType = function(sessionType, attribute, guid)
+    local byAttribute = {
+        [Enum.DamageMeterType.HealingDone] = { totalAmount = 600000, amountPerSecond = 5000 },
+    }
+    return byAttribute[attribute] or { totalAmount = 42000, amountPerSecond = 350 }
+end
+
 print("== sessao vazia por tipo (cenario do reset) ==")
 -- SIMULA_RESET: depois de zerar, a sessao "atual" volta vazia enquanto a luta acontece.
 -- Os dados so aparecem pela sessao por id — sem o fallback, a janela fica em branco.
