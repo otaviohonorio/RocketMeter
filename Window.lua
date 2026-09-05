@@ -25,8 +25,8 @@ local WINDOW_ALPHA = 0.92
 local ROW_HEIGHT_FIXED = 20
 local COLUMN_WIDTH_FIXED = 58
 
-local HEADER_HEIGHT = 22
-local COLHEAD_HEIGHT = 14
+local HEADER_HEIGHT = 19            -- a faixa da referência é baixa
+local COLHEAD_HEIGHT = 13
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
 local GRIP = 14
@@ -199,7 +199,7 @@ local function BuildColumnHeader()
         headerRow.labels = {}
         headerRow.bg = headerRow:CreateTexture(nil, "BACKGROUND")
         headerRow.bg:SetAllPoints()
-        headerRow.bg:SetColorTexture(1, 1, 1, 0.05)
+        headerRow.bg:SetColorTexture(0, 0, 0, 0.45)
     end
 
     headerRow:ClearAllPoints()
@@ -317,9 +317,27 @@ local function BuildRow(index)
         row.text:SetAllPoints()
         row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
 
+        -- Relevo: um brilho fraco na metade de cima. É o que tira a barra da aparência
+        -- "retângulo chapado" sem cair no degradê exagerado.
+        row.gloss = row.text:CreateTexture(nil, "ARTWORK")
+        row.gloss:SetPoint("TOPLEFT", row, "TOPLEFT", 1, -1)
+        row.gloss:SetPoint("BOTTOMRIGHT", row, "RIGHT", -1, 0)
+        row.gloss:SetColorTexture(1, 1, 1, 1)
+        row.gloss:SetGradient("VERTICAL",
+            CreateColor(1, 1, 1, 0.00),
+            CreateColor(1, 1, 1, 0.10))
+
         row.highlight = row.text:CreateTexture(nil, "HIGHLIGHT")
         row.highlight:SetAllPoints()
         row.highlight:SetColorTexture(1, 1, 1, 0.12)
+
+        -- Anel escuro em volta do ícone, como na referência.
+        row.iconRing = row.text:CreateTexture(nil, "ARTWORK")
+        row.iconRing:SetPoint("LEFT", 3, 0)
+        row.iconRing:SetColorTexture(0, 0, 0, 0.85)
+        if row.iconRing.SetMask then
+            row.iconRing:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        end
 
         -- Redonda (especialização): recebe a máscara e nunca texcoord.
         row.icon = row.text:CreateTexture(nil, "OVERLAY")
@@ -352,9 +370,10 @@ local function BuildRow(index)
         row:SetBackdropBorderColor(0, 0, 0, 0.9)
     end
 
-    local iconSize = height - 4
+    local iconSize = height - 5
     row.icon:SetSize(iconSize, iconSize)
     row.iconClass:SetSize(iconSize, iconSize)
+    row.iconRing:SetSize(iconSize + 2, iconSize + 2)
     ns.ApplyFont(row.name, 0)
 
     for _, cell in pairs(row.cells) do
@@ -400,6 +419,17 @@ function Window.Create()
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
     frame:SetBackdropBorderColor(0, 0, 0, 1)
 
+    -- Segunda borda, um tom acima: dá a profundidade que a referência tem.
+    frame.innerBorder = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    frame.innerBorder:SetPoint("TOPLEFT", 1, -1)
+    frame.innerBorder:SetPoint("BOTTOMRIGHT", -1, 1)
+    frame.innerBorder:SetBackdrop({
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    frame.innerBorder:SetBackdropBorderColor(0.28, 0.25, 0.18, 0.9)
+    frame.innerBorder:SetFrameLevel(frame:GetFrameLevel())
+
     local header = CreateFrame("Frame", nil, frame)
     header:SetPoint("TOPLEFT", 0, 0)
     header:SetPoint("TOPRIGHT", 0, 0)
@@ -411,13 +441,14 @@ function Window.Create()
     header.bg = header:CreateTexture(nil, "BACKGROUND")
     header.bg:SetAllPoints()
 
-    -- O atlas `ui-damagemeters-header-bar` EXISTE, mas e escuro — confirmado no log do
-    -- usuario, e por isso o gradiente que eu desenhava nunca aparecia (codigo morto).
-    -- A faixa bege da referencia e desenhada aqui, sempre.
+    -- O atlas `ui-damagemeters-header-bar` existe, mas é escuro (confirmado no log) — por
+    -- isso o gradiente antigo, escrito no ramo do fallback, nunca aparecia.
+    -- A faixa da referência é um bege **claro e quase uniforme**, com um leve escurecimento
+    -- na base. Texto escuro só funciona sobre isso.
     header.bg:SetColorTexture(1, 1, 1, 1)
     header.bg:SetGradient("VERTICAL",
-        CreateColor(0.52, 0.46, 0.29, 1),
-        CreateColor(0.84, 0.77, 0.54, 1))
+        CreateColor(0.63, 0.57, 0.37, 1),      -- base, levemente mais escura
+        CreateColor(0.82, 0.76, 0.52, 1))      -- topo, claro
 
     header.line = header:CreateTexture(nil, "BORDER")
     header.line:SetPoint("BOTTOMLEFT")
@@ -430,7 +461,7 @@ function Window.Create()
     header.segment:SetPoint("LEFT", 6, 0)
     header.segment.text = header.segment:CreateFontString(nil, "OVERLAY")
     header.segment.text:SetPoint("LEFT")
-    header.segment.text:SetTextColor(0.12, 0.10, 0.05)
+    header.segment.text:SetTextColor(0.10, 0.08, 0.03)
     header.segment:SetScript("OnClick", function()
         ns.db.sessionType = ns.db.sessionType == 0 and 1 or 0
         Window.Refresh(true)
@@ -558,8 +589,9 @@ function Window.Rebuild()
 
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
 
-    ns.ApplyFont(frame.header.segment.text, 0)
-    ns.ApplyFont(frame.header.clock, -1)
+    -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
+    ns.ApplyFont(frame.header.segment.text, 0, "")
+    ns.ApplyFont(frame.header.clock, -1, "")
 
     BuildColumnHeader()
     for i = 1, ns.db.rows do
