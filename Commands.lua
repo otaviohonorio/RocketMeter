@@ -131,6 +131,7 @@ commands["debug"] = function()
 
     print("  caminhos:", ns.Data.DescribeSources(ns.db.sessionType, def.attr))
     print("  formatador de secret:", ns.Data.GetFormatterName())
+    print("  linhas clicaveis:", tostring(ns.Window.RowsAreClickable()))
     print("  tipos de sessao:", ns.Data.DescribeSessionEnum())
 
     -- Varredura na tela: qual tipo tem o grupo.

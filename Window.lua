@@ -298,20 +298,30 @@ local function BuildRow(index)
     local row = rows[index]
     if not row then
         row = CreateFrame("Button", nil, frame, "BackdropTemplate")
-        row:RegisterForClicks("LeftButtonUp")
-        row:SetScript("OnClick", function(self)
+
+        -- Sem isto o clique atravessa a linha e cai no frame da janela: o mouse precisa ser
+        -- habilitado explicitamente, mesmo em Button criado por código.
+        row:EnableMouse(true)
+        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+        row:SetScript("OnClick", function(self, button)
+            if button == "RightButton" then
+                ns.OpenOptions()
+                return
+            end
             if self.source then
                 ns.Breakdown.Show(self.source, ns.db.sessionType, frame)
             end
         end)
+
+        -- Realce ao passar o mouse, no lugar de tooltip: mostra que a linha é clicável sem
+        -- cobrir a tela com uma caixa de texto.
         row:SetScript("OnEnter", function(self)
-            if not self.source then return end
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(self.source.name, 1, 1, 1)
-            GameTooltip:AddLine(L["Click to see the spell breakdown."], 0.7, 0.7, 0.7)
-            GameTooltip:Show()
+            if self.hover then self.hover:Show() end
         end)
-        row:SetScript("OnLeave", GameTooltip_Hide)
+        row:SetScript("OnLeave", function(self)
+            if self.hover then self.hover:Hide() end
+        end)
         row:SetBackdrop({
             edgeFile = "Interface\\Buttons\\WHITE8X8",
             edgeSize = 1,
@@ -337,9 +347,10 @@ local function BuildRow(index)
         row.text:SetAllPoints()
         row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
 
-        row.highlight = row.text:CreateTexture(nil, "HIGHLIGHT")
-        row.highlight:SetAllPoints()
-        row.highlight:SetColorTexture(1, 1, 1, 0.12)
+        row.hover = row.text:CreateTexture(nil, "ARTWORK")
+        row.hover:SetAllPoints()
+        row.hover:SetColorTexture(1, 1, 1, 0.10)
+        row.hover:Hide()
 
         -- Ícone quadrado ocupando a linha inteira, como na referência: a skin usa
         -- `icon_mask = ""` e `icon_size_offset = 0`. A máscara circular que eu tinha posto
@@ -893,6 +904,13 @@ function Window.OnCombatEnd()
             end
         end)
     end
+end
+
+---Diagnóstico: as linhas estão recebendo clique? Responde sem depender de tentativa e erro.
+function Window.RowsAreClickable()
+    local row = rows and rows[1]
+    if not row then return false end
+    return row:IsMouseEnabled() and row:GetScript("OnClick") ~= nil and row.source ~= nil
 end
 
 function Window.ApplyScale()

@@ -24,6 +24,7 @@ local function widget(kind)
     function self.GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
     function self.GetName() return kind .. "Stub" end
     function self.IsShown() return true end
+    function self.IsMouseEnabled() return true end
     function self.IsForbidden() return false end
     function self.GetStatusBarTexture() return widget("Texture") end
     function self.GetEffectiveScale() return 1 end
