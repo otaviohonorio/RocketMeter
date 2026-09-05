@@ -520,17 +520,24 @@ function Window.Create()
 
     frame.header = header
 
-    local function HeaderButton(texture, tooltip, onClick)
+    -- Todos os ícones do cabeçalho são **glifos chapados**, no mesmo tamanho e no mesmo tom.
+    -- O X e o cadeado usavam arte de botão (com moldura e relevo) e destoavam da engrenagem e
+    -- do refresh — era o "botão de Windows XP" no meio de ícones planos.
+    local function HeaderButton(texture, tooltip, onClick, atlas)
         local b = CreateFrame("Button", nil, header)
-        b:SetSize(14, 14)
+        b:SetSize(15, 15)
         b:SetNormalTexture(texture)
+
         local tex = b:GetNormalTexture()
+        if atlas and tex and tex.SetAtlas then
+            tex:SetAtlas(atlas, false)
+        end
         if tex then tex:SetVertexColor(0.80, 0.74, 0.55) end
         b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
         b:SetScript("OnClick", onClick)
         b:SetScript("OnEnter", function(self)
             local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(1, 1, 1) end
+            if t then t:SetVertexColor(1, 0.95, 0.80) end
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText(tooltip, 1, 1, 1)
             GameTooltip:Show()
@@ -543,8 +550,8 @@ function Window.Create()
         return b
     end
 
-    frame.closeButton = HeaderButton("Interface\\Buttons\\UI-Panel-MinimizeButton-Up",
-        L["Close"], function() Window.Hide() end)
+    frame.closeButton = HeaderButton("Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+        L["Close"], function() Window.Hide() end, "common-icon-redx")
     frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -4, 0)
 
     frame.gearButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
@@ -949,11 +956,9 @@ end
 ---
 ---A alça só faz sentido destravada — deixá-la visível travada convida a arrastar algo que não
 ---vai se mexer. Some junto.
-local LOCK_ICONS = {
-    locked = "Interface\\Buttons\\LockButton-Locked-Up",
-    unlocked = "Interface\\Buttons\\LockButton-Unlocked-Up",
-    fallback = "Interface\\PetBattles\\PetBattle-LockIcon",
-}
+-- Cadeado plano, o mesmo ícone nos dois estados: cheio quando travado, apagado e sem cor
+-- quando destravado. A arte `LockButton-*-Up` é um botão com moldura e destoava dos glifos.
+local LOCK_ICON = "Interface\\PetBattles\\PetBattle-LockIcon"
 
 function Window.ApplyLock()
     if not frame then return end
@@ -967,22 +972,15 @@ function Window.ApplyLock()
     local button = frame.lockButton
     if not button then return end
 
-    button:SetNormalTexture(locked and LOCK_ICONS.locked or LOCK_ICONS.unlocked)
+    button:SetNormalTexture(LOCK_ICON)
     local texture = button:GetNormalTexture()
+    if not texture then return end
 
-    -- Se o par de cadeados não existir neste cliente, cai num ícone confirmado e distingue
-    -- os estados pelo brilho, em vez de mostrar o quadrado de textura ausente.
-    if texture and not texture:GetTexture() then
-        button:SetNormalTexture(LOCK_ICONS.fallback)
-        texture = button:GetNormalTexture()
-        if texture then
-            texture:SetDesaturated(not locked)
-        end
-    end
-
-    if texture then
-        texture:SetVertexColor(locked and 1 or 0.80, locked and 0.82 or 0.74,
-            locked and 0.35 or 0.55)
+    texture:SetDesaturated(not locked)
+    if locked then
+        texture:SetVertexColor(1, 0.82, 0.30)     -- fechado: dourado, chama atenção
+    else
+        texture:SetVertexColor(0.72, 0.68, 0.55)  -- aberto: apagado, no tom dos outros ícones
     end
 end
 
