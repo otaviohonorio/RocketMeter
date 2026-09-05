@@ -19,10 +19,15 @@ local FONT = "Fonts\\FRIZQT__.TTF"
 local FONT_SIZE = 12
 local FONT_OUTLINE = "OUTLINE"
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
+-- Estes números vêm do `styleConfig` da skin Details_Midnight, que está instalada:
+--   wallpaperAlpha = 0.4      -> fundo da janela
+--   barBackgroundAlpha = 0.4  -> fundo escuro atrás do preenchimento
+--   barHeight = 20, barSpacingBetween = 1, barFontSize = 12
 local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
-local ROW_BG_TINT = 0.16            -- fundo da linha: a mesma cor, bem apagada
-local WINDOW_ALPHA = 0.92
-local ROW_HEIGHT_FIXED = 20
+local ROW_BG_ALPHA = 0.4            -- fundo da linha (skin: barBackgroundAlpha)
+local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
+local WINDOW_ALPHA = 0.4            -- fundo da janela (skin: wallpaperAlpha)
+local ROW_HEIGHT_FIXED = 20         -- skin: barHeight
 local COLUMN_WIDTH_FIXED = 58
 
 local HEADER_HEIGHT = 20            -- faixa da referência (a skin usa 32 na escala dela)
@@ -99,7 +104,7 @@ end
 ---Fundo da linha: a mesma cor, bem apagada, para a parte vazia não ser um buraco preto.
 function ns.RowBackdropColor(classFilename)
     local r, g, b = ns.ClassColor(classFilename)
-    return r * ROW_BG_TINT, g * ROW_BG_TINT, b * ROW_BG_TINT, 0.9
+    return r * ROW_BG_TINT, g * ROW_BG_TINT, b * ROW_BG_TINT, ROW_BG_ALPHA
 end
 
 local function ApplyClassIcon(texture, classFilename)
@@ -185,6 +190,11 @@ local function ColumnHeaderHeight()
     return COLHEAD_HEIGHT
 end
 
+---Altura da janela para N linhas.
+---
+---A janela **mantém o tamanho que o usuário deu**, como no Details: as barras preenchem de cima
+---para baixo e o resto fica de fundo. Encolher para o conteúdo, como eu tinha feito, tornava a
+---alça inútil — com um jogador só, arrastar não mudava nada e parecia travado.
 local function WindowHeight(rowCount)
     if rowCount < 1 then rowCount = 1 end
     return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
@@ -535,7 +545,8 @@ function Window.Create()
     -- Alça de redimensionamento: largura livre, altura em número de linhas.
     frame:SetResizable(true)
     if frame.SetResizeBounds then
-        frame:SetResizeBounds(MinWidth(), WindowHeight(1))
+        -- Máximo generoso: quem arrasta decide, o limite é só para não virar tela cheia.
+        frame:SetResizeBounds(MinWidth(), WindowHeight(1), 1400, WindowHeight(40))
     end
 
     local grip = CreateFrame("Button", nil, frame)
@@ -558,11 +569,8 @@ function Window.Create()
         if count > 40 then count = 40 end
         ns.db.rows = count
 
-        -- Quem arrastou a alça quer aquele tamanho. A altura deixa de encolher sozinha,
-        -- senão a janela voltaria para uma linha quando só há um jogador na lista.
-        ns.db.autoHeight = false
-
         Window.Rebuild()
+        frame:SetHeight(WindowHeight(ns.db.rows))
     end)
     frame.grip = grip
 
@@ -600,7 +608,7 @@ function Window.Rebuild()
 
     frame:SetWidth(WindowWidth())
     if frame.SetResizeBounds then
-        frame:SetResizeBounds(MinWidth(), WindowHeight(1))
+        frame:SetResizeBounds(MinWidth(), WindowHeight(1), 1400, WindowHeight(40))
     end
 
     visibleRows = -1
@@ -757,12 +765,10 @@ function Window.Draw()
         end
     end
 
-    -- A janela acompanha quantos jogadores existem: espaço vazio reservado para gente que
-    -- não está lá é o que mais faz uma janela parecer quebrada.
-    local wanted = shown
-    if wanted ~= visibleRows then
-        visibleRows = wanted
-        frame:SetHeight(WindowHeight(wanted))
+    -- Altura fixa, definida pela alça: as linhas vazias mostram o fundo, como no Details.
+    if visibleRows ~= ns.db.rows then
+        visibleRows = ns.db.rows
+        frame:SetHeight(WindowHeight(ns.db.rows))
     end
 end
 

@@ -11,7 +11,7 @@ ns.defaults = {
     sortBy = nil,
     sessionType = 0,      -- 0 = sessão atual; 1 = geral
     sortDesc = true,      -- maior primeiro
-    rows = 8,
+    rows = 5,                 -- linhas visíveis; a alça muda isso
     scale = 1.0,
     font = nil,               -- caminho da fonte; nil = Friz Quadrata do jogo
     fontSize = 12,
