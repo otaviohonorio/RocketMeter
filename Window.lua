@@ -302,13 +302,9 @@ local function BuildRow(index)
         -- Sem isto o clique atravessa a linha e cai no frame da janela: o mouse precisa ser
         -- habilitado explicitamente, mesmo em Button criado por código.
         row:EnableMouse(true)
-        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        row:RegisterForClicks("LeftButtonUp")
 
-        row:SetScript("OnClick", function(self, button)
-            if button == "RightButton" then
-                ns.OpenOptions()
-                return
-            end
+        row:SetScript("OnClick", function(self)
             if not self.source then return end
 
             -- Arquivo .lua novo no .toc só entra depois de sair para a tela de personagens;
@@ -318,7 +314,10 @@ local function BuildRow(index)
                 return
             end
 
-            ns.Breakdown.Show(self.source, ns.db.sessionType, frame)
+            local ok, err = pcall(ns.Breakdown.Show, self.source, ns.db.sessionType, frame)
+            if not ok then
+                ns.Print("|cffff5555" .. L["error while drawing:"] .. "|r " .. tostring(err))
+            end
         end)
 
         -- Realce ao passar o mouse, no lugar de tooltip: mostra que a linha é clicável sem
@@ -555,9 +554,9 @@ function Window.Create()
         local point, _, relPoint, x, y = self:GetPoint()
         ns.db.pos = { point = point, relPoint = relPoint, x = x, y = y }
     end)
-    frame:SetScript("OnMouseUp", function(_, button)
-        if button == "RightButton" then ns.OpenOptions() end
-    end)
+    -- Sem atalho de configuração no clique: o botão direito atravessava a linha e caía aqui,
+    -- abrindo as opções quando o usuário só queria o detalhamento. A engrenagem do cabeçalho e
+    -- o botão do minimapa já dão acesso.
 
     -- Rolagem pela roda do mouse, sem barra: a barra ocuparia largura e apareceria mesmo
     -- quando não há o que rolar, que é o caso quase sempre.

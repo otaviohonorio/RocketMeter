@@ -305,10 +305,28 @@ function Breakdown.Show(source, sessionType, anchorTo)
         source = source,
     }
 
+    -- Onde cabe: à direita da janela se houver espaço, à esquerda se não houver.
+    --
+    -- Ancorar sempre à direita colocava o painel **fora da tela** quando a janela está
+    -- encostada na borda — e o sintoma era "clico e não acontece nada", porque o painel abria
+    -- num lugar invisível.
     frame:ClearAllPoints()
-    if anchorTo then
-        frame:SetPoint("TOPLEFT", anchorTo, "TOPRIGHT", 8, 0)
-    else
+    local placed = false
+
+    if anchorTo and anchorTo.GetRight and UIParent and UIParent.GetWidth then
+        local right = anchorTo:GetRight()
+        local screen = UIParent:GetWidth()
+        if type(right) == "number" and type(screen) == "number" then
+            if right + WIDTH + 8 <= screen then
+                frame:SetPoint("TOPLEFT", anchorTo, "TOPRIGHT", 8, 0)
+            else
+                frame:SetPoint("TOPRIGHT", anchorTo, "TOPLEFT", -8, 0)
+            end
+            placed = true
+        end
+    end
+
+    if not placed then
         frame:SetPoint("CENTER")
     end
 
