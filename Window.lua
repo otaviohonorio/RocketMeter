@@ -34,8 +34,10 @@ local WINDOW_ALPHA = 0
 local ROW_HEIGHT_FIXED = 20         -- skin: barHeight
 local COLUMN_WIDTH_FIXED = 58
 
-local HEADER_HEIGHT = 20            -- faixa da referência (a skin usa 32 na escala dela)
-local COLHEAD_HEIGHT = 13
+-- Proporção da referência: a skin usa faixa de 32px com texto de 13pt, ou seja, o texto
+-- ocupa ~40% da altura. Com 20px e 13pt eu tinha 65% — daí a sensação de apertado.
+local HEADER_HEIGHT = 25
+local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
 local GRIP = 14
@@ -107,9 +109,12 @@ function ns.BarColor(classFilename)
 end
 
 ---Fundo da linha: a mesma cor, bem apagada, para a parte vazia não ser um buraco preto.
-function ns.RowBackdropColor(classFilename)
-    local r, g, b = ns.ClassColor(classFilename)
-    return r * ROW_BG_TINT, g * ROW_BG_TINT, b * ROW_BG_TINT, ROW_BG_ALPHA
+---Fundo da linha: **preto fixo**, não tingido pela classe.
+---A skin usa `texture_background_class_color = false` com
+---`barBackgroundColor = {0, 0, 0, 0.4}` — tingir pela classe, como eu fazia, deixava a parte
+---vazia da barra colorida e embaralhava a leitura de quem tinha pouco.
+function ns.RowBackdropColor()
+    return 0, 0, 0, ROW_BG_ALPHA
 end
 
 local function ApplyClassIcon(texture, classFilename)
@@ -127,12 +132,9 @@ end
 
 ---Ícone da linha: especialização por padrão (diz mais que a classe — quem é o healer, quem
 ---tanka), com a classe como reserva quando a spec não veio.
----Máscara circular: o medidor nativo usa ícone redondo.
----
----`SetMask` e `SetTexCoord` **não convivem** — a API responde
----"Cannot set tex coords when texture has mask". E o ícone de classe é um recorte de atlas,
----então precisa de texcoord. Solução: duas texturas por linha, e mostra-se a que serve.
-local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+-- Sem máscara: `SetMask` e `SetTexCoord` não convivem ("Cannot set tex coords when texture
+-- has mask"), e a referência usa ícone quadrado mesmo. Duas texturas por linha: uma para o
+-- ícone de especialização (id inteiro) e outra para o de classe (recorte de atlas).
 
 ---@param spec texture redonda, para o ícone de especialização (id inteiro, sem recorte)
 ---@param class texture com texcoord, para o recorte do atlas de classes
@@ -140,6 +142,7 @@ function ns.ApplyRowIcon(spec, class, source)
     local specIcon = source.specIconID
     if specIcon ~= nil and not issecretvalue(specIcon) and specIcon ~= 0 then
         spec:SetTexture(specIcon)
+        spec:SetTexCoord(0.08, 0.92, 0.08, 0.92)   -- tira a borda preta do ícone
         spec:Show()
         class:Hide()
         return
@@ -220,8 +223,8 @@ local function BuildColumnHeader()
     end
 
     headerRow:ClearAllPoints()
-    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -HEADER_HEIGHT)
-    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -HEADER_HEIGHT)
+    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING + 2, -HEADER_HEIGHT)
+    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING - 2, -HEADER_HEIGHT)
     headerRow:SetHeight(COLHEAD_HEIGHT)
 
     for _, button in pairs(headerRow.labels) do
@@ -324,22 +327,15 @@ local function BuildRow(index)
         row.highlight:SetAllPoints()
         row.highlight:SetColorTexture(1, 1, 1, 0.12)
 
-        -- Anel escuro em volta do ícone, como na referência.
-        row.iconRing = row.text:CreateTexture(nil, "ARTWORK")
-        row.iconRing:SetPoint("LEFT", 3, 0)
-        row.iconRing:SetColorTexture(0, 0, 0, 0.85)
-        if row.iconRing.SetMask then
-            row.iconRing:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
-        end
-
-        -- Redonda (especialização): recebe a máscara e nunca texcoord.
+        -- Ícone quadrado ocupando a linha inteira, como na referência: a skin usa
+        -- `icon_mask = ""` e `icon_size_offset = 0`. A máscara circular que eu tinha posto
+        -- encolhia o ícone e o deixava solto no meio da barra.
         row.icon = row.text:CreateTexture(nil, "OVERLAY")
-        row.icon:SetPoint("LEFT", 4, 0)
-        if row.icon.SetMask then row.icon:SetMask(ROUND_MASK) end
+        row.icon:SetPoint("LEFT", 0, 0)
 
-        -- Quadrada (classe): recebe texcoord e nunca máscara.
+        -- Segunda textura só para o ícone de classe, que precisa de texCoord.
         row.iconClass = row.text:CreateTexture(nil, "OVERLAY")
-        row.iconClass:SetPoint("LEFT", 4, 0)
+        row.iconClass:SetPoint("LEFT", 0, 0)
         row.iconClass:Hide()
 
         row.name = row.text:CreateFontString(nil, "OVERLAY")
@@ -362,13 +358,13 @@ local function BuildRow(index)
     row.bar:SetStatusBarTexture(ns.BarTexture())
 
     if row.SetBackdropBorderColor then
-        row:SetBackdropBorderColor(0, 0, 0, 0.9)
+        -- A referência não tem borda na linha: o espaçamento de 1px já separa as barras.
+        row:SetBackdropBorderColor(0, 0, 0, 0)
     end
 
-    local iconSize = height - 5
+    local iconSize = height          -- preenche a linha inteira, como no Details
     row.icon:SetSize(iconSize, iconSize)
     row.iconClass:SetSize(iconSize, iconSize)
-    row.iconRing:SetSize(iconSize + 2, iconSize + 2)
     ns.ApplyFont(row.name, 0)
 
     for _, cell in pairs(row.cells) do
@@ -392,7 +388,7 @@ local function BuildRow(index)
         cell:Show()
     end
 
-    row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 12)
+    row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 10)
     return row
 end
 
@@ -459,8 +455,8 @@ function Window.Create()
     header.line:SetColorTexture(0, 0, 0, 0.8)
 
     header.segment = CreateFrame("Button", nil, header)
-    header.segment:SetSize(110, HEADER_HEIGHT - 4)
-    header.segment:SetPoint("LEFT", 6, 0)
+    header.segment:SetSize(120, HEADER_HEIGHT - 6)
+    header.segment:SetPoint("LEFT", 7, 1)
     header.segment.text = header.segment:CreateFontString(nil, "OVERLAY")
     header.segment.text:SetPoint("LEFT")
     header.segment.text:SetTextColor(1, 0.82, 0)      -- dourado padrão da Blizzard
@@ -476,7 +472,7 @@ function Window.Create()
     header.segment:SetScript("OnLeave", GameTooltip_Hide)
 
     header.clock = header:CreateFontString(nil, "OVERLAY")
-    header.clock:SetPoint("LEFT", header.segment, "RIGHT", 2, 0)
+    header.clock:SetPoint("LEFT", header.segment, "RIGHT", 6, 0)
     header.clock:SetTextColor(0.85, 0.72, 0.36)
 
     frame.header = header
@@ -608,7 +604,7 @@ function Window.Rebuild()
     frame:SetBackdropBorderColor(0, 0, 0, 0)
 
     -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
-    ns.ApplyFont(frame.header.segment.text, 1, "")   -- 13pt, como a skin
+    ns.ApplyFont(frame.header.segment.text, 0, "")   -- proporcional à faixa
     ns.ApplyFont(frame.header.clock, -1, "")
 
     BuildColumnHeader()
@@ -759,7 +755,7 @@ function Window.Draw()
             row.bar:SetMinMaxValues(0, top)
             row.bar:SetValue(value)
             row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
-            row.bg:SetColorTexture(ns.RowBackdropColor(source.classFilename))
+            row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
             row.name:SetText(source.name)
