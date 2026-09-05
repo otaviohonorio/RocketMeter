@@ -659,8 +659,11 @@ end
 --
 -- Agora o piso sobe para 0.86 (legível de verdade) e o líder ganha, além do branco puro, uma
 -- **placa neutra** atrás — branco a 8%, sem cor, sem ícone, sem ocupar espaço extra.
-local LEADER = { 1, 1, 1 }
-local NORMAL = { 0.86, 0.86, 0.88 }
+-- Líder num branco **quente** (creme), os demais num branco levemente **frio**. A diferença
+-- de temperatura soma-se ao corpo maior e à placa, sem colidir com cor de classe — nenhuma
+-- classe é bege — e ainda conversa com o dourado do cabeçalho.
+local LEADER = { 1, 0.96, 0.86 }
+local NORMAL = { 0.86, 0.87, 0.90 }
 
 ---Estiliza a célula: presença, cor e a placa de destaque de quem lidera a coluna.
 ---
