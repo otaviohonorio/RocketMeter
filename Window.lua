@@ -666,26 +666,23 @@ end
 -- Só que cor de classe crua não serve para texto: vermelho de cavaleiro da morte e roxo de
 -- bruxo são escuros demais sobre fundo escuro. A cor é **clareada em direção ao branco**, o
 -- que preserva a identidade e garante a leitura.
--- Texto do líder: cor da classe **escurecida**, com halo branco.
+-- Texto SEMPRE claro; cor de classe só na barra.
 --
--- A versão anterior pintava com a cor da classe pura — e a barra atrás também é a cor da
--- classe, então o texto sumia dentro dela (vermelho sobre vermelho). Escurecer o texto cria a
--- separação que a cor pura não dava, e o halo branco garante a leitura tanto sobre a barra
--- quanto sobre o fundo escuro na parte vazia da linha.
-local LEADER_DARKEN = 0.42          -- quanto sobra da cor original
-local LEADER_HALO = { 1, 1, 1, 0.9 }
-local LEADER_FALLBACK = { 0.42, 0.40, 0.33 }
-local NORMAL = { 0.86, 0.87, 0.90 }
-
----Cor do texto de quem lidera: a da classe, escurecida para destacar da barra.
-local function LeaderColor(classFilename)
-    local class = SafeClass(classFilename)
-    local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-    if not color then
-        return LEADER_FALLBACK[1], LEADER_FALLBACK[2], LEADER_FALLBACK[3]
-    end
-    return color.r * LEADER_DARKEN, color.g * LEADER_DARKEN, color.b * LEADER_DARKEN
-end
+-- Isso não é preferência: a skin da referência define
+--   fixed_text_color     = {1, 1, 1}
+--   texture_class_colors = true      -- a classe colore a BARRA
+--   textL_class_colors   = false     -- e explicitamente NÃO o texto
+--   textR_class_colors   = false
+--
+-- A razão fica óbvia depois de tentar o contrário: a barra atrás já é a cor da classe, então
+-- texto na mesma cor some dentro dela — e escurecer o texto para compensar o torna ilegível na
+-- parte vazia da linha. A identidade da classe já está na barra e no ícone; o texto só precisa
+-- ser legível.
+--
+-- O líder se distingue por três sinais sem cor: corpo +1pt, placa neutra e um branco mais
+-- quente que o dos demais.
+local LEADER = { 1, 0.94, 0.78 }    -- branco quente
+local NORMAL = { 0.86, 0.87, 0.90 } -- branco levemente frio
 
 ---Estiliza a célula: presença, cor e a placa de destaque de quem lidera a coluna.
 ---
@@ -702,9 +699,8 @@ function ns.StyleCell(row, index, isBest)
     if highlight then
         ns.ApplyFont(cell, delta + 1, "")
 
-        cell:SetTextColor(LeaderColor(row.classFilename))
-        -- Halo branco sempre: é ele que separa o texto escuro da barra e do fundo.
-        cell:SetShadowColor(LEADER_HALO[1], LEADER_HALO[2], LEADER_HALO[3], LEADER_HALO[4])
+        cell:SetTextColor(LEADER[1], LEADER[2], LEADER[3])
+        cell:SetShadowColor(0, 0, 0, 1)
     else
         ns.ApplyFont(cell, delta, "")
         cell:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
@@ -721,7 +717,7 @@ function ns.StyleCell(row, index, isBest)
 
     if not plate then
         plate = row.text:CreateTexture(nil, "BACKGROUND")
-        plate:SetColorTexture(1, 1, 1, 0.06)
+        plate:SetColorTexture(1, 1, 1, 0.08)
         row.plates[index] = plate
     end
 
