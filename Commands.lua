@@ -98,6 +98,20 @@ commands["move"] = function(rest)
     ns.Window.MoveColumn(from, direction == "right" and 1 or -1)
 end
 
+commands["log"] = function(rest)
+    local arg = rest and rest:lower():match("^%S*")
+    if arg == "clear" then
+        ns.Log.Clear()
+        ns.Print(L["log cleared."])
+        return
+    end
+
+    ns.Log.Snapshot("pedido pelo usuario")
+    ns.Print(format(L["snapshot saved (%d entries). Type /reload so the file is written."],
+        ns.Log.Count()))
+    print("  WTF\\Account\\<conta>\\SavedVariables\\RocketMeter.lua")
+end
+
 commands["debug"] = function()
     ns.Print("--- diagnóstico ---")
     print("  C_DamageMeter disponível:", tostring(ns.Data.IsAvailable()))
@@ -150,6 +164,7 @@ commands["help"] = function()
     print("  /rm reset                       " .. L["clears the sessions"])
     print("  /rm config                      " .. L["opens the options"])
     print("  /rm debug                       " .. L["prints what the API is returning"])
+    print("  /rm log [clear]                 " .. L["records a diagnostic snapshot"])
     print("  " .. L["(click a column header to sort by it)"])
 end
 

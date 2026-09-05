@@ -167,3 +167,9 @@ L["The leader of each column is highlighted, out of combat."] =
 L["prints what the API is returning"] = "mostra o que a API está devolvendo"
 
 L["error while drawing:"] = "erro ao desenhar:"
+
+-- Log de diagnostico (0.13.0)
+L["records a diagnostic snapshot"] = "grava uma foto de diagnóstico"
+L["log cleared."] = "log limpo."
+L["snapshot saved (%d entries). Type /reload so the file is written."] =
+    "foto gravada (%d entradas). Digite /reload para o arquivo ser escrito."

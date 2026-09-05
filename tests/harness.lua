@@ -74,6 +74,7 @@ function GetNumGroupMembers() return 5 end
 function IsInRaid() return false end
 function GetDifficultyInfo() return "Mítico" end
 function GetLocale() return "ptBR" end
+function date(fmt) return "12:00:00" end
 function GetTime() return 1000 end
 function SecondsToClock(s) return string.format("%02d:%02d", s / 60, s % 60) end
 function AbbreviateNumbers(v) return tostring(math.floor(v)) end
@@ -267,6 +268,10 @@ try("Profile.SetPerCharacter(false)", ns.Profile.SetPerCharacter, false)
 try("Profile.Reset", ns.Profile.Reset)
 try("Data.RequestReset (com confirmacao)", ns.Data.RequestReset)
 try("Data.RequestReset (direto)", ns.Data.RequestReset, true)
+try("Log.Snapshot", ns.Log.Snapshot, "teste")
+try("Log.OnCombatStart", ns.Log.OnCombatStart)
+try("Log.OnCombatEnd", ns.Log.OnCombatEnd)
+try("Log.Clear", ns.Log.Clear)
 try("Scoreboard.Show", ns.Scoreboard.Show)
 try("Data.GetRows", ns.Data.GetRows, 0, "damage", { "damage", "dps", "hps" }, 5, false)
 

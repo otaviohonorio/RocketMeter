@@ -209,6 +209,25 @@ O botão de refresh no cabeçalho zera as sessões — e **pergunta antes**, por
 apagar tudo de uma vez: o combate atual e o geral juntos, sem desfazer. O mesmo botão está no
 rodapé do painel de colunas e no placar. Por chat, `/rm reset` pergunta e `/rm reset now` não.
 
+### Diagnóstico: log em SavedVariables
+
+Addon não escreve arquivo onde quer, mas SavedVariables vira um `.lua` legível fora do jogo —
+então é por ali que o addon conta o que aconteceu:
+
+```
+WTF\Account\<conta>\SavedVariables\RocketMeter.lua
+```
+
+O log tira uma foto sozinho no **início do combate**, aos **3 segundos de luta** e no **fim**, e
+`/rm log` grava uma sob demanda. Cada foto registra por qual caminho a sessão veio (por tipo ×
+por id), quantos atores apareceram, quais campos estavam *secret* e o último erro de desenho.
+
+**Regra de ouro:** o log nunca guarda um valor cru vindo da API. Gravar um secret value em
+SavedVariables é erro na certa — então ele guarda *fatos sobre* o dado (`SECRET`, `nil`, ou o
+número já legível).
+
+O arquivo só é escrito no **logout ou `/reload`**.
+
 ### Comportamento da janela
 
 - **Volta como você deixou**: a visibilidade é salva, então a janela reaparece sozinha na posição
@@ -250,7 +269,7 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.12.0 — realce do líder por coluna, linhas em formato de barra, ícone de especialização,
+**0.13.0 — log de diagnóstico em SavedVariables, realce do líder por coluna, linhas em formato de barra, ícone de especialização,
 fonte e tamanhos configuráveis, redimensionamento, botão de limpar dados.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,

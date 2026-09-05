@@ -64,6 +64,7 @@ function handlers:ADDON_LOADED(addon)
 
     -- O perfil decide se a configuração vem da conta ou deste personagem.
     ns.Profile.Init()
+    ns.Log.Init()
 end
 
 function handlers:PLAYER_LOGIN()
@@ -122,11 +123,13 @@ function handlers:PLAYER_REGEN_ENABLED()
     FlushQueue()
     ns.Window.Refresh(true)
     ns.Window.OnCombatEnd()
+    ns.Log.OnCombatEnd()
 end
 
 function handlers:PLAYER_REGEN_DISABLED()
     ns.Window.OnCombatStart()
     ns.Window.Refresh(true)
+    ns.Log.OnCombatStart()
 end
 
 local frame = CreateFrame("Frame", ADDON .. "EventFrame")

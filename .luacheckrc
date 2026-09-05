@@ -14,10 +14,12 @@ read_globals = {
     "IsShiftKeyDown", "IsControlKeyDown", "GetLocale", "tonumber", "tostring", "ipairs", "pairs",
     "Settings", "CreateSettingsListSectionHeaderInitializer", "SlashCmdList",
     "StaticPopupDialogs", "StaticPopup_Show", "YES", "NO", "CLASS_ICON_TCOORDS", "unpack",
+    "date", "type", "pcall",
 }
 
 globals = {
     "RocketMeterDB",
+    "RocketMeterLogDB",
     "RocketMeterCharDB",
     "RocketMeter_OnCompartmentClick",
     "SLASH_ROCKETMETER1",
