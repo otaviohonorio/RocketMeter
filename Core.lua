@@ -14,6 +14,9 @@ ns.defaults = {
     rows = 8,
     scale = 1.0,
     locked = false,
+    shown = true,             -- a janela volta como o usuário deixou
+    combatOnly = false,       -- só aparece em combate
+    hideDelay = 5,            -- segundos para sumir depois da luta, no modo acima
     minimap = { hide = false, angle = 200 },
     autoScoreboard = true,
     pos = nil,
@@ -67,7 +70,7 @@ function handlers:PLAYER_LOGIN()
     ns.Window.Create()
     ns.Minimap.Create()
     ns.SetupOptions()
-    ns.Window.Refresh(true)
+    ns.Window.ApplyVisibility()
 end
 
 -- Dados da sessão em andamento mudaram (dispara muito durante o combate).
@@ -110,9 +113,11 @@ end
 function handlers:PLAYER_REGEN_ENABLED()
     FlushQueue()
     ns.Window.Refresh(true)
+    ns.Window.OnCombatEnd()
 end
 
 function handlers:PLAYER_REGEN_DISABLED()
+    ns.Window.OnCombatStart()
     ns.Window.Refresh(true)
 end
 

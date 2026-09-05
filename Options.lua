@@ -93,6 +93,16 @@ function ns.SetupOptions()
         Settings.CreateCheckbox(category, setting, L["Shows the Rocket Meter button on the minimap."])
     end
 
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_combatOnly", "combatOnly",
+            ns.db, "boolean", L["Show only in combat"], ns.defaults.combatOnly)
+        Settings.SetOnValueChangedCallback(ADDON .. "_combatOnly", function()
+            ns.Window.ApplyVisibility()
+        end)
+        Settings.CreateCheckbox(category, setting,
+            L["The window appears when the fight starts and hides a few seconds after it ends."])
+    end
+
     -- Perfil -----------------------------------------------------------------
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Profile"]))
 

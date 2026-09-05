@@ -8,6 +8,14 @@ commands[""] = function()
     ns.Window.Toggle()
 end
 
+commands["show"] = function()
+    ns.Window.Show()
+end
+
+commands["hide"] = function()
+    ns.Window.Hide()
+end
+
 commands["score"] = function()
     ns.Scoreboard.Toggle()
 end

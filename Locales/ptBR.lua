@@ -83,11 +83,22 @@ L["Shift-click: scoreboard of the last run"] = "Shift+clique: placar da última 
 L["Right-click: options"] = "Clique direito: opções"
 L["Drag to move around the minimap."] = "Arraste para mover ao redor do minimapa."
 
+-- Janela e combate
+L["Click to switch between the current fight and the overall."] =
+    "Clique para alternar entre o combate atual e o geral."
+L["Show only in combat"] = "Mostrar só em combate"
+L["The window appears when the fight starts and hides a few seconds after it ends."] =
+    "A janela aparece quando a luta começa e some alguns segundos depois que ela acaba."
+
 -- Placar
 L["Dungeon"] = "Masmorra"
 L["Encounter"] = "Encontro"
 L["on time"] = "no tempo"
 L["over time"] = "fora do tempo"
+L["Total time"] = "Tempo total"
+L["defeated"] = "derrotado"
+L["Click a column header to sort. Drag to move."] =
+    "Clique num cabeçalho para ordenar. Arraste para mover."
 L["no run recorded in this session yet."] = "nenhuma corrida registrada nesta sessão ainda."
 
 -- Mensagens

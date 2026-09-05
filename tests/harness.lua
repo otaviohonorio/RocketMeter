@@ -55,6 +55,8 @@ Minimap = widget("Frame")
 GameTooltip = widget("GameTooltip")
 UISpecialFrames = {}
 RAID_CLASS_COLORS = { MAGE = { r = 0.4, g = 0.8, b = 0.9 } }
+CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.49, 0, 0.25 } }
+unpack = unpack or table.unpack
 
 function GameTooltip_Hide() end
 function InCombatLockdown() return false end
@@ -204,6 +206,11 @@ local function try(label, fn, ...)
     if not ok then os.exit(1) end
 end
 
+try("Window.ApplyVisibility", ns.Window.ApplyVisibility)
+try("Window.Show", ns.Window.Show)
+try("Window.Hide", ns.Window.Hide)
+try("Window.OnCombatStart", ns.Window.OnCombatStart)
+try("Window.OnCombatEnd", ns.Window.OnCombatEnd)
 try("Window.Draw", ns.Window.Draw)
 try("Window.Rebuild", ns.Window.Rebuild)
 try("Window.ToggleColumn", ns.Window.ToggleColumn, Enum.DamageMeterType.Absorbs)
@@ -220,7 +227,7 @@ try("Data.GetRows", ns.Data.GetRows, 0, Enum.DamageMeterType.DamageDone,
     { Enum.DamageMeterType.DamageDone, Enum.DamageMeterType.Hps }, 5, false)
 
 print("== comandos ==")
-for _, cmd in ipairs({ "", "help", "col", "columns", "preset raid", "preset",
+for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",
                        "move 2 right", "score", "config", "reset" }) do
     local ok, err = pcall(SlashCmdList.ROCKETMETER, cmd)

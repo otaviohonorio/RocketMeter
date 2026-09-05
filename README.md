@@ -151,6 +151,16 @@ end
 
 É o mesmo caminho que o Details! usa internamente no `parser_nocleu1.lua`.
 
+### Comportamento da janela
+
+- **Volta como você deixou**: a visibilidade é salva, então a janela reaparece sozinha na posição
+  de sempre — sem precisar clicar no minimapa a cada login.
+- **ESC não fecha.** Fecha só no X. (A janela fica fora de `UISpecialFrames` justamente por isso.)
+- **Só em combate**, opcional: aparece quando a luta começa e some alguns segundos depois.
+- **Atual / Geral** alternam clicando no próprio título. O combate atual zera a cada luta nova;
+  o geral acumula sempre — os dois vêm prontos do motor do jogo (`sessionType` 0 e 1), não somos
+  nós que zeramos nada.
+
 ## Placar de fim de corrida
 
 No fim de um Mítico+ (`CHALLENGE_MODE_COMPLETED`) ou de um encontro de raide vencido
@@ -182,7 +192,8 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.7.0 — visual do medidor nativo e altura automática.**
+**0.8.0 — UI retrabalhada: ícones de classe, zebra, destaque do líder, placar redesenhado,
+janela persistente, modo só-em-combate.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
 interrupções e mortes com números reais), o `.toc` carrega e a ordenação responde. O que faltava

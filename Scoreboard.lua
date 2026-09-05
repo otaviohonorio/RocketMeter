@@ -1,19 +1,25 @@
 -- RocketMeter | Scoreboard.lua
--- O painel de fim de Mítico+ e de encontro de raide: a foto completa da corrida,
--- com todas as métricas de uma vez, sem precisar configurar coluna nenhuma.
+-- O resumo de fim de Mítico+ e de encontro de raide.
+--
+-- Aqui a densidade é outra: a corrida acabou, ninguém está lutando, e a tela pode respirar.
+-- Linhas altas com ícone de classe, cabeçalho grande com o resultado da corrida, destaque para
+-- quem liderou. Fecha só no X — ESC não fecha.
 local ADDON, ns = ...
 local L = ns.L
 
 local Scoreboard = {}
 ns.Scoreboard = Scoreboard
 
-local ROW_HEIGHT = 24
-local ROW_SPACING = 1
-local HEADER_HEIGHT = 20
-local COLUMN_WIDTH = 56
-local NAME_WIDTH = 120
-local TOP_INSET = 46          -- título + subtítulo
-local SIDE_INSET = 10
+local ROW_HEIGHT = 26
+local ROW_SPACING = 2
+local HEADER_HEIGHT = 56          -- título + subtítulo do resultado
+local COLHEAD_HEIGHT = 18
+local FOOTER_HEIGHT = 32
+local COLUMN_WIDTH = 62
+local NAME_WIDTH = 150
+local RANK_WIDTH = 18
+local ICON_SIZE = 20
+local SIDE = 12
 local MAX_ROWS = 20
 
 local frame, headerRow, rows
@@ -22,58 +28,47 @@ local sortDesc = true
 local lastContext
 
 --------------------------------------------------------------------------------
--- Colunas fixas: aqui o objetivo é ver tudo, não configurar.
---------------------------------------------------------------------------------
 local function DefaultColumns()
     local E = Enum.DamageMeterType
     return {
-        E.DamageDone,
-        E.Dps,
-        E.HealingDone,
-        E.Hps,
-        E.Interrupts,
-        E.Dispels,
-        E.DamageTaken,
-        E.AvoidableDamageTaken,
-        E.Deaths,
+        E.DamageDone, E.Dps, E.HealingDone, E.Hps,
+        E.Interrupts, E.Dispels, E.DamageTaken, E.AvoidableDamageTaken, E.Deaths,
     }
-end
-
-local function ColumnWidth()
-    return COLUMN_WIDTH
 end
 
 local function ColumnOffsets()
     local offsets, running = {}, 0
     for c = #columns, 1, -1 do
         offsets[c] = running
-        running = running + ColumnWidth()
+        running = running + COLUMN_WIDTH
     end
     return offsets, running
 end
 
 local function PanelWidth()
     local _, columnsWidth = ColumnOffsets()
-    return SIDE_INSET * 2 + NAME_WIDTH + columnsWidth
+    return SIDE * 2 + NAME_WIDTH + columnsWidth
 end
 
 local function PanelHeight(rowCount)
-    return TOP_INSET + HEADER_HEIGHT + rowCount * (ROW_HEIGHT + ROW_SPACING) + SIDE_INSET + 6
+    return HEADER_HEIGHT + COLHEAD_HEIGHT + rowCount * (ROW_HEIGHT + ROW_SPACING) + FOOTER_HEIGHT
 end
 
 --------------------------------------------------------------------------------
--- Construção
---------------------------------------------------------------------------------
-local function BuildHeader()
+local function BuildColumnHeader()
     if not headerRow then
         headerRow = CreateFrame("Frame", nil, frame)
         headerRow.labels = {}
+
+        headerRow.bg = headerRow:CreateTexture(nil, "BACKGROUND")
+        headerRow.bg:SetAllPoints()
+        headerRow.bg:SetColorTexture(1, 1, 1, 0.05)
     end
 
     headerRow:ClearAllPoints()
-    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE_INSET, -TOP_INSET)
-    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE_INSET, -TOP_INSET)
-    headerRow:SetHeight(HEADER_HEIGHT)
+    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE, -HEADER_HEIGHT)
+    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE, -HEADER_HEIGHT)
+    headerRow:SetHeight(COLHEAD_HEIGHT)
 
     local offsets = ColumnOffsets()
 
@@ -81,8 +76,9 @@ local function BuildHeader()
         local button = headerRow.labels[c]
         if not button then
             button = CreateFrame("Button", nil, headerRow)
-            button:SetHeight(HEADER_HEIGHT)
-            button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            button:SetHeight(COLHEAD_HEIGHT)
+            button:SetWidth(COLUMN_WIDTH)
+            button.text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
             button.text:SetPoint("RIGHT", -4, 0)
             button:SetScript("OnClick", function(self)
                 local attributeId = columns[self.columnIndex]
@@ -93,22 +89,26 @@ local function BuildHeader()
                 end
                 Scoreboard.Draw()
             end)
+            button:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText(ns.Data.GetAttributeLabel(columns[self.columnIndex]), 1, 1, 1)
+                GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
+                GameTooltip:Show()
+            end)
+            button:SetScript("OnLeave", GameTooltip_Hide)
             headerRow.labels[c] = button
         end
 
         local attributeId = columns[c]
         button.columnIndex = c
-        button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
 
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == sortBy then
-            local arrow = sortDesc and "|TInterface\\Buttons\\Arrow-Down-Up:12|t"
-                or "|TInterface\\Buttons\\Arrow-Up-Up:12|t"
-            button.text:SetText("|cffff6a00" .. label .. "|r" .. arrow)
+            button.text:SetText("|cffffc06a" .. label .. (sortDesc and " \226\150\188" or " \226\150\178") .. "|r")
         else
-            button.text:SetText("|cffb0b0b0" .. label .. "|r")
+            button.text:SetText("|cff8a8a8a" .. label .. "|r")
         end
         button:Show()
     end
@@ -117,23 +117,34 @@ end
 local function BuildRow(index)
     local row = rows[index]
     if not row then
-        row = CreateFrame("StatusBar", nil, frame)
-        row:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-        row:SetMinMaxValues(0, 1)
+        row = CreateFrame("Button", nil, frame)
         row:SetHeight(ROW_HEIGHT)
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
-        row.bg:SetColorTexture(1, 1, 1, 0.05)
 
-        row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        row.rank:SetPoint("LEFT", 4, 0)
-        row.rank:SetWidth(18)
+        row.bar = CreateFrame("StatusBar", nil, row)
+        row.bar:SetAllPoints()
+        row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+        row.bar:SetMinMaxValues(0, 1)
+        row.bar:SetValue(0)
+
+        row.highlight = row:CreateTexture(nil, "HIGHLIGHT")
+        row.highlight:SetAllPoints()
+        row.highlight:SetColorTexture(1, 1, 1, 0.08)
+
+        row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.rank:SetPoint("LEFT", 6, 0)
+        row.rank:SetWidth(RANK_WIDTH)
         row.rank:SetJustifyH("LEFT")
 
-        row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.name:SetPoint("LEFT", 24, 0)
-        row.name:SetWidth(NAME_WIDTH - 26)
+        row.icon = row:CreateTexture(nil, "OVERLAY")
+        row.icon:SetSize(ICON_SIZE, ICON_SIZE)
+        row.icon:SetPoint("LEFT", row.rank, "RIGHT", 2, 0)
+
+        row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+        row.name:SetWidth(NAME_WIDTH - RANK_WIDTH - ICON_SIZE - 18)
         row.name:SetJustifyH("LEFT")
 
         row.cells = {}
@@ -141,9 +152,9 @@ local function BuildRow(index)
     end
 
     row:ClearAllPoints()
-    local offsetY = -(TOP_INSET + HEADER_HEIGHT + (index - 1) * (ROW_HEIGHT + ROW_SPACING))
-    row:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE_INSET, offsetY)
-    row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE_INSET, offsetY)
+    local offsetY = -(HEADER_HEIGHT + COLHEAD_HEIGHT + (index - 1) * (ROW_HEIGHT + ROW_SPACING))
+    row:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE, offsetY)
+    row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE, offsetY)
 
     local offsets = ColumnOffsets()
 
@@ -154,7 +165,7 @@ local function BuildRow(index)
             cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end
-        cell:SetWidth(ColumnWidth() - 6)
+        cell:SetWidth(COLUMN_WIDTH - 8)
         cell:ClearAllPoints()
         cell:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
         cell:Show()
@@ -166,8 +177,8 @@ end
 local function CreatePanel()
     if frame then return frame end
 
-    frame = CreateFrame("Frame", ADDON .. "Scoreboard", UIParent, "DefaultPanelTemplate")
-    frame:SetPoint("CENTER")
+    frame = CreateFrame("Frame", ADDON .. "Scoreboard", UIParent, "BackdropTemplate")
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
     frame:SetFrameStrata("HIGH")
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
@@ -175,23 +186,55 @@ local function CreatePanel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    frame:SetBackdropColor(0.03, 0.03, 0.045, 0.95)
+    frame:SetBackdropBorderColor(0, 0, 0, 1)
     frame:Hide()
 
-    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", 2, 1)
-    close:SetScript("OnClick", function() frame:Hide() end)
+    -- Faixa superior com a arte do medidor nativo, mais alta que a da janela.
+    frame.headerArt = frame:CreateTexture(nil, "BACKGROUND")
+    frame.headerArt:SetPoint("TOPLEFT", 1, -1)
+    frame.headerArt:SetPoint("TOPRIGHT", -1, -1)
+    frame.headerArt:SetHeight(HEADER_HEIGHT - 8)
+    if frame.headerArt.SetAtlas then
+        frame.headerArt:SetAtlas("ui-damagemeters-header-bar", false)
+    end
+    if not frame.headerArt:GetTexture() then
+        frame.headerArt:SetColorTexture(0.10, 0.12, 0.18, 0.95)
+    end
+    frame.headerArt:SetAlpha(0.85)
+
+    frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    frame.title:SetPoint("TOPLEFT", SIDE, -12)
+    frame.title:SetTextColor(1, 0.85, 0.4)
 
     frame.subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    frame.subtitle:SetPoint("TOPLEFT", SIDE_INSET + 2, -26)
-    frame.subtitle:SetTextColor(0.75, 0.75, 0.78)
+    frame.subtitle:SetPoint("TOPLEFT", SIDE, -32)
+    frame.subtitle:SetTextColor(0.8, 0.8, 0.83)
+
+    frame.result = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.result:SetPoint("TOPRIGHT", -SIDE - 20, -14)
+
+    -- Fecha só aqui: fora de UISpecialFrames, ESC não fecha.
+    local close = CreateFrame("Button", nil, frame)
+    close:SetSize(16, 16)
+    close:SetPoint("TOPRIGHT", -6, -6)
+    close:SetNormalTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Up")
+    close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+    close:SetScript("OnClick", function() frame:Hide() end)
+
+    frame.footer = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    frame.footer:SetPoint("BOTTOMLEFT", SIDE, 10)
+    frame.footer:SetText(L["Click a column header to sort. Drag to move."])
 
     rows = {}
-    tinsert(UISpecialFrames, frame:GetName())
     return frame
 end
 
---------------------------------------------------------------------------------
--- Desenho
 --------------------------------------------------------------------------------
 function Scoreboard.Draw()
     if not frame or not lastContext then return end
@@ -201,12 +244,11 @@ function Scoreboard.Draw()
     local maxAmount = session and session.maxAmount
 
     frame:SetSize(PanelWidth(), PanelHeight(rowCount))
-    if frame.SetTitle then
-        frame:SetTitle(lastContext.title)
-    end
+    frame.title:SetText(lastContext.title)
     frame.subtitle:SetText(lastContext.subtitle or "")
+    frame.result:SetText(lastContext.result or "")
 
-    BuildHeader()
+    BuildColumnHeader()
 
     for i = 1, rowCount do
         local row = BuildRow(i)
@@ -216,10 +258,23 @@ function Scoreboard.Draw()
             row:Hide()
         else
             local source = entry.source
-            row:SetMinMaxValues(0, maxAmount or 1)
-            row:SetValue(source.totalAmount or 0)
-            row:SetStatusBarColor(ns.ClassColor(source.classFilename))
-            row.rank:SetText(i .. ".")
+
+            row.bar:SetMinMaxValues(0, maxAmount or 1)
+            row.bar:SetValue(source.totalAmount or 0)
+            local r, g, b = ns.ClassColor(source.classFilename)
+            row.bar:SetStatusBarColor(r, g, b, 0.45)
+
+            -- Quem lidera a métrica ordenada ganha um fundo dourado discreto.
+            if i == 1 and sortDesc then
+                row.bg:SetColorTexture(1, 0.8, 0.2, 0.10)
+                row.rank:SetTextColor(1, 0.82, 0.3)
+            else
+                row.bg:SetColorTexture(0, 0, 0, i % 2 == 0 and 0.10 or 0.22)
+                row.rank:SetTextColor(0.6, 0.6, 0.62)
+            end
+
+            row.rank:SetText(i)
+            ns.ApplyClassIcon(row.icon, source.classFilename)
             row.name:SetText(source.name)
 
             for c = 1, #columns do
@@ -235,7 +290,6 @@ function Scoreboard.Draw()
     end
 end
 
----Abre o painel para um contexto (fim de M+, fim de encontro, ou reabertura manual).
 function Scoreboard.Show(context)
     if not ns.Data.IsAvailable() then return end
 
@@ -270,8 +324,6 @@ local function GroupRowCount()
     return math.min(size, MAX_ROWS)
 end
 
----Fim de Mítico+. A API devolve os dados em tabela em versões recentes e em valores
----soltos em versões antigas — tratamos os dois casos.
 function Scoreboard.OnChallengeCompleted()
     local a, b, c, d = C_ChallengeMode.GetChallengeCompletionInfo()
     local mapID, level, timeMs, onTime
@@ -283,24 +335,26 @@ function Scoreboard.OnChallengeCompleted()
 
     local mapName = mapID and C_ChallengeMode.GetMapUIInfo(mapID) or L["Dungeon"]
     local clock = timeMs and SecondsToClock(timeMs / 1000) or "?"
-    local result = onTime and ("|cff33ff99" .. L["on time"] .. "|r")
-        or ("|cffff5555" .. L["over time"] .. "|r")
 
-    -- sessionType 1 = geral: a corrida inteira, não só o último pacote.
     Scoreboard.Show({
-        title = "Rocket Meter — " .. mapName .. (level and (" +" .. level) or ""),
-        subtitle = clock .. "  •  " .. result,
-        sessionType = 1,
+        title = mapName .. (level and ("  +" .. level) or ""),
+        subtitle = L["Total time"] .. ": " .. clock,
+        result = onTime and ("|cff40d878" .. L["on time"] .. "|r")
+            or ("|cffe06060" .. L["over time"] .. "|r"),
+        sessionType = 1,   -- geral: a corrida inteira
         rowCount = GroupRowCount(),
     })
 end
 
----Fim de encontro de raide (só quando vence).
 function Scoreboard.OnEncounterEnd(encounterName, difficultyName)
+    local duration = ns.Data.GetDuration(0)
+    local clock = (duration and not issecretvalue(duration)) and SecondsToClock(duration) or "?"
+
     Scoreboard.Show({
-        title = "Rocket Meter — " .. (encounterName or L["Encounter"]),
-        subtitle = difficultyName or "",
-        sessionType = 0,   -- o combate que acabou de terminar
+        title = encounterName or L["Encounter"],
+        subtitle = (difficultyName and (difficultyName .. "  •  ") or "") .. L["Total time"] .. ": " .. clock,
+        result = "|cff40d878" .. L["defeated"] .. "|r",
+        sessionType = 0,
         rowCount = GroupRowCount(),
     })
 end

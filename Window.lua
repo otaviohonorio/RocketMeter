@@ -1,27 +1,61 @@
 -- RocketMeter | Window.lua
 -- Visual do medidor nativo do Midnight: cabeçalho com o atlas `ui-damagemeters-header-bar`,
--- corpo escuro sem moldura pesada, linhas chapadas e finas. A janela **encolhe** para o número
--- de jogadores que existem de verdade — nada de caixa vazia esperando gente.
---
--- Cada linha é um jogador; cada coluna, uma métrica (total e por segundo são colunas
--- separadas, ligadas de forma independente).
+-- corpo escuro sem moldura pesada, linhas chapadas e finas com ícone de classe.
+-- A janela encolhe para o número de jogadores que existem e fecha só no X — nunca no ESC.
 local ADDON, ns = ...
 local L = ns.L
 
 local Window = {}
 ns.Window = Window
 
-local ROW_HEIGHT = 16
+local ROW_HEIGHT = 18
 local ROW_SPACING = 1
-local HEADER_HEIGHT = 21        -- barra de título, como a do medidor da Blizzard
-local COLHEAD_HEIGHT = 13       -- faixa dos rótulos de coluna
-local COLUMN_WIDTH = 54
-local NAME_MIN_WIDTH = 84
+local HEADER_HEIGHT = 22
+local COLHEAD_HEIGHT = 14
+local COLUMN_WIDTH = 56
+local NAME_MIN_WIDTH = 104        -- rank + ícone + nome
+local RANK_WIDTH = 14
+local ICON_SIZE = 13
 local PADDING = 3
+
+local CLASS_ICONS = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
 
 local frame, headerRow, rows
 local dirty, throttle = false, 0
 local visibleRows = -1
+
+--------------------------------------------------------------------------------
+-- Segurança com secret values
+--------------------------------------------------------------------------------
+---Em combate `classFilename` pode ser secret, e **indexar tabela com chave secret é proibido**.
+---Todo acesso a RAID_CLASS_COLORS / CLASS_ICON_TCOORDS passa por aqui.
+local function SafeClass(classFilename)
+    if classFilename == nil or issecretvalue(classFilename) then
+        return nil
+    end
+    return classFilename
+end
+
+function ns.ClassColor(classFilename)
+    local class = SafeClass(classFilename)
+    local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    if color then
+        return color.r, color.g, color.b
+    end
+    return 0.45, 0.5, 0.62
+end
+
+function ns.ApplyClassIcon(texture, classFilename)
+    local class = SafeClass(classFilename)
+    local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
+    if coords then
+        texture:SetTexture(CLASS_ICONS)
+        texture:SetTexCoord(unpack(coords))
+        texture:Show()
+    else
+        texture:Hide()
+    end
+end
 
 --------------------------------------------------------------------------------
 -- Geometria
@@ -41,18 +75,9 @@ local function WindowWidth()
     return PADDING * 2 + NAME_MIN_WIDTH + columnsWidth
 end
 
----Altura para N linhas de verdade: a janela acompanha o grupo, não a configuração.
 local function WindowHeight(rowCount)
     if rowCount < 1 then rowCount = 1 end
     return HEADER_HEIGHT + COLHEAD_HEIGHT + rowCount * (ROW_HEIGHT + ROW_SPACING) + PADDING
-end
-
-function ns.ClassColor(classFilename)
-    local color = classFilename and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFilename]
-    if color then
-        return color.r, color.g, color.b
-    end
-    return 0.55, 0.55, 0.58
 end
 
 --------------------------------------------------------------------------------
@@ -62,6 +87,10 @@ local function BuildColumnHeader()
     if not headerRow then
         headerRow = CreateFrame("Frame", nil, frame)
         headerRow.labels = {}
+
+        headerRow.bg = headerRow:CreateTexture(nil, "BACKGROUND")
+        headerRow.bg:SetAllPoints()
+        headerRow.bg:SetColorTexture(1, 1, 1, 0.04)
     end
 
     headerRow:ClearAllPoints()
@@ -82,7 +111,7 @@ local function BuildColumnHeader()
             button:SetHeight(COLHEAD_HEIGHT)
             button:SetWidth(COLUMN_WIDTH)
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-            button.text:SetPoint("RIGHT", -3, 0)
+            button.text:SetPoint("RIGHT", -4, 0)
 
             button:SetScript("OnClick", function(self)
                 local attributeId = ns.db.columns[self.columnIndex]
@@ -118,11 +147,9 @@ local function BuildColumnHeader()
 
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == ns.db.sortBy then
-            local arrow = ns.db.sortDesc and "|TInterface\\Buttons\\Arrow-Down-Up:10|t"
-                or "|TInterface\\Buttons\\Arrow-Up-Up:10|t"
-            button.text:SetText("|cffffb060" .. label .. "|r" .. arrow)
+            button.text:SetText("|cffffc06a" .. label .. (ns.db.sortDesc and " \226\150\188" or " \226\150\178") .. "|r")
         else
-            button.text:SetText("|cff909090" .. label .. "|r")
+            button.text:SetText("|cff8a8a8a" .. label .. "|r")
         end
         button:Show()
     end
@@ -134,19 +161,35 @@ end
 local function BuildRow(index)
     local row = rows[index]
     if not row then
-        row = CreateFrame("StatusBar", nil, frame)
+        row = CreateFrame("Button", nil, frame)
         row:SetHeight(ROW_HEIGHT)
-        -- Textura chapada: é o que dá o ar do medidor nativo, sem relevo nem gradiente.
-        row:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-        row:SetMinMaxValues(0, 1)
-        row:SetValue(0)
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
-        row.bg:SetColorTexture(1, 1, 1, 0.05)
+
+        -- Barra chapada por trás do texto, como no medidor nativo.
+        row.bar = CreateFrame("StatusBar", nil, row)
+        row.bar:SetAllPoints()
+        row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+        row.bar:SetMinMaxValues(0, 1)
+        row.bar:SetValue(0)
+        row.bar:SetFrameLevel(row:GetFrameLevel())
+
+        row.highlight = row:CreateTexture(nil, "HIGHLIGHT")
+        row.highlight:SetAllPoints()
+        row.highlight:SetColorTexture(1, 1, 1, 0.10)
+
+        row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        row.rank:SetPoint("LEFT", 4, 0)
+        row.rank:SetWidth(RANK_WIDTH)
+        row.rank:SetJustifyH("LEFT")
+
+        row.icon = row:CreateTexture(nil, "OVERLAY")
+        row.icon:SetSize(ICON_SIZE, ICON_SIZE)
+        row.icon:SetPoint("LEFT", row.rank, "RIGHT", 1, 0)
 
         row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.name:SetPoint("LEFT", 4, 0)
+        row.name:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
         row.name:SetJustifyH("LEFT")
 
         row.cells = {}
@@ -157,6 +200,13 @@ local function BuildRow(index)
     local offsetY = -(HEADER_HEIGHT + COLHEAD_HEIGHT + (index - 1) * (ROW_HEIGHT + ROW_SPACING))
     row:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, offsetY)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
+
+    -- Zebra discreta: ajuda a percorrer sete colunas sem se perder de linha.
+    if index % 2 == 0 then
+        row.bg:SetColorTexture(1, 1, 1, 0.03)
+    else
+        row.bg:SetColorTexture(0, 0, 0, 0.12)
+    end
 
     for _, cell in pairs(row.cells) do
         cell:Hide()
@@ -171,13 +221,13 @@ local function BuildRow(index)
             cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end
-        cell:SetWidth(COLUMN_WIDTH - 6)
+        cell:SetWidth(COLUMN_WIDTH - 8)
         cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 3, 0)
+        cell:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
         cell:Show()
     end
 
-    row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - 8)
+    row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - RANK_WIDTH - ICON_SIZE - 14)
     return row
 end
 
@@ -196,7 +246,7 @@ function Window.Create()
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 1,
     })
-    frame:SetBackdropColor(0.04, 0.04, 0.05, 0.85)
+    frame:SetBackdropColor(0.03, 0.03, 0.04, 0.88)
     frame:SetBackdropBorderColor(0, 0, 0, 1)
 
     -- Barra de título com o atlas do medidor nativo do jogo.
@@ -214,19 +264,36 @@ function Window.Create()
         header.bg:SetColorTexture(0.10, 0.12, 0.18, 0.95)
     end
 
-    header.title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    header.title:SetPoint("LEFT", 6, 0)
-    header.title:SetTextColor(1, 0.82, 0.35)
+    -- Alternar Atual/Geral direto no título, sem comando de chat.
+    header.segment = CreateFrame("Button", nil, header)
+    header.segment:SetSize(96, HEADER_HEIGHT - 4)
+    header.segment:SetPoint("LEFT", 6, 0)
+    header.segment.text = header.segment:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    header.segment.text:SetPoint("LEFT")
+    header.segment.text:SetTextColor(1, 0.85, 0.45)
+    header.segment:SetScript("OnClick", function()
+        ns.db.sessionType = ns.db.sessionType == 0 and 1 or 0
+        Window.Refresh(true)
+    end)
+    header.segment:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(L["Click to switch between the current fight and the overall."], 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    header.segment:SetScript("OnLeave", GameTooltip_Hide)
+
+    header.clock = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    header.clock:SetPoint("LEFT", header.segment, "RIGHT", 2, 0)
+    header.clock:SetTextColor(0.78, 0.78, 0.8)
 
     frame.header = header
 
-    -- Botões pequenos à direita do título, como no medidor da Blizzard.
     local function HeaderButton(texture, tooltip, onClick)
         local b = CreateFrame("Button", nil, header)
         b:SetSize(14, 14)
         b:SetNormalTexture(texture)
         local tex = b:GetNormalTexture()
-        if tex then tex:SetVertexColor(0.75, 0.75, 0.75) end
+        if tex then tex:SetVertexColor(0.72, 0.72, 0.74) end
         b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
         b:SetScript("OnClick", onClick)
         b:SetScript("OnEnter", function(self)
@@ -238,14 +305,15 @@ function Window.Create()
         end)
         b:SetScript("OnLeave", function(self)
             local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(0.75, 0.75, 0.75) end
+            if t then t:SetVertexColor(0.72, 0.72, 0.74) end
             GameTooltip_Hide()
         end)
         return b
     end
 
+    -- Fecha só aqui: a janela não entra em UISpecialFrames, então ESC não a fecha.
     frame.closeButton = HeaderButton("Interface\\Buttons\\UI-Panel-MinimizeButton-Up",
-        L["Close"], function() frame:Hide() end)
+        L["Close"], function() Window.Hide() end)
     frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -4, 0)
 
     frame.gearButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
@@ -284,7 +352,6 @@ function Window.Create()
         Window.Draw()
     end)
 
-    tinsert(UISpecialFrames, frame:GetName())
     return frame
 end
 
@@ -300,7 +367,7 @@ function Window.Rebuild()
     end
 
     frame:SetWidth(WindowWidth())
-    visibleRows = -1          -- força recalcular a altura no próximo desenho
+    visibleRows = -1
     Window.Refresh(true)
 end
 
@@ -322,7 +389,7 @@ function ns.SetAmountText(fontString, value, suffix)
     end
     local text = ns.Data.FormatAmount(value)
     if text then
-        fontString:SetText(suffix and (text .. suffix) or text)
+        fontString:SetText(suffix and (text .. "|cff777777" .. suffix .. "|r") or text)
     else
         fontString:SetText(value)
     end
@@ -335,10 +402,15 @@ function Window.Draw()
         ns.db.rows, not ns.db.sortDesc)
     local maxAmount = session and session.maxAmount
 
-    local duration = ns.Data.GetDuration(ns.db.sessionType)
-    local clock = (duration and not issecretvalue(duration)) and SecondsToClock(duration) or ""
     local scope = ns.db.sessionType == 0 and L["Current fight"] or L["Overall"]
-    frame.header.title:SetText(clock ~= "" and (clock .. "  " .. scope) or scope)
+    frame.header.segment.text:SetText(scope)
+
+    local duration = ns.Data.GetDuration(ns.db.sessionType)
+    if duration and not issecretvalue(duration) and duration > 0 then
+        frame.header.clock:SetText(SecondsToClock(duration))
+    else
+        frame.header.clock:SetText("")
+    end
 
     local shown = 0
     for i = 1, ns.db.rows do
@@ -351,11 +423,13 @@ function Window.Draw()
             local source = entry.source
             shown = i
 
-            row:SetMinMaxValues(0, maxAmount or 1)
-            row:SetValue(source.totalAmount or 0)
+            row.bar:SetMinMaxValues(0, maxAmount or 1)
+            row.bar:SetValue(source.totalAmount or 0)
             local r, g, b = ns.ClassColor(source.classFilename)
-            row:SetStatusBarColor(r, g, b, 0.75)
+            row.bar:SetStatusBarColor(r, g, b, 0.55)
 
+            row.rank:SetText(i .. ".")
+            ns.ApplyClassIcon(row.icon, source.classFilename)
             row.name:SetText(source.name)
 
             for c = 1, #ns.db.columns do
@@ -367,20 +441,68 @@ function Window.Draw()
         end
     end
 
-    -- A janela acompanha quantos jogadores existem de verdade.
     if shown ~= visibleRows then
         visibleRows = shown
         frame:SetHeight(WindowHeight(shown))
     end
 end
 
+--------------------------------------------------------------------------------
+-- Visibilidade
+--------------------------------------------------------------------------------
+---Mostra/esconde guardando a escolha do usuário, para a janela voltar sozinha no próximo login.
+function Window.Show(remember)
+    if not frame then Window.Create() end
+    frame:Show()
+    if remember ~= false then ns.db.shown = true end
+    Window.Refresh(true)
+end
+
+function Window.Hide(remember)
+    if not frame then return end
+    frame:Hide()
+    if remember ~= false then ns.db.shown = false end
+end
+
 function Window.Toggle()
     if not frame then Window.Create() end
     if frame:IsShown() then
-        frame:Hide()
+        Window.Hide()
     else
+        Window.Show()
+    end
+end
+
+---Aplica o estado salvo no login e sempre que a opção "só em combate" muda.
+function Window.ApplyVisibility()
+    if not frame then return end
+
+    if ns.db.combatOnly and not InCombatLockdown() then
+        frame:Hide()
+        return
+    end
+
+    if ns.db.shown then
         frame:Show()
         Window.Refresh(true)
+    else
+        frame:Hide()
+    end
+end
+
+function Window.OnCombatStart()
+    if ns.db.combatOnly and ns.db.shown then
+        Window.Show(false)
+    end
+end
+
+function Window.OnCombatEnd()
+    if ns.db.combatOnly then
+        C_Timer.After(ns.db.hideDelay or 5, function()
+            if ns.db.combatOnly and not InCombatLockdown() then
+                Window.Hide(false)
+            end
+        end)
     end
 end
 
@@ -409,7 +531,6 @@ function Window.ToggleColumn(attributeId)
     Window.Rebuild()
 end
 
----Move uma coluna uma casa para a esquerda (-1) ou direita (+1).
 function Window.MoveColumn(index, direction)
     local columns = ns.db.columns
     local target = index + direction
