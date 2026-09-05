@@ -203,3 +203,6 @@ L["Off by default: the realm eats the column and the name is what ends up cut."]
 -- nao depende de interpretar um desenho de 14px.
 L["Locked — click to unlock and resize"] = "Travado — clique para destravar e redimensionar"
 L["Unlocked — drag to move, corner to resize"] = "Destravado — arraste para mover, canto para redimensionar"
+
+-- Corpo do texto configuravel (0.57.0)
+L["Text size"] = "Tamanho do texto"

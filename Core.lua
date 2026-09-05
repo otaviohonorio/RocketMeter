@@ -14,7 +14,10 @@ ns.defaults = {
     rows = 5,                 -- linhas visíveis; a alça muda isso
     scale = 1.0,
     font = nil,               -- caminho da fonte; nil = Friz Quadrata do jogo
-    fontSize = 12,
+    -- Corpo do texto da janela. Limites em Window.lua (FONT_SIZE_MIN/MAX) e o motivo de cada
+    -- um esta escrito la: o teto vem da largura da celula, o piso de o texto deixar de ser
+    -- lido de relance.
+    fontSize = 16,
     rowHeight = 20,          -- altura da barra na referência
     columnWidth = 58,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas

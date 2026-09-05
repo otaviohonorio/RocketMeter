@@ -47,12 +47,98 @@ local FONT = "Fonts\\ARIALN.TTF"
 -- dourado no cabeçalho. Tamanho variando dentro da mesma linha fazia a régua dos números dançar.
 --
 -- Em px de caixa alta, pela taxa medida (~0,69px por ponto): 13 rende 9px, 12 rendia ~8px.
--- 16, e não os 17 do chat: o chat dele ocupa a largura da tela com uma coluna de texto, e a
--- nossa janela carrega seis colunas de número na mesma altura de linha. É a mesma correção que
--- a 0.50.0 já tinha feito na outra direção — medida do lado de fora vale como ponto de partida,
--- não como alvo, porque a densidade das duas telas é diferente. Pedido depois de ver os 17
--- in-game.
-local FONT_SIZE = 16
+-- CORPO PADRÃO. 16, e não os 17 do chat: o chat ocupa a largura da tela com uma coluna de
+-- texto, e esta janela carrega seis colunas de número na mesma altura de linha. É a mesma
+-- correção que a 0.50.0 fez na outra direção — medida de fora vale como ponto de partida, não
+-- como alvo, porque a densidade das duas telas é diferente.
+local FONT_SIZE_DEFAULT = 16
+
+-- LIMITES DO CORPO CONFIGURÁVEL, e os dois saem de conta, não de gosto.
+--
+-- TETO 20 — vem da LARGURA DA CÉLULA. A célula tem 50px (`COLUMN_WIDTH_FIXED` menos 8), e o
+-- texto mais longo que `Data.FormatAmount` produz tem 5 caracteres ("-339M", "10.0K"). Em Arial
+-- Narrow um dígito avança ~0,5 do corpo, então 5 dígitos ocupam ~2,5×corpo:
+--
+--     2,5 × 20 = 50px   ← exatamente a célula
+--
+-- Um ponto acima disso e o número volta a virar reticências, que foi a reclamação da 0.54.0.
+-- Por isso o teto é 20 e não um número redondo escolhido no olho.
+--
+-- PISO 10 — abaixo daí a caixa alta fica em ~7px e o texto deixa de ser lido de relance numa
+-- janela que fica no canto da tela. Não há razão aritmética exata aqui; é o ponto onde a
+-- própria função do addon se perde.
+-- Geometria da linha. Sobe para ca porque `ns.RowHeightFor` a usa, e `local` declarado depois
+-- de uma funcao resolve como GLOBAL dentro dela -- ou seja, nil.
+local ROW_HEIGHT_FIXED = 25   -- medido no nativo: linha de y=68 a y=92
+local COLUMN_WIDTH_FIXED = 58
+local ROW_BAR_HEIGHT = 3      -- a faixa de progresso no rodape da linha (= PROGRESS_HEIGHT)
+
+local FONT_SIZE_MIN = 10
+local FONT_SIZE_MAX = 20
+
+-- Abaixo daqui o contorno SAI sozinho. Um contorno de 1px sobre uma caixa alta de ~9px é 11% da
+-- altura da letra e fecha os vazados do "a", do "e" e do "8" — vira mancha. É a mesma razão pela
+-- qual o placar (corpo 12) nunca teve contorno.
+local OUTLINE_MIN_SIZE = 13
+
+local TITLE_FONT_DELTA = -2     -- linha 16 -> 14
+local CLOCK_FONT_DELTA = -3     -- linha 16 -> 13
+local COLHEAD_FONT_DELTA = -4   -- linha 16 -> 12
+
+---Altura da linha para um dado corpo.
+---
+---25px é a medida tirada do medidor nativo e continua sendo o **piso**. Com o corpo
+---configurável ela não pode ser só isso: em 20 o texto passa de 20px entre caixa alta,
+---descendentes e contorno, e ainda há a faixa de progresso de 3px no rodapé — sem crescer
+---junto, o texto encostaria na faixa e na linha de cima.
+---
+---O fator 1,45 cobre caixa alta + descendente em Arial Narrow; os +2 são a folga do contorno.
+function ns.RowHeightFor(size)
+    local needed = math.ceil(size * 1.45) + 2 + ROW_BAR_HEIGHT
+    if needed > ROW_HEIGHT_FIXED then return needed end
+    return ROW_HEIGHT_FIXED
+end
+
+---Reescreve em `ns.Skin` os valores que dependem do corpo.
+---
+---`ns.Skin` é uma TABELA lida por outras telas, e elas leem o campo, não uma função. Com o
+---corpo fixo isso bastava; agora precisa ser refeito a cada mudança, senão o placar continuaria
+---calculando o delta dele contra o corpo antigo.
+function ns.RefreshSkin()
+    local size = ns.FontSize()
+    ns.Skin.fontSize = size
+    ns.Skin.titleFontSize = size + TITLE_FONT_DELTA
+    ns.Skin.clockFontSize = size + CLOCK_FONT_DELTA
+    ns.Skin.colheadFontSize = size + COLHEAD_FONT_DELTA
+    ns.Skin.fontOutline = ns.OutlineFor(size)
+    ns.Skin.rowHeight = ns.RowHeightFor(size)
+end
+
+---O contorno que serve para este corpo.
+---
+---Regra unica para a janela inteira, e por isso ela precisa depender do TAMANHO e nao da tela:
+---com o corpo no piso, o cabecalho de coluna (quatro pontos menor) chega a 6pt, e um contorno
+---de 1px ali e mancha. Antes isso era decidido por constante, o que so funcionava enquanto o
+---corpo fosse fixo.
+function ns.OutlineFor(size)
+    return size >= OUTLINE_MIN_SIZE and "OUTLINE" or ""
+end
+
+---O corpo escolhido, sempre dentro dos limites.
+---
+---Lê da configuração a cada chamada em vez de guardar numa constante: assim o passo do
+---configurador aparece na tela sem `/reload`.
+local FontSize
+function ns.FontSize() return FontSize() end
+
+function FontSize()
+    local size = ns.db and ns.db.fontSize
+    if type(size) ~= "number" then return FONT_SIZE_DEFAULT end
+    if size < FONT_SIZE_MIN then return FONT_SIZE_MIN end
+    if size > FONT_SIZE_MAX then return FONT_SIZE_MAX end
+    return size
+end
+
 -- O PLACAR não segue esta janela. Ele foi visto e aprovado com corpo 12, e a subida para 13
 -- foi pedida para "a janela de combate" — mudar as duas juntas desfaria uma aprovação que já
 -- existe. Mesma razão de `PANEL_FONT_SIZE`: tela diferente, densidade diferente, corpo próprio.
@@ -71,13 +157,9 @@ local SCOREBOARD_FONT_SIZE = 12
 --
 -- Como delta, a relação sobrevive à próxima mudança de corpo sem ninguém lembrar dela. Medido
 -- no nativo: título ~0,82 do conteúdo, que com a linha em 16 dá 13–14.
-local TITLE_FONT_DELTA = -2     -- linha 16 -> 14
-local CLOCK_FONT_DELTA = -3     -- linha 16 -> 13
-local COLHEAD_FONT_DELTA = -4   -- linha 16 -> 12
 
-local TITLE_FONT_SIZE = FONT_SIZE + TITLE_FONT_DELTA
-local CLOCK_FONT_SIZE = FONT_SIZE + CLOCK_FONT_DELTA
-local COLHEAD_FONT_SIZE = FONT_SIZE + COLHEAD_FONT_DELTA
+-- Calculados no momento da leitura, nao uma vez na carga: com o corpo configuravel, guardar
+-- o resultado congelaria a hierarquia no valor que valia quando o arquivo carregou.
 -- O painel de detalhamento não tem equivalente no medidor da Blizzard, então não segue o corpo
 -- da linha: ele mantém o próprio, que é o que já estava aprovado. Crescer junto por herança
 -- seria mudar uma tela que ninguém pediu para mudar.
@@ -105,22 +187,16 @@ local PANEL_ROW_HEIGHT = 22
 --   * O halo desenhado existia para dar meio-termo entre "nada" e `OUTLINE`. Com o corpo maior
 --     o meio-termo deixou de ser necessário, e ele continua desligado — somar os dois dobraria
 --     o traço.
-local FONT_OUTLINE = "OUTLINE"
--- Contorno no WoW não tem meio-termo: só existe nenhum, `OUTLINE` e `THICKOUTLINE`. Como
--- `OUTLINE` em tudo pesou, a graduação é **por elemento**: contorno no que precisa ser lido de
--- longe (nome e a coluna que ordena) e apenas sombra nas colunas secundárias. O conjunto fica
--- mais leve sem perder a leitura do que importa.
-local ROW_FONT_FLAGS = FONT_OUTLINE     -- o mesmo contorno em toda a janela
+-- Não há mais constante de contorno: quem decide é `ns.OutlineFor(corpo)`, porque com o corpo
+-- configurável a resposta certa depende do tamanho de cada texto. Chamar `ns.ApplyFont` sem o
+-- terceiro argumento é o jeito normal; passar `""` é para quem quer explicitamente nenhum
+-- (as cópias do halo).
 -- O nome do reino entra sempre um ponto abaixo do nome do personagem. Fora do próprio reino o
 -- servidor devolve "Nome-Reino", e no corpo cheio os dois competiam: o print de 05/09 mostrava
 -- "Magicpandá-Tic…" — nome e reino brigando pela mesma largura, e as reticências comendo os
 -- dois. Hierarquia por corpo resolve sem esconder de onde a pessoa é.
 local REALM_FONT_DELTA = -1
 ns.REALM_FONT_DELTA = REALM_FONT_DELTA
--- MESMA flag do resto da janela. Antes as células iam sem contorno enquanto o nome ia com halo,
--- e era essa mistura que o usuário leu como *"umas colunas parece tá com mais borda a fonte,
--- outras não"*. Um valor só para tudo é o que dá o padrão que faltava.
-local CELL_FONT_FLAGS = FONT_OUTLINE
 -- Medição do print lado a lado corrige o que eu havia concluído antes: a linha do medidor
 -- nativo mede RGB(23,42,51) e o cenário ao lado dela RGB(27,46,54) — ou seja, **ela também é
 -- transparente**. Então o preto ao redor das letras dele não vem de fundo escuro: é contorno
@@ -146,8 +222,6 @@ local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
 -- Fundo invisível: é a variante "No Background" da skin (`wallpaperAlpha = 0.0`).
 -- Quem sustenta a leitura é a sombra do texto; a separação vem da faixa de progresso.
 local WINDOW_ALPHA = 0
-local ROW_HEIGHT_FIXED = 25         -- medido no nativo: linha de y=68 a y=92, 25px
-local COLUMN_WIDTH_FIXED = 58
 
 -- Proporção da referência: a skin usa faixa de 32px com texto de 13pt, ou seja, o texto
 -- ocupa ~40% da altura. Com 20px e 13pt eu tinha 65% — daí a sensação de apertado.
@@ -155,17 +229,25 @@ local COLUMN_WIDTH_FIXED = 58
 -- copiar valores — cópia é o que faz as telas divergirem com o tempo.
 ns.Skin = {
     font = FONT,
-    fontSize = FONT_SIZE,
+    fontSize = FONT_SIZE_DEFAULT,
     -- O contorno da JANELA DE COMBATE. O placar (corpo 12) e o painel de detalhamento (13)
     -- passam `""` de propósito: 1px de contorno sobre um glifo de ~8px fecha os vazados da
     -- letra, e os dois já foram vistos e aprovados sem ele. Se um dia tiverem que acompanhar,
     -- o conserto é trocar o `""` deles por `ns.Skin.fontOutline`.
-    fontOutline = FONT_OUTLINE,
+    fontOutline = "OUTLINE",
     -- Corpos com valor próprio, expostos para as outras telas não redigitarem o literal: o
     -- placar tinha um `11` cravado no código que precisaria ser caçado à mão se este mudasse.
-    colheadFontSize = COLHEAD_FONT_SIZE,
-    titleFontSize = TITLE_FONT_SIZE,
-    clockFontSize = CLOCK_FONT_SIZE,
+    colheadFontSize = FONT_SIZE_DEFAULT + COLHEAD_FONT_DELTA,
+    titleFontSize = FONT_SIZE_DEFAULT + TITLE_FONT_DELTA,
+    clockFontSize = FONT_SIZE_DEFAULT + CLOCK_FONT_DELTA,
+    -- Limites do corpo, expostos para o configurador não redigitar os números.
+    fontSizeMin = FONT_SIZE_MIN,
+    fontSizeMax = FONT_SIZE_MAX,
+    rowsMin = 1,
+    rowsMax = 20,
+    -- Exposta porque é dela que sai o teto do corpo: o texto mais longo de uma célula tem que
+    -- caber aqui, e é isso que o harness confere.
+    columnWidth = COLUMN_WIDTH_FIXED,
     scoreboardFontSize = SCOREBOARD_FONT_SIZE,
     barTexture = BAR_TEXTURE,
     barBrightness = BAR_BRIGHTNESS,
@@ -312,24 +394,33 @@ end
 
 ---Aplica a fonte configurada. `delta` ajusta o corpo para rótulos secundários.
 function ns.ApplyFont(fontString, delta, flags)
-    local size = FONT_SIZE + (delta or 0)
+    local size = FontSize() + (delta or 0)
     if size < 6 then size = 6 end
 
-    fontString:SetFont(FONT, size, flags or FONT_OUTLINE)
+    -- O contorno segue o TAMANHO DESTE texto, não o da linha: o cabeçalho de coluna é quatro
+    -- pontos menor, e num corpo pequeno ele fecharia as letras antes da linha fechar.
+    if flags == nil then flags = ns.OutlineFor(size) end
+
+    fontString:SetFont(FONT, size, flags)
 
     -- Sombra de 1px carrega o texto branco sobre a barra colorida sem o peso do contorno.
     fontString:SetShadowOffset(1, -1)
-    fontString:SetShadowColor(0, 0, 0, 1)
+    -- Alfa 0.8, não 1: é o que o Chattynator usa no ramo `"SHADOW"` (`Core/Fonts.lua`), e a
+    -- referência de legibilidade foi a janela de chat dele. Preto cheio somado ao contorno
+    -- engrossa o traço duas vezes no mesmo pixel.
+    fontString:SetShadowColor(0, 0, 0, 0.8)
 end
 
 ---Fonte do painel de leitura, que tem corpo próprio (ver `PANEL_FONT_SIZE`).
 function ns.ApplyPanelFont(fontString, delta, flags)
-    ns.ApplyFont(fontString, (delta or 0) + PANEL_FONT_SIZE - FONT_SIZE, flags)
+    -- `FontSize()`, nao a constante: o delta e relativo ao corpo VIGENTE da janela. Com a
+    -- constante, mexer no corpo da janela arrastaria junto um painel que tem corpo proprio.
+    ns.ApplyFont(fontString, (delta or 0) + PANEL_FONT_SIZE - FontSize(), flags)
 end
 
 ---Fonte do placar de fim de corrida, que também tem corpo próprio.
 function ns.ApplyScoreboardFont(fontString, delta, flags)
-    ns.ApplyFont(fontString, (delta or 0) + SCOREBOARD_FONT_SIZE - FONT_SIZE, flags)
+    ns.ApplyFont(fontString, (delta or 0) + SCOREBOARD_FONT_SIZE - FontSize(), flags)
 end
 
 --------------------------------------------------------------------------------
@@ -608,7 +699,7 @@ end
 -- Geometria
 --------------------------------------------------------------------------------
 local function RowHeight()
-    return ROW_HEIGHT_FIXED
+    return ns.RowHeightFor(FontSize())
 end
 
 local function ColumnWidth()
@@ -741,7 +832,7 @@ local function BuildColumnHeader()
         button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
-        ns.ApplyFont(button.text, COLHEAD_FONT_DELTA, FONT_OUTLINE)
+        ns.ApplyFont(button.text, COLHEAD_FONT_DELTA)
 
         local label = ns.Data.GetShortLabel(key)
         if key == ns.db.sortBy then
@@ -900,12 +991,12 @@ local function BuildRow(index)
     row.icon:SetSize(iconSize, iconSize)
     row.iconClass:SetSize(iconSize, iconSize)
     row.bar:SetHeight(PROGRESS_HEIGHT)
-    ns.ApplyFont(row.name, 0, ROW_FONT_FLAGS)
+    ns.ApplyFont(row.name, 0)
     SyncHaloFont(row.name, row.nameHalo, 0)
     -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
     -- em 12, o reino fica em 11. E delta, nao valor fixo — se o corpo da linha mudar de novo,
     -- a diferenca de um ponto acompanha sozinha.
-    ns.ApplyFont(row.realm, REALM_FONT_DELTA, ROW_FONT_FLAGS)
+    ns.ApplyFont(row.realm, REALM_FONT_DELTA)
     SyncHaloFont(row.realm, row.realmHalo, REALM_FONT_DELTA)
 
     for _, cell in pairs(row.cells) do
@@ -927,7 +1018,7 @@ local function BuildRow(index)
         -- Corpo único na linha inteira: a coluna ordenada não cresce. Números de tamanhos
         -- diferentes lado a lado desalinham a leitura vertical, e quem está ordenando já sabe
         -- por qual coluna — o dourado no cabeçalho diz isso sem mexer no corpo.
-        ns.ApplyFont(cell, 0, CELL_FONT_FLAGS)
+        ns.ApplyFont(cell, 0)
         SyncHaloFont(cell, row.cellHalos and row.cellHalos[c], 0)
         cell:SetWidth(ColumnWidth() - 8)
         if row.cellHalos and row.cellHalos[c] then
@@ -952,6 +1043,11 @@ end
 -- Montagem
 --------------------------------------------------------------------------------
 function Window.Create()
+    -- `ns.Skin` nasce com o padrao (os arquivos carregam antes de `ns.db` existir). Aqui a
+    -- configuracao ja foi lida, entao os valores derivados do corpo precisam ser refeitos --
+    -- senao o placar calcularia o delta dele contra o corpo errado durante a sessao inteira.
+    ns.RefreshSkin()
+
     if frame then return frame end
 
     frame = CreateFrame("Frame", ADDON .. "Frame", UIParent, "BackdropTemplate")
@@ -1182,8 +1278,8 @@ function Window.Rebuild()
 
     -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
     -- Título e relógio têm corpo próprio: no nativo eles são menores que o texto da linha.
-    ns.ApplyFont(frame.header.segment.text, TITLE_FONT_DELTA, FONT_OUTLINE)
-    ns.ApplyFont(frame.header.clock, CLOCK_FONT_DELTA, FONT_OUTLINE)
+    ns.ApplyFont(frame.header.segment.text, TITLE_FONT_DELTA)
+    ns.ApplyFont(frame.header.clock, CLOCK_FONT_DELTA)
 
     BuildColumnHeader()
     for i = 1, ns.db.rows do
@@ -1328,7 +1424,7 @@ function ns.StyleCell(row, index, isBest, delta)
     -- O `delta` existe porque esta função é compartilhada: ela reaplica a fonte a cada
     -- desenho, e sem ele o placar (corpo 12) teria as células puxadas de volta para o corpo
     -- da janela (13) — nome em 12 e números em 13 na mesma linha.
-    ns.ApplyFont(cell, delta or 0, CELL_FONT_FLAGS)
+    ns.ApplyFont(cell, delta or 0)
     cell:SetShadowColor(0, 0, 0, 1)
 
     if highlight then
@@ -1582,6 +1678,35 @@ end
 ---
 ---Ponto único usado pela alça de redimensionar e pelo painel de configuração — sem isto os dois
 ---caminhos calculariam a altura de formas diferentes.
+---Troca o corpo do texto, dentro dos limites.
+---
+---A altura da linha e a hierarquia (titulo, relogio, cabecalho) acompanham sozinhas, porque as
+---tres sao derivadas -- essa foi a razao de elas terem virado deltas na 0.56.1. `Rebuild` e
+---necessario porque a altura da linha muda e as linhas ja construidas precisam ser refeitas.
+---@return boolean mudou
+function Window.SetFontSize(size)
+    if type(size) ~= "number" then return false end
+    size = math.floor(size + 0.5)
+    if size < ns.Skin.fontSizeMin then size = ns.Skin.fontSizeMin end
+    if size > ns.Skin.fontSizeMax then size = ns.Skin.fontSizeMax end
+    if size == ns.db.fontSize then return false end
+
+    ns.db.fontSize = size
+    ns.RefreshSkin()
+    Window.Rebuild()
+    if frame then
+        frame:SetHeight(WindowHeight(ns.db.rows))
+        if frame.SetResizeBounds then
+            frame:SetResizeBounds(MinWidth(), WindowHeight(MIN_ROWS), 1400, WindowHeight(MAX_ROWS))
+        end
+    end
+    return true
+end
+
+function Window.GetFontSize()
+    return ns.FontSize()
+end
+
 function Window.SetRows(count)
     if type(count) ~= "number" then return end
     if count < MIN_ROWS then count = MIN_ROWS end

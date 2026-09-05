@@ -2,8 +2,20 @@
 -- A única tela de configuração: quais colunas aparecem, em que ordem, e quantas linhas a
 -- janela mostra.
 --
--- Aparência não se configura — está fixa no código (ver o topo de `Window.lua`). Primeiro o
--- padrão precisa estar certo; opção de layout só espalha o problema em vez de resolvê-lo.
+-- Aparência **quase** não se configura, e a exceção é deliberada.
+--
+-- A regra do projeto (0.20.0) é que o padrão precisa estar certo, e que opção de layout espalha
+-- o problema em vez de resolvê-lo. Ela continua valendo para cor, textura, borda e opacidade —
+-- tudo isso é constante fixa no topo de `Window.lua`.
+--
+-- O **corpo do texto** é a exceção porque a evidência mandou: ele foi ajustado a pedido seis
+-- vezes (16 → 14 → 13 → 12 → 13 → 17 → 16), e o valor certo depende da resolução, da escala de
+-- interface e de quanto o jogador enxerga — coisas que o addon não tem como saber. Aqui a
+-- opção não espalha o problema; ela reconhece que não existe um número único correto.
+--
+-- Os LIMITES é que não são negociáveis, e o motivo de cada um está em `Window.lua`: o teto sai
+-- da largura da célula (acima dele o número volta a virar reticências) e o piso, de o texto
+-- deixar de ser lido de relance.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -15,7 +27,7 @@ local ROW_HEIGHT = 22
 local TOP = 34
 -- Rodapé, de baixo para cima: limpar dados, os dois últimos placares, a seção Placar com
 -- as duas caixas de abertura automática, a caixa do reino e o contador de linhas.
-local BOTTOM = 210
+local BOTTOM = 236
 
 local frame, rows
 
@@ -187,26 +199,55 @@ function Picker.Create()
     rowsLabel:SetPoint("BOTTOMLEFT", 12, 180)
     rowsLabel:SetText(L["Rows"])
 
-    local function StepperButton(offsetX, delta, symbol)
-        local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-        b:SetSize(22, 20)
-        b:SetPoint("BOTTOMLEFT", offsetX, 178)
-        b:SetText(symbol)
-        b:SetScript("OnClick", function()
-            ns.Window.SetRows((ns.Window.GetRows() or 5) + delta)
-            Picker.RefreshRows()
-        end)
-        return b
+    ---Par de passos com o valor no meio. Um so construtor para as duas linhas: eram dois
+    ---blocos quase iguais, e duplicar aqui e como as telas comecam a divergir.
+    local function Stepper(y, get, set, low, high)
+        local minus = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        minus:SetSize(22, 20)
+        minus:SetPoint("BOTTOMLEFT", WIDTH - 92, y - 2)
+        minus:SetText("-")
+
+        local value = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        value:SetPoint("BOTTOMLEFT", WIDTH - 68, y)
+        value:SetWidth(24)
+        value:SetJustifyH("CENTER")
+
+        local plus = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        plus:SetSize(22, 20)
+        plus:SetPoint("BOTTOMLEFT", WIDTH - 42, y - 2)
+        plus:SetText("+")
+
+        local function refresh()
+            local atual = get()
+            value:SetText(tostring(atual))
+            -- Passo que não faz nada fica apagado. Botão que responde com silêncio ensina menos
+            -- que botão apagado — é a mesma regra dos dois botões de placar aqui embaixo, e
+            -- aqui ela também mostra ONDE ficam os limites sem precisar de texto explicando.
+            minus:SetEnabled(atual > low)
+            plus:SetEnabled(atual < high)
+        end
+
+        minus:SetScript("OnClick", function() set(get() - 1); refresh() end)
+        plus:SetScript("OnClick", function() set(get() + 1); refresh() end)
+        refresh()
+        return { minus = minus, plus = plus, value = value, Refresh = refresh }
     end
 
-    frame.rowsMinus = StepperButton(WIDTH - 92, -1, "-")
+    frame.rowsStepper = Stepper(180,
+        function() return ns.Window.GetRows() or 5 end,
+        function(v) ns.Window.SetRows(v) end,
+        ns.Skin.rowsMin, ns.Skin.rowsMax)
 
-    frame.rowsValue = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    frame.rowsValue:SetPoint("BOTTOMLEFT", WIDTH - 68, 180)
-    frame.rowsValue:SetWidth(24)
-    frame.rowsValue:SetJustifyH("CENTER")
+    -- Corpo do texto. Os limites vem do addon, nao daqui: quem sabe por que 10 e 20 e o
+    -- `Window.lua`, onde o teto e derivado da largura da celula.
+    local sizeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    sizeLabel:SetPoint("BOTTOMLEFT", 12, 206)
+    sizeLabel:SetText(L["Text size"])
 
-    frame.rowsPlus = StepperButton(WIDTH - 42, 1, "+")
+    frame.sizeStepper = Stepper(206,
+        function() return ns.Window.GetFontSize() end,
+        function(v) ns.Window.SetFontSize(v) end,
+        ns.Skin.fontSizeMin, ns.Skin.fontSizeMax)
 
     -- Os dois últimos placares, lado a lado.
     --
@@ -282,8 +323,9 @@ end
 
 ---Atualiza só o contador de linhas.
 function Picker.RefreshRows()
-    if not frame or not frame.rowsValue then return end
-    frame.rowsValue:SetText(tostring(ns.Window.GetRows() or 5))
+    if not frame then return end
+    if frame.rowsStepper then frame.rowsStepper.Refresh() end
+    if frame.sizeStepper then frame.sizeStepper.Refresh() end
 end
 
 function Picker.Refresh()

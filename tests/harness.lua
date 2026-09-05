@@ -1292,6 +1292,70 @@ do
     RAID_CLASS_COLORS = salvo
 end
 
+print("== corpo do texto configuravel, com limites ==")
+-- A regra do projeto e que aparencia nao se configura (0.20.0). O corpo do texto e a excecao,
+-- e ela e deliberada: foi ajustado a pedido SEIS vezes, porque o valor certo depende de
+-- resolucao, escala de interface e de quanto o jogador enxerga. O que nao e negociavel sao os
+-- limites.
+do
+    local original = ns.db.fontSize
+
+    check("os limites estao expostos",
+        ns.Skin.fontSizeMin ~= nil and ns.Skin.fontSizeMax ~= nil, true)
+
+    -- TETO derivado da largura da celula, nao escolhido no olho. Em Arial Narrow um digito
+    -- avanca ~0,5 do corpo, e o texto mais longo que `FormatAmount` produz tem 5 caracteres
+    -- ("-339M", "10.0K"). Acima disso o numero volta a virar reticencias -- o defeito da 0.54.0.
+    local maiorTexto = 0
+    for _, v in ipairs({ 0, 999, 9995, 999999, 1000000, 99950000, 999500000, 1000000000 }) do
+        local t = ns.Data.FormatAmount(v)
+        if #t > maiorTexto then maiorTexto = #t end
+    end
+    local larguraCelula = ns.Skin.columnWidth - 8
+    check("o teto e o que cabe na celula",
+        ns.Skin.fontSizeMax <= math.floor(larguraCelula / (maiorTexto * 0.5)), true)
+
+    -- Ninguem passa dos limites, nem por fora.
+    ns.Window.SetFontSize(99)
+    check("teto respeitado", ns.FontSize(), ns.Skin.fontSizeMax)
+    ns.Window.SetFontSize(1)
+    check("piso respeitado", ns.FontSize(), ns.Skin.fontSizeMin)
+    ns.Window.SetFontSize("dez")
+    check("valor invalido nao muda nada", ns.FontSize(), ns.Skin.fontSizeMin)
+
+    -- A HIERARQUIA ACOMPANHA. Foi para isto que titulo/relogio/cabecalho viraram deltas na
+    -- 0.56.1: com absolutos, mudar o corpo aqui desmancharia a relacao de novo.
+    ns.Window.SetFontSize(20)
+    check("titulo acompanhou o corpo", ns.Skin.titleFontSize, 20 - 2)
+    check("cabecalho acompanhou o corpo", ns.Skin.colheadFontSize, 20 - 4)
+    check("e continua menor que a linha", ns.Skin.colheadFontSize < ns.Skin.fontSize, true)
+
+    -- A LINHA CRESCE JUNTO. Com a altura travada em 25, o corpo 20 encostaria na faixa de
+    -- progresso do rodape e na linha de cima.
+    check("altura da linha cresce com o corpo", ns.Skin.rowHeight > 25, true)
+    ns.Window.SetFontSize(12)
+    check("e volta ao piso medido no nativo quando o corpo e pequeno", ns.Skin.rowHeight, 25)
+
+    -- CONTORNO SAI SOZINHO no corpo pequeno: 1px sobre caixa alta de ~9px fecha os vazados.
+    check("corpo pequeno perde o contorno", ns.Skin.fontOutline, "")
+    ns.Window.SetFontSize(16)
+    check("corpo normal tem contorno", ns.Skin.fontOutline, "OUTLINE")
+
+    -- E o PLACAR nao pode ser arrastado junto: ele tem corpo proprio, ja aprovado.
+    do
+        local fsPlacar = spyFontString()
+        ns.Window.SetFontSize(20)
+        ns.ApplyScoreboardFont(fsPlacar, 0)
+        local grande = fsPlacar.size
+        ns.Window.SetFontSize(10)
+        ns.ApplyScoreboardFont(fsPlacar, 0)
+        check("o placar nao segue o corpo da janela", fsPlacar.size, grande)
+        check("e continua no corpo dele", fsPlacar.size, ns.Skin.scoreboardFontSize)
+    end
+
+    ns.Window.SetFontSize(original)
+end
+
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",
