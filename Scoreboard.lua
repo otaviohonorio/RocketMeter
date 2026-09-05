@@ -104,8 +104,8 @@ local function BuildHeader()
 
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == sortBy then
-            local arrow = sortDesc and "|TInterface\Buttons\Arrow-Down-Up:12|t"
-                or "|TInterface\Buttons\Arrow-Up-Up:12|t"
+            local arrow = sortDesc and "|TInterface\\Buttons\\Arrow-Down-Up:12|t"
+                or "|TInterface\\Buttons\\Arrow-Up-Up:12|t"
             button.text:SetText("|cffff6a00" .. label .. "|r" .. arrow)
         else
             button.text:SetText("|cffb0b0b0" .. label .. "|r")

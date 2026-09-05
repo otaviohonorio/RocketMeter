@@ -117,8 +117,8 @@ local function BuildHeader()
 
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == ns.db.sortBy then
-            local arrow = ns.db.sortDesc and "|TInterface\Buttons\Arrow-Down-Up:12|t"
-                or "|TInterface\Buttons\Arrow-Up-Up:12|t"
+            local arrow = ns.db.sortDesc and "|TInterface\\Buttons\\Arrow-Down-Up:12|t"
+                or "|TInterface\\Buttons\\Arrow-Up-Up:12|t"
             button.text:SetText("|cffff6a00" .. label .. "|r" .. arrow)
         else
             button.text:SetText("|cffb0b0b0" .. label .. "|r")
@@ -204,8 +204,8 @@ function Window.Create()
     local gear = CreateFrame("Button", nil, frame)
     gear:SetSize(16, 16)
     gear:SetPoint("RIGHT", close, "LEFT", 0, 0)
-    gear:SetNormalTexture("Interface\Buttons\UI-OptionsButton")
-    gear:SetHighlightTexture("Interface\Buttons\UI-Common-MouseHilight")
+    gear:SetNormalTexture("Interface\\Buttons\\UI-OptionsButton")
+    gear:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
     gear:SetScript("OnClick", function()
         ns.Picker.Toggle(frame)
     end)

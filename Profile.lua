@@ -21,6 +21,21 @@ local function Fill(store)
     end
 end
 
+---Padrões que só podem ser montados com o cliente carregado (dependem de Enum).
+---Chamado no login e sempre que a configuração é trocada ou zerada.
+function Profile.EnsureRuntimeDefaults()
+    if not active then return end
+
+    if not active.columns or #active.columns == 0 then
+        local preset = ns.Data.GetPresets().mplus
+        active.columns = preset and CopyTable(preset.columns)
+            or { Enum.DamageMeterType.DamageDone }
+    end
+    if not active.sortBy then
+        active.sortBy = active.columns[1]
+    end
+end
+
 function Profile.Init()
     RocketMeterDB = RocketMeterDB or {}
     RocketMeterCharDB = RocketMeterCharDB or {}
@@ -52,6 +67,7 @@ function Profile.SetPerCharacter(enabled)
     end
 
     Fill(active)
+    Profile.EnsureRuntimeDefaults()
     ns.Print(enabled and L["settings for this character only."] or L["settings shared by the account."])
 
     if ns.Window then
@@ -68,6 +84,7 @@ function Profile.Reset()
         end
     end
     Fill(active)
+    Profile.EnsureRuntimeDefaults()
     if ns.Window then
         ns.Window.ApplyScale()
         ns.Window.Rebuild()

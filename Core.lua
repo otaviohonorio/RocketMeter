@@ -56,14 +56,8 @@ function handlers:ADDON_LOADED(addon)
 end
 
 function handlers:PLAYER_LOGIN()
-    -- Enum.DamageMeterType só existe com o cliente carregado.
-    if not ns.db.columns or #ns.db.columns == 0 then
-        local preset = ns.Data.GetPresets().mplus
-        ns.db.columns = preset and CopyTable(preset.columns) or { Enum.DamageMeterType.Dps }
-    end
-    if not ns.db.sortBy then
-        ns.db.sortBy = ns.db.columns[1]
-    end
+    -- Colunas padrão dependem de Enum, que só existe com o cliente carregado.
+    ns.Profile.EnsureRuntimeDefaults()
 
     if not ns.Data.IsAvailable() then
         ns.Print(L["the native meter (C_DamageMeter) is not available on this client."])
