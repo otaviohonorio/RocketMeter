@@ -185,6 +185,8 @@ local function BuildColumnHeader()
                 GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
                 GameTooltip:AddLine(L["Click again to reverse the order."], 0.7, 0.7, 0.7)
                 GameTooltip:AddLine(L["Shift-click moves it left, Ctrl-click moves it right."], 0.7, 0.7, 0.7)
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine(L["The leader of each column is highlighted, out of combat."], 0.5, 0.7, 1, true)
                 GameTooltip:Show()
             end)
             button:SetScript("OnLeave", GameTooltip_Hide)
@@ -481,6 +483,21 @@ function Window.Refresh(immediate)
     end
 end
 
+-- Cores do realce: dourado para o que é bom liderar, vermelho para o que não é.
+local BEST_GOOD = { 1, 0.82, 0.25 }
+local BEST_BAD = { 1, 0.45, 0.45 }
+local NORMAL = { 0.92, 0.92, 0.94 }
+
+---Pinta a célula conforme lidere ou não aquela coluna.
+function ns.ColorCell(fontString, columnKey, isBest)
+    if not isBest or not ns.db.highlightBest then
+        fontString:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
+        return
+    end
+    local color = ns.Data.IsNegativeColumn(columnKey) and BEST_BAD or BEST_GOOD
+    fontString:SetTextColor(color[1], color[2], color[3])
+end
+
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
 ---FontString (o motor renderiza secret values que o Lua não pode ler).
 function ns.SetCellText(fontString, value, columnKey)
@@ -547,7 +564,9 @@ function Window.Draw()
             row.name:SetTextColor(1, 1, 1)
 
             for c = 1, #ns.db.columns do
-                ns.SetCellText(row.cells[c], entry.values[c], ns.db.columns[c])
+                local key = ns.db.columns[c]
+                ns.SetCellText(row.cells[c], entry.values[c], key)
+                ns.ColorCell(row.cells[c], key, entry.best and entry.best[c])
             end
 
             row:Show()

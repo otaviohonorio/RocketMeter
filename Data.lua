@@ -82,6 +82,17 @@ function Data.IsRateColumn(key)
     return def ~= nil and def.field == "perSecond"
 end
 
+---Métricas em que liderar é ruim: quem mais tomou dano, quem mais morreu.
+---O realce existe do mesmo jeito, mas em vermelho — a informação é útil mesmo sendo má notícia.
+function Data.IsNegativeColumn(key)
+    local def = Data.GetColumn(key)
+    if not def then return false end
+    local E = Enum.DamageMeterType
+    return def.attr == E.DamageTaken
+        or def.attr == E.AvoidableDamageTaken
+        or def.attr == E.Deaths
+end
+
 function Data.IsPercentColumn(key)
     local def = Data.GetColumn(key)
     return def ~= nil and def.field == "percent"
@@ -276,7 +287,38 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
         rows[i] = { source = source, values = values }
     end
 
+    Data.MarkColumnLeaders(rows, columns)
+
     return rows, session
+end
+
+---Marca quem lidera **cada** coluna, não só a ordenada: o healer que cura mais fica realçado
+---mesmo estando em terceiro no dano.
+---
+---Isso exige comparar valores, o que é **proibido com secret values**. Em combate, portanto,
+---o realce simplesmente não aparece; ao sair do combate ele volta. Preferível a errar o líder.
+function Data.MarkColumnLeaders(rows, columns)
+    if #rows < 2 then return end
+
+    for c = 1, #columns do
+        local bestIndex, bestValue
+
+        for i = 1, #rows do
+            local value = rows[i].values[c]
+            if value ~= nil and not issecretvalue(value) and type(value) == "number" then
+                if bestValue == nil or value > bestValue then
+                    bestIndex, bestValue = i, value
+                end
+            end
+        end
+
+        -- Zero não é liderança: ninguém "lidera" as mortes quando ninguém morreu.
+        if bestIndex and bestValue and bestValue > 0 then
+            local row = rows[bestIndex]
+            row.best = row.best or {}
+            row.best[c] = true
+        end
+    end
 end
 
 --------------------------------------------------------------------------------

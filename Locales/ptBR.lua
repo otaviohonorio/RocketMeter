@@ -156,3 +156,10 @@ L["Specialization"] = "Especialização"
 L["Class"] = "Classe"
 L["Specialization says more than class: who heals, who tanks."] =
     "A especialização diz mais que a classe: quem cura, quem tanka."
+
+-- Realce do lider por coluna (0.12.0)
+L["Highlight the leader of each column"] = "Realçar quem lidera cada coluna"
+L["Gold for what is good to lead, red for damage taken and deaths."] =
+    "Dourado para o que é bom liderar, vermelho para dano recebido e mortes."
+L["The leader of each column is highlighted, out of combat."] =
+    "Quem lidera cada coluna fica realçado, fora de combate."

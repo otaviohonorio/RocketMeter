@@ -169,6 +169,16 @@ function ns.SetupOptions()
     end
 
     do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_highlightBest", "highlightBest",
+            ns.db, "boolean", L["Highlight the leader of each column"], ns.defaults.highlightBest)
+        Settings.SetOnValueChangedCallback(ADDON .. "_highlightBest", function()
+            ns.Window.Refresh(true)
+        end)
+        Settings.CreateCheckbox(category, setting,
+            L["Gold for what is good to lead, red for damage taken and deaths."])
+    end
+
+    do
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rowIcon", "rowIcon",
             ns.db, "string", L["Row icon"], ns.defaults.rowIcon)
         Settings.SetOnValueChangedCallback(ADDON .. "_rowIcon", function()

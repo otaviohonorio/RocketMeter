@@ -163,6 +163,27 @@ Ajustável nas opções: **fonte** (Friz Quadrata, Arial Narrow, 2002, Skurri, M
 A janela também redimensiona pela alça do canto inferior direito: a largura vai para o nome, e a
 altura vira quantidade de linhas.
 
+### O líder de cada coluna fica realçado
+
+A ordenação conta a história de **uma** coluna. O resto da tabela perderia a informação de quem
+lidera — então cada coluna realça o seu próprio líder:
+
+```
+                    Dano     DPS     Cura     CPS  Interr Mortes
+ 1. Thalyra         1,2M   9,1k/s   120K    1,0k/s     1      0
+ 2. Brumm           980K   7,4k/s   900K    7,5k/s     0      2
+ 3. Sarien          740K   5,6k/s    50K     416/s     5      1
+```
+
+Thalyra lidera o dano (e por isso está em primeiro), mas quem cura mais é o Brumm e quem mais
+interrompe é o Sarien — e cada um desses números aparece **dourado**. Nas métricas em que
+liderar é má notícia — dano recebido, dano evitável, mortes — o realce é **vermelho**: a
+informação é útil mesmo sendo ruim.
+
+**Só funciona fora de combate**, e por um motivo de fundo: achar o maior valor exige comparar,
+e comparar secret values é proibido. Durante a luta os números aparecem normalmente, sem realce;
+quando o combate termina, o realce aparece. Preferível a inventar um líder errado.
+
 ### Uma coluna e (metrica, campo)
 
 O erro que mais custou: `Enum.DamageMeterType.Dps` **nao e** "a metrica de DPS". Os atributos
@@ -229,8 +250,8 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.11.0 — linhas em formato de barra (não planilha), ícone de especialização, fonte e
-tamanhos configuráveis, redimensionamento pela alça, botão de limpar dados.**
+**0.12.0 — realce do líder por coluna, linhas em formato de barra, ícone de especialização,
+fonte e tamanhos configuráveis, redimensionamento, botão de limpar dados.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
 interrupções e mortes com números reais), o `.toc` carrega e a ordenação responde. O que faltava

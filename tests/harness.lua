@@ -124,11 +124,18 @@ C_DamageMeter = {
         }
     end,
     GetCombatSessionSourceFromType = function(sessionType, attribute, guid)
-        -- Valores distintos por metrica: se o cruzamento estiver errado, o teste abaixo pega.
+        -- Valores distintos por metrica E por ator: assim o teste de lider por coluna
+        -- verifica que o healer (Brumm) lidera a cura mesmo estando em segundo no dano.
+        local perActor = {
+            ["Player-Thalyra"] = { heal = 120000, interrupts = 1, deaths = 0 },
+            ["Player-Brumm"] = { heal = 900000, interrupts = 0, deaths = 2 },
+            ["Player-Sarien"] = { heal = 50000, interrupts = 5, deaths = 1 },
+        }
+        local actor = perActor[guid] or { heal = 0, interrupts = 0, deaths = 0 }
         local byAttribute = {
-            [Enum.DamageMeterType.HealingDone] = { totalAmount = 600000, amountPerSecond = 5000 },
-            [Enum.DamageMeterType.Interrupts] = { totalAmount = 3, amountPerSecond = 0 },
-            [Enum.DamageMeterType.Deaths] = { totalAmount = 1, amountPerSecond = 0 },
+            [Enum.DamageMeterType.HealingDone] = { totalAmount = actor.heal, amountPerSecond = actor.heal / 120 },
+            [Enum.DamageMeterType.Interrupts] = { totalAmount = actor.interrupts, amountPerSecond = 0 },
+            [Enum.DamageMeterType.Deaths] = { totalAmount = actor.deaths, amountPerSecond = 0 },
         }
         local entry = byAttribute[attribute] or { totalAmount = 42000, amountPerSecond = 350 }
         return {
@@ -284,9 +291,16 @@ end
 local first = rows[1].values
 check("dano total", first[1], 1200000)
 check("dps (amountPerSecond, nao o total)", first[2], 1200000 / 120)
-check("cura total (metrica cruzada)", first[3], 600000)
-check("hps (metrica cruzada)", first[4], 5000)
-check("interrupcoes (metrica cruzada)", first[5], 3)
+check("cura total (metrica cruzada)", first[3], 120000)
+check("hps (metrica cruzada)", first[4], 1000)
+check("interrupcoes (metrica cruzada)", first[5], 1)
+
+-- Lider por coluna: Thalyra lidera o dano (linha 1), mas quem cura mais e o Brumm (linha 2)
+-- e quem mais interrompe e o Sarien (linha 3). Cada coluna tem seu proprio realce.
+check("lider do dano e a linha 1", rows[1].best and rows[1].best[1] or false, true)
+check("lider da cura e a linha 2", rows[2].best and rows[2].best[3] or false, true)
+check("linha 1 nao lidera a cura", rows[1].best and rows[1].best[3] or false, false)
+check("lider das interrupcoes e a linha 3", rows[3].best and rows[3].best[5] or false, true)
 check("percentual do dano", math.floor(first[6] + 0.5), math.floor(1200000 / 2920000 * 100 + 0.5))
 
 -- ordem invertida: a ultima linha vira a primeira, sem comparar nada

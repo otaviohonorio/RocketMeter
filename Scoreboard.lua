@@ -293,6 +293,7 @@ function Scoreboard.Draw()
 
             for c = 1, #columns do
                 ns.SetCellText(row.cells[c], entry.values[c], columns[c])
+                ns.ColorCell(row.cells[c], columns[c], entry.best and entry.best[c])
             end
             row:Show()
         end

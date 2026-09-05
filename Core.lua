@@ -19,6 +19,7 @@ ns.defaults = {
     columnWidth = 58,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
     rowIcon = "spec",         -- "spec" (padrão) ou "class"
+    highlightBest = true,     -- realça quem lidera cada coluna
     locked = false,
     shown = true,             -- a janela volta como o usuário deixou
     combatOnly = false,       -- só aparece em combate
