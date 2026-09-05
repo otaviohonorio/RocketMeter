@@ -658,15 +658,45 @@ end
 -- Brilho é neutro (não carrega significado de classe), não ocupa espaço e o olho encontra
 -- sozinho o número mais forte de cada coluna. É a mesma hierarquia que a UI do jogo usa para
 -- separar informação principal de secundária.
+-- Equilíbrio entre "todo mundo legível" e "dá para achar o líder":
+--
+--   O cinza 0.66 da tentativa anterior destacava o líder às custas dos outros, que ficaram
+--   difíceis de ler. A diferença de brilho sozinha só funciona se o piso for baixo demais.
+--
+-- Agora o piso sobe para 0.86 (legível de verdade) e o líder ganha, além do branco puro, uma
+-- **placa neutra** atrás — branco a 8%, sem cor, sem ícone, sem ocupar espaço extra.
 local LEADER = { 1, 1, 1 }
-local NORMAL = { 0.66, 0.66, 0.70 }
+local NORMAL = { 0.86, 0.86, 0.88 }
 
-function ns.ColorCell(fontString, _, isBest)
-    if isBest and ns.db.highlightBest ~= false then
-        fontString:SetTextColor(LEADER[1], LEADER[2], LEADER[3])
+---Estiliza a célula: cor do texto e a placa de destaque de quem lidera a coluna.
+function ns.StyleCell(row, index, isBest)
+    local cell = row.cells[index]
+    local highlight = isBest and ns.db.highlightBest ~= false
+
+    if highlight then
+        cell:SetTextColor(LEADER[1], LEADER[2], LEADER[3])
     else
-        fontString:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
+        cell:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
     end
+
+    row.plates = row.plates or {}
+    local plate = row.plates[index]
+
+    if not highlight then
+        if plate then plate:Hide() end
+        return
+    end
+
+    if not plate then
+        plate = row.text:CreateTexture(nil, "BACKGROUND")
+        plate:SetColorTexture(1, 1, 1, 0.08)
+        row.plates[index] = plate
+    end
+
+    plate:ClearAllPoints()
+    plate:SetPoint("TOPLEFT", cell, "TOPLEFT", -4, 3)
+    plate:SetPoint("BOTTOMRIGHT", cell, "BOTTOMRIGHT", 3, -3)
+    plate:Show()
 end
 
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
@@ -764,7 +794,7 @@ function Window.Draw()
             for c = 1, #ns.db.columns do
                 local key = ns.db.columns[c]
                 ns.SetCellText(row.cells[c], entry.values[c], key)
-                ns.ColorCell(row.cells[c], key, entry.best and entry.best[c])
+                ns.StyleCell(row, c, entry.best and entry.best[c])
             end
 
             row:Show()
