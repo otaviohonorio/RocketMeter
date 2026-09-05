@@ -26,7 +26,7 @@ local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 --   barBackgroundAlpha = 0.4  -> fundo escuro atrás do preenchimento
 --   barHeight = 20, barSpacingBetween = 1, barFontSize = 12
 local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
-local ROW_BG_ALPHA = 0.4            -- fundo da linha (skin: barBackgroundAlpha)
+local ROW_BG_ALPHA = 0.45           -- fundo da linha; sem barra preenchida, ele sustenta o texto
 local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
 -- Fundo invisível: é a variante "No Background" da skin (`wallpaperAlpha = 0.0`).
 -- Quem sustenta a leitura são os fundos das próprias linhas (ROW_BG_ALPHA).
@@ -81,6 +81,7 @@ local HEADER_HEIGHT = 25
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
+local PROGRESS_HEIGHT = 2       -- a linha fina de progresso no rodapé, como no medidor nativo
 local MIN_ROWS = 1              -- uma linha ainda é útil: só você, no boneco de treino
 local MAX_ROWS = 20             -- tamanho de uma raide; acima disso a janela toma a tela
 local GRIP = 14
@@ -384,10 +385,16 @@ local function BuildRow(index)
         row.bg:SetAllPoints()
         row.bg:SetColorTexture(0, 0, 0, 0.55)
 
-        -- O preenchimento: cor sólida da classe, largura proporcional ao valor.
+        -- Como no medidor nativo: nada de preenchimento tomando a linha inteira. O valor
+        -- aparece como uma **linha fina no rodapé**, na cor da classe.
+        --
+        -- Isso muda mais do que a estética: com o fundo neutro, a cor da classe fica livre
+        -- para ser usada no texto da coluna liderada — o que antes era impossível, porque
+        -- texto colorido sobre barra da mesma cor some.
         row.bar = CreateFrame("StatusBar", nil, row)
-        row.bar:SetPoint("TOPLEFT", 1, -1)
+        row.bar:SetPoint("BOTTOMLEFT", 1, 1)
         row.bar:SetPoint("BOTTOMRIGHT", -1, 1)
+        row.bar:SetHeight(PROGRESS_HEIGHT)
         row.bar:SetStatusBarTexture(ns.BarTexture())
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)
@@ -443,6 +450,7 @@ local function BuildRow(index)
     local iconSize = height          -- preenche a linha inteira, como no Details
     row.icon:SetSize(iconSize, iconSize)
     row.iconClass:SetSize(iconSize, iconSize)
+    row.bar:SetHeight(PROGRESS_HEIGHT)
     ns.ApplyFont(row.name, 0)
 
     for _, cell in pairs(row.cells) do
@@ -750,23 +758,37 @@ end
 -- Só que cor de classe crua não serve para texto: vermelho de cavaleiro da morte e roxo de
 -- bruxo são escuros demais sobre fundo escuro. A cor é **clareada em direção ao branco**, o
 -- que preserva a identidade e garante a leitura.
--- Texto SEMPRE claro; cor de classe só na barra.
+-- Com a linha fina no rodapé, o fundo da linha ficou **neutro** — e aí a cor da classe pode
+-- voltar para o texto da coluna liderada. Era o objetivo desde o começo e não funcionava
+-- enquanto a barra preenchida ocupava o fundo com a mesma cor.
 --
--- Isso não é preferência: a skin da referência define
---   fixed_text_color     = {1, 1, 1}
---   texture_class_colors = true      -- a classe colore a BARRA
---   textL_class_colors   = false     -- e explicitamente NÃO o texto
---   textR_class_colors   = false
---
--- A razão fica óbvia depois de tentar o contrário: a barra atrás já é a cor da classe, então
--- texto na mesma cor some dentro dela — e escurecer o texto para compensar o torna ilegível na
--- parte vazia da linha. A identidade da classe já está na barra e no ícone; o texto só precisa
--- ser legível.
---
--- O líder se distingue por três sinais sem cor: corpo +1pt, placa neutra e um branco mais
--- quente que o dos demais.
-local LEADER = { 1, 0.88, 0.62 }    -- creme fechado, com presença
-local NORMAL = { 0.80, 0.81, 0.84 } -- branco frio, um passo atrás
+-- Continua valendo o cuidado de sempre: cor crua é escura demais para algumas classes
+-- (cavaleiro da morte, bruxo). Um **piso de luminância** corrige só quem precisa, e só o
+-- necessário — clarear todas por igual devolveria o tom lavado que já foi reprovado.
+local LEADER_MIN_LUMA = 0.55
+local LEADER_FALLBACK = { 1, 0.88, 0.62 }
+local NORMAL = { 0.80, 0.81, 0.84 }
+
+local function Luminance(r, g, b)
+    return 0.299 * r + 0.587 * g + 0.114 * b
+end
+
+local function LeaderColor(classFilename)
+    local class = SafeClass(classFilename)
+    local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    if not color then
+        return LEADER_FALLBACK[1], LEADER_FALLBACK[2], LEADER_FALLBACK[3]
+    end
+
+    local r, g, b = color.r, color.g, color.b
+    local luma = Luminance(r, g, b)
+    if luma >= LEADER_MIN_LUMA then
+        return r, g, b
+    end
+
+    local k = (LEADER_MIN_LUMA - luma) / (1 - luma)
+    return r + (1 - r) * k, g + (1 - g) * k, b + (1 - b) * k
+end
 
 ---Estiliza a célula de quem lidera a coluna. O realce mora **no texto**: tom mais fechado e
 ---um ponto de corpo a mais. Sem placa atrás — ela clareava a célula inteira e virava um bloco
@@ -785,7 +807,7 @@ function ns.StyleCell(row, index, isBest)
     if highlight then
         ns.ApplyFont(cell, delta + 1, "")
 
-        cell:SetTextColor(LEADER[1], LEADER[2], LEADER[3])
+        cell:SetTextColor(LeaderColor(row.classFilename))
         cell:SetShadowColor(0, 0, 0, 1)
     else
         ns.ApplyFont(cell, delta, "")
@@ -878,7 +900,8 @@ function Window.Draw()
             if value == nil then value = 0 end
             row.bar:SetMinMaxValues(0, top)
             row.bar:SetValue(value)
-            row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
+            -- Cor cheia: não há texto por cima da linha, então não precisa escurecer.
+            row.bar:SetStatusBarColor(ns.ClassColor(source.classFilename))
             row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
