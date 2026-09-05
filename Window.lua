@@ -24,12 +24,21 @@ local FONT = "Fonts\\FRIZQT__.TTF"
 -- mostra seis colunas de números. A mesma altura de letra rende muito mais tinta aqui, e o
 -- que lá é confortável aqui vira bloco. Igualar o corpo não igualaria a densidade.
 --
--- 14 é o meio-termo com respaldo na rasterização: 13 rende 9px de caixa e 16 rende 11px, então
--- entre os dois existe um único degrau inteiro, 10px, onde 14 e 15 caem igual. 14 é esse degrau.
-local FONT_SIZE = 14
--- O título da faixa e o cabeçalho de colunas NÃO acompanham o corpo da linha: no nativo o
--- título mede 9px de caixa (corpo 13) enquanto a linha mede 11px. O título é menor que o
--- conteúdo, e é isso que dá a hierarquia da janela dele.
+-- 14 foi um degrau intermediário (10px de caixa) e também ficou grande in-game. **13 é o corpo
+-- da linha**, decidido pelo usuário em 05/09/2026, e vale para a linha INTEIRA: nome e todas as
+-- células, com ou sem realce, na coluna ordenada ou não.
+--
+-- Isso tira o corpo de fonte da lista de sinais de realce. O que sobra para marcar o líder de
+-- uma coluna é a cor (a da própria classe, clareada) e, para a coluna ordenada, o dourado no
+-- cabeçalho. Tamanho variando dentro da mesma linha era o que fazia a régua dos números dançar.
+local FONT_SIZE = 13
+-- O título da faixa e o cabeçalho de colunas são valores ABSOLUTOS, não deltas: não seguem o
+-- corpo da linha. No nativo o título mede 9px de caixa contra 11px da linha, e é essa diferença
+-- que dá a hierarquia da janela dele.
+--
+-- ATENÇÃO: com a linha em 13, o título ficou do MESMO corpo do conteúdo e essa hierarquia sumiu
+-- — quem separa a faixa da lista agora é só a arte do cabeçalho e o dourado. Se in-game o
+-- título competir com as linhas, o ajuste é aqui (12), não no corpo da linha.
 local TITLE_FONT_SIZE = 13
 local CLOCK_FONT_SIZE = 12
 local COLHEAD_FONT_SIZE = 11
@@ -618,10 +627,11 @@ local function BuildRow(index)
             row.cellHalos = row.cellHalos or {}
             row.cellHalos[c] = CreateHalo(row.text, cell)
         end
-        -- A coluna de ordenação é a que importa: fica no corpo cheio, as outras menores.
-        local isSorted = ns.db.columns[c] == ns.db.sortBy
-        ns.ApplyFont(cell, isSorted and 0 or -1, isSorted and ROW_FONT_FLAGS or CELL_FONT_FLAGS)
-        SyncHaloFont(cell, row.cellHalos and row.cellHalos[c], isSorted and 0 or -1)
+        -- Corpo único na linha inteira: a coluna ordenada não cresce. Números de tamanhos
+        -- diferentes lado a lado desalinham a leitura vertical, e quem está ordenando já sabe
+        -- por qual coluna — o dourado no cabeçalho diz isso sem mexer no corpo.
+        ns.ApplyFont(cell, 0, CELL_FONT_FLAGS)
+        SyncHaloFont(cell, row.cellHalos and row.cellHalos[c], 0)
         cell:SetWidth(ColumnWidth() - 8)
         if row.cellHalos and row.cellHalos[c] then
             for _, echo in ipairs(row.cellHalos[c]) do
@@ -950,33 +960,30 @@ local function LeaderColor(classFilename)
     return r + (1 - r) * k, g + (1 - g) * k, b + (1 - b) * k
 end
 
----Estiliza a célula de quem lidera a coluna. O realce mora **no texto**: tom mais fechado e
----um ponto de corpo a mais. Sem placa atrás — ela clareava a célula inteira e virava um bloco
----estranho no meio da linha.
+---Estiliza a célula de quem lidera a coluna. O realce mora **só na cor**: o tom da própria
+---classe, clareado o bastante para ler. Sem placa atrás — ela clareava a célula inteira e
+---virava um bloco estranho no meio da linha.
 ---
 ---`OUTLINE` foi testado e reprovado: engrossa o traço da letra, o que é peso na tinta e não
----hierarquia — fica pesado mesmo numa célula só. O que funciona é **corpo de fonte**: +1pt no
----líder aumenta a presença sem mudar a espessura do traço.
+---hierarquia — fica pesado mesmo numa célula só.
+---
+---**Corpo de fonte saiu da lista de sinais** (decisão do usuário, 05/09/2026): a linha inteira
+---fica em `FONT_SIZE`, com ou sem realce. O +1pt que existia aqui dava presença ao líder, mas
+---ao custo de os números de uma mesma coluna mudarem de tamanho de linha para linha — a régua
+---vertical dançava. Se o realce ficar fraco demais in-game, o próximo sinal a tentar é a placa
+---neutra atrás da célula, não o corpo.
 function ns.StyleCell(row, index, isBest)
     local cell = row.cells[index]
     local highlight = isBest and ns.db.highlightBest ~= false
 
-    -- A coluna ordenada usa corpo cheio e contorno; as demais, um ponto menor e só sombra.
-    local isSorted = ns.db.columns[index] == ns.db.sortBy
-    local delta = isSorted and 0 or -1
-    local flags = isSorted and ROW_FONT_FLAGS or CELL_FONT_FLAGS
+    ns.ApplyFont(cell, 0, CELL_FONT_FLAGS)
+    cell:SetShadowColor(0, 0, 0, 1)
 
     if highlight then
-        ns.ApplyFont(cell, delta + 1, flags)
-
         cell:SetTextColor(LeaderColor(row.classFilename))
-        cell:SetShadowColor(0, 0, 0, 1)
     else
-        ns.ApplyFont(cell, delta, flags)
         cell:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
-        cell:SetShadowColor(0, 0, 0, 1)
     end
-
 end
 
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
