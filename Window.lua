@@ -83,6 +83,10 @@ local NAME_MIN_WIDTH = 96
 local PADDING = 3
 local GRIP = 14
 
+-- Cadeado plano: o mesmo ícone nos dois estados, distinguidos por cor e saturação. Não há
+-- atlas de cadeado na família `common-icon-*`, então este é o glifo mais próximo dela.
+local LOCK_ICON = "Interface\\PetBattles\\PetBattle-LockIcon"
+
 local CLASS_ICONS = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
 
 -- Texturas do próprio jogo (nenhum arquivo nosso, nenhuma biblioteca de mídia).
@@ -520,54 +524,69 @@ function Window.Create()
 
     frame.header = header
 
-    -- Todos os ícones do cabeçalho são **glifos chapados**, no mesmo tamanho e no mesmo tom.
-    -- O X e o cadeado usavam arte de botão (com moldura e relevo) e destoavam da engrenagem e
-    -- do refresh — era o "botão de Windows XP" no meio de ícones planos.
-    local function HeaderButton(texture, tooltip, onClick, atlas)
-        local b = CreateFrame("Button", nil, header)
-        b:SetSize(15, 15)
-        b:SetNormalTexture(texture)
+    -- Um só tratamento para todos os ícones: mesmo tamanho, mesmo tom, mesma reação ao
+    -- mouse. A família vem do próprio jogo — `questlog-icon-setting` é a engrenagem do
+    -- rastreador de missões, da mesma UI de onde sai a arte da faixa de título.
+    local ICON_TINT = { 0.78, 0.73, 0.58 }
+    local ICON_HOVER = { 1, 0.95, 0.80 }
 
+    local function HeaderButton(spec, tooltip, onClick)
+        local b = CreateFrame("Button", nil, header)
+        b:SetSize(14, 14)
+
+        -- Uma textura vazia primeiro: `SetAtlas` precisa de textura existente para atuar.
+        b:SetNormalTexture(spec.texture or "Interface\\Buttons\\WHITE8X8")
         local tex = b:GetNormalTexture()
-        if atlas and tex and tex.SetAtlas then
-            tex:SetAtlas(atlas, false)
+        if tex and spec.atlas and tex.SetAtlas then
+            tex:SetAtlas(spec.atlas, false)
         end
-        if tex then tex:SetVertexColor(0.80, 0.74, 0.55) end
-        b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+        if tex then
+            tex:SetVertexColor(ICON_TINT[1], ICON_TINT[2], ICON_TINT[3])
+        end
+
+        b.SetTint = function(_, color)
+            local t = b:GetNormalTexture()
+            if t then t:SetVertexColor(color[1], color[2], color[3]) end
+        end
+
         b:SetScript("OnClick", onClick)
         b:SetScript("OnEnter", function(self)
-            local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(1, 0.95, 0.80) end
+            self:SetTint(ICON_HOVER)
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText(tooltip, 1, 1, 1)
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
-            local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(0.80, 0.74, 0.55) end
+            self:SetTint(self.activeTint or ICON_TINT)
             GameTooltip_Hide()
         end)
+
+        b.baseTint = ICON_TINT
         return b
     end
 
-    frame.closeButton = HeaderButton("Interface\\Buttons\\UI-GroupLoot-Pass-Up",
-        L["Close"], function() Window.Hide() end, "common-icon-redx")
-    frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -4, 0)
+    frame.closeButton = HeaderButton(
+        { atlas = "common-icon-redx", texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up" },
+        L["Close"], function() Window.Hide() end)
+    frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -5, 0)
 
-    frame.gearButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
+    frame.gearButton = HeaderButton(
+        { atlas = "questlog-icon-setting", texture = "Interface\\Buttons\\UI-OptionsButton" },
         L["Configure columns"], function() ns.Picker.Toggle(frame) end)
-    frame.gearButton:SetPoint("RIGHT", frame.closeButton, "LEFT", -3, 0)
+    frame.gearButton:SetPoint("RIGHT", frame.closeButton, "LEFT", -5, 0)
 
-    frame.resetButton = HeaderButton("Interface\\Buttons\\UI-RefreshButton",
+    frame.resetButton = HeaderButton(
+        { atlas = "common-icon-undo", texture = "Interface\\Buttons\\UI-RefreshButton" },
         L["Clear the data"], function() ns.Data.RequestReset() end)
-    frame.resetButton:SetPoint("RIGHT", frame.gearButton, "LEFT", -3, 0)
+    frame.resetButton:SetPoint("RIGHT", frame.gearButton, "LEFT", -5, 0)
 
-    frame.lockButton = HeaderButton("Interface\\Buttons\\LockButton-Unlocked-Up",
+    frame.lockButton = HeaderButton(
+        { texture = LOCK_ICON },
         L["Lock position"], function()
             ns.db.locked = not ns.db.locked
             Window.ApplyLock()
         end)
-    frame.lockButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -3, 0)
+    frame.lockButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -5, 0)
 
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
@@ -956,9 +975,7 @@ end
 ---
 ---A alça só faz sentido destravada — deixá-la visível travada convida a arrastar algo que não
 ---vai se mexer. Some junto.
--- Cadeado plano, o mesmo ícone nos dois estados: cheio quando travado, apagado e sem cor
--- quando destravado. A arte `LockButton-*-Up` é um botão com moldura e destoava dos glifos.
-local LOCK_ICON = "Interface\\PetBattles\\PetBattle-LockIcon"
+
 
 function Window.ApplyLock()
     if not frame then return end
@@ -976,12 +993,12 @@ function Window.ApplyLock()
     local texture = button:GetNormalTexture()
     if not texture then return end
 
-    texture:SetDesaturated(not locked)
-    if locked then
-        texture:SetVertexColor(1, 0.82, 0.30)     -- fechado: dourado, chama atenção
-    else
-        texture:SetVertexColor(0.72, 0.68, 0.55)  -- aberto: apagado, no tom dos outros ícones
-    end
+    texture:SetDesaturated(true)   -- sem a cor original do ícone, para entrar na família
+
+    -- Travado chama atenção; destravado fica no tom dos outros ícones.
+    local tint = locked and { 1, 0.82, 0.30 } or button.baseTint
+    button.activeTint = tint
+    button:SetTint(tint)
 end
 
 function Window.ApplyScale()

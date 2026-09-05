@@ -225,14 +225,14 @@ local function CreatePanel()
     frame.scope:SetPoint("RIGHT", -24, 0)
 
     frame.close = CreateFrame("Button", nil, header)
-    frame.close:SetSize(15, 15)
+    frame.close:SetSize(14, 14)
     frame.close:SetPoint("RIGHT", -5, 0)
-    -- Mesmo X chapado da janela, no mesmo tom.
+    -- Mesmo X do conjunto da janela, no mesmo tom e tamanho.
     frame.close:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     local closeTexture = frame.close:GetNormalTexture()
     if closeTexture then
         if closeTexture.SetAtlas then closeTexture:SetAtlas("common-icon-redx", false) end
-        closeTexture:SetVertexColor(0.80, 0.74, 0.55)
+        closeTexture:SetVertexColor(0.78, 0.73, 0.58)
     end
     frame.close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
     frame.close:SetScript("OnClick", function() frame:Hide() end)
