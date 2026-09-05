@@ -459,7 +459,7 @@ function Window.Create()
         throttle = throttle + elapsed
         if throttle < 0.2 then return end
         throttle, dirty = 0, false
-        Window.Draw()
+        Window.SafeDraw()
     end)
 
     return frame
@@ -493,10 +493,25 @@ function Window.Refresh(immediate)
     if not frame then return end
     if immediate then
         dirty, throttle = false, 0
-        Window.Draw()
+        Window.SafeDraw()
     else
         dirty = true
     end
+end
+
+---Desenha protegido. Um erro dentro de OnUpdate deixaria a janela congelada e sem pista
+---nenhuma — este envelope transforma isso numa mensagem, uma única vez por erro.
+local lastError
+function Window.SafeDraw()
+    local ok, err = pcall(Window.Draw)
+    if not ok and err ~= lastError then
+        lastError = err
+        ns.Print("|cffff5555" .. L["error while drawing:"] .. "|r " .. tostring(err))
+    end
+end
+
+function Window.GetLastError()
+    return lastError
 end
 
 -- Cores do realce: dourado para o que é bom liderar, vermelho para o que não é.
@@ -551,7 +566,7 @@ function Window.Draw()
     frame.header.segment.text:SetText(scope)
 
     local duration = ns.Data.GetDuration(ns.db.sessionType)
-    if duration and not issecretvalue(duration) and duration > 0 then
+    if duration ~= nil and not issecretvalue(duration) and duration > 0 then
         frame.header.clock:SetText(SecondsToClock(duration))
     else
         frame.header.clock:SetText("")
@@ -568,8 +583,12 @@ function Window.Draw()
             local source = entry.source
             shown = i
 
-            row.bar:SetMinMaxValues(0, maxAmount or 1)
-            row.bar:SetValue(source.totalAmount or 0)
+            local top = maxAmount
+            if top == nil then top = 1 end
+            local value = source.totalAmount
+            if value == nil then value = 0 end
+            row.bar:SetMinMaxValues(0, top)
+            row.bar:SetValue(value)
             local r, g, b = ns.ClassColor(source.classFilename)
             row.bar:SetStatusBarColor(r, g, b, 1)
 

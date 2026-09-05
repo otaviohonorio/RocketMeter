@@ -105,7 +105,20 @@ commands["debug"] = function()
     print("  sessão:", ns.db.sessionType == 0 and "atual" or "geral",
         "| ordenando por:", tostring(ns.db.sortBy))
 
-    local session = ns.Data.GetSession(ns.db.sessionType, ns.Data.GetColumn(ns.db.sortBy).attr)
+    local def = ns.Data.GetColumn(ns.db.sortBy)
+    if not def then
+        print("  |cffff5555coluna de ordenação inválida:|r", tostring(ns.db.sortBy))
+        return
+    end
+
+    print("  caminhos:", ns.Data.DescribeSources(ns.db.sessionType, def.attr))
+
+    local erro = ns.Window.GetLastError()
+    if erro then
+        print("  |cffff5555último erro de desenho:|r", tostring(erro))
+    end
+
+    local session = ns.Data.GetSession(ns.db.sessionType, def.attr)
     if not session then
         print("  |cffff5555a API não devolveu sessão|r")
         return

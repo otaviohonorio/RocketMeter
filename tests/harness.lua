@@ -312,6 +312,28 @@ local migrated = ns.Data.MigrateColumns({ Enum.DamageMeterType.DamageDone, Enum.
 check("migracao converte id em chave", migrated[1], "damage")
 check("migracao converte Hps em hps", migrated[2], "hps")
 
+print("== sessao vazia por tipo (cenario do reset) ==")
+-- SIMULA_RESET: depois de zerar, a sessao "atual" volta vazia enquanto a luta acontece.
+-- Os dados so aparecem pela sessao por id — sem o fallback, a janela fica em branco.
+local originalFromType = C_DamageMeter.GetCombatSessionFromType
+C_DamageMeter.GetCombatSessionFromType = function()
+    return { combatSources = {}, totalAmount = 0, maxAmount = 0, durationSeconds = 0 }
+end
+C_DamageMeter.GetCombatSessionFromID = function(id, attribute)
+    return originalFromType(0, attribute)
+end
+
+local fallbackRows = ns.Data.GetRows(0, "damage", { "damage", "dps" }, 5, false)
+if fallbackRows and fallbackRows[1] then
+    print("  ok    fallback por id devolveu " .. #fallbackRows .. " linha(s)")
+else
+    print("  ERRO  fallback por id nao devolveu linhas — janela ficaria vazia em combate")
+    os.exit(1)
+end
+
+C_DamageMeter.GetCombatSessionFromType = originalFromType
+C_DamageMeter.GetCombatSessionFromID = function() return nil end
+
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",

@@ -165,3 +165,5 @@ L["The leader of each column is highlighted, out of combat."] =
     "Quem lidera cada coluna fica realçado, fora de combate."
 
 L["prints what the API is returning"] = "mostra o que a API está devolvendo"
+
+L["error while drawing:"] = "erro ao desenhar:"

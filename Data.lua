@@ -163,9 +163,64 @@ function Data.IsAvailable()
     return C_DamageMeter and C_DamageMeter.IsDamageMeterAvailable and C_DamageMeter.IsDamageMeterAvailable()
 end
 
+local function HasSources(session)
+    return session ~= nil and session.combatSources ~= nil and session.combatSources[1] ~= nil
+end
+
+---Id da sessão mais recente. O nome do campo varia entre versões, então aceita os dois.
+local function NewestSessionID()
+    if not C_DamageMeter.GetAvailableCombatSessions then return nil end
+    local list = C_DamageMeter.GetAvailableCombatSessions()
+    if not list or #list == 0 then return nil end
+    local newest = list[#list]
+    if type(newest) == "table" then
+        return newest.sessionID or newest.sessionId or newest.id
+    end
+    return newest
+end
+
+---A sessão de uma métrica.
+---
+---Depois de `ResetAllCombatSessions`, a sessão "atual" (tipo 0) pode vir **vazia enquanto a
+---luta acontece**, e os dados novos aparecem numa sessão nova, endereçada por id. Sem este
+---fallback a janela fica em branco durante o combate e só mostra os números quando ele acaba —
+---exatamente o sintoma relatado. O Details! mantém os dois caminhos pelo mesmo motivo.
 function Data.GetSession(sessionType, attributeId)
     if not Data.IsAvailable() then return nil end
-    return C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
+
+    local session = C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
+    if HasSources(session) then return session end
+
+    -- Só faz sentido para o combate atual: o geral é acumulado, não é uma sessão solta.
+    if sessionType == 0 and C_DamageMeter.GetCombatSessionFromID then
+        local id = NewestSessionID()
+        if id then
+            local byId = C_DamageMeter.GetCombatSessionFromID(id, attributeId)
+            if HasSources(byId) then
+                return byId
+            end
+        end
+    end
+
+    return session
+end
+
+---Usado pelo /rm debug: diz por qual caminho os dados vieram.
+function Data.DescribeSources(sessionType, attributeId)
+    if not Data.IsAvailable() then return "API indisponível" end
+
+    local byType = C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
+    local typeCount = byType and byType.combatSources and #byType.combatSources or 0
+
+    local id = NewestSessionID()
+    local idCount = 0
+    if id and C_DamageMeter.GetCombatSessionFromID then
+        local byId = C_DamageMeter.GetCombatSessionFromID(id, attributeId)
+        idCount = byId and byId.combatSources and #byId.combatSources or 0
+    end
+
+    return format("por tipo: %d ator(es) | por id (%s): %d ator(es)",
+        typeCount, tostring(id), idCount)
 end
 
 ---O `guid` pode ser secret em combate — a API aceita de volta o valor opaco que ela mesma
@@ -305,7 +360,7 @@ function Data.MarkColumnLeaders(rows, columns)
 
         for i = 1, #rows do
             local value = rows[i].values[c]
-            if value ~= nil and not issecretvalue(value) and type(value) == "number" then
+            if value ~= nil and not issecretvalue(value) and type(value) == "number" then  -- luacheck: ignore
                 if bestValue == nil or value > bestValue then
                     bestIndex, bestValue = i, value
                 end
