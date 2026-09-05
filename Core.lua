@@ -14,6 +14,7 @@ ns.defaults = {
     rows = 8,
     scale = 1.0,
     locked = false,
+    minimap = { hide = false, angle = 200 },
     autoScoreboard = true,
     pos = nil,
 }
@@ -70,6 +71,7 @@ function handlers:PLAYER_LOGIN()
     end
 
     ns.Window.Create()
+    ns.Minimap.Create()
     ns.SetupOptions()
     ns.Window.Refresh(true)
 end

@@ -71,6 +71,18 @@ L["Window size."] = "Tamanho da janela."
 L["Scoreboard at the end of M+ and raid"] = "Placar ao fim de M+ e raide"
 L["Opens the run summary automatically when it ends."] = "Abre sozinho o resumo da corrida quando ela termina."
 
+-- Painel de colunas e minimapa
+L["Columns"] = "Colunas"
+L["Configure columns"] = "Configurar colunas"
+L["More options"] = "Mais opções"
+L["opens the column panel"] = "abre o painel de colunas"
+L["Minimap button"] = "Botão no minimapa"
+L["Shows the Rocket Meter button on the minimap."] = "Mostra o botão do Rocket Meter no minimapa."
+L["Left-click: show or hide the meter"] = "Clique: mostra ou esconde o medidor"
+L["Shift-click: scoreboard of the last run"] = "Shift+clique: placar da última corrida"
+L["Right-click: options"] = "Clique direito: opções"
+L["Drag to move around the minimap."] = "Arraste para mover ao redor do minimapa."
+
 -- Placar
 L["Dungeon"] = "Masmorra"
 L["Encounter"] = "Encontro"

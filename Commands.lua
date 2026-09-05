@@ -12,6 +12,10 @@ commands["score"] = function()
     ns.Scoreboard.Toggle()
 end
 
+commands["columns"] = function()
+    ns.Picker.Toggle()
+end
+
 commands["config"] = function()
     ns.OpenOptions()
 end
@@ -90,6 +94,7 @@ end
 commands["help"] = function()
     ns.Print(L["version"] .. " " .. ns.version .. " — " .. L["commands:"])
     print("  /rm                             " .. L["opens or closes the window"])
+    print("  /rm columns                     " .. L["opens the column panel"])
     print("  /rm col [n]                     " .. L["lists the columns or toggles one"])
     print("  /rm move <n> left|right         " .. L["moves a column left or right"])
     print("  /rm preset mplus|raid|damage    " .. L["switches the column preset"])

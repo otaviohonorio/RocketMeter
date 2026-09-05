@@ -199,6 +199,24 @@ function Window.Create()
     close:SetScript("OnClick", function() frame:Hide() end)
     frame.closeButton = close
 
+    -- Engrenagem: abre o painel de colunas colado na janela. A configuração que importa
+    -- fica a um clique da janela, não escondida no menu do jogo.
+    local gear = CreateFrame("Button", nil, frame)
+    gear:SetSize(16, 16)
+    gear:SetPoint("RIGHT", close, "LEFT", 0, 0)
+    gear:SetNormalTexture("Interface\Buttons\UI-OptionsButton")
+    gear:SetHighlightTexture("Interface\Buttons\UI-Common-MouseHilight")
+    gear:SetScript("OnClick", function()
+        ns.Picker.Toggle(frame)
+    end)
+    gear:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L["Configure columns"], 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    gear:SetScript("OnLeave", GameTooltip_Hide)
+    frame.gearButton = gear
+
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
     else

@@ -26,6 +26,8 @@ fraco do Details!.
 | `Scoreboard.lua` | placar de fim de Mítico+ e de encontro de raide |
 | `Options.lua` | painel na Settings API |
 | `Commands.lua` | `/rm` e subcomandos |
+| `Picker.lua` | painel de colunas — a tela de configuração de verdade |
+| `Minimap.lua` | botão de minimapa próprio, sem biblioteca externa |
 | `Profile.lua` | onde a configuração mora: conta ou personagem |
 | `Locales/` | `enUS.lua` (chaves = inglês) e `ptBR.lua` |
 
@@ -67,6 +69,30 @@ inteira liga os totais; quem quer os dois, liga os quatro.
 Clique no cabeçalho de uma coluna para ordenar por ela. Conjuntos prontos para **Mítico+**
 (dano, DPS, cura, CPS, interrupções, dano evitável, mortes) e **Raide** (o mesmo, com absorções
 no lugar das interrupções) — um clique troca tudo.
+
+### Configurar: o painel de colunas
+
+A engrenagem na barra de título abre o **painel de colunas**, colado na janela: as onze métricas
+numa lista só, com caixa para ligar, setas para reordenar e a posição atual (1º, 2º…) ao lado.
+Cada clique se reflete na janela atrás, na hora — sem "aplicar", sem submenu, sem procurar.
+
+Em cima, os três conjuntos prontos como botões. Embaixo, um atalho para as opções do jogo, onde
+ficam escala, travar, linhas, perfil e o botão de minimapa.
+
+O painel da Settings API continua existindo porque é onde o jogador espera achar as opções
+globais — mas não é preciso passar por ele para fazer o que se faz todo dia, que é mexer nas
+colunas.
+
+### Botão de minimapa
+
+Escrito à mão (~60 linhas) em vez de embutir LibDBIcon: guarda a posição como **ângulo**, então
+fica no lugar em qualquer tamanho de minimapa, e arrasta ao redor da borda.
+
+- **Clique**: mostra ou esconde o medidor
+- **Shift+clique**: placar da última corrida
+- **Clique direito**: opções
+
+Pode ser escondido nas opções — quem usa o compartimento de addons não precisa dos dois.
 
 ### Ordenação
 
@@ -149,7 +175,7 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.5.0 — colunas independentes e reordenáveis, ordenação com direção, perfil por
+**0.6.0 — painel de colunas próprio, botão de minimapa, ordenação com direção, perfil por
 personagem, pt-BR e inglês, placar de fim de corrida. Nada testado no jogo.**
 
 ## Roteiro

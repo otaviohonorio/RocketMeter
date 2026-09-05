@@ -2,7 +2,7 @@
 ## Title: |cffff6a00Rocket|r Meter
 ## Notes: Medidor de dano e estatísticas sobre a API oficial C_DamageMeter — bonito por padrão e fácil de configurar.
 ## Author: Otávio Honório
-## Version: 0.5.1
+## Version: 0.6.0
 ## SavedVariables: RocketMeterDB
 ## SavedVariablesPerCharacter: RocketMeterCharDB
 ## Category: Combat
@@ -16,6 +16,8 @@ Core.lua
 Profile.lua
 Data.lua
 Window.lua
+Picker.lua
+Minimap.lua
 Scoreboard.lua
 Options.lua
 Commands.lua

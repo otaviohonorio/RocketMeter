@@ -24,6 +24,20 @@ local columnProxy = setmetatable({}, {
     end,
 })
 
+-- O botão de minimapa mora em ns.db.minimap.hide; a Settings API quer um campo direto.
+local minimapProxy = setmetatable({}, {
+    __index = function(_, key)
+        if key == "show" then return not ns.db.minimap.hide end
+        return nil
+    end,
+    __newindex = function(_, key, value)
+        if key == "show" then
+            ns.db.minimap.hide = not value
+            ns.Minimap.ApplyVisibility()
+        end
+    end,
+})
+
 -- A opção de perfil não é um campo do banco: liga e desliga o próprio banco ativo.
 local profileProxy = setmetatable({}, {
     __index = function(_, key)
@@ -71,6 +85,12 @@ function ns.SetupOptions()
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_col" .. key, key,
             columnProxy, "boolean", attr.label, false)
         Settings.CreateCheckbox(category, setting, attr.label .. " — " .. L["Show as a column."])
+    end
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_minimap", "show",
+            minimapProxy, "boolean", L["Minimap button"], true)
+        Settings.CreateCheckbox(category, setting, L["Shows the Rocket Meter button on the minimap."])
     end
 
     -- Perfil -----------------------------------------------------------------

@@ -5,7 +5,7 @@ max_line_length = 120
 ignore = { "212/self" }
 
 read_globals = {
-    "CreateFrame", "UIParent", "GameTooltip", "GameTooltip_Hide", "UISpecialFrames",
+    "CreateFrame", "UIParent", "Minimap", "GetCursorPosition", "GameTooltip", "GameTooltip_Hide", "UISpecialFrames",
     "InCombatLockdown", "RAID_CLASS_COLORS", "SecondsToClock", "AbbreviateNumbers",
     "CopyTable", "wipe", "tinsert", "tremove", "format", "hooksecurefunc",
     "issecretvalue", "scrubsecretvalues", "print", "UnitGUID",
