@@ -448,12 +448,6 @@ function Window.Create()
         header.bg:SetColorTexture(0.13, 0.11, 0.07, 0.95)
     end
 
-    header.line = header:CreateTexture(nil, "BORDER")
-    header.line:SetPoint("BOTTOMLEFT")
-    header.line:SetPoint("BOTTOMRIGHT")
-    header.line:SetHeight(1)
-    header.line:SetColorTexture(0, 0, 0, 0.8)
-
     header.segment = CreateFrame("Button", nil, header)
     header.segment:SetSize(120, HEADER_HEIGHT - 6)
     header.segment:SetPoint("LEFT", 7, 1)
