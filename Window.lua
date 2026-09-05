@@ -87,7 +87,7 @@ local HEADER_HEIGHT = 25
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
-local PROGRESS_HEIGHT = 2       -- a linha fina de progresso no rodapé, como no medidor nativo
+local PROGRESS_HEIGHT = 3       -- a faixa de progresso; o trilho a contorna com 1px de cada lado
 local MIN_ROWS = 1              -- uma linha ainda é útil: só você, no boneco de treino
 local MAX_ROWS = 20             -- tamanho de uma raide; acima disso a janela toma a tela
 local GRIP = 14
@@ -397,10 +397,21 @@ local function BuildRow(index)
         -- Isso muda mais do que a estética: com o fundo neutro, a cor da classe fica livre
         -- para ser usada no texto da coluna liderada — o que antes era impossível, porque
         -- texto colorido sobre barra da mesma cor some.
+        -- Trilho escuro atrás da faixa: como ele é 1px maior de cada lado, aparece como um
+        -- contorno em volta da cor. É textura do próprio `row`, então fica **abaixo** da
+        -- StatusBar, que é frame filho.
+        row.barTrack = row:CreateTexture(nil, "ARTWORK")
+        row.barTrack:SetColorTexture(0, 0, 0, 0.75)
+
         row.bar = CreateFrame("StatusBar", nil, row)
-        row.bar:SetPoint("BOTTOMLEFT", 1, 1)
-        row.bar:SetPoint("BOTTOMRIGHT", -1, 1)
+        row.bar:SetPoint("BOTTOMLEFT", 2, 2)
+        row.bar:SetPoint("BOTTOMRIGHT", -2, 2)
         row.bar:SetHeight(PROGRESS_HEIGHT)
+
+    row.barTrack:ClearAllPoints()
+    row.barTrack:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
+    row.barTrack:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -1, 1)
+    row.barTrack:SetHeight(PROGRESS_HEIGHT + 2)
         row.bar:SetStatusBarTexture(ns.BarTexture())
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)
@@ -449,9 +460,8 @@ local function BuildRow(index)
     row.bar:SetStatusBarTexture(ns.BarTexture())
 
     if row.SetBackdropBorderColor then
-        -- Borda discreta: sem fundo, é o que dá contorno à linha e a separa do cenário.
-        -- Quando havia fundo escuro atrás, ela era redundante — agora não é.
-        row:SetBackdropBorderColor(0, 0, 0, 0.55)
+        -- Sem borda em volta da linha: o contorno fica na faixa de progresso, não no retângulo.
+        row:SetBackdropBorderColor(0, 0, 0, 0)
     end
 
     local iconSize = height          -- preenche a linha inteira, como no Details
