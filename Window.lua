@@ -93,6 +93,7 @@ local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
 local PROGRESS_HEIGHT = 3       -- a faixa de progresso; o trilho a contorna com 1px de cada lado
+local TEXT_LIFT = 2             -- quanto o texto sobe do centro, para não encostar na faixa
 local MIN_ROWS = 1              -- uma linha ainda é útil: só você, no boneco de treino
 local MAX_ROWS = 20             -- tamanho de uma raide; acima disso a janela toma a tela
 local GRIP = 14
@@ -409,13 +410,13 @@ local function BuildRow(index)
         row.barTrack:SetColorTexture(0, 0, 0, 0.75)
 
         row.bar = CreateFrame("StatusBar", nil, row)
-        row.bar:SetPoint("BOTTOMLEFT", 2, 2)
-        row.bar:SetPoint("BOTTOMRIGHT", -2, 2)
+        row.bar:SetPoint("BOTTOMLEFT", 2, 1)
+        row.bar:SetPoint("BOTTOMRIGHT", -2, 1)
         row.bar:SetHeight(PROGRESS_HEIGHT)
 
     row.barTrack:ClearAllPoints()
-    row.barTrack:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 1)
-    row.barTrack:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -1, 1)
+    row.barTrack:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 0)
+    row.barTrack:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -1, 0)
     row.barTrack:SetHeight(PROGRESS_HEIGHT + 2)
         row.bar:SetStatusBarTexture(ns.BarTexture())
         row.bar:SetMinMaxValues(0, 1)
@@ -446,7 +447,8 @@ local function BuildRow(index)
         row.iconClass:Hide()
 
         row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
+        -- 2px acima do centro: abre respiro entre o texto e a faixa colorida do rodapé.
+        row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, TEXT_LIFT)
         row.name:SetJustifyH("LEFT")
         -- Nome comprido corta em vez de quebrar linha ou invadir a coluna de números.
         row.name:SetWordWrap(false)
@@ -492,7 +494,7 @@ local function BuildRow(index)
         ns.ApplyFont(cell, ns.db.columns[c] == ns.db.sortBy and 0 or -1)
         cell:SetWidth(ColumnWidth() - 8)
         cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, 0)
+        cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, TEXT_LIFT)
         cell:Show()
     end
 
