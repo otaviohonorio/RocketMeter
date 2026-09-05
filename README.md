@@ -170,6 +170,12 @@ Por isso uma coluna aqui e um par:
 O percentual custa uma consulta por coluna (nao por linha) para obter o total do grupo naquela
 metrica, e so aparece fora de combate — calcular exige aritmetica, proibida com secret values.
 
+### Limpar os dados
+
+O botão de refresh no cabeçalho zera as sessões — e **pergunta antes**, porque a API só sabe
+apagar tudo de uma vez: o combate atual e o geral juntos, sem desfazer. O mesmo botão está no
+rodapé do painel de colunas e no placar. Por chat, `/rm reset` pergunta e `/rm reset now` não.
+
 ### Comportamento da janela
 
 - **Volta como você deixou**: a visibilidade é salva, então a janela reaparece sozinha na posição
@@ -211,8 +217,8 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.9.0 — colunas (metrica, campo): DPS e CPS agora batem com o Details. Seta de ordenacao
-como textura. Percentual de participacao. Colunas salvas migram sozinhas.**
+**0.10.0 — botão de limpar dados com confirmação, colunas (métrica, campo) com DPS/CPS
+corretos, seta de ordenação como textura, percentual de participação.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
 interrupções e mortes com números reais), o `.toc` carrega e a ordenação responde. O que faltava

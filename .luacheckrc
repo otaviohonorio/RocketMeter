@@ -13,6 +13,7 @@ read_globals = {
     "GetNumGroupMembers", "IsInRaid", "GetDifficultyInfo", "select", "math",
     "IsShiftKeyDown", "IsControlKeyDown", "GetLocale", "tonumber", "tostring", "ipairs", "pairs",
     "Settings", "CreateSettingsListSectionHeaderInitializer", "SlashCmdList",
+    "StaticPopupDialogs", "StaticPopup_Show", "YES", "NO", "CLASS_ICON_TCOORDS", "unpack",
 }
 
 globals = {

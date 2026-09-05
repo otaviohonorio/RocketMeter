@@ -157,6 +157,16 @@ Settings = {
 }
 function CreateSettingsListSectionHeaderInitializer() return {} end
 
+StaticPopupDialogs = {}
+YES, NO = "Sim", "Nao"
+local popupShown
+function StaticPopup_Show(which)
+    popupShown = which
+    -- executa o OnAccept para exercitar o caminho de verdade
+    local dialog = StaticPopupDialogs[which]
+    if dialog and dialog.OnAccept then dialog.OnAccept() end
+end
+
 SlashCmdList = {}
 
 --------------------------------------------------------------------------------
@@ -232,6 +242,8 @@ try("Minimap.ApplyVisibility", ns.Minimap.ApplyVisibility)
 try("Profile.SetPerCharacter(true)", ns.Profile.SetPerCharacter, true)
 try("Profile.SetPerCharacter(false)", ns.Profile.SetPerCharacter, false)
 try("Profile.Reset", ns.Profile.Reset)
+try("Data.RequestReset (com confirmacao)", ns.Data.RequestReset)
+try("Data.RequestReset (direto)", ns.Data.RequestReset, true)
 try("Scoreboard.Show", ns.Scoreboard.Show)
 try("Data.GetRows", ns.Data.GetRows, 0, "damage", { "damage", "dps", "hps" }, 5, false)
 

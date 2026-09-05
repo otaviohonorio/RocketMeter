@@ -331,6 +331,10 @@ function Window.Create()
         L["Configure columns"], function() ns.Picker.Toggle(frame) end)
     frame.gearButton:SetPoint("RIGHT", frame.closeButton, "LEFT", -3, 0)
 
+    frame.resetButton = HeaderButton("Interface\\Buttons\\UI-RefreshButton",
+        L["Clear the data"], function() ns.Data.RequestReset() end)
+    frame.resetButton:SetPoint("RIGHT", frame.gearButton, "LEFT", -3, 0)
+
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
     else

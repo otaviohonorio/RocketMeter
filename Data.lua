@@ -175,6 +175,33 @@ function Data.ResetAll()
     end
 end
 
+---Zerar apaga o combate atual E o geral — nao da para desfazer, entao pergunta antes.
+---`skipConfirm` existe para o comando de chat de quem sabe o que esta fazendo.
+function Data.RequestReset(skipConfirm)
+    if skipConfirm then
+        Data.ResetAll()
+        if ns.Window then ns.Window.Refresh(true) end
+        ns.Print(L["sessions cleared."])
+        return
+    end
+
+    StaticPopupDialogs["ROCKETMETER_RESET"] = StaticPopupDialogs["ROCKETMETER_RESET"] or {
+        text = L["Clear the current fight and the overall? This cannot be undone."],
+        button1 = YES,
+        button2 = NO,
+        OnAccept = function()
+            Data.ResetAll()
+            if ns.Window then ns.Window.Refresh(true) end
+            ns.Print(L["sessions cleared."])
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+    }
+    StaticPopup_Show("ROCKETMETER_RESET")
+end
+
 --------------------------------------------------------------------------------
 -- Montagem das linhas
 --------------------------------------------------------------------------------

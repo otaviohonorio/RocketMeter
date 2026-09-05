@@ -235,6 +235,12 @@ local function CreatePanel()
     close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
     close:SetScript("OnClick", function() frame:Hide() end)
 
+    local clear = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    clear:SetSize(120, 22)
+    clear:SetPoint("BOTTOMRIGHT", -SIDE, 8)
+    clear:SetText(L["Clear the data"])
+    clear:SetScript("OnClick", function() ns.Data.RequestReset() end)
+
     frame.footer = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.footer:SetPoint("BOTTOMLEFT", SIDE, 10)
     frame.footer:SetText(L["Click a column header to sort. Drag to move."])

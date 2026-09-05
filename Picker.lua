@@ -154,9 +154,15 @@ function Picker.Create()
         end
     end
 
+    local clear = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    clear:SetSize((WIDTH - 28) / 2, 22)
+    clear:SetPoint("BOTTOMLEFT", 12, 10)
+    clear:SetText(L["Clear the data"])
+    clear:SetScript("OnClick", function() ns.Data.RequestReset() end)
+
     local more = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    more:SetSize(WIDTH - 24, 22)
-    more:SetPoint("BOTTOMLEFT", 12, 10)
+    more:SetSize((WIDTH - 28) / 2, 22)
+    more:SetPoint("BOTTOMRIGHT", -12, 10)
     more:SetText(L["More options"])
     more:SetScript("OnClick", function() ns.OpenOptions() end)
 

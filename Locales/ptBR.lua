@@ -135,3 +135,8 @@ L["Share of the group damage"] = "Fatia do dano do grupo"
 L["Share of the group healing"] = "Fatia da cura do grupo"
 L["Damage taken per second"] = "Dano recebido por segundo"
 L["columns migrated to the new format."] = "colunas convertidas para o formato novo."
+
+-- Limpar dados (0.10.0)
+L["Clear the data"] = "Limpar dados"
+L["Clear the current fight and the overall? This cannot be undone."] =
+    "Limpar o combate atual e o geral? Nao da para desfazer."

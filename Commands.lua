@@ -28,10 +28,9 @@ commands["config"] = function()
     ns.OpenOptions()
 end
 
-commands["reset"] = function()
-    ns.Data.ResetAll()
-    ns.Window.Refresh(true)
-    ns.Print(L["sessions cleared."])
+commands["reset"] = function(rest)
+    -- "/rm reset now" pula a confirmacao.
+    ns.Data.RequestReset(rest and rest:lower():match("^now"))
 end
 
 commands["overall"] = function()
