@@ -26,7 +26,10 @@ local FONT_OUTLINE = ""
 -- mais leve sem perder a leitura do que importa.
 local ROW_FONT_FLAGS = ""               -- o reforço vem do halo, não do contorno da fonte
 local CELL_FONT_FLAGS = ""
-local HALO_ALPHA = 0.55                 -- "espessura" do contorno falso: 0 = nada, 1 = OUTLINE
+-- Calibrado pela medição do print oficial: lá os pixels ao redor das letras ficam em ~15/255,
+-- quase pretos — mas isso vem do **fundo escuro da janela dele**, não de um contorno forte.
+-- Como a nossa janela é transparente, o halo faz sozinho esse trabalho, e por isso fica alto.
+local HALO_ALPHA = 0.75                 -- espessura do contorno desenhado: 0 = nada, 1 ≈ OUTLINE
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 -- Estes números vêm do `styleConfig` da skin Details_Midnight, que está instalada:
 --   wallpaperAlpha = 0.4      -> fundo da janela
