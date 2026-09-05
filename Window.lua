@@ -238,14 +238,6 @@ local function BuildColumnHeader()
             button.text = button:CreateFontString(nil, "OVERLAY")
             button.text:SetPoint("RIGHT", -4, 0)
 
-            -- Duas texturas distintas, não uma virada de cabeça para baixo: a arte tem
-            -- transparência assimétrica, então inverter o texCoord não lê como "para cima".
-            button.arrow = button:CreateTexture(nil, "OVERLAY")
-            button.arrow:SetSize(10, 10)
-            button.arrow:SetPoint("RIGHT", button.text, "LEFT", -1, 0)
-            button.arrow:SetVertexColor(1, 0.75, 0.4)
-            button.arrow:Hide()
-
             button:SetScript("OnClick", function(self)
                 local key = ns.db.columns[self.columnIndex]
                 if IsShiftKeyDown() then
@@ -284,15 +276,13 @@ local function BuildColumnHeader()
 
         local label = ns.Data.GetShortLabel(key)
         if key == ns.db.sortBy then
+            -- Só a cor marca a coluna ordenada: o dourado já diz tudo, e uma seta aqui
+            -- repetia a informação ocupando espaço.
             button.text:SetText(label)
             button.text:SetTextColor(1, 0.82, 0)
-            button.arrow:SetTexture(ns.db.sortDesc and "Interface\\Buttons\\Arrow-Down-Up"
-                or "Interface\\Buttons\\Arrow-Up-Up")
-            button.arrow:Show()
         else
             button.text:SetText(label)
             button.text:SetTextColor(0.78, 0.74, 0.60)
-            button.arrow:Hide()
         end
         button:Show()
     end
@@ -355,6 +345,8 @@ local function BuildRow(index)
         row.name = row.text:CreateFontString(nil, "OVERLAY")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
         row.name:SetJustifyH("LEFT")
+        -- Nome comprido corta em vez de quebrar linha ou invadir a coluna de números.
+        row.name:SetWordWrap(false)
 
         row.cells = {}
         rows[index] = row
@@ -661,43 +653,24 @@ function Window.GetLastError()
     return lastError
 end
 
--- O texto das células é sempre branco. Realce por COR competiria com a cor de classe —
--- o dourado do líder virava "amarelo de ladino" e confundia. O líder ganha uma seta ao lado:
--- verde para cima onde liderar é bom, vermelha onde é ruim (mortes, dano recebido).
-local NORMAL = { 0.94, 0.94, 0.96 }
+-- Como realçar quem lidera cada coluna sem inventar cor nem enfeite:
+--
+--   1ª tentativa — cor dourada: virava "amarelo de ladino", competia com a cor de classe.
+--   2ª tentativa — seta ao lado: ancorada no vão entre colunas, parecia sujeira solta.
+--   3ª e atual  — **brilho**: o líder em branco puro, os demais levemente apagados.
+--
+-- Brilho é neutro (não carrega significado de classe), não ocupa espaço e o olho encontra
+-- sozinho o número mais forte de cada coluna. É a mesma hierarquia que a UI do jogo usa para
+-- separar informação principal de secundária.
+local LEADER = { 1, 1, 1 }
+local NORMAL = { 0.66, 0.66, 0.70 }
 
-function ns.ColorCell(fontString, _, _)
-    fontString:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
-end
-
----Seta de liderança ao lado da célula. As setas vivem na própria linha (`row.arrows`),
----não num campo do FontString: elemento de UI guarda estado melhor no frame dono.
-function ns.MarkBest(row, index, columnKey, isBest)
-    row.arrows = row.arrows or {}
-    local arrow = row.arrows[index]
-
-    if not isBest or ns.db.highlightBest == false then
-        if arrow then arrow:Hide() end
-        return
-    end
-
-    if not arrow then
-        arrow = row.text:CreateTexture(nil, "OVERLAY")
-        arrow:SetSize(9, 9)
-        arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
-        arrow:SetTexCoord(0, 1, 1, 0)          -- invertida: aponta para cima
-        row.arrows[index] = arrow
-    end
-
-    arrow:ClearAllPoints()
-    arrow:SetPoint("RIGHT", row.cells[index], "LEFT", -1, 0)
-
-    if ns.Data.IsNegativeColumn(columnKey) then
-        arrow:SetVertexColor(0.95, 0.35, 0.35)  -- liderar aqui é má notícia
+function ns.ColorCell(fontString, _, isBest)
+    if isBest and ns.db.highlightBest ~= false then
+        fontString:SetTextColor(LEADER[1], LEADER[2], LEADER[3])
     else
-        arrow:SetVertexColor(0.35, 0.95, 0.45)
+        fontString:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
     end
-    arrow:Show()
 end
 
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
@@ -795,8 +768,7 @@ function Window.Draw()
             for c = 1, #ns.db.columns do
                 local key = ns.db.columns[c]
                 ns.SetCellText(row.cells[c], entry.values[c], key)
-                ns.ColorCell(row.cells[c], key)
-                ns.MarkBest(row, c, key, entry.best and entry.best[c])
+                ns.ColorCell(row.cells[c], key, entry.best and entry.best[c])
             end
 
             row:Show()

@@ -79,11 +79,6 @@ local function BuildColumnHeader()
             button:SetWidth(COLUMN_WIDTH)
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
             button.text:SetPoint("RIGHT", -4, 0)
-            button.arrow = button:CreateTexture(nil, "OVERLAY")
-            button.arrow:SetSize(10, 10)
-            button.arrow:SetPoint("RIGHT", button.text, "LEFT", -1, 0)
-            button.arrow:SetVertexColor(1, 0.75, 0.4)
-            button.arrow:Hide()
             button:SetScript("OnClick", function(self)
                 local attributeId = columns[self.columnIndex]
                 if sortBy == attributeId then
@@ -108,15 +103,12 @@ local function BuildColumnHeader()
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
 
+        -- Só a cor marca a coluna ordenada; seta aqui repetia a informação.
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == sortBy then
-            button.text:SetText("|cffffc06a" .. label .. "|r")
-            button.arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
-            button.arrow:SetTexCoord(0, 1, sortDesc and 0 or 1, sortDesc and 1 or 0)
-            button.arrow:Show()
+            button.text:SetText("|cffffd100" .. label .. "|r")
         else
-            button.text:SetText("|cff8a8a8a" .. label .. "|r")
-            button.arrow:Hide()
+            button.text:SetText("|cffb8ac8a" .. label .. "|r")
         end
         button:Show()
     end
@@ -312,8 +304,7 @@ function Scoreboard.Draw()
 
             for c = 1, #columns do
                 ns.SetCellText(row.cells[c], entry.values[c], columns[c])
-                ns.ColorCell(row.cells[c], columns[c])
-                ns.MarkBest(row, c, columns[c], entry.best and entry.best[c])
+                ns.ColorCell(row.cells[c], columns[c], entry.best and entry.best[c])
             end
             row:Show()
         end
