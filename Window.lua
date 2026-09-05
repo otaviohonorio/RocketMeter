@@ -15,7 +15,20 @@ ns.Window = Window
 
 -- APARENCIA FIXA. Nada aqui e configuravel: primeiro o padrao precisa estar certo.
 -- Os valores saem da referencia (Details com a skin do medidor nativo).
-local FONT = "Fonts\\FRIZQT__.TTF"
+-- A FONTE DO CHAT DO JOGO, porque foi a referência que o usuário deu: *"olha na primeira
+-- imagem como tá o meu chat, como fica bem legível ele"*.
+--
+-- Não é palpite sobre qual é: `ChatFontNormal` herda de `NumberFont_Shadow_Med`, que é
+-- `Fonts\ARIALN.TTF` com `height="14"` e sombra (1,−1) preta
+-- (`Blizzard_Fonts_Shared/Mainline/Fonts.xml:775-777`). A sombra já era a nossa; faltavam a
+-- família e o corpo.
+--
+-- A troca de família resolve a tensão que a 0.50.0 deixou registrada. Lá, copiar o corpo do
+-- medidor nativo (16, em Friz) foi reprovado in-game: a janela dele mostra UMA métrica, a nossa
+-- mostra seis colunas, e mais corpo virava mais tinta. Arial Narrow é **condensada** — rende
+-- caixa alta maior (12px contra os 9px do Friz 13) gastando MENOS largura por caractere. Cresce
+-- na altura, que é onde faltava, e encolhe na largura, que é onde faltava espaço.
+local FONT = "Fonts\\ARIALN.TTF"
 -- Medido no print oficial lado a lado: os dígitos do medidor nativo têm 11px de altura de
 -- caixa alta; os nossos, com corpo 13, tinham 9px. FRIZQT rende ~0,69px de caixa por ponto,
 -- então 11px pediria corpo 16 — e 16 foi testado in-game e reprovado por ficar grande.
@@ -34,7 +47,7 @@ local FONT = "Fonts\\FRIZQT__.TTF"
 -- dourado no cabeçalho. Tamanho variando dentro da mesma linha fazia a régua dos números dançar.
 --
 -- Em px de caixa alta, pela taxa medida (~0,69px por ponto): 13 rende 9px, 12 rendia ~8px.
-local FONT_SIZE = 13
+local FONT_SIZE = 17            -- o mesmo corpo que o usuário configurou no chat dele
 -- O PLACAR não segue esta janela. Ele foi visto e aprovado com corpo 12, e a subida para 13
 -- foi pedida para "a janela de combate" — mudar as duas juntas desfaria uma aprovação que já
 -- existe. Mesma razão de `PANEL_FONT_SIZE`: tela diferente, densidade diferente, corpo próprio.
@@ -56,21 +69,44 @@ local COLHEAD_FONT_SIZE = 11
 -- seria mudar uma tela que ninguém pediu para mudar.
 local PANEL_FONT_SIZE = 13
 local PANEL_ROW_HEIGHT = 22
--- A skin usa `rowTextShadow = true` e deixa o contorno desligado: é **sombra**, não outline.
--- Outline engorda o traço e foi o que deixou o texto pesado.
-local FONT_OUTLINE = ""
+-- CONTORNO LIGADO, e a decisão é do usuário — não minha inferência.
+--
+-- Eu tinha medido o print do chat dele e concluído "não tem contorno, só sombra". Errado: o
+-- chat não é o da Blizzard, é o **Chattynator**, e a fonte foi ajustada por ele. A configuração
+-- está em disco e diz o que ele escolheu:
+--
+--     ["message_font"]         = "default"    -- Chattynator: fonts.default = "ChatFontNormal"
+--     ["message_font_size"]    = 17           -- GetFontScalingFactor() = 17/14
+--     ["message_font_outline"] = "thin"       -- Chattynator: "thin" -> "OUTLINE"
+--     ["show_font_shadow"]     = true         -- -> "SHADOW"
+--
+-- (`SavedVariables/Chattynator.lua` e `Chattynator/Core/Fonts.lua:6-28,59`.)
+--
+-- Ou seja: `OUTLINE` **de verdade**, mais sombra, em corpo 17. Isso reverte duas conclusões
+-- anteriores deste arquivo, e vale registrar por quê:
+--
+--   * "`OUTLINE` em tudo ficou pesado" (0.48.0) foi medido em **Friz 13**. Em Arial Narrow 17
+--     o traço do contorno é o mesmo 1px sobre um glifo bem maior — proporcionalmente muito
+--     mais leve. O que pesava era a razão contorno/glifo, não o contorno.
+--   * O halo desenhado existia para dar meio-termo entre "nada" e `OUTLINE`. Com o corpo maior
+--     o meio-termo deixou de ser necessário, e ele continua desligado — somar os dois dobraria
+--     o traço.
+local FONT_OUTLINE = "OUTLINE"
 -- Contorno no WoW não tem meio-termo: só existe nenhum, `OUTLINE` e `THICKOUTLINE`. Como
 -- `OUTLINE` em tudo pesou, a graduação é **por elemento**: contorno no que precisa ser lido de
 -- longe (nome e a coluna que ordena) e apenas sombra nas colunas secundárias. O conjunto fica
 -- mais leve sem perder a leitura do que importa.
-local ROW_FONT_FLAGS = ""               -- o reforço vem do halo, não do contorno da fonte
+local ROW_FONT_FLAGS = FONT_OUTLINE     -- o mesmo contorno em toda a janela
 -- O nome do reino entra sempre um ponto abaixo do nome do personagem. Fora do próprio reino o
 -- servidor devolve "Nome-Reino", e no corpo cheio os dois competiam: o print de 05/09 mostrava
 -- "Magicpandá-Tic…" — nome e reino brigando pela mesma largura, e as reticências comendo os
 -- dois. Hierarquia por corpo resolve sem esconder de onde a pessoa é.
 local REALM_FONT_DELTA = -1
 ns.REALM_FONT_DELTA = REALM_FONT_DELTA
-local CELL_FONT_FLAGS = ""
+-- MESMA flag do resto da janela. Antes as células iam sem contorno enquanto o nome ia com halo,
+-- e era essa mistura que o usuário leu como *"umas colunas parece tá com mais borda a fonte,
+-- outras não"*. Um valor só para tudo é o que dá o padrão que faltava.
+local CELL_FONT_FLAGS = FONT_OUTLINE
 -- Medição do print lado a lado corrige o que eu havia concluído antes: a linha do medidor
 -- nativo mede RGB(23,42,51) e o cenário ao lado dela RGB(27,46,54) — ou seja, **ela também é
 -- transparente**. Então o preto ao redor das letras dele não vem de fundo escuro: é contorno
@@ -106,6 +142,11 @@ local COLUMN_WIDTH_FIXED = 58
 ns.Skin = {
     font = FONT,
     fontSize = FONT_SIZE,
+    -- O contorno da JANELA DE COMBATE. O placar (corpo 12) e o painel de detalhamento (13)
+    -- passam `""` de propósito: 1px de contorno sobre um glifo de ~8px fecha os vazados da
+    -- letra, e os dois já foram vistos e aprovados sem ele. Se um dia tiverem que acompanhar,
+    -- o conserto é trocar o `""` deles por `ns.Skin.fontOutline`.
+    fontOutline = FONT_OUTLINE,
     -- Corpos com valor próprio, expostos para as outras telas não redigitarem o literal: o
     -- placar tinha um `11` cravado no código que precisaria ser caçado à mão se este mudasse.
     colheadFontSize = COLHEAD_FONT_SIZE,
@@ -1201,7 +1242,10 @@ end
 -- Continua valendo o cuidado de sempre: cor crua é escura demais para algumas classes
 -- (cavaleiro da morte, bruxo). Um **piso de luminância** corrige só quem precisa, e só o
 -- necessário — clarear todas por igual devolveria o tom lavado que já foi reprovado.
-local LEADER_MIN_LUMA = 0.55
+-- Piso de luminância do realce. Baixou de 0.55 para 0.45 junto com a troca de "misturar com
+-- branco" por "multiplicar": o pedido foi *"precisa tá mais escuro"*, e multiplicando dá para
+-- descer o piso sem perder legibilidade, porque a cor deixa de ficar lavada.
+local LEADER_MIN_LUMA = 0.45
 local LEADER_FALLBACK = { 1, 0.88, 0.62 }
 -- Glifos do nativo medem ~227/255; os nossos números mediam ~210. 0.88 fecha a diferença.
 local NORMAL = { 0.88, 0.88, 0.90 }
@@ -1223,9 +1267,31 @@ local function LeaderColor(classFilename)
         return r, g, b
     end
 
-    local k = (LEADER_MIN_LUMA - luma) / (1 - luma)
-    return r + (1 - r) * k, g + (1 - g) * k, b + (1 - b) * k
+    -- MULTIPLICA, não mistura com branco.
+    --
+    -- Misturar com branco (`r + (1-r)*k`) clareia mas **dessatura**, e vermelho escuro
+    -- dessaturado é literalmente rosa. Medido nas cores de classe do 12.x: o Cavaleiro da
+    -- Morte é RGB(196,31,59) com saturação 0.84; a mistura o levava a RGB(216,105,124) com
+    -- saturação 0.51 — foi isso que o usuário viu como "parece até rosa".
+    --
+    -- Multiplicar os três canais pelo mesmo fator mantém a razão entre eles, e razão constante
+    -- é matiz e saturação constantes (em HSV, é subir o V sem tocar em H e S). O mesmo Cavaleiro
+    -- vira RGB(255,39,76): vermelho vivo, saturação 0.84 intacta — e **mais escuro** que antes
+    -- (luma 0.42 contra 0.55), que foi o outro pedido.
+    --
+    -- Só quatro classes chegam aqui (Cavaleiro da Morte, Caça-Demônios, Evocador e Xamã); as
+    -- outras nove já passam do piso e saem sem tocar.
+    local k = LEADER_MIN_LUMA / luma
+    r, g, b = r * k, g * k, b * k
+    if r > 1 then r = 1 end
+    if g > 1 then g = 1 end
+    if b > 1 then b = 1 end
+    return r, g, b
 end
+
+-- Exposta para o harness: e a unica parte do realce que da para verificar fora do jogo, e foi
+-- justamente aqui que a formula antiga produzia o rosa.
+ns.LeaderColor = LeaderColor
 
 ---Estiliza a célula de quem lidera a coluna. O realce mora **só na cor**: o tom da própria
 ---classe, clareado o bastante para ler. Sem placa atrás — ela clareava a célula inteira e

@@ -876,15 +876,35 @@ local function spyFontString()
     function fs.GetWidth() return 40 end
     function fs.SetWidth() end
     function fs.SetText() end
+    function fs.SetTextColor(_, r, g, b) fs.color = { r, g, b } end
+    function fs.SetJustifyH() end
+    function fs.GetJustifyH() return "LEFT" end
     return fs
 end
 
 local fs = spyFontString()
 ns.ApplyFont(fs, 0)
-check("corpo da linha da janela", fs.size, 13)
-check("linha usa Friz Quadrata", fs.path, ns.Skin.font)
-check("linha sem contorno de fonte (o reforco e o halo)", fs.flags, "")
-check("ns.Skin.fontSize expoe o mesmo corpo", ns.Skin.fontSize, 13)
+-- A REFERENCIA E A JANELA DE CHAT DO USUARIO, e os numeros sao os que ELE configurou -- lidos
+-- de `SavedVariables/Chattynator.lua`, nao inferidos de print:
+--     message_font = "default"  -> Chattynator: fonts.default = "ChatFontNormal" -> ARIALN
+--     message_font_size = 17
+--     message_font_outline = "thin" -> "OUTLINE"
+--     show_font_shadow = true
+check("corpo da linha da janela", fs.size, 17)
+check("linha usa a fonte do chat (Arial Narrow)", fs.path, ns.Skin.font)
+check("a fonte e mesmo Arial Narrow", ns.Skin.font:find("ARIALN", 1, true) ~= nil, true)
+check("ns.Skin.fontSize expoe o mesmo corpo", ns.Skin.fontSize, 17)
+
+-- UM CONTORNO SO PARA TUDO. A mistura anterior (celula sem contorno, nome com halo desenhado)
+-- foi o que o usuario leu como "umas colunas parece ta com mais borda a fonte, outras nao".
+check("linha com contorno", fs.flags, "OUTLINE")
+do
+    local celula = spyFontString()
+    celula.classFilename = nil
+    local linha = { cells = { celula }, classFilename = "MAGE" }
+    ns.StyleCell(linha, 1, false, 0)
+    check("celula usa o MESMO contorno da linha", celula.flags, fs.flags)
+end
 
 -- O placar NAO segue a janela: ele foi visto e aprovado em 12, e a janela subiu para 13
 -- depois, a pedido. Herdar desfaria uma aprovacao que ja existe.
@@ -933,7 +953,11 @@ check("delta do reino e -1", ns.REALM_FONT_DELTA, -1)
 local fsNome, fsReino = spyFontString(), spyFontString()
 ns.ApplyFont(fsNome, 0)
 ns.ApplyFont(fsReino, ns.REALM_FONT_DELTA)
-check("nome 13 / reino 12 na janela", fsNome.size .. "/" .. fsReino.size, "13/12")
+-- O que precisa ficar travado e a RELACAO, nao o numero: o corpo da linha ja mudou quatro vezes
+-- (16 -> 14 -> 13 -> 12 -> 13 -> 17) e um teste com valor cravado so obriga a reescrever o
+-- teste junto. O reino e sempre um ponto abaixo do nome.
+check("reino e exatamente um ponto abaixo do nome", fsNome.size - fsReino.size, 1)
+check("nome usa o corpo da linha", fsNome.size, ns.Skin.fontSize)
 
 print("== halo nao herda cor ==")
 -- As copias do halo sao pretas por SetTextColor, mas um |cff...| dentro da string SOBRESCREVE
@@ -1162,6 +1186,57 @@ do
         -- Piso: nunca abaixo de uma linha, por menor que seja a altura.
         check("altura absurda nao vai a zero linhas", cabem(10), 1)
     end
+end
+
+print("== realce do lider: clarear NAO pode dessaturar ==")
+-- Relato: "a cor que da o realce dos melhores precisa ta mais escuro, a do DK parece ate rosa".
+-- Estava certo, e a causa era a formula: misturar com branco (`r + (1-r)*k`) clareia mas
+-- DESSATURA, e vermelho escuro dessaturado e literalmente rosa.
+--
+-- Medido nas cores de classe do 12.x:
+--   Cavaleiro da Morte  RGB(196,31,59)  satur 0.84
+--   com a mistura       RGB(216,105,124) satur 0.51   <- o rosa
+--   multiplicando       RGB(255,39,76)   satur 0.84   <- vermelho vivo, e MAIS ESCURO
+do
+    local salvo = RAID_CLASS_COLORS
+    RAID_CLASS_COLORS = {
+        DEATHKNIGHT = { r = 0.77, g = 0.12, b = 0.23 },   -- escuro: passa pela correcao
+        ROGUE       = { r = 1.00, g = 0.96, b = 0.41 },   -- claro: tem que sair intacto
+    }
+
+    local function satur(r, g, b)
+        local hi = math.max(r, g, b)
+        local lo = math.min(r, g, b)
+        if hi <= 0 then return 0 end
+        return (hi - lo) / hi
+    end
+
+    local r, g, b = ns.LeaderColor("DEATHKNIGHT")
+    local sOriginal = satur(0.77, 0.12, 0.23)
+    local sRealce = satur(r, g, b)
+
+    -- O teste central: a saturacao nao pode cair. Com a formula antiga ela caia de 0.84 p/ 0.51.
+    check("realce nao dessatura (o que fazia virar rosa)", sRealce >= sOriginal - 0.02, true)
+
+    -- E o verde/azul nao podem subir muito: e neles que o rosa aparece.
+    check("canal verde nao explode", g < 0.30, true)
+    check("canal azul nao explode", b < 0.40, true)
+
+    -- "precisa ta mais escuro": a formula antiga levava a luma para 0.55.
+    local luma = 0.299 * r + 0.587 * g + 0.114 * b
+    check("mais escuro que o piso antigo de 0.55", luma < 0.55, true)
+    check("ainda assim legivel (nao ficou no original 0.33)", luma > 0.36, true)
+
+    -- Classe que ja passa do piso sai INTACTA: clarear quem nao precisa e ruido.
+    local rr, gg, bb = ns.LeaderColor("ROGUE")
+    check("classe clara sai intacta (r)", rr, 1.00)
+    check("classe clara sai intacta (g)", gg, 0.96)
+    check("classe clara sai intacta (b)", bb, 0.41)
+
+    -- Nenhum canal pode passar de 1: o jogo satura e a cor viraria outra.
+    check("canais dentro de 0..1", r <= 1 and g <= 1 and b <= 1, true)
+
+    RAID_CLASS_COLORS = salvo
 end
 
 print("== comandos ==")
