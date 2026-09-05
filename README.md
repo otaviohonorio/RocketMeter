@@ -122,8 +122,15 @@ Português e inglês. As chaves de tradução **são** o texto em inglês, entã
 cai no inglês em vez de mostrar chave crua. `Locales/ptBR.lua` só carrega quando
 `GetLocale() == "ptBR"`. Nomes de métrica que o próprio cliente já traduz continuam vindo dele.
 
-A moldura é a nativa do jogo (`DefaultPanelTemplate`), então combina com a UI padrão sem skin
-própria e sem configuração.
+### Aparência: o medidor nativo, com colunas
+
+O visual copia o medidor embutido do Midnight: cabeçalho com o atlas
+**`ui-damagemeters-header-bar`** (a mesma arte que a Blizzard usa), corpo escuro sem moldura
+pesada, linhas chapadas de 16px coloridas por classe. Nada de skin para configurar.
+
+E a janela **encolhe para o número de jogadores que existem**: solo é uma linha, grupo de cinco
+são cinco. Caixa vazia esperando gente é justamente o que deixava a janela com cara de painel
+solto — o medidor da Blizzard não faz isso, e agora o Rocket Meter também não.
 
 ### Como isso é possível em tempo real
 
@@ -175,8 +182,11 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.6.0 — painel de colunas próprio, botão de minimapa, ordenação com direção, perfil por
-personagem, pt-BR e inglês, placar de fim de corrida. Nada testado no jogo.**
+**0.7.0 — visual do medidor nativo e altura automática.**
+
+Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
+interrupções e mortes com números reais), o `.toc` carrega e a ordenação responde. O que faltava
+era a casca, refeita nesta versão.
 
 ## Roteiro
 
