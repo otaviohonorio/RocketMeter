@@ -20,10 +20,12 @@ local FONT_SIZE = 13                -- um ponto acima: sem fundo, o texto precis
 -- A skin usa `rowTextShadow = true` e deixa o contorno desligado: é **sombra**, não outline.
 -- Outline engorda o traço e foi o que deixou o texto pesado.
 local FONT_OUTLINE = ""
--- Só o texto das LINHAS leva contorno. Com fundo transparente ele deixou de ser redundante:
--- é o que segura nome e número sobre o cenário. Cabeçalho e rótulos ficam sem, porque lá há
--- a arte da faixa atrás e o contorno só engrossaria a letra.
-local ROW_FONT_FLAGS = "OUTLINE"
+-- Contorno no WoW não tem meio-termo: só existe nenhum, `OUTLINE` e `THICKOUTLINE`. Como
+-- `OUTLINE` em tudo pesou, a graduação é **por elemento**: contorno no que precisa ser lido de
+-- longe (nome e a coluna que ordena) e apenas sombra nas colunas secundárias. O conjunto fica
+-- mais leve sem perder a leitura do que importa.
+local ROW_FONT_FLAGS = "OUTLINE"        -- nome e coluna ordenada
+local CELL_FONT_FLAGS = ""              -- colunas secundárias: sombra basta
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 -- Estes números vêm do `styleConfig` da skin Details_Midnight, que está instalada:
 --   wallpaperAlpha = 0.4      -> fundo da janela
@@ -495,7 +497,8 @@ local function BuildRow(index)
             row.cells[c] = cell
         end
         -- A coluna de ordenação é a que importa: fica no corpo cheio, as outras menores.
-        ns.ApplyFont(cell, ns.db.columns[c] == ns.db.sortBy and 0 or -1, ROW_FONT_FLAGS)
+        local isSorted = ns.db.columns[c] == ns.db.sortBy
+        ns.ApplyFont(cell, isSorted and 0 or -1, isSorted and ROW_FONT_FLAGS or CELL_FONT_FLAGS)
         cell:SetWidth(ColumnWidth() - 8)
         cell:ClearAllPoints()
         cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, TEXT_LIFT)
@@ -828,16 +831,18 @@ function ns.StyleCell(row, index, isBest)
     local cell = row.cells[index]
     local highlight = isBest and ns.db.highlightBest ~= false
 
-    -- A coluna ordenada já usa o corpo cheio; as demais, um ponto menor.
-    local delta = ns.db.columns[index] == ns.db.sortBy and 0 or -1
+    -- A coluna ordenada usa corpo cheio e contorno; as demais, um ponto menor e só sombra.
+    local isSorted = ns.db.columns[index] == ns.db.sortBy
+    local delta = isSorted and 0 or -1
+    local flags = isSorted and ROW_FONT_FLAGS or CELL_FONT_FLAGS
 
     if highlight then
-        ns.ApplyFont(cell, delta + 1, ROW_FONT_FLAGS)
+        ns.ApplyFont(cell, delta + 1, flags)
 
         cell:SetTextColor(LeaderColor(row.classFilename))
         cell:SetShadowColor(0, 0, 0, 1)
     else
-        ns.ApplyFont(cell, delta, ROW_FONT_FLAGS)
+        ns.ApplyFont(cell, delta, flags)
         cell:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
         cell:SetShadowColor(0, 0, 0, 1)
     end
