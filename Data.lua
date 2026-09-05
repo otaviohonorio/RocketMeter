@@ -394,7 +394,17 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
             end
         end
 
-        rows[i] = { source = source, values = values }
+        -- Fatia do total, para o formato `734K (28.2K, 100%)`. Só fora de combate.
+        local percentOfTotal
+        local sessionTotal = session.totalAmount
+        local own = source.totalAmount
+        if own ~= nil and sessionTotal ~= nil
+            and not issecretvalue(own) and not issecretvalue(sessionTotal)
+            and sessionTotal > 0 then
+            percentOfTotal = own / sessionTotal * 100
+        end
+
+        rows[i] = { source = source, values = values, percentOfTotal = percentOfTotal }
     end
 
     Data.MarkColumnLeaders(rows, columns)
@@ -527,6 +537,41 @@ function Data.GetFormatterName()
     if chosenStrategy == nil then return "ainda não sondado" end
     if chosenStrategy == false then return "nenhuma (valor cru)" end
     return STRATEGIES[chosenStrategy].name
+end
+
+---Formato do medidor nativo: `734K (28.2K, 100%)` — total, e entre parênteses o valor por
+---segundo e a fatia do grupo. É o que a imagem de referência mostra.
+---
+---Concatenação com secret é permitida (`string.format`), mas o percentual exige divisão e por
+---isso só existe fora de combate; nesse caso o parêntese sai com o que houver.
+function Data.FormatDetailsStyle(total, perSecond, percent)
+    local totalText = Data.FormatAmount(total)
+    if totalText == nil then
+        totalText = Data.FormatSecretAmount(total)
+    end
+
+    local parts = {}
+    local rateText = Data.FormatAmount(perSecond)
+    if rateText == nil then
+        rateText = Data.FormatSecretAmount(perSecond)
+    end
+    if rateText ~= nil then
+        parts[#parts + 1] = rateText
+    end
+
+    local percentText = Data.FormatPercent(percent)
+    if percentText ~= nil then
+        parts[#parts + 1] = percentText
+    end
+
+    if totalText == nil then
+        return nil          -- nem o total deu para formatar: o chamador usa o valor cru
+    end
+
+    if #parts == 0 then
+        return totalText
+    end
+    return totalText .. "  |cffb0b0b0(" .. table.concat(parts, ", ") .. ")|r"
 end
 
 function Data.FormatPercent(value)

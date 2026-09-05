@@ -86,6 +86,7 @@ end
 function issecretvalue() return false end
 function securecallfunction(fn, ...) return fn(...) end
 function BreakUpLargeNumbers(v) return tostring(v) end
+function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 tinsert, tremove, wipe = table.insert, table.remove, function(t) for k in pairs(t) do t[k] = nil end end
 format = string.format
 

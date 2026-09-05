@@ -116,17 +116,33 @@ end
 
 ---Ícone da linha: especialização por padrão (diz mais que a classe — quem é o healer, quem
 ---tanka), com a classe como reserva quando a spec não veio.
+---Máscara circular: o medidor nativo usa ícone redondo, e é um dos detalhes que mais
+---aproxima o visual da referência.
+local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+
+local function ApplyIconShape(texture)
+    if ns.db.roundIcons == false then
+        if texture.SetMask then texture:SetMask("") end
+        return
+    end
+    if texture.SetMask then
+        texture:SetMask(ROUND_MASK)
+    end
+end
+
 function ns.ApplyRowIcon(texture, source)
     if ns.db.rowIcon ~= "class" then
         local specIcon = source.specIconID
         if specIcon ~= nil and not issecretvalue(specIcon) and specIcon ~= 0 then
             texture:SetTexture(specIcon)
             texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- corta a borda preta do ícone
+            ApplyIconShape(texture)
             texture:Show()
             return
         end
     end
     ApplyClassIcon(texture, source.classFilename)
+    ApplyIconShape(texture)
 end
 
 --------------------------------------------------------------------------------
@@ -161,9 +177,16 @@ local function WindowWidth()
     return saved > minimum and saved or minimum
 end
 
+local function ColumnHeaderHeight()
+    if ns.db.showColumnHeader == false or ns.db.valueFormat == "details" then
+        return 0
+    end
+    return COLHEAD_HEIGHT
+end
+
 local function WindowHeight(rowCount)
     if rowCount < 1 then rowCount = 1 end
-    return HEADER_HEIGHT + COLHEAD_HEIGHT + rowCount * (RowHeight() + 1) + PADDING
+    return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
 end
 
 --------------------------------------------------------------------------------
@@ -311,7 +334,7 @@ local function BuildRow(index)
     local height = RowHeight()
     row:SetHeight(height)
     row:ClearAllPoints()
-    local offsetY = -(HEADER_HEIGHT + COLHEAD_HEIGHT + (index - 1) * (height + 1))
+    local offsetY = -(HEADER_HEIGHT + ColumnHeaderHeight() + (index - 1) * (height + 1))
     row:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, offsetY)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
 
@@ -344,10 +367,17 @@ local function BuildRow(index)
         end
         -- A coluna de ordenação é a que importa: fica no corpo cheio, as outras menores.
         ns.ApplyFont(cell, ns.db.columns[c] == ns.db.sortBy and 0 or -1)
-        cell:SetWidth(ColumnWidth() - 8)
-        cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, 0)
-        cell:Show()
+        if ns.db.valueFormat == "details" then
+            cell:SetWidth(0)
+            cell:ClearAllPoints()
+            cell:SetPoint("RIGHT", row.text, "RIGHT", -6, 0)
+            cell:Show()
+        else
+            cell:SetWidth(ColumnWidth() - 8)
+            cell:ClearAllPoints()
+            cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, 0)
+            cell:Show()
+        end
     end
 
     row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 12)
@@ -369,7 +399,7 @@ function Window.Create()
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 1,
     })
-    frame:SetBackdropColor(0.02, 0.02, 0.03, 0.75)
+    frame:SetBackdropColor(0.02, 0.02, 0.03, ns.db.windowAlpha or 0.9)
     frame:SetBackdropBorderColor(0, 0, 0, 1)
 
     local header = CreateFrame("Frame", nil, frame)
@@ -377,21 +407,43 @@ function Window.Create()
     header:SetPoint("TOPRIGHT", 0, 0)
     header:SetHeight(HEADER_HEIGHT)
 
+    -- A referência (medidor nativo / Details com a skin dele) tem faixa bege-oliva com
+    -- texto escuro. Tenta o atlas do jogo; se ele não existir neste cliente, desenha o
+    -- mesmo tom à mão para o resultado ser igual de qualquer jeito.
     header.bg = header:CreateTexture(nil, "BACKGROUND")
     header.bg:SetAllPoints()
+
+    local atlasOk = false
     if header.bg.SetAtlas then
-        header.bg:SetAtlas("ui-damagemeters-header-bar", false)
+        atlasOk = header.bg:SetAtlas("ui-damagemeters-header-bar", false) ~= false
+            and header.bg:GetAtlas() ~= nil
     end
-    if not header.bg:GetTexture() then
-        header.bg:SetColorTexture(0.10, 0.12, 0.18, 0.95)
+
+    if not atlasOk then
+        header.bg:SetColorTexture(1, 1, 1, 1)
+        header.bg:SetGradient("VERTICAL",
+            CreateColor(0.42, 0.38, 0.24, 1),
+            CreateColor(0.60, 0.55, 0.36, 1))
     end
+
+    if ns.Log then
+        ns.Log.Add("cabecalho", {
+            atlas = atlasOk and "ui-damagemeters-header-bar" or "indisponivel; gradiente proprio",
+        })
+    end
+
+    header.line = header:CreateTexture(nil, "BORDER")
+    header.line:SetPoint("BOTTOMLEFT")
+    header.line:SetPoint("BOTTOMRIGHT")
+    header.line:SetHeight(1)
+    header.line:SetColorTexture(0, 0, 0, 0.8)
 
     header.segment = CreateFrame("Button", nil, header)
     header.segment:SetSize(110, HEADER_HEIGHT - 4)
     header.segment:SetPoint("LEFT", 6, 0)
     header.segment.text = header.segment:CreateFontString(nil, "OVERLAY")
     header.segment.text:SetPoint("LEFT")
-    header.segment.text:SetTextColor(1, 0.85, 0.45)
+    header.segment.text:SetTextColor(0.12, 0.10, 0.05)
     header.segment:SetScript("OnClick", function()
         ns.db.sessionType = ns.db.sessionType == 0 and 1 or 0
         Window.Refresh(true)
@@ -405,7 +457,7 @@ function Window.Create()
 
     header.clock = header:CreateFontString(nil, "OVERLAY")
     header.clock:SetPoint("LEFT", header.segment, "RIGHT", 2, 0)
-    header.clock:SetTextColor(0.78, 0.78, 0.8)
+    header.clock:SetTextColor(0.20, 0.17, 0.09)
 
     frame.header = header
 
@@ -443,6 +495,11 @@ function Window.Create()
     frame.resetButton = HeaderButton("Interface\\Buttons\\UI-RefreshButton",
         L["Clear the data"], function() ns.Data.RequestReset() end)
     frame.resetButton:SetPoint("RIGHT", frame.gearButton, "LEFT", -3, 0)
+
+    -- Atalho direto para a aba de aparencia: e onde se mexe com mais frequencia.
+    frame.layoutButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
+        L["Appearance"], function() ns.Picker.ToggleAppearance(frame) end)
+    frame.layoutButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -3, 0)
 
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
@@ -517,10 +574,19 @@ end
 function Window.Rebuild()
     if not frame then return end
 
+    frame:SetBackdropColor(0.03, 0.03, 0.04, ns.db.windowAlpha or 0.9)
+
     ns.ApplyFont(frame.header.segment.text, 0)
     ns.ApplyFont(frame.header.clock, -1)
 
     BuildColumnHeader()
+    if headerRow then
+        if ns.db.showColumnHeader == false or ns.db.valueFormat == "details" then
+            headerRow:Hide()
+        else
+            headerRow:Show()
+        end
+    end
     for i = 1, ns.db.rows do
         BuildRow(i)
     end
@@ -645,17 +711,34 @@ function Window.Draw()
             if value == nil then value = 0 end
             row.bar:SetMinMaxValues(0, top)
             row.bar:SetValue(value)
-            row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
+            local br, bg2, bb = ns.BarColor(source.classFilename)
+            row.bar:SetStatusBarColor(br, bg2, bb, ns.db.barAlpha or 1)
             row.bg:SetColorTexture(ns.RowBackdropColor(source.classFilename))
 
             ns.ApplyRowIcon(row.icon, source)
             row.name:SetText(source.name)
             row.name:SetTextColor(1, 1, 1)
 
-            for c = 1, #ns.db.columns do
-                local key = ns.db.columns[c]
-                ns.SetCellText(row.cells[c], entry.values[c], key)
-                ns.ColorCell(row.cells[c], key, entry.best and entry.best[c])
+            if ns.db.valueFormat == "details" then
+                -- Formato da referência: total, e entre parênteses o por-segundo e a fatia.
+                local cell = row.cells[1]
+                local text = ns.Data.FormatDetailsStyle(source.totalAmount,
+                    source.amountPerSecond, entry.percentOfTotal)
+                if text ~= nil then
+                    cell:SetText(text)
+                else
+                    cell:SetText(source.totalAmount)
+                end
+                cell:SetTextColor(1, 1, 1)
+                for c = 2, #row.cells do
+                    row.cells[c]:SetText("")
+                end
+            else
+                for c = 1, #ns.db.columns do
+                    local key = ns.db.columns[c]
+                    ns.SetCellText(row.cells[c], entry.values[c], key)
+                    ns.ColorCell(row.cells[c], key, entry.best and entry.best[c])
+                end
             end
 
             row:Show()

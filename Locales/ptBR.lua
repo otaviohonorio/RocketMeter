@@ -191,3 +191,10 @@ L["Row border"] = "Borda na linha"
 L["Separates one bar from the next."] = "Separa uma barra da outra."
 
 L["in combat"] = "em combate"
+
+-- Configurador de layout (0.17.0)
+L["Configure"] = "Configurar"
+L["Window opacity"] = "Opacidade da janela"
+L["Bar opacity"] = "Opacidade da barra"
+L["Round icons"] = "Ícones redondos"
+L["Column header"] = "Faixa de colunas"

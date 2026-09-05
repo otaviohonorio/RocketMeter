@@ -21,6 +21,11 @@ ns.defaults = {
     rowIcon = "spec",         -- "spec" (padrão) ou "class"
     barTexture = "flat",      -- textura da barra; ver ns.BAR_TEXTURES
     rowBorder = true,         -- borda de 1px separando as linhas
+    windowAlpha = 0.9,        -- opacidade do fundo da janela
+    barAlpha = 1.0,           -- opacidade do preenchimento da barra
+    roundIcons = true,        -- ícone circular, como no medidor nativo
+    valueFormat = "columns",  -- colunas, como o usuário quer; "details" = 734K (28.2K, 100%)
+    showColumnHeader = true,  -- faixa com os nomes das colunas
     barBrightness = 0.65,     -- escurece a cor da classe para o texto branco contrastar
     fontOutline = "OUTLINE",  -- "none" | "OUTLINE" | "THICKOUTLINE"
     highlightBest = true,     -- realça quem lidera cada coluna
