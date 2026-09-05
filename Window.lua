@@ -420,10 +420,12 @@ function Window.Create()
     end
 
     if not atlasOk then
+        -- Bege claro, como na referência: e o texto escuro por cima so funciona se a faixa
+        -- for clara de verdade. A versao anterior ficou escura e o titulo sumiu.
         header.bg:SetColorTexture(1, 1, 1, 1)
         header.bg:SetGradient("VERTICAL",
-            CreateColor(0.42, 0.38, 0.24, 1),
-            CreateColor(0.60, 0.55, 0.36, 1))
+            CreateColor(0.46, 0.41, 0.26, 1),
+            CreateColor(0.78, 0.71, 0.47, 1))
     end
 
     if ns.Log then
@@ -466,19 +468,19 @@ function Window.Create()
         b:SetSize(14, 14)
         b:SetNormalTexture(texture)
         local tex = b:GetNormalTexture()
-        if tex then tex:SetVertexColor(0.72, 0.72, 0.74) end
+        if tex then tex:SetVertexColor(0.25, 0.21, 0.12) end
         b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
         b:SetScript("OnClick", onClick)
         b:SetScript("OnEnter", function(self)
             local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(1, 1, 1) end
+            if t then t:SetVertexColor(0, 0, 0) end
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
             GameTooltip:SetText(tooltip, 1, 1, 1)
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
             local t = self:GetNormalTexture()
-            if t then t:SetVertexColor(0.72, 0.72, 0.74) end
+            if t then t:SetVertexColor(0.25, 0.21, 0.12) end
             GameTooltip_Hide()
         end)
         return b
@@ -495,11 +497,6 @@ function Window.Create()
     frame.resetButton = HeaderButton("Interface\\Buttons\\UI-RefreshButton",
         L["Clear the data"], function() ns.Data.RequestReset() end)
     frame.resetButton:SetPoint("RIGHT", frame.gearButton, "LEFT", -3, 0)
-
-    -- Atalho direto para a aba de aparencia: e onde se mexe com mais frequencia.
-    frame.layoutButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
-        L["Appearance"], function() ns.Picker.ToggleAppearance(frame) end)
-    frame.layoutButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -3, 0)
 
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)

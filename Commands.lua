@@ -127,6 +127,15 @@ commands["debug"] = function()
 
     print("  caminhos:", ns.Data.DescribeSources(ns.db.sessionType, def.attr))
     print("  formatador de secret:", ns.Data.GetFormatterName())
+    print("  tipos de sessao:", ns.Data.DescribeSessionEnum())
+
+    -- Varredura na tela: qual tipo tem o grupo.
+    local def2 = ns.Data.GetColumn(ns.db.sortBy)
+    for candidate = 0, 3 do
+        local probe = C_DamageMeter.GetCombatSessionFromType(candidate, def2.attr)
+        local list = probe and probe.combatSources
+        print(format("  tipo %d -> %d ator(es)", candidate, list and #list or 0))
+    end
 
     local erro = ns.Window.GetLastError()
     if erro then

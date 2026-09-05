@@ -198,3 +198,5 @@ L["Window opacity"] = "Opacidade da janela"
 L["Bar opacity"] = "Opacidade da barra"
 L["Round icons"] = "Ícones redondos"
 L["Column header"] = "Faixa de colunas"
+
+L["Fit height to the rows"] = "Ajustar altura ao conteúdo"

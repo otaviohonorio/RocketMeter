@@ -261,6 +261,7 @@ local function BuildAppearance(pane)
     AddCheck(pane, 1, L["Round icons"], "roundIcons", redraw)
     AddCheck(pane, 2, L["Row border"], "rowBorder", redraw)
     AddCheck(pane, 3, L["Column header"], "showColumnHeader", redraw)
+    AddCheck(pane, 5, L["Fit height to the rows"], "autoHeight", redraw)
     AddCheck(pane, 4, L["Highlight the leader of each column"], "highlightBest", repaint)
 end
 

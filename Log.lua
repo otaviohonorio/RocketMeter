@@ -63,8 +63,30 @@ function Log.Snapshot(reason)
         return
     end
 
+    -- VARREDURA: qual tipo de sessão tem o grupo? Percorre todos os valores possíveis e
+    -- anota quantos atores e quem é o primeiro. É o que responde por que a Valira sumiu.
+    data.sessionEnum = ns.Data.DescribeSessionEnum()
+    data.sweep = {}
+    for candidate = 0, 3 do
+        local probe = C_DamageMeter.GetCombatSessionFromType(candidate, def.attr)
+        local list = probe and probe.combatSources
+        local entry = {
+            atores = list and #list or 0,
+            duracao = Describe(probe and probe.durationSeconds),
+            total = Describe(probe and probe.totalAmount),
+        }
+        if list then
+            local nomes = {}
+            for i = 1, math.min(#list, 5) do
+                nomes[i] = Describe(list[i].name) .. "=" .. Describe(list[i].totalAmount)
+            end
+            entry.quem = table.concat(nomes, " | ")
+        end
+        data.sweep["tipo" .. candidate] = entry
+    end
+
     -- Os dois caminhos, separados: é a pergunta que precisa de resposta.
-    local byType = C_DamageMeter.GetCombatSessionFromType(ns.db.sessionType, def.attr)
+    local byType = C_DamageMeter.GetCombatSessionFromType(ns.Data.SessionValue(ns.db.sessionType), def.attr)
     data.byTypeCount = byType and byType.combatSources and #byType.combatSources or 0
     data.byTypeDuration = Describe(byType and byType.durationSeconds)
     data.byTypeMax = Describe(byType and byType.maxAmount)
@@ -81,18 +103,40 @@ function Log.Snapshot(reason)
         end
     end
 
-    -- O primeiro ator, campo a campo: diz o que é legível e o que é secret em combate.
+    -- Estado da janela: ordenação e quantidade de linhas explicam muita coisa.
+    data.sortDesc = ns.db and ns.db.sortDesc
+    data.rows = ns.db and ns.db.rows
+    data.columns = ns.db and table.concat(ns.db.columns, ",")
+
+    -- TODOS os atores que a API devolveu, na ordem em que vieram. É o que responde
+    -- "por que fulano não aparece" e "de onde saiu esse número".
     local session = ns.Data.GetSession(ns.db.sessionType, def.attr)
-    local first = session and session.combatSources and session.combatSources[1]
-    if first then
-        data.first = {
-            name = Describe(first.name),
-            guid = Describe(first.sourceGUID),
-            total = Describe(first.totalAmount),
-            perSecond = Describe(first.amountPerSecond),
-            class = Describe(first.classFilename),
-            specIcon = Describe(first.specIconID),
-            isLocalPlayer = Describe(first.isLocalPlayer),
+    local sources = session and session.combatSources
+    if sources then
+        data.sessionTotal = Describe(session.totalAmount)
+        data.actors = {}
+        for i = 1, math.min(#sources, 8) do
+            local src = sources[i]
+            data.actors[i] = {
+                name = Describe(src.name),
+                total = Describe(src.totalAmount),
+                perSecond = Describe(src.amountPerSecond),
+                class = Describe(src.classFilename),
+                isLocalPlayer = Describe(src.isLocalPlayer),
+                classification = Describe(src.classification),
+            }
+        end
+    end
+
+    -- E o que as linhas montadas realmente contêm, depois de toda a nossa lógica.
+    local rows = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
+        ns.db.rows or 5, not ns.db.sortDesc)
+    data.builtRows = rows and #rows or 0
+    if rows and rows[1] then
+        data.firstBuilt = {
+            name = Describe(rows[1].source.name),
+            value1 = Describe(rows[1].values[1]),
+            value2 = Describe(rows[1].values[2]),
         }
     end
 

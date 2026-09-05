@@ -167,6 +167,28 @@ end
 --------------------------------------------------------------------------------
 -- API
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Tipos de sessão
+--------------------------------------------------------------------------------
+-- **Nao chutar os numeros.** Existe `Enum.DamageMeterSessionType` (Current / Overall /
+-- Expired) e os valores dele nao sao necessariamente 0 e 1. Passar numero chumbado foi o
+-- que fez a janela ler uma sessao diferente da que o Details le.
+function Data.SessionValue(which)
+    local E = Enum.DamageMeterSessionType
+    if which == 1 or which == "overall" then
+        return E and E.Overall or 1
+    end
+    return E and E.Current or 0
+end
+
+---Os valores reais deste cliente, para o log e para o /rm debug.
+function Data.DescribeSessionEnum()
+    local E = Enum.DamageMeterSessionType
+    if not E then return "Enum.DamageMeterSessionType nao existe" end
+    return format("Current=%s Overall=%s Expired=%s",
+        tostring(E.Current), tostring(E.Overall), tostring(E.Expired))
+end
+
 function Data.IsAvailable()
     return C_DamageMeter and C_DamageMeter.IsDamageMeterAvailable and C_DamageMeter.IsDamageMeterAvailable()
 end
@@ -196,7 +218,7 @@ end
 function Data.GetSession(sessionType, attributeId)
     if not Data.IsAvailable() then return nil end
 
-    local session = C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
+    local session = C_DamageMeter.GetCombatSessionFromType(Data.SessionValue(sessionType), attributeId)
     if HasSources(session) then return session end
 
     -- Só faz sentido para o combate atual: o geral é acumulado, não é uma sessão solta.
@@ -217,7 +239,7 @@ end
 function Data.DescribeSources(sessionType, attributeId)
     if not Data.IsAvailable() then return "API indisponível" end
 
-    local byType = C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
+    local byType = C_DamageMeter.GetCombatSessionFromType(Data.SessionValue(sessionType), attributeId)
     local typeCount = byType and byType.combatSources and #byType.combatSources or 0
 
     local id = NewestSessionID()
@@ -243,7 +265,7 @@ function Data.GetSource(sessionType, attributeId, guid, creatureId)
     if issecretvalue(guid) then return nil end
 
     local ok, result = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
-        sessionType, attributeId, guid, creatureId)
+        Data.SessionValue(sessionType), attributeId, guid, creatureId)
     if ok then return result end
     return nil
 end
@@ -268,7 +290,7 @@ end
 
 function Data.GetDuration(sessionType)
     if not Data.IsAvailable() then return 0 end
-    return C_DamageMeter.GetSessionDurationSeconds(sessionType) or 0
+    return C_DamageMeter.GetSessionDurationSeconds(Data.SessionValue(sessionType)) or 0
 end
 
 function Data.ResetAll()
