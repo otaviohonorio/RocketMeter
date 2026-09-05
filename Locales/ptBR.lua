@@ -220,3 +220,8 @@ L["None"] = "Nenhum"
 L["Thin"] = "Fino"
 L["Thick"] = "Grosso"
 L["Appearance"] = "Aparência"
+
+-- Tres textos independentes (0.60.0)
+L["Row text"] = "Texto das linhas"
+L["Title"] = "Título"
+L["Column header"] = "Cabeçalho das colunas"

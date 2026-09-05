@@ -14,10 +14,14 @@ ns.defaults = {
     rows = 5,                 -- linhas visíveis; a alça muda isso
     scale = 1.0,
     font = nil,               -- caminho da fonte; nil = a padrao (ns.FONT_CHOICES[1])
-    -- Corpo do texto da janela. Limites em Window.lua (FONT_SIZE_MIN/MAX) e o motivo de cada
-    -- um esta escrito la: o teto vem da largura da celula, o piso de o texto deixar de ser
-    -- lido de relance.
-    fontSize = 16,
+    -- TRES textos independentes: corpo das linhas, titulo e cabecalho de coluna. Cada um com
+    -- tamanho, contorno e sombra proprios -- mexer num nao pode mexer nos outros, que foi a
+    -- reprovacao do corpo unico. Limites e motivo de cada um em `Window.lua`
+    -- (FONT_SIZE_MIN/MAX); os padroes ficam em `ROLE_DEFAULTS`, que e a fonte unica deles.
+    --
+    -- `nil` aqui de proposito: `Profile.EnsureRuntimeDefaults` monta a tabela, herdando as
+    -- chaves antigas de quem ja tinha configuracao salva.
+    text = nil,
     rowHeight = 20,          -- altura da barra na referência
     columnWidth = 58,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
@@ -30,8 +34,6 @@ ns.defaults = {
     valueFormat = "columns",  -- colunas, como o usuário quer; "details" = 734K (28.2K, 100%)
     showColumnHeader = true,  -- faixa com os nomes das colunas
     barBrightness = 0.7,      -- escurece a cor da classe para o texto branco contrastar
-    fontOutline = "thin",     -- "none" | "thin" | "thick", a mesma escala do Chattynator
-    fontShadow = true,
     highlightBest = true,     -- realça quem lidera cada coluna
     autoHeight = true,        -- encolhe para o número de jogadores; a alça desliga isso
     locked = false,

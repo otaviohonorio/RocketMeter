@@ -1,10 +1,10 @@
 -- RocketMeter | Picker.lua
--- A única tela de configuração do addon: uma janela larga, em seções, distribuídas em duas
--- colunas.
+-- A única tela de configuração do addon: uma janela larga, em seções, distribuídas em três
+-- colunas — as colunas do medidor, a janela e o placar, e os três textos.
 --
 -- POR QUE NÃO ABAS. Elas foram tentadas (0.58.0) e o problema não era hierarquia, era espaço: as
 -- opções são poucas, e esconder metade delas atrás de uma aba deixava duas das três telas com um
--- vazio enorme. Com duas colunas tudo aparece de uma vez e a janela fica cheia.
+-- vazio enorme. Com colunas tudo aparece de uma vez e a janela fica cheia.
 --
 -- A REGRA DE POSIÇÃO É UMA SÓ, e existe porque a violação dela foi o defeito relatado: o
 -- checkbox nascia a 40% da largura da JANELA — no meio — e o rótulo dele saía pela borda
@@ -15,9 +15,12 @@
 -- OS COMPONENTES SÃO OS DA BLIZZARD, com os nomes conferidos na fonte do 12.1.0 — não vêm de
 -- "o Chattynator usa, então existe", que é a falácia que já custou uma rodada aqui:
 --
---   `MinimalSliderWithSteppersTemplate`  Shared/Slider/MinimalSlider.xml
---   `WowStyle1DropdownTemplate`          Blizzard_Menu/Classic/MenuTemplates.xml
+--   `MinimalSliderWithSteppersTemplate`  Blizzard_SharedXML/Shared/Slider/MinimalSlider.xml
+--   `WowStyle1DropdownTemplate`          Blizzard_Menu/Mainline/MenuTemplates.xml
 --   `MenuUtil.CreateRadioMenu`           Blizzard_Menu/MenuUtil.lua:381
+--
+-- (`Mainline`, não `Classic`: o template existe nas duas pastas e é o de `Mainline` que o
+-- retail carrega. A citação errada estava aqui desde a 0.58.0.)
 --
 -- O QUE SE CONFIGURA E O QUE NÃO. A regra de 0.20.0 — aparência não se configura, o padrão é que
 -- precisa estar certo — continua valendo para cor, textura, borda e opacidade. A tipografia é a
@@ -34,29 +37,109 @@ ns.Picker = Picker
 -- Grade
 --------------------------------------------------------------------------------
 local MARGIN = 18               -- da borda da janela até o conteúdo
-local GUTTER = 22               -- entre as duas colunas
-local COL_W = 288               -- largura útil de cada coluna
-local WIDTH = MARGIN * 2 + COL_W * 2 + GUTTER
+local GUTTER = 20               -- entre as colunas
+local COL_W = 262               -- largura útil de cada coluna
+local COLUMNS = 3
+local WIDTH = MARGIN * 2 + COL_W * COLUMNS + GUTTER * (COLUMNS - 1)
 
 local TOP = 36                  -- abaixo da barra de título
-local FOOTER = 46               -- o botão de limpar dados
+-- Só a margem de baixo: o botão "Limpar dados" saiu daqui a pedido — os dados se limpam na
+-- própria janela do medidor, e um botão em largura cheia no rodapé de uma tela de configuração
+-- dava a ele um peso que ele não tem.
+local FOOTER = 14
 
--- Alturas por tipo de linha. São as MESMAS constantes usadas para posicionar e para somar a
--- altura da janela — acrescentar uma linha reacomoda tudo sem ninguém recontar à mão.
-local H_SECTION = 26            -- título da seção + a régua
-local H_FIELD = 46              -- rótulo em cima (16) + controle (24) + respiro (6)
-local H_CHECK = 28
-local H_BUTTON = 28
-local H_COLUMN_ROW = 24
-local GAP_SECTION = 14
+-- RITMO VERTICAL. Todo número aqui foi lido na fonte do 12.1.0, e nenhum foi arredondado.
+--
+-- NÃO HÁ GRADE DE 4 NESTA TELA, e isso é decisão, não descuido. A tentativa anterior impôs uma
+-- unidade de 4 e teve que torcer os valores para caber nela — mas **nenhum** número da Blizzard
+-- é múltiplo de 4: 9, 25, 45, 5, 15, 37, 26. Arredondar 9 para 8 não compra alinhamento nenhum
+-- e perde a coincidência exata com o nativo, que é justamente o objetivo.
+--
+-- A ALTURA DE LINHA É ÚNICA, e o widget é que se ajusta a ela. Os NOVE templates de opção da
+-- Blizzard (`Blizzard_SettingControls.xml:108-164` — caixa, deslizador, combo, botão, cor e as
+-- combinações) têm todos **280×26**, e é o painel que impõe a largura ao controle
+-- (`Blizzard_SettingControls.lua:656,741`), nunca o contrário.
+local H_CONTROL = 26
+local H_LABEL = 12              -- caixa de `GameFontHighlightSmall` (fonte 10, `Fonts.xml:41`)
 
-local CHECK_SIZE = 24
+-- O DEFEITO RELATADO ERA UMA RAZÃO, NÃO UM NÚMERO. O espaço DENTRO de um campo (rótulo → seu
+-- controle) era 4 e o espaço ENTRE campos era 6 — 1,5×. Com 1,5× o olho não decide se o rótulo
+-- pertence ao controle abaixo dele ou é continuação da linha de cima, e o resultado é literalmente
+-- "tudo muito junto e grudado, é feio, confuso". Lei de proximidade da Gestalt, e ela tem número.
+--
+-- O NÚMERO VEM DO ÚNICO FORMULÁRIO EMPILHADO DA BLIZZARD, o de criar comunidade
+-- (`Blizzard_Communities/CommunitiesSettings.xml`): o campo nasce a `y="-2"` do rótulo dele
+-- (`:79`), e o rótulo seguinte a `y="-34"` do rótulo anterior (`:25`) sobre um campo de 22
+-- (`:77`) — ou seja, **2 por dentro e 10 por fora, razão 5×**.
+--
+-- (Uma rodada anterior "corrigiu" isto para 4 e 12 = 3×, para caber na grade de 4. Era o inverso:
+-- afastou do valor medido em nome de uma grade que a Blizzard não usa.)
+local GAP_LABEL = 2
+local GAP_FIELD = 10
+
+-- A tinta de um campo e a vaga dele: a vaga e a tinta MAIS o respiro que vem depois. Os dois
+-- nomes existem porque o harness mede vão entre tintas, e vaga menos vaga daria zero sempre.
+local INK_FIELD = H_LABEL + GAP_LABEL + H_CONTROL              -- 40
+local INK_SECTION = H_LABEL + 4                                -- título e régua
+
+local H_FIELD = INK_FIELD + GAP_FIELD                          -- 50
+local H_CHECK = H_CONTROL + GAP_FIELD                          -- 36: o rótulo mora na linha
+local H_BUTTON = H_CONTROL + GAP_FIELD                         -- 36
+local H_COLUMN_ROW = H_CONTROL                                 -- lista densa, sem folga extra
+
+-- ENTRE GRUPOS, o branco que a Blizzard abre acima de um título de seção: **25** = os 9 de
+-- respiro de linha (`Blizzard_SettingsList.lua:46`) mais os 16 de recuo do título dentro do
+-- bloco de cabeçalho de 45 (`Blizzard_SettingControls.xml:14,19`). São 2,5× o espaço entre
+-- campos — acima do piso de 2× abaixo do qual a borda de grupo deixa de ser percebida.
+--
+-- E o corolário que importa mais que a razão: **grupo não se separa só com ar**. A Blizzard gasta
+-- um bloco com título; por isso `BuildSection` desenha título e régua, e não um vão maior.
+local GAP_SECTION = 25
+local H_SECTION = H_LABEL + 4 + GAP_FIELD                      -- título, régua e respiro
+
+-- 28, e não um número escolhido por mim: é o tamanho que a própria Blizzard dá ao
+-- `UICheckButtonTemplate` quando o envelopa no `ResizeCheckButtonTemplate`
+-- (`SharedUIPanelTemplates.xml:1322`). O template nasce 32×32; 28 é a medida que ela usa em
+-- formulário.
+local CHECK_SIZE = 28
+
+-- A LISTA DE COLUNAS é lista densa, não formulário: caixa menor e sem folga entre linhas, como a
+-- coluna de categorias do painel (`Blizzard_CategoryList.xml:51`, linha de 20).
+local ROW_CHECK = 22
+local ARROW = 18                -- seta de reordenar
+local ARROW_GAP = 6             -- 18 + 6 = 24 centro a centro (WCAG 2.2 SC 2.5.8)
+local ORDER_W = 14              -- o número da posição, à esquerda das setas
+
+-- O `Text` do `UICheckButtonTemplate` é ancorado `LEFT` no `RIGHT` da caixa com **x = −2**
+-- (`CheckButtonTemplates.xml:56`) — ele começa 2px ANTES do fim da caixa. Esse −2 é calibrado
+-- para a arte de **32×32** do template original, que tem margem transparente; encolhendo a caixa
+-- para 28 a margem some junto e o texto passa a encostar mesmo.
+--
+-- A própria Blizzard resolve isso onde faz a mesma troca: no `ResizeCheckButtonTemplate` ela usa
+-- 28×28 e **reancora** o rótulo em `+2` (`SharedUIPanelTemplates.xml:1322,1337`). Os dois números
+-- andam em par, e a versão anterior daqui copiou só o 28 — corrigia a largura e deixava a âncora
+-- errada, que é a que decide onde o texto começa.
+local CHECK_TEXT_OFFSET = 2
 
 local frame, rows
-local probes = {}               -- { nome, x, largura } de cada controle, para o harness
 
-local function Probe(name, widget, x, width)
-    probes[#probes + 1] = { name = name, x = x, width = width, widget = widget }
+-- O RETÂNGULO INTEIRO de cada controle, para o harness. Guardar só `x` e `width` foi o furo que
+-- deixou três reprovações passarem: todas as três eram colisão VERTICAL (abas sobrepostas, campo
+-- encavalado no seguinte), e sem `y`/`height` não havia o que conferir. Vai também a coluna, para
+-- que a conferência de vizinhança compare quem de fato é vizinho.
+--
+-- A ALTURA REGISTRADA É A DA TINTA, não a da vaga. Registrar a vaga (que já embute o respiro)
+-- faria o vão entre vizinhos dar zero sempre, e o teste passaria por construção sem medir nada —
+-- que é o mesmo defeito, de novo, num nível acima.
+local probes = {}
+
+local function Probe(name, widget, x, width, y, height, column, isSection)
+    probes[#probes + 1] = {
+        name = name, widget = widget,
+        x = x, width = width,
+        y = y, height = height, column = column,
+        isSection = isSection or false,
+    }
 end
 
 local function IsEnabled(key)
@@ -78,6 +161,7 @@ end
 --------------------------------------------------------------------------------
 ---Título de seção, em dourado, com a régua fina que o placar já usa.
 local function BuildSection(col, y, title)
+    Probe("secao: " .. title, nil, 0, COL_W, y, INK_SECTION, col.index, true)
     local text = col:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     text:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
     text:SetText(title)
@@ -85,50 +169,72 @@ local function BuildSection(col, y, title)
 
     local rule = col:CreateTexture(nil, "ARTWORK")
     rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y - 18)
-    rule:SetPoint("TOPRIGHT", col, "TOPRIGHT", 0, -y - 18)
+    rule:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y - H_LABEL - 4)
+    rule:SetPoint("TOPRIGHT", col, "TOPRIGHT", 0, -y - H_LABEL - 4)
     rule:SetColorTexture(1, 0.82, 0, 0.25)
     return y + H_SECTION
 end
 
 ---Rótulo EM CIMA do controle, não ao lado.
 ---
----Numa coluna de 288px, rótulo à esquerda deixaria ~110px para o texto e ~170 para o controle,
----e "Abrir ao fim de uma corrida de Mítico+" não cabe em 110. Em cima, o rótulo tem a coluna
----inteira e o controle também.
-local function BuildLabel(col, y, label)
+---Numa coluna estreita, rótulo à esquerda deixaria ~100px para o texto e o resto para o
+---controle, e "Abrir ao fim de uma corrida de Mítico+" não cabe em 100. Em cima, o rótulo tem a
+---coluna inteira e o controle também.
+local function BuildLabelText(col, y)
     local text = col:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     text:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
     text:SetWidth(COL_W)
     text:SetJustifyH("LEFT")
-    text:SetText(label)
-    return y + 16
+    return text
 end
 
+local function BuildLabel(col, y, label)
+    BuildLabelText(col, y):SetText(label)
+    return y + H_LABEL + GAP_LABEL
+end
+
+---Deslizador com o valor **no rótulo**, não ao lado do controle.
+---
+---O template desenha o valor num `RightText` ancorado a `Slider.RIGHT` com **x=25**
+---(`MinimalSlider.xml:73-77`), e o `Slider` já fica 19px para dentro do frame — ou seja, o
+---texto começa **6px FORA** da largura que a gente dá, e ainda cresce pela largura dele. Foi
+---por isso que "13px" e "5" apareceram fora da janela.
+---
+---Os rótulos do template nascem `hidden="true"` e só aparecem se um formatador for passado no
+---`Init`. Então não passamos nenhum: o valor entra no rótulo de cima, que já existe e já está
+---dentro da coluna. Vazamento zero **por construção**, e o número fica ao lado do nome dele.
 local function BuildSlider(col, y, label, low, high, suffix, get, set)
-    local at = BuildLabel(col, y, label)
+    local text = BuildLabelText(col, y)
+    local at = y + H_LABEL + GAP_LABEL
 
     local slider = CreateFrame("Slider", nil, col, "MinimalSliderWithSteppersTemplate")
     slider:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -at)
     slider:SetWidth(COL_W)
-    slider:SetHeight(22)
-    Probe(label, slider, 0, COL_W)
+    slider:SetHeight(H_CONTROL)
+    Probe(label, slider, 0, COL_W, y, INK_FIELD, col.index)
+
+    local function write()
+        text:SetText(format("%s   |cffffd100%s|r", label, (suffix or "%d"):format(get())))
+    end
 
     -- `Init(valor, min, max, passos, formatadores)`. Os passos são o número de INTERVALOS, e por
     -- isso é `high - low`: com um a mais o deslizador para em posições fracionárias e o número
     -- pisca entre dois inteiros.
     if slider.Init then
-        slider:Init(get(), low, high, high - low, {
-            [MinimalSliderWithSteppersMixin.Label.Right] = CreateMinimalSliderFormatter(
-                MinimalSliderWithSteppersMixin.Label.Right,
-                function(value) return (suffix or "%d"):format(value) end),
-        })
+        -- Sem tabela de formatadores: os rótulos do template ficam escondidos e nada sai da
+        -- coluna. O valor é escrito por `write()`, no rótulo de cima.
+        slider:Init(get(), low, high, high - low)
         slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged,
-            function(_, value) set(value) end)
+            function(_, value)
+                set(value)
+                write()
+            end)
     end
 
+    write()
     slider.Refresh = function()
         if slider.SetValue then slider:SetValue(get()) end
+        write()
     end
     return y + H_FIELD, slider
 end
@@ -146,8 +252,8 @@ local function BuildDropdown(col, y, label, entries, get, set)
     local dropdown = CreateFrame("DropdownButton", nil, col, "WowStyle1DropdownTemplate")
     dropdown:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -at)
     dropdown:SetWidth(COL_W)
-    dropdown:SetHeight(24)
-    Probe(label, dropdown, 0, COL_W)
+    dropdown:SetHeight(H_CONTROL)
+    Probe(label, dropdown, 0, COL_W, y, INK_FIELD, col.index)
 
     if MenuUtil and MenuUtil.CreateRadioMenu then
         local list = {}
@@ -182,10 +288,14 @@ local function BuildCheck(col, y, label, tip, get, set)
     if type(check.Text) == "table" and check.Text.SetText then
         check.Text:SetText(label)
         check.Text:SetFontObject("GameFontHighlightSmall")
-        check.Text:SetWidth(COL_W - CHECK_SIZE - 6)
+        -- REANCORAR, e não só medir. `SetWidth` conserta a conta; quem decide onde o texto
+        -- começa é a âncora, e a herdada do template é −2 (ver `CHECK_TEXT_OFFSET`).
+        check.Text:ClearAllPoints()
+        check.Text:SetPoint("LEFT", check, "RIGHT", CHECK_TEXT_OFFSET, 0)
+        check.Text:SetWidth(COL_W - CHECK_SIZE - CHECK_TEXT_OFFSET)
         check.Text:SetJustifyH("LEFT")
     end
-    Probe(label, check, 0, COL_W)
+    Probe(label, check, 0, COL_W, y, H_CONTROL, col.index)
 
     check:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
     check:SetScript("OnEnter", function(self)
@@ -204,7 +314,7 @@ end
 local function BuildButton(col, y, label, tip, onClick)
     local b = CreateFrame("Button", nil, col, "UIPanelButtonTemplate")
     b:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
-    b:SetSize(COL_W, 24)
+    b:SetSize(COL_W, H_CONTROL)
     b:SetText(label)
     b:SetScript("OnClick", onClick)
     b:SetScript("OnEnter", function(self)
@@ -214,7 +324,7 @@ local function BuildButton(col, y, label, tip, onClick)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", GameTooltip_Hide)
-    Probe(label, b, 0, COL_W)
+    Probe(label, b, 0, COL_W, y, H_CONTROL, col.index)
     return y + H_BUTTON, b
 end
 
@@ -228,15 +338,19 @@ local function BuildRow(index, column, col, y)
         row:SetSize(COL_W, H_COLUMN_ROW)
 
         row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-        row.check:SetSize(22, 22)
+        row.check:SetSize(ROW_CHECK, ROW_CHECK)
         row.check:SetPoint("LEFT", 0, 0)
         row.check:SetScript("OnClick", function(self)
             ns.Window.ToggleColumn(self.columnKey)
             Picker.Refresh()
         end)
 
+        -- AS SETAS SÃO ALVO DE CLIQUE, e alvo pequeno tem norma: WCAG 2.2 SC 2.5.8 (AA) pede
+        -- 24×24, **ou** 24 de distância CENTRO A CENTRO até o alvo vizinho — a exceção é medida
+        -- entre centros, não entre bordas. Com 18×18 e vão de 2 dá 20, e reprova; com vão de 6 dá
+        -- 18 + 6 = 24 e passa, sem precisar inchar o botão numa lista já densa.
         row.down = CreateFrame("Button", nil, row)
-        row.down:SetSize(18, 18)
+        row.down:SetSize(ARROW, ARROW)
         row.down:SetPoint("RIGHT", -2, 0)
         row.down:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
         row.down:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
@@ -249,8 +363,8 @@ local function BuildRow(index, column, col, y)
         end)
 
         row.up = CreateFrame("Button", nil, row)
-        row.up:SetSize(18, 18)
-        row.up:SetPoint("RIGHT", row.down, "LEFT", -2, 0)
+        row.up:SetSize(ARROW, ARROW)
+        row.up:SetPoint("RIGHT", row.down, "LEFT", -ARROW_GAP, 0)
         row.up:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
         row.up:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
         row.up:SetScript("OnClick", function(self)
@@ -262,13 +376,13 @@ local function BuildRow(index, column, col, y)
         end)
 
         row.order = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        row.order:SetPoint("RIGHT", row.up, "LEFT", -6, 0)
+        row.order:SetPoint("RIGHT", row.up, "LEFT", -ARROW_GAP, 0)
 
         -- Largura EXPLÍCITA para o rótulo, pelo mesmo motivo do checkbox: sem ela um nome longo
         -- empurra as setas para fora da coluna.
         row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.label:SetPoint("LEFT", row.check, "RIGHT", 4, 0)
-        row.label:SetWidth(COL_W - 22 - 4 - 18 - 18 - 28)
+        row.label:SetWidth(COL_W - ROW_CHECK - 4 - (2 + ARROW + ARROW_GAP + ARROW + ARROW_GAP + ORDER_W))
         row.label:SetJustifyH("LEFT")
 
         row:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
@@ -315,10 +429,12 @@ function Picker.Create()
     -- ALTURA: soma de cada coluna, e a janela fica com a maior. Contar aqui, com as MESMAS
     -- constantes que posicionam os controles, é o que impede a janela de sobrar ou faltar
     -- espaço quando uma linha é acrescentada.
-    local leftHeight = H_SECTION + #columns * H_COLUMN_ROW
-    local rightHeight = H_SECTION + H_FIELD * 4 + H_CHECK * 2          -- Aparência
+    local h1 = H_SECTION + #columns * H_COLUMN_ROW
+    local h2 = H_SECTION + H_FIELD * 2 + H_CHECK                       -- Aparencia
         + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON * 2     -- Placar
-    local content = math.max(leftHeight, rightHeight)
+    -- Tres secoes de texto identicas: titulo + deslizador + combo + caixa.
+    local h3 = (H_SECTION + H_FIELD * 2 + H_CHECK) * 3 + GAP_SECTION * 2
+    local content = math.max(h1, math.max(h2, h3))
 
     frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "DefaultPanelTemplate")
     frame:SetSize(WIDTH, TOP + content + FOOTER)
@@ -344,50 +460,38 @@ function Picker.Create()
         col:SetPoint("TOPLEFT", frame, "TOPLEFT",
             MARGIN + (index - 1) * (COL_W + GUTTER), -TOP)
         col:SetPoint("BOTTOM", frame, "BOTTOM", 0, FOOTER)
+        col.index = index       -- o harness usa para comparar só quem é vizinho de verdade
         return col
     end
 
-    local left, right = Column(1), Column(2)
-    frame.leftColumn, frame.rightColumn = left, right
+    local colColumns, colWindow, colText = Column(1), Column(2), Column(3)
+    frame.leftColumn = colColumns
 
     -- Coluna 1: quais colunas a janela mostra, e em que ordem.
-    frame.columnsTop = BuildSection(left, 0, L["Columns"])
+    frame.columnsTop = BuildSection(colColumns, 0, L["Columns"])
 
-    -- Coluna 2: aparência e placar.
-    local y = BuildSection(right, 0, L["Appearance"])
+    ----------------------------------------------------------------------------
+    -- Coluna 2: a janela e o placar
+    ----------------------------------------------------------------------------
+    local y = BuildSection(colWindow, 0, L["Appearance"])
 
+    -- A FAMILIA e uma so para o addon inteiro, de proposito. Fonte diferente por elemento nao
+    -- da hierarquia, da colcha de retalhos -- e o que separa titulo de linha aqui e corpo,
+    -- contorno e sombra, que sao os tres que o usuario pediu.
     local fontEntries = {}
     for _, choice in ipairs(ns.FONT_CHOICES) do
         fontEntries[#fontEntries + 1] = { label = choice.label, value = choice.path }
     end
-    y, frame.fontDrop = BuildDropdown(right, y, L["Font"], fontEntries,
+    y, frame.fontDrop = BuildDropdown(colWindow, y, L["Font"], fontEntries,
         function() return ns.FontPath() end,
         function(v) ns.Window.SetFont(v) end)
 
-    y, frame.sizeSlider = BuildSlider(right, y, L["Text size"],
-        ns.Skin.fontSizeMin, ns.Skin.fontSizeMax, "%dpx",
-        function() return ns.Window.GetFontSize() end,
-        function(v) ns.Window.SetFontSize(v) end)
-
-    y, frame.outlineDrop = BuildDropdown(right, y, L["Font outline"], {
-        { label = L["None"],  value = "none" },
-        { label = L["Thin"],  value = "thin" },
-        { label = L["Thick"], value = "thick" },
-    },
-        function() return ns.db.fontOutline or "thin" end,
-        function(v) ns.Window.SetOutline(v) end)
-
-    y, frame.rowsSlider = BuildSlider(right, y, L["Rows"],
+    y, frame.rowsSlider = BuildSlider(colWindow, y, L["Rows"],
         ns.Skin.rowsMin, ns.Skin.rowsMax, "%d",
         function() return ns.Window.GetRows() or 5 end,
         function(v) ns.Window.SetRows(v) end)
 
-    y, frame.shadowCheck = BuildCheck(right, y, L["Font shadow"],
-        L["A 1px black shadow below the text. Carries the letters over any background."],
-        function() return ns.db.fontShadow ~= false end,
-        function(v) ns.Window.SetShadow(v) end)
-
-    y, frame.realmCheck = BuildCheck(right, y, L["Show the realm next to the name"],
+    y, frame.realmCheck = BuildCheck(colWindow, y, L["Show the realm next to the name"],
         L["Off by default: the realm eats the column and the name is what ends up cut."],
         function() return ns.db.showRealm end,
         function(v)
@@ -395,35 +499,68 @@ function Picker.Create()
             ns.Window.Refresh()
         end)
 
-    y = BuildSection(right, y + GAP_SECTION, L["Scoreboard"])
+    y = BuildSection(colWindow, y + GAP_SECTION, L["Scoreboard"])
 
-    y, frame.autoMPlus = BuildCheck(right, y, L["Open at the end of a Mythic+ run"],
+    y, frame.autoMPlus = BuildCheck(colWindow, y, L["Open at the end of a Mythic+ run"],
         L["When the keystone ends, the summary of the run opens by itself."],
         function() return ns.db.autoScoreboardMPlus end,
         function(v) ns.db.autoScoreboardMPlus = v end)
 
-    y, frame.autoRaid = BuildCheck(right, y, L["Open when a raid boss dies"],
+    y, frame.autoRaid = BuildCheck(colWindow, y, L["Open when a raid boss dies"],
         L["When an encounter is defeated, the summary of the fight opens by itself."],
         function() return ns.db.autoScoreboardRaid end,
         function(v) ns.db.autoScoreboardRaid = v end)
 
-    -- Os dois últimos placares. Apagados quando não há corrida guardada: botão que responde com
-    -- erro no chat ensina menos que botão apagado.
-    y, frame.lastMPlus = BuildButton(right, y + 4, L["Last Mythic+"],
+    -- Os dois ultimos placares. Apagados quando nao ha corrida guardada: botao que responde com
+    -- erro no chat ensina menos que botao apagado.
+    y, frame.lastMPlus = BuildButton(colWindow, y + 4, L["Last Mythic+"],
         L["Opens the scoreboard of the last Mythic+ run finished on this character."],
         function() ns.Scoreboard.ShowLast("mplus") end)
     frame.lastMPlus.hasRun = "mplus"
 
-    y, frame.lastRaid = BuildButton(right, y, L["Last raid"],
+    y, frame.lastRaid = BuildButton(colWindow, y, L["Last raid"],
         L["Opens the scoreboard of the last raid boss defeated on this character."],
         function() ns.Scoreboard.ShowLast("raid") end)
     frame.lastRaid.hasRun = "raid"
 
-    local clear = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    clear:SetSize(WIDTH - MARGIN * 2, 24)
-    clear:SetPoint("BOTTOMLEFT", MARGIN, 12)
-    clear:SetText(L["Clear the data"])
-    clear:SetScript("OnClick", function() ns.Data.RequestReset() end)
+    ----------------------------------------------------------------------------
+    -- Coluna 3: os TRES textos, cada um com corpo, contorno e sombra proprios
+    ----------------------------------------------------------------------------
+    -- Uma secao por papel, com os mesmos tres controles na mesma ordem. Repetir a forma e o que
+    -- torna a coluna legivel: o jogador aprende uma vez e le as outras duas de relance.
+    frame.roleWidgets = {}
+
+    local ROLE_LABELS = {
+        body   = L["Row text"],
+        title  = L["Title"],
+        header = L["Column header"],
+    }
+
+    local ry = 0
+    for i, role in ipairs(ns.ROLES) do
+        ry = BuildSection(colText, ry + (i > 1 and GAP_SECTION or 0), ROLE_LABELS[role])
+
+        local widgets = {}
+        ry, widgets.size = BuildSlider(colText, ry, L["Text size"],
+            ns.Skin.fontSizeMin, ns.Skin.fontSizeMax, "%dpx",
+            function() return ns.Window.GetRoleSize(role) end,
+            function(v) ns.Window.SetRoleSize(role, v) end)
+
+        ry, widgets.outline = BuildDropdown(colText, ry, L["Font outline"], {
+            { label = L["None"],  value = "none" },
+            { label = L["Thin"],  value = "thin" },
+            { label = L["Thick"], value = "thick" },
+        },
+            function() return ns.Window.GetRoleOutline(role) end,
+            function(v) ns.Window.SetRoleOutline(role, v) end)
+
+        ry, widgets.shadow = BuildCheck(colText, ry, L["Font shadow"],
+            L["A 1px black shadow below the text. Carries the letters over any background."],
+            function() return ns.Window.GetRoleShadow(role) end,
+            function(v) ns.Window.SetRoleShadow(role, v) end)
+
+        frame.roleWidgets[role] = widgets
+    end
 
     return frame
 end
@@ -437,11 +574,21 @@ Picker.__layout = {
     margin = MARGIN,
     gutter = GUTTER,
     columnWidth = COL_W,
+    columns = COLUMNS,
     top = TOP,
     footer = FOOTER,
     checkSize = CHECK_SIZE,
+    checkTextOffset = CHECK_TEXT_OFFSET,
+    arrow = ARROW,
+    arrowGap = ARROW_GAP,
+    control = H_CONTROL,
+    label = H_LABEL,
+    gapLabel = GAP_LABEL,
+    gapField = GAP_FIELD,
+    gapSection = GAP_SECTION,
     field = H_FIELD,
     check = H_CHECK,
+    section = H_SECTION,
 }
 
 ---Cada controle e onde ele fica DENTRO da coluna. É com isso que o harness confere que nada
@@ -457,18 +604,21 @@ end
 --------------------------------------------------------------------------------
 function Picker.RefreshRows()
     if not frame then return end
-    for _, widget in ipairs({ frame.rowsSlider, frame.sizeSlider }) do
-        if widget and widget.Refresh then widget.Refresh() end
-    end
+    if frame.rowsSlider and frame.rowsSlider.Refresh then frame.rowsSlider.Refresh() end
 end
 
 function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
 
-    for _, widget in ipairs({ frame.rowsSlider, frame.sizeSlider, frame.fontDrop,
-                             frame.outlineDrop, frame.shadowCheck, frame.realmCheck,
+    for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.realmCheck,
                              frame.autoMPlus, frame.autoRaid }) do
         if widget and widget.Refresh then widget.Refresh() end
+    end
+
+    for _, widgets in pairs(frame.roleWidgets or {}) do
+        for _, widget in pairs(widgets) do
+            if widget.Refresh then widget.Refresh() end
+        end
     end
 
     for _, b in ipairs({ frame.lastMPlus, frame.lastRaid }) do

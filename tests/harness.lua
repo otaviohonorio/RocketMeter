@@ -983,27 +983,30 @@ do
     check("e os tres na mesma familia", titulo.path, ns.Skin.font)
 end
 
--- E o desenho de verdade tem que usar isso: sem este check, os tres poderiam continuar
--- passando "" no codigo e os checks acima passariam mesmo assim.
+-- E O DESENHO DE VERDADE TEM QUE DIZER O PAPEL. Sem este check, os tres poderiam continuar
+-- desenhando com o corpo da linha e todos os checks de relacao acima passariam do mesmo jeito --
+-- eles conferem a INTENCAO, nao o desenho.
 do
-    local vistos = {}
     local arquivo = io.open("Window.lua")
     local texto = arquivo:read("*a")
     arquivo:close()
-    -- Os tres pelo nome exato: `REALM_FONT_DELTA` tambem casa com "FONT_DELTA" e nao e destes.
-    for _, nome in ipairs({ "TITLE_FONT_DELTA", "CLOCK_FONT_DELTA", "COLHEAD_FONT_DELTA" }) do
-        for chamada in texto:gmatch("ns%.ApplyFont%(([^\n]-)%)") do
-            if chamada:find(nome, 1, true) then
-                vistos[#vistos + 1] = chamada
-            end
+
+    local papeis = {}
+    -- `(.-)%)` para no primeiro `)`, que e o fim da chamada: nenhuma delas tem parenteses
+    -- aninhados antes disso.
+    for chamada in texto:gmatch("ns%.ApplyRoleFont%((.-)%)") do
+        for _, papel in ipairs({ "body", "title", "header" }) do
+            if chamada:find('"' .. papel .. '"', 1, true) then papeis[papel] = true end
         end
     end
-    check("titulo, relogio e cabecalho sao desenhados por delta", #vistos, 3)
-    local semContorno = 0
-    for _, chamada in ipairs(vistos) do
-        if chamada:find('""', 1, true) then semContorno = semContorno + 1 end
-    end
-    check("nenhum deles desenha sem contorno", semContorno, 0)
+    check("as linhas desenham com o papel 'body'", papeis.body or false, true)
+    check("o titulo desenha com o papel 'title'", papeis.title or false, true)
+    check("o cabecalho desenha com o papel 'header'", papeis.header or false, true)
+
+    -- E nenhum deles pode ter voltado a usar o corpo unico.
+    check("ninguem desenha titulo ou cabecalho pelo corpo da linha",
+        texto:find("ApplyFont(frame.header", 1, true) == nil
+        and texto:find("ApplyFont(button.text", 1, true) == nil, true)
 end
 
 ns.ApplyScoreboardFont(fs, 0)
@@ -1337,68 +1340,120 @@ do
     RAID_CLASS_COLORS = salvo
 end
 
-print("== corpo do texto configuravel, com limites ==")
--- A regra do projeto e que aparencia nao se configura (0.20.0). O corpo do texto e a excecao,
--- e ela e deliberada: foi ajustado a pedido SEIS vezes, porque o valor certo depende de
--- resolucao, escala de interface e de quanto o jogador enxerga. O que nao e negociavel sao os
--- limites.
+print("== tres textos independentes, com limites ==")
+-- A regra do projeto e que aparencia nao se configura (0.20.0). A tipografia e a excecao, e ela
+-- e deliberada: o corpo foi ajustado a pedido seis vezes. Depois disso o usuario reprovou o
+-- corpo UNICO com a razao certa -- "mudo um e ele faz pra tudo e fica ruim" -- e agora sao tres
+-- textos com corpo, contorno e sombra proprios.
 do
-    local original = ns.db.fontSize
+    local L = ns.Skin
 
-    check("os limites estao expostos",
-        ns.Skin.fontSizeMin ~= nil and ns.Skin.fontSizeMax ~= nil, true)
+    check("os limites estao expostos", L.fontSizeMin ~= nil and L.fontSizeMax ~= nil, true)
 
     -- TETO derivado da largura da celula, nao escolhido no olho. Em Arial Narrow um digito
-    -- avanca ~0,5 do corpo, e o texto mais longo que `FormatAmount` produz tem 5 caracteres
-    -- ("-339M", "10.0K"). Acima disso o numero volta a virar reticencias -- o defeito da 0.54.0.
+    -- avanca ~0,5 do corpo, e o texto mais longo que `FormatAmount` produz tem 5 caracteres.
     local maiorTexto = 0
     for _, v in ipairs({ 0, 999, 9995, 999999, 1000000, 99950000, 999500000, 1000000000 }) do
         local t = ns.Data.FormatAmount(v)
         if #t > maiorTexto then maiorTexto = #t end
     end
-    local larguraCelula = ns.Skin.columnWidth - 8
     check("o teto e o que cabe na celula",
-        ns.Skin.fontSizeMax <= math.floor(larguraCelula / (maiorTexto * 0.5)), true)
+        L.fontSizeMax <= math.floor((L.columnWidth - 8) / (maiorTexto * 0.5)), true)
 
-    -- Ninguem passa dos limites, nem por fora.
-    ns.Window.SetFontSize(99)
-    check("teto respeitado", ns.FontSize(), ns.Skin.fontSizeMax)
-    ns.Window.SetFontSize(1)
-    check("piso respeitado", ns.FontSize(), ns.Skin.fontSizeMin)
-    ns.Window.SetFontSize("dez")
-    check("valor invalido nao muda nada", ns.FontSize(), ns.Skin.fontSizeMin)
+    -- OS TRES SAO INDEPENDENTES. E o pedido literal: mexer num nao pode mexer nos outros.
+    ns.Window.SetRoleSize("body", 18)
+    ns.Window.SetRoleSize("title", 12)
+    ns.Window.SetRoleSize("header", 11)
+    check("corpo das linhas guardou o proprio", ns.Window.GetRoleSize("body"), 18)
+    check("titulo guardou o proprio", ns.Window.GetRoleSize("title"), 12)
+    check("cabecalho guardou o proprio", ns.Window.GetRoleSize("header"), 11)
 
-    -- A HIERARQUIA ACOMPANHA. Foi para isto que titulo/relogio/cabecalho viraram deltas na
-    -- 0.56.1: com absolutos, mudar o corpo aqui desmancharia a relacao de novo.
-    ns.Window.SetFontSize(20)
-    check("titulo acompanhou o corpo", ns.Skin.titleFontSize, 20 - 2)
-    check("cabecalho acompanhou o corpo", ns.Skin.colheadFontSize, 20 - 4)
-    check("e continua menor que a linha", ns.Skin.colheadFontSize < ns.Skin.fontSize, true)
+    ns.Window.SetRoleSize("body", 14)
+    check("mexer no corpo NAO mexe no titulo", ns.Window.GetRoleSize("title"), 12)
+    check("mexer no corpo NAO mexe no cabecalho", ns.Window.GetRoleSize("header"), 11)
 
-    -- A LINHA CRESCE JUNTO. Com a altura travada em 25, o corpo 20 encostaria na faixa de
-    -- progresso do rodape e na linha de cima.
-    check("altura da linha cresce com o corpo", ns.Skin.rowHeight > 25, true)
-    ns.Window.SetFontSize(12)
-    check("e volta ao piso medido no nativo quando o corpo e pequeno", ns.Skin.rowHeight, 25)
+    -- CONTORNO tambem e por papel.
+    ns.Window.SetRoleOutline("body", "thick")
+    ns.Window.SetRoleOutline("title", "none")
+    check("contorno do corpo", ns.OutlineFor("body"), "THICKOUTLINE")
+    check("contorno do titulo", ns.OutlineFor("title"), "")
+    check("mexer num contorno NAO mexe no outro",
+        ns.Window.GetRoleOutline("body"), "thick")
 
-    -- CONTORNO SAI SOZINHO no corpo pequeno: 1px sobre caixa alta de ~9px fecha os vazados.
-    check("corpo pequeno perde o contorno", ns.Skin.fontOutline, "")
-    ns.Window.SetFontSize(16)
-    check("corpo normal tem contorno", ns.Skin.fontOutline, "OUTLINE")
+    -- SOMBRA tambem.
+    ns.Window.SetRoleShadow("body", false)
+    ns.Window.SetRoleShadow("title", true)
+    check("sombra do corpo desligada", ns.ShadowAlphaFor("body"), 0)
+    check("sombra do titulo ligada", ns.ShadowAlphaFor("title") > 0, true)
 
-    -- E o PLACAR nao pode ser arrastado junto: ele tem corpo proprio, ja aprovado.
+    -- LIMITES valem para todo papel, nao so para o corpo.
+    ns.Window.SetRoleSize("header", 99)
+    check("teto respeitado em qualquer papel", ns.Window.GetRoleSize("header"), L.fontSizeMax)
+    ns.Window.SetRoleSize("header", 1)
+    check("piso respeitado em qualquer papel", ns.Window.GetRoleSize("header"), L.fontSizeMin)
+    ns.Window.SetRoleSize("header", "dez")
+    check("valor invalido nao muda nada", ns.Window.GetRoleSize("header"), L.fontSizeMin)
+
+    -- O CONTORNO DESCE UM DEGRAU no corpo pequeno, por papel: e o cabecalho, o menor dos tres,
+    -- que fecharia as letras primeiro.
+    ns.Window.SetRoleOutline("header", "thin")
+    ns.Window.SetRoleSize("header", 10)
+    check("contorno some no papel pequeno", ns.OutlineFor("header"), "")
+    ns.Window.SetRoleSize("header", 16)
+    check("e volta quando o papel cresce", ns.OutlineFor("header"), "OUTLINE")
+
+    -- A ALTURA DA LINHA segue o CORPO DAS LINHAS, nao os outros dois.
+    ns.Window.SetRoleSize("body", 20)
+    check("altura da linha cresce com o corpo das linhas", ns.Skin.rowHeight > 25, true)
+    ns.Window.SetRoleSize("title", 20)
+    local antes = ns.Skin.rowHeight
+    ns.Window.SetRoleSize("title", 10)
+    check("e nao muda quando o titulo muda", ns.Skin.rowHeight, antes)
+
+    -- E O PLACAR nao pode ser arrastado junto: tem corpo proprio, ja aprovado.
     do
         local fsPlacar = spyFontString()
-        ns.Window.SetFontSize(20)
+        ns.Window.SetRoleSize("body", 20)
         ns.ApplyScoreboardFont(fsPlacar, 0)
         local grande = fsPlacar.size
-        ns.Window.SetFontSize(10)
+        ns.Window.SetRoleSize("body", 10)
         ns.ApplyScoreboardFont(fsPlacar, 0)
         check("o placar nao segue o corpo da janela", fsPlacar.size, grande)
         check("e continua no corpo dele", fsPlacar.size, ns.Skin.scoreboardFontSize)
     end
 
-    ns.Window.SetFontSize(original)
+    -- volta ao padrao
+    for _, role in ipairs(ns.ROLES) do
+        local d = ns.ROLE_DEFAULTS[role]
+        ns.Window.SetRoleSize(role, d.size)
+        ns.Window.SetRoleOutline(role, d.outline)
+        ns.Window.SetRoleShadow(role, d.shadow)
+    end
+end
+
+print("== migracao: um texto vira tres ==")
+-- As chaves antigas eram unicas para a janela inteira. Herda-las nos tres papeis mantem a tela
+-- como o jogador deixou -- so que agora separavel. O TAMANHO e a excecao: herdar o corpo unico
+-- nos tres achataria a hierarquia que o medidor nativo tem (titulo e cabecalho menores).
+do
+    local salvo = ns.db.text
+    ns.db.text = nil
+    ns.db.fontSize, ns.db.fontOutline, ns.db.fontShadow = 18, "thick", false
+
+    ns.Profile.EnsureRuntimeDefaults()
+
+    check("o corpo salvo foi para as linhas", ns.db.text.body.size, 18)
+    check("o titulo manteve a distancia que tinha", ns.db.text.title.size, 16)
+    check("o cabecalho tambem", ns.db.text.header.size, 14)
+    check("o contorno foi herdado nos tres",
+        ns.db.text.body.outline == "thick" and ns.db.text.title.outline == "thick"
+        and ns.db.text.header.outline == "thick", true)
+    check("a sombra tambem",
+        ns.db.text.body.shadow == false and ns.db.text.header.shadow == false, true)
+    check("as chaves antigas sairam", ns.db.fontSize == nil and ns.db.fontOutline == nil, true)
+
+    ns.db.text = salvo
+    ns.RefreshSkin()
 end
 
 print("== grade do configurador: nada vaza da coluna ==")
@@ -1439,19 +1494,102 @@ do
     local sobra = L.columnWidth - L.checkSize - 6
     check("sobra largura util para o rotulo do checkbox", sobra > 200, true)
 
-    -- AS DUAS COLUNAS CABEM NA JANELA, com as margens.
-    check("as duas colunas cabem na largura",
-        L.margin * 2 + L.columnWidth * 2 + L.gutter <= L.width, true)
+    -- AS COLUNAS CABEM NA JANELA, com as margens.
+    check("as colunas cabem na largura",
+        L.margin * 2 + L.columnWidth * L.columns + L.gutter * (L.columns - 1) <= L.width, true)
 
-    -- ALTURA DE LINHA COMPORTA O CONTROLE. Um combo tem 24px; o campo tem que reservar o
-    -- rotulo em cima MAIS o controle, senao a proxima linha encosta -- foi o "muito colados".
-    check("campo com rotulo em cima comporta combo de 24px", L.field - 24 >= 16, true)
-    check("linha de checkbox comporta a caixa", L.check - L.checkSize >= 4, true)
+    -- O RITMO VERTICAL. O que se trava e a RAZAO e a VIZINHANCA, nao os numeros crus.
+    --
+    -- A causa de "ta tudo muito junto e grudado, e feio, confuso" foi medida: o espaco DENTRO de
+    -- um campo (rotulo -> seu controle) era 4 e o espaco ENTRE campos era 6 -- 1,5x. Com 1,5x o
+    -- olho nao decide se o rotulo pertence ao controle de baixo ou a linha de cima. E a lei de
+    -- proximidade da Gestalt.
+    --
+    -- O piso e 2x, e ele nao e escolhido: e o que a propria Blizzard pratica na transicao de
+    -- secao (25 de branco acima do titulo contra 9 entre linhas -- `Blizzard_SettingsList.lua:46`
+    -- e `Blizzard_SettingControls.xml:14,19`). Abaixo disso a borda de grupo deixa de ser vista.
+    check("o espaco entre campos e MUITO maior que o de dentro do campo",
+        L.gapField >= L.gapLabel * 2, true)
+    check("e o espaco entre secoes e maior ainda que o entre campos",
+        L.gapSection >= L.gapField * 2, true)
+
+    -- NAO HA GRADE DE 4 AQUI, e o teste registra por que: nenhum dos numeros da Blizzard e
+    -- multiplo de 4. Travar a grade obrigaria a arredondar 9 para 8 e 25 para 24, perdendo a
+    -- coincidencia exata com o nativo -- que e o objetivo declarado da tela.
+    check("o respiro entre campos e o do formulario empilhado nativo", L.gapField, 10)
+    check("o branco de secao e o que a Blizzard abre acima de um titulo", L.gapSection, 25)
+
+    -- A linha de controle tem a altura que a Blizzard usa nos NOVE templates de opcao dela
+    -- (`Blizzard_SettingControls.xml:108-164`, todos 280x26).
+    check("altura de controle e a do painel de opcoes do jogo", L.control, 26)
+
+    -- VIZINHANCA VERTICAL. ESTE E O TESTE QUE FALTAVA DE VERDADE: o `Probe` guardava so `x` e
+    -- `width`, e as TRES reprovacoes in-game por geometria foram colisao VERTICAL -- abas
+    -- sobrepostas, campo encavalado no seguinte. Nao havia o que conferir.
+    do
+        local porColuna = {}
+        for _, c in ipairs(controles) do
+            if c.column then
+                porColuna[c.column] = porColuna[c.column] or {}
+                local t = porColuna[c.column]
+                t[#t + 1] = c
+            end
+        end
+        check("os controles sabem em que coluna estao", next(porColuna) ~= nil, true)
+
+        -- O vao e medido entre TINTAS, e por isso e o branco que o jogador enxerga de verdade.
+        local menorVao, menorNome = math.huge, nil
+        local menorSecao, secaoNome = math.huge, nil
+        for _, lista in pairs(porColuna) do
+            table.sort(lista, function(a, b) return a.y < b.y end)
+            for i = 2, #lista do
+                local ant, cur = lista[i - 1], lista[i]
+                local vao = cur.y - (ant.y + ant.height)
+                if cur.isSection then
+                    if vao < menorSecao then menorSecao, secaoNome = vao, cur.name end
+                elseif vao < menorVao then
+                    menorVao, menorNome = vao, ant.name .. " -> " .. cur.name
+                end
+            end
+        end
+
+        -- PISO ABSOLUTO: os 9 de respiro de linha do painel de Opcoes
+        -- (`Blizzard_SettingsList.lua:46`). Nunca zero, que era o estado anterior desta tela.
+        check("o menor vao entre campos vizinhos (" .. tostring(menorNome) .. ")",
+            menorVao >= 9, true)
+
+        -- E A TROCA DE ASSUNTO TEM QUE SER VISIVELMENTE MAIOR: 25, o branco que a Blizzard abre
+        -- acima de um titulo de secao (9 de respiro + 16 de recuo do titulo no bloco de 45).
+        check("o menor vao antes de uma secao (" .. tostring(secaoNome) .. ")",
+            menorSecao >= 25, true)
+
+        -- E a RAZAO entre os dois, que e o defeito original: 1,5x nao separa nada.
+        check("a troca de secao e ao menos o dobro do vao entre campos",
+            menorSecao >= menorVao * 2, true)
+    end
+
+    -- ALVO DE CLIQUE. WCAG 2.2 SC 2.5.8 (AA): 24x24, OU 24 de distancia CENTRO A CENTRO ate o
+    -- vizinho -- a excecao se mede entre centros, nao entre bordas. As setas de reordenar sao
+    -- 18x18; com o vao de 2 que havia dava 20 e reprovava.
+    check("as setas passam no criterio de alvo adjacente",
+        L.arrow + L.arrowGap >= 24, true)
+
+    -- A CAIXA DE OPCAO e o rotulo dela andam em par. O template original e 32x32 com o texto em
+    -- -2 (margem transparente da arte); a 28x28 a Blizzard reancora em +2
+    -- (`SharedUIPanelTemplates.xml:1322,1337`). Copiar so o 28 deixa o texto comecando ANTES do
+    -- fim da caixa, que foi o estado anterior.
+    check("caixa de 28 vem com o rotulo reancorado em +2", L.checkSize == 28 and L.checkTextOffset == 2, true)
+
+    -- E A CAIXA NAO PODE ENCOSTAR NA PROXIMA: foi o que subir a caixa de 24 para 28 causou. A
+    -- vaga da linha de caixa e 26+10, e a caixa e 28 -- ou seja, ela transborda 2 da linha de
+    -- controle, como a da Blizzard (30x29 numa linha de 26, `SettingControls.xml:81`). O que
+    -- precisa sobrar e o respiro, e ele nao pode virar negativo.
+    check("caixa de opcao tem folga ate a proxima", L.check - L.checkSize >= 8, true)
 end
 
 print("== fonte, contorno e sombra configuraveis ==")
 do
-    local fonte, contorno, sombra = ns.db.font, ns.db.fontOutline, ns.db.fontShadow
+    local fonte = ns.db.font
 
     -- FONTE. So caminhos que aparecem nas declaracoes da Blizzard entram na lista: caminho de
     -- fonte inventado nao da erro, da texto que some.
@@ -1488,36 +1626,13 @@ do
         check("e cai na fonte padrao", fs.path, ns.FONT_CHOICES[1].path)
     end
 
-    -- CONTORNO nos tres niveis do WoW, com os nomes do Chattynator.
+    -- Contorno e sombra por papel tem bloco proprio ("tres textos independentes"): aqui so
+    -- interessa a FONTE, que continua sendo uma so para o addon inteiro.
     ns.db.font = nil
-    ns.Window.SetOutline("none")
-    check("contorno nenhum", ns.OutlineFor(16), "")
-    ns.Window.SetOutline("thick")
-    check("contorno grosso", ns.OutlineFor(16), "THICKOUTLINE")
-    ns.Window.SetOutline("thin")
-    check("contorno fino", ns.OutlineFor(16), "OUTLINE")
+    ns.RefreshSkin()
+    check("voltar ao padrao restaura a fonte", ns.Skin.font, ns.FONT_CHOICES[1].path)
 
-    -- E DESCE UM DEGRAU no corpo pequeno, em vez de obedecer cru: o cabecalho de coluna sai
-    -- quatro pontos menor que a linha, e ali o contorno fecha os vazados da letra.
-    ns.Window.SetOutline("thick")
-    check("grosso vira fino no corpo pequeno", ns.OutlineFor(10), "OUTLINE")
-    ns.Window.SetOutline("thin")
-    check("fino some no corpo pequeno", ns.OutlineFor(10), "")
-
-    -- SOMBRA liga e desliga pelo alfa, nao removendo a chamada.
-    do
-        local fs = spyFontString()
-        local alfa
-        function fs.SetShadowColor(_, _, _, _, a) alfa = a end
-        ns.Window.SetShadow(true)
-        ns.ApplyFont(fs, 0)
-        check("sombra ligada tem alfa", alfa > 0, true)
-        ns.Window.SetShadow(false)
-        ns.ApplyFont(fs, 0)
-        check("sombra desligada zera o alfa", alfa, 0)
-    end
-
-    ns.db.font, ns.db.fontOutline, ns.db.fontShadow = fonte, contorno, sombra
+    ns.db.font = fonte
     ns.RefreshSkin()
 end
 

@@ -102,9 +102,25 @@ local FONT_SIZE_MAX = 20
 -- qual o placar (corpo 12) nunca teve contorno.
 local OUTLINE_MIN_SIZE = 13
 
-local TITLE_FONT_DELTA = -2     -- linha 16 -> 14
-local CLOCK_FONT_DELTA = -3     -- linha 16 -> 13
-local COLHEAD_FONT_DELTA = -4   -- linha 16 -> 12
+-- TRÊS TEXTOS INDEPENDENTES, cada um com corpo, contorno e sombra próprios.
+--
+-- Eles eram deltas de um corpo único (−2, −3, −4), e o usuário reprovou pelo motivo certo:
+-- *"mudo um e ele faz pra tudo e fica ruim"*. Um cabeçalho de coluna e o corpo de uma linha
+-- de número não têm por que andar juntos — o primeiro é rótulo estático que se lê uma vez, o
+-- segundo muda a cada segundo e é o que se lê de relance.
+--
+-- Os deltas viram apenas o PADRÃO de cada papel; a partir daí cada um é seu.
+local ROLES = { "body", "title", "header" }
+
+local ROLE_DEFAULTS = {
+    body   = { size = 16, outline = "thin", shadow = true },
+    title  = { size = 14, outline = "thin", shadow = true },
+    header = { size = 12, outline = "none", shadow = true },
+}
+
+-- O relógio mora na barra de título e acompanha o título, um ponto abaixo. Não virou um quarto
+-- controle porque ninguém pensa nele como um texto separado — é a hora do título.
+local CLOCK_DELTA = -1
 
 ---Altura da linha para um dado corpo.
 ---
@@ -126,24 +142,52 @@ end
 ---corpo fixo isso bastava; agora precisa ser refeito a cada mudança, senão o placar continuaria
 ---calculando o delta dele contra o corpo antigo.
 function ns.RefreshSkin()
-    local size = ns.FontSize()
-    ns.Skin.fontSize = size
-    ns.Skin.titleFontSize = size + TITLE_FONT_DELTA
-    ns.Skin.clockFontSize = size + CLOCK_FONT_DELTA
-    ns.Skin.colheadFontSize = size + COLHEAD_FONT_DELTA
-    ns.Skin.fontOutline = ns.OutlineFor(size)
     ns.Skin.font = ns.FontPath()
-    ns.Skin.rowHeight = ns.RowHeightFor(size)
+    ns.Skin.fontSize = ns.RoleSize("body")
+    ns.Skin.titleFontSize = ns.RoleSize("title")
+    ns.Skin.clockFontSize = ns.RoleSize("title") + CLOCK_DELTA
+    ns.Skin.colheadFontSize = ns.RoleSize("header")
+    ns.Skin.fontOutline = ns.OutlineFor("body")
+    ns.Skin.rowHeight = ns.RowHeightFor(ns.RoleSize("body"))
 end
 
----O contorno que serve para este corpo.
+---A configuracao de um papel, sempre completa e sempre dentro dos limites.
 ---
----Regra unica para a janela inteira, e por isso ela precisa depender do TAMANHO e nao da tela:
----com o corpo no piso, o cabecalho de coluna (quatro pontos menor) chega a 6pt, e um contorno
----de 1px ali e mancha. Antes isso era decidido por constante, o que so funcionava enquanto o
----corpo fosse fixo.
-function ns.OutlineFor(size)
-    local wanted = (ns.db and ns.db.fontOutline) or "thin"
+---Le da configuracao a cada chamada em vez de guardar: assim o passo do configurador aparece
+---na tela sem `/reload`. E cai no padrao do papel quando a chave nao existe -- que e o caso de
+---quem atualiza o addon antes de a migracao rodar.
+function ns.RoleConfig(role)
+    local base = ROLE_DEFAULTS[role] or ROLE_DEFAULTS.body
+    local saved = ns.db and ns.db.text and ns.db.text[role]
+    if type(saved) ~= "table" then return base end
+
+    local size = saved.size
+    if type(size) ~= "number" then size = base.size end
+    if size < FONT_SIZE_MIN then size = FONT_SIZE_MIN end
+    if size > FONT_SIZE_MAX then size = FONT_SIZE_MAX end
+
+    return {
+        size = size,
+        outline = saved.outline or base.outline,
+        shadow = saved.shadow ~= false,
+    }
+end
+
+function ns.RoleSize(role)
+    return ns.RoleConfig(role).size
+end
+
+ns.ROLES = ROLES
+ns.ROLE_DEFAULTS = ROLE_DEFAULTS
+
+---O contorno de um PAPEL, ja considerando o corpo dele.
+---
+---Recebe o papel e nao o tamanho porque agora cada texto tem contorno proprio -- era isso que
+---faltava, e o usuario reprovou o contorno unico com a razao certa: "quero mexer no contorno de
+---cada um tambem".
+function ns.OutlineFor(role)
+    local config = ns.RoleConfig(role)
+    local size, wanted = config.size, config.outline
 
     local flags = ""
     for _, choice in ipairs(ns.OUTLINE_CHOICES) do
@@ -161,6 +205,11 @@ function ns.OutlineFor(size)
     return flags
 end
 
+---A sombra de um papel: alfa 0.8 quando ligada, 0 quando nao.
+function ns.ShadowAlphaFor(role)
+    return ns.RoleConfig(role).shadow and 0.8 or 0
+end
+
 ---O corpo escolhido, sempre dentro dos limites.
 ---
 ---Lê da configuração a cada chamada em vez de guardar numa constante: assim o passo do
@@ -168,12 +217,10 @@ end
 local FontSize
 function ns.FontSize() return FontSize() end
 
+---O corpo das LINHAS. Ficou como atalho para `ns.RoleSize("body")` porque metade do arquivo já
+---o chamava, e trocar tudo por um nome mais longo só faria diferença de digitação.
 function FontSize()
-    local size = ns.db and ns.db.fontSize
-    if type(size) ~= "number" then return FONT_SIZE_DEFAULT end
-    if size < FONT_SIZE_MIN then return FONT_SIZE_MIN end
-    if size > FONT_SIZE_MAX then return FONT_SIZE_MAX end
-    return size
+    return ns.RoleSize("body")
 end
 
 -- O PLACAR não segue esta janela. Ele foi visto e aprovado com corpo 12, e a subida para 13
@@ -266,7 +313,7 @@ local WINDOW_ALPHA = 0
 -- copiar valores — cópia é o que faz as telas divergirem com o tempo.
 ns.Skin = {
     font = FONT,
-    fontSize = FONT_SIZE_DEFAULT,
+    fontSize = ROLE_DEFAULTS.body.size,
     -- O contorno da JANELA DE COMBATE. O placar (corpo 12) e o painel de detalhamento (13)
     -- passam `""` de propósito: 1px de contorno sobre um glifo de ~8px fecha os vazados da
     -- letra, e os dois já foram vistos e aprovados sem ele. Se um dia tiverem que acompanhar,
@@ -274,9 +321,9 @@ ns.Skin = {
     fontOutline = "OUTLINE",
     -- Corpos com valor próprio, expostos para as outras telas não redigitarem o literal: o
     -- placar tinha um `11` cravado no código que precisaria ser caçado à mão se este mudasse.
-    colheadFontSize = FONT_SIZE_DEFAULT + COLHEAD_FONT_DELTA,
-    titleFontSize = FONT_SIZE_DEFAULT + TITLE_FONT_DELTA,
-    clockFontSize = FONT_SIZE_DEFAULT + CLOCK_FONT_DELTA,
+    colheadFontSize = ROLE_DEFAULTS.header.size,
+    titleFontSize = ROLE_DEFAULTS.title.size,
+    clockFontSize = ROLE_DEFAULTS.title.size + CLOCK_DELTA,
     -- Limites do corpo, expostos para o configurador não redigitar os números.
     fontSizeMin = FONT_SIZE_MIN,
     fontSizeMax = FONT_SIZE_MAX,
@@ -456,14 +503,19 @@ local function SafeSetFont(fontString, path, size, flags)
     return false
 end
 
----Aplica a fonte configurada. `delta` ajusta o corpo para rótulos secundários.
-function ns.ApplyFont(fontString, delta, flags)
-    local size = FontSize() + (delta or 0)
+---Aplica a fonte de um PAPEL. `delta` ajusta o corpo para textos secundários do mesmo papel
+---(o relógio, o reino), que continuam acompanhando o papel a que pertencem.
+---
+---A assinatura leva o papel, e não o tamanho, e é isso que permite os três textos
+---independentes: cada chamada diz **quem ela é**, e a configuração daquele papel decide corpo,
+---contorno e sombra. Com um corpo só, mexer num mexia em todos — que foi a reprovação.
+function ns.ApplyRoleFont(fontString, role, delta, flagsOverride)
+    local config = ns.RoleConfig(role)
+    local size = config.size + (delta or 0)
     if size < 6 then size = 6 end
 
-    -- O contorno segue o TAMANHO DESTE texto, não o da linha: o cabeçalho de coluna é quatro
-    -- pontos menor, e num corpo pequeno ele fecharia as letras antes da linha fechar.
-    if flags == nil then flags = ns.OutlineFor(size) end
+    local flags = flagsOverride
+    if flags == nil then flags = ns.OutlineFor(role) end
 
     SafeSetFont(fontString, ns.FontPath(), size, flags)
 
@@ -472,8 +524,20 @@ function ns.ApplyFont(fontString, delta, flags)
     -- referência de legibilidade foi a janela de chat dele. Preto cheio somado ao contorno
     -- engrossa o traço duas vezes no mesmo pixel.
     fontString:SetShadowOffset(1, -1)
-    local on = not ns.db or ns.db.fontShadow ~= false
-    fontString:SetShadowColor(0, 0, 0, on and 0.8 or 0)
+    fontString:SetShadowColor(0, 0, 0, config.shadow and 0.8 or 0)
+end
+
+---O corpo das linhas, para quem tem corpo próprio e só precisa herdar contorno e sombra: o
+---placar e o painel de detalhamento entram por aqui.
+function ns.ApplyFont(fontString, delta, flags)
+    local size = ns.RoleSize("body") + (delta or 0)
+    if size < 6 then size = 6 end
+
+    if flags == nil then flags = ns.OutlineFor("body") end
+
+    SafeSetFont(fontString, ns.FontPath(), size, flags)
+    fontString:SetShadowOffset(1, -1)
+    fontString:SetShadowColor(0, 0, 0, ns.ShadowAlphaFor("body"))
 end
 
 ---Fonte do painel de leitura, que tem corpo próprio (ver `PANEL_FONT_SIZE`).
@@ -897,7 +961,7 @@ local function BuildColumnHeader()
         button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
-        ns.ApplyFont(button.text, COLHEAD_FONT_DELTA)
+        ns.ApplyRoleFont(button.text, "header", 0)
 
         local label = ns.Data.GetShortLabel(key)
         if key == ns.db.sortBy then
@@ -1056,12 +1120,12 @@ local function BuildRow(index)
     row.icon:SetSize(iconSize, iconSize)
     row.iconClass:SetSize(iconSize, iconSize)
     row.bar:SetHeight(PROGRESS_HEIGHT)
-    ns.ApplyFont(row.name, 0)
+    ns.ApplyRoleFont(row.name, "body", 0)
     SyncHaloFont(row.name, row.nameHalo, 0)
     -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
     -- em 12, o reino fica em 11. E delta, nao valor fixo — se o corpo da linha mudar de novo,
     -- a diferenca de um ponto acompanha sozinha.
-    ns.ApplyFont(row.realm, REALM_FONT_DELTA)
+    ns.ApplyRoleFont(row.realm, "body", REALM_FONT_DELTA)
     SyncHaloFont(row.realm, row.realmHalo, REALM_FONT_DELTA)
 
     for _, cell in pairs(row.cells) do
@@ -1083,7 +1147,7 @@ local function BuildRow(index)
         -- Corpo único na linha inteira: a coluna ordenada não cresce. Números de tamanhos
         -- diferentes lado a lado desalinham a leitura vertical, e quem está ordenando já sabe
         -- por qual coluna — o dourado no cabeçalho diz isso sem mexer no corpo.
-        ns.ApplyFont(cell, 0)
+        ns.ApplyRoleFont(cell, "body", 0)
         SyncHaloFont(cell, row.cellHalos and row.cellHalos[c], 0)
         cell:SetWidth(ColumnWidth() - 8)
         if row.cellHalos and row.cellHalos[c] then
@@ -1343,8 +1407,8 @@ function Window.Rebuild()
 
     -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
     -- Título e relógio têm corpo próprio: no nativo eles são menores que o texto da linha.
-    ns.ApplyFont(frame.header.segment.text, TITLE_FONT_DELTA)
-    ns.ApplyFont(frame.header.clock, CLOCK_FONT_DELTA)
+    ns.ApplyRoleFont(frame.header.segment.text, "title", 0)
+    ns.ApplyRoleFont(frame.header.clock, "title", CLOCK_DELTA)
 
     BuildColumnHeader()
     for i = 1, ns.db.rows do
@@ -1489,7 +1553,7 @@ function ns.StyleCell(row, index, isBest, delta)
     -- O `delta` existe porque esta função é compartilhada: ela reaplica a fonte a cada
     -- desenho, e sem ele o placar (corpo 12) teria as células puxadas de volta para o corpo
     -- da janela (13) — nome em 12 e números em 13 na mesma linha.
-    ns.ApplyFont(cell, delta or 0)
+    ns.ApplyRoleFont(cell, "body", delta or 0)
     cell:SetShadowColor(0, 0, 0, 1)
 
     if highlight then
@@ -1749,14 +1813,24 @@ end
 ---tres sao derivadas -- essa foi a razao de elas terem virado deltas na 0.56.1. `Rebuild` e
 ---necessario porque a altura da linha muda e as linhas ja construidas precisam ser refeitas.
 ---@return boolean mudou
-function Window.SetFontSize(size)
-    if type(size) ~= "number" then return false end
-    size = math.floor(size + 0.5)
-    if size < ns.Skin.fontSizeMin then size = ns.Skin.fontSizeMin end
-    if size > ns.Skin.fontSizeMax then size = ns.Skin.fontSizeMax end
-    if size == ns.db.fontSize then return false end
+---Escreve uma chave de um papel e redesenha.
+---
+---Um caminho so para as tres chaves (corpo, contorno, sombra) e para os tres papeis: elas mudam
+---a mesma coisa -- como o texto e desenhado -- e precisam do mesmo trabalho depois. Ter uma
+---funcao por combinacao seriam nove, e nove caminhos e onde as telas comecam a divergir.
+local function SetRoleField(role, field, value)
+    if not ROLE_DEFAULTS[role] then return false end
 
-    ns.db.fontSize = size
+    ns.db.text = ns.db.text or {}
+    local saved = ns.db.text[role]
+    if type(saved) ~= "table" then
+        saved = CopyTable(ROLE_DEFAULTS[role])
+        ns.db.text[role] = saved
+    end
+
+    if saved[field] == value then return false end
+    saved[field] = value
+
     ns.RefreshSkin()
     Window.Rebuild()
     if frame then
@@ -1768,8 +1842,41 @@ function Window.SetFontSize(size)
     return true
 end
 
+function Window.SetRoleSize(role, size)
+    if type(size) ~= "number" then return false end
+    size = math.floor(size + 0.5)
+    if size < ns.Skin.fontSizeMin then size = ns.Skin.fontSizeMin end
+    if size > ns.Skin.fontSizeMax then size = ns.Skin.fontSizeMax end
+    return SetRoleField(role, "size", size)
+end
+
+function Window.SetRoleOutline(role, value)
+    for _, choice in ipairs(ns.OUTLINE_CHOICES) do
+        if choice.value == value then
+            return SetRoleField(role, "outline", value)
+        end
+    end
+    return false
+end
+
+function Window.SetRoleShadow(role, on)
+    return SetRoleField(role, "shadow", on and true or false)
+end
+
+function Window.GetRoleSize(role)
+    return ns.RoleSize(role)
+end
+
+function Window.GetRoleOutline(role)
+    return ns.RoleConfig(role).outline
+end
+
+function Window.GetRoleShadow(role)
+    return ns.RoleConfig(role).shadow
+end
+
 function Window.GetFontSize()
-    return ns.FontSize()
+    return ns.RoleSize("body")
 end
 
 ---Aplica uma escolha de aparencia e redesenha.
@@ -1792,23 +1899,6 @@ function Window.SetFont(path)
     if type(path) ~= "string" or path == "" then return end
     if path == ns.db.font then return end
     ns.db.font = path
-    ApplyAppearance()
-end
-
-function Window.SetOutline(value)
-    for _, choice in ipairs(ns.OUTLINE_CHOICES) do
-        if choice.value == value and value ~= ns.db.fontOutline then
-            ns.db.fontOutline = value
-            ApplyAppearance()
-            return
-        end
-    end
-end
-
-function Window.SetShadow(on)
-    on = on and true or false
-    if on == (ns.db.fontShadow ~= false) then return end
-    ns.db.fontShadow = on
     ApplyAppearance()
 end
 

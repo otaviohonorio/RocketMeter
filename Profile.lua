@@ -60,6 +60,26 @@ function Profile.EnsureRuntimeDefaults()
     if fromFlags[active.fontOutline] then
         active.fontOutline = fromFlags[active.fontOutline]
     end
+
+    -- UM texto virou TRES (corpo, titulo, cabecalho), cada um com corpo, contorno e sombra
+    -- proprios. As chaves antigas eram unicas para a janela inteira; herdar cada uma nos tres
+    -- papeis mantem a tela EXATAMENTE como o jogador deixou -- so que agora separavel.
+    --
+    -- O tamanho e a excecao: herdar o corpo unico nos tres achataria a hierarquia (titulo e
+    -- cabecalho menores que a linha, que e o que o medidor nativo faz). Entao o corpo salvo vai
+    -- para a linha, e os outros dois mantem a distancia que tinham -- os deltas -2 e -4.
+    if not active.text then
+        local size = type(active.fontSize) == "number" and active.fontSize or 16
+        local outline = active.fontOutline or "thin"
+        local shadow = active.fontShadow ~= false
+
+        active.text = {
+            body   = { size = size,     outline = outline, shadow = shadow },
+            title  = { size = size - 2, outline = outline, shadow = shadow },
+            header = { size = size - 4, outline = outline, shadow = shadow },
+        }
+        active.fontSize, active.fontOutline, active.fontShadow = nil, nil, nil
+    end
 end
 
 function Profile.Init()
