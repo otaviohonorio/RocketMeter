@@ -491,7 +491,7 @@ function Window.Create()
     frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -4, 0)
 
     frame.gearButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
-        L["Configure columns"], function() ns.Picker.Toggle(frame) end)
+        L["Open the settings"], function() ns.OpenOptions() end)
     frame.gearButton:SetPoint("RIGHT", frame.closeButton, "LEFT", -3, 0)
 
     frame.resetButton = HeaderButton("Interface\\Buttons\\UI-RefreshButton",

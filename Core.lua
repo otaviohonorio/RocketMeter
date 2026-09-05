@@ -15,18 +15,18 @@ ns.defaults = {
     scale = 1.0,
     font = nil,               -- caminho da fonte; nil = Friz Quadrata do jogo
     fontSize = 12,
-    rowHeight = 20,
+    rowHeight = 20,          -- altura da barra na referência
     columnWidth = 58,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
     rowIcon = "spec",         -- "spec" (padrão) ou "class"
-    barTexture = "flat",      -- textura da barra; ver ns.BAR_TEXTURES
+    barTexture = "flat",      -- chapada, como a referência
     rowBorder = true,         -- borda de 1px separando as linhas
     windowAlpha = 0.9,        -- opacidade do fundo da janela
     barAlpha = 1.0,           -- opacidade do preenchimento da barra
     roundIcons = true,        -- ícone circular, como no medidor nativo
     valueFormat = "columns",  -- colunas, como o usuário quer; "details" = 734K (28.2K, 100%)
     showColumnHeader = true,  -- faixa com os nomes das colunas
-    barBrightness = 0.65,     -- escurece a cor da classe para o texto branco contrastar
+    barBrightness = 0.7,      -- escurece a cor da classe para o texto branco contrastar
     fontOutline = "OUTLINE",  -- "none" | "OUTLINE" | "THICKOUTLINE"
     highlightBest = true,     -- realça quem lidera cada coluna
     autoHeight = true,        -- encolhe para o número de jogadores; a alça desliga isso

@@ -1,10 +1,27 @@
 -- RocketMeter | Options.lua
--- O painel inteiro cabe numa tela: conjuntos prontos, uma caixa por coluna, três ajustes.
+--
+-- **Um único lugar para configurar**: o painel de opções do próprio jogo.
+-- Não existe painel próprio — ter dois lugares para mexer na mesma coisa confunde e obriga a
+-- manter dois códigos em sincronia. A engrenagem da janela abre este painel.
+--
+-- Campos que não são um valor simples do banco (colunas, perfil, minimapa, opacidades aninhadas)
+-- entram pela Settings API através de tabelas-proxy com __index/__newindex.
 local ADDON, ns = ...
 local L = ns.L
 
--- As colunas vivem numa lista (ns.db.columns), mas a Settings API trabalha com
--- campos de tabela. Este proxy expõe cada atributo como um booleano.
+-- Fontes que existem no cliente, sem precisar de biblioteca de mídia.
+local FONTS = {
+    { path = "Fonts\\FRIZQT__.TTF", label = "Friz Quadrata" },
+    { path = "Fonts\\ARIALN.TTF",   label = "Arial Narrow" },
+    { path = "Fonts\\2002.TTF",     label = "2002" },
+    { path = "Fonts\\2002B.TTF",    label = "2002 Bold" },
+    { path = "Fonts\\skurri.TTF",   label = "Skurri" },
+    { path = "Fonts\\MORPHEUS.TTF", label = "Morpheus" },
+}
+
+--------------------------------------------------------------------------------
+-- Proxies: expõem para a Settings API coisas que não são campo simples do banco
+--------------------------------------------------------------------------------
 local columnProxy = setmetatable({}, {
     __index = function(_, key)
         for _, id in ipairs(ns.db.columns) do
@@ -20,17 +37,6 @@ local columnProxy = setmetatable({}, {
     end,
 })
 
--- Fontes que existem no cliente, sem precisar de biblioteca de mídia.
-local FONTS = {
-    { path = "Fonts\\FRIZQT__.TTF", label = "Friz Quadrata" },
-    { path = "Fonts\\ARIALN.TTF",   label = "Arial Narrow" },
-    { path = "Fonts\\2002.TTF",     label = "2002" },
-    { path = "Fonts\\2002B.TTF",    label = "2002 Bold" },
-    { path = "Fonts\\skurri.TTF",   label = "Skurri" },
-    { path = "Fonts\\MORPHEUS.TTF", label = "Morpheus" },
-}
-
--- O botão de minimapa mora em ns.db.minimap.hide; a Settings API quer um campo direto.
 local minimapProxy = setmetatable({}, {
     __index = function(_, key)
         if key == "show" then return not ns.db.minimap.hide end
@@ -44,7 +50,6 @@ local minimapProxy = setmetatable({}, {
     end,
 })
 
--- A opção de perfil não é um campo do banco: liga e desliga o próprio banco ativo.
 local profileProxy = setmetatable({}, {
     __index = function(_, key)
         if key == "perCharacter" then return ns.Profile.IsPerCharacter() end
@@ -55,43 +60,135 @@ local profileProxy = setmetatable({}, {
     end,
 })
 
-function ns.SetupOptions()
-    local category, layout = Settings.RegisterVerticalLayoutCategory("Rocket Meter")
-    ns.category = category
+--------------------------------------------------------------------------------
+-- Helpers para encurtar o registro de cada controle
+--------------------------------------------------------------------------------
+local category, layout
 
-    -- Conjuntos prontos ------------------------------------------------------
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Presets"]))
+local function Section(title)
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(title))
+end
 
-    local presets = ns.Data.GetPresets()
-    local presetOrder = { "mplus", "raid", "damage" }
+local function Check(key, label, tooltip, store, onChange)
+    local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_" .. key, key,
+        store or ns.db, "boolean", label, ns.defaults[key])
+    if onChange then
+        Settings.SetOnValueChangedCallback(ADDON .. "_" .. key, onChange)
+    end
+    Settings.CreateCheckbox(category, setting, tooltip)
+    return setting
+end
 
-    local presetSetting = Settings.RegisterAddOnSetting(category, ADDON .. "_preset", "preset",
-        ns.db, "string", L["Apply preset"], "")
-    Settings.SetOnValueChangedCallback(ADDON .. "_preset", function(_, setting, value)
-        if value ~= "" and ns.Window.ApplyPreset(value) then
-            ns.Print(L["columns applied:"] .. " " .. presets[value].label)
-        end
-    end)
-    Settings.CreateDropdown(category, presetSetting, function()
+local function Slider(key, label, tooltip, minimum, maximum, step, onChange)
+    local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_" .. key, key,
+        ns.db, "number", label, ns.defaults[key])
+    if onChange then
+        Settings.SetOnValueChangedCallback(ADDON .. "_" .. key, onChange)
+    end
+    Settings.CreateSlider(category, setting,
+        Settings.CreateSliderOptions(minimum, maximum, step), tooltip)
+    return setting
+end
+
+local function Dropdown(key, label, tooltip, options, onChange)
+    local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_" .. key, key,
+        ns.db, "string", label, ns.defaults[key])
+    if onChange then
+        Settings.SetOnValueChangedCallback(ADDON .. "_" .. key, onChange)
+    end
+    Settings.CreateDropdown(category, setting, function()
         local container = Settings.CreateControlTextContainer()
-        container:Add("", "—")
-        for _, key in ipairs(presetOrder) do
-            if presets[key] then
-                container:Add(key, presets[key].label)
-            end
+        for _, option in ipairs(options) do
+            container:Add(option.value, option.label)
         end
         return container:GetData()
-    end, L["Changes every column at once."])
+    end, tooltip)
+    return setting
+end
 
-    -- Colunas ----------------------------------------------------------------
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Visible columns"]))
+--------------------------------------------------------------------------------
+function ns.SetupOptions()
+    local rebuild = function() ns.Window.Rebuild() end
+    local repaint = function() ns.Window.Refresh(true) end
 
-    for _, attr in ipairs(ns.Data.GetColumns()) do
-        local key = attr.key
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_col" .. key, key,
-            columnProxy, "boolean", attr.label, false)
-        Settings.CreateCheckbox(category, setting, attr.label .. " — " .. L["Show as a column."])
+    category, layout = Settings.RegisterVerticalLayoutCategory("Rocket Meter")
+    ns.category = category
+
+    ----------------------------------------------------------------- Colunas
+    Section(L["Visible columns"])
+
+    for _, column in ipairs(ns.Data.GetColumns()) do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_col_" .. column.key,
+            column.key, columnProxy, "boolean", column.label, false)
+        Settings.CreateCheckbox(category, setting, column.label .. " — " .. L["Show as a column."])
     end
+
+    --------------------------------------------------------------- Aparência
+    Section(L["Appearance"])
+
+    Dropdown("font", L["Font"], L["Typeface used by the window."], (function()
+        local options = {}
+        for _, entry in ipairs(FONTS) do
+            options[#options + 1] = { value = entry.path, label = entry.label }
+        end
+        return options
+    end)(), rebuild)
+
+    Slider("fontSize", L["Font size"], L["Size of the text in the rows."], 8, 20, 1, rebuild)
+
+    Dropdown("fontOutline", L["Text outline"],
+        L["Outline keeps the text readable over any bar colour."], {
+            { value = "OUTLINE", label = L["Thin"] },
+            { value = "THICKOUTLINE", label = L["Thick"] },
+            { value = "none", label = L["None"] },
+        }, rebuild)
+
+    Dropdown("barTexture", L["Bar texture"], L["Look of the filled bar."], (function()
+        local options = {}
+        for _, entry in ipairs(ns.BAR_TEXTURES) do
+            options[#options + 1] = { value = entry.key, label = entry.label }
+        end
+        return options
+    end)(), rebuild)
+
+    Slider("barBrightness", L["Bar brightness"],
+        L["Lower values darken the bar so the white text reads better."], 0.3, 1.0, 0.05, repaint)
+    Slider("barAlpha", L["Bar opacity"], L["Opacity of the coloured fill."], 0.2, 1.0, 0.05, repaint)
+    Slider("windowAlpha", L["Window opacity"], L["Opacity of the window background."], 0.2, 1.0, 0.05, rebuild)
+
+    Slider("rowHeight", L["Row height"], L["Thickness of each bar."], 14, 32, 1, rebuild)
+    Slider("columnWidth", L["Column width"], L["Width reserved for each metric."], 40, 100, 2, function()
+        ns.db.width = nil
+        ns.Window.Rebuild()
+    end)
+
+    Dropdown("rowIcon", L["Row icon"],
+        L["Specialization says more than class: who heals, who tanks."], {
+            { value = "spec", label = L["Specialization"] },
+            { value = "class", label = L["Class"] },
+        }, rebuild)
+
+    Check("roundIcons", L["Round icons"], L["Circular icon, like the built-in meter."], nil, rebuild)
+    Check("rowBorder", L["Row border"], L["Separates one bar from the next."], nil, rebuild)
+    Check("showColumnHeader", L["Column header"], L["Strip with the column names."], nil, rebuild)
+    Check("highlightBest", L["Highlight the leader of each column"],
+        L["Gold for what is good to lead, red for damage taken and deaths."], nil, repaint)
+
+    ------------------------------------------------------------------ Janela
+    Section(L["Window"])
+
+    Check("locked", L["Lock position"], L["Prevents dragging the window by accident."], nil, nil)
+    Check("autoHeight", L["Fit height to the rows"],
+        L["The window shrinks to the number of players with data."], nil, rebuild)
+    Slider("rows", L["Rows"], L["How many players to show."], 3, 25, 1, rebuild)
+    Slider("scale", L["Scale"], L["Window size."], 0.6, 2.0, 0.05, function()
+        ns.Window.ApplyScale()
+    end)
+    Check("combatOnly", L["Show only in combat"],
+        L["The window appears when the fight starts and hides a few seconds after it ends."],
+        nil, function() ns.Window.ApplyVisibility() end)
+    Check("autoScoreboard", L["Scoreboard at the end of M+ and raid"],
+        L["Opens the run summary automatically when it ends."], nil, nil)
 
     do
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_minimap", "show",
@@ -99,181 +196,14 @@ function ns.SetupOptions()
         Settings.CreateCheckbox(category, setting, L["Shows the Rocket Meter button on the minimap."])
     end
 
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_combatOnly", "combatOnly",
-            ns.db, "boolean", L["Show only in combat"], ns.defaults.combatOnly)
-        Settings.SetOnValueChangedCallback(ADDON .. "_combatOnly", function()
-            ns.Window.ApplyVisibility()
-        end)
-        Settings.CreateCheckbox(category, setting,
-            L["The window appears when the fight starts and hides a few seconds after it ends."])
-    end
-
-    -- Perfil -----------------------------------------------------------------
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Profile"]))
+    ------------------------------------------------------------------ Perfil
+    Section(L["Profile"])
 
     do
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_perCharacter", "perCharacter",
             profileProxy, "boolean", L["Settings for this character only"], false)
         Settings.CreateCheckbox(category, setting,
             L["Off: every character shares the same setup. On: this character keeps its own."])
-    end
-
-    -- Aparência ---------------------------------------------------------------
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Appearance"]))
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_font", "font",
-            ns.db, "string", L["Font"], FONTS[1].path)
-        Settings.SetOnValueChangedCallback(ADDON .. "_font", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateDropdown(category, setting, function()
-            local container = Settings.CreateControlTextContainer()
-            for _, font in ipairs(FONTS) do
-                container:Add(font.path, font.label)
-            end
-            return container:GetData()
-        end, L["Typeface used by the window."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_barTexture", "barTexture",
-            ns.db, "string", L["Bar texture"], ns.defaults.barTexture)
-        Settings.SetOnValueChangedCallback(ADDON .. "_barTexture", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateDropdown(category, setting, function()
-            local container = Settings.CreateControlTextContainer()
-            for _, entry in ipairs(ns.BAR_TEXTURES) do
-                container:Add(entry.key, entry.label)
-            end
-            return container:GetData()
-        end, L["Look of the filled bar."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rowBorder", "rowBorder",
-            ns.db, "boolean", L["Row border"], ns.defaults.rowBorder)
-        Settings.SetOnValueChangedCallback(ADDON .. "_rowBorder", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateCheckbox(category, setting, L["Separates one bar from the next."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_barBrightness", "barBrightness",
-            ns.db, "number", L["Bar brightness"], ns.defaults.barBrightness)
-        Settings.SetOnValueChangedCallback(ADDON .. "_barBrightness", function()
-            ns.Window.Refresh(true)
-        end)
-        Settings.CreateSlider(category, setting,
-            Settings.CreateSliderOptions(0.3, 1.0, 0.05), L["Lower values darken the bar so the white text reads better."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_fontOutline", "fontOutline",
-            ns.db, "string", L["Text outline"], ns.defaults.fontOutline)
-        Settings.SetOnValueChangedCallback(ADDON .. "_fontOutline", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateDropdown(category, setting, function()
-            local container = Settings.CreateControlTextContainer()
-            container:Add("OUTLINE", L["Thin"])
-            container:Add("THICKOUTLINE", L["Thick"])
-            container:Add("none", L["None"])
-            return container:GetData()
-        end, L["Outline keeps the text readable over any bar colour."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_fontSize", "fontSize",
-            ns.db, "number", L["Font size"], ns.defaults.fontSize)
-        Settings.SetOnValueChangedCallback(ADDON .. "_fontSize", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateSlider(category, setting,
-            Settings.CreateSliderOptions(8, 20, 1), L["Size of the text in the rows."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rowHeight", "rowHeight",
-            ns.db, "number", L["Row height"], ns.defaults.rowHeight)
-        Settings.SetOnValueChangedCallback(ADDON .. "_rowHeight", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateSlider(category, setting,
-            Settings.CreateSliderOptions(14, 32, 1), L["Thickness of each bar."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_columnWidth", "columnWidth",
-            ns.db, "number", L["Column width"], ns.defaults.columnWidth)
-        Settings.SetOnValueChangedCallback(ADDON .. "_columnWidth", function()
-            ns.db.width = nil
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateSlider(category, setting,
-            Settings.CreateSliderOptions(40, 100, 2), L["Width reserved for each metric."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_highlightBest", "highlightBest",
-            ns.db, "boolean", L["Highlight the leader of each column"], ns.defaults.highlightBest)
-        Settings.SetOnValueChangedCallback(ADDON .. "_highlightBest", function()
-            ns.Window.Refresh(true)
-        end)
-        Settings.CreateCheckbox(category, setting,
-            L["Gold for what is good to lead, red for damage taken and deaths."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rowIcon", "rowIcon",
-            ns.db, "string", L["Row icon"], ns.defaults.rowIcon)
-        Settings.SetOnValueChangedCallback(ADDON .. "_rowIcon", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateDropdown(category, setting, function()
-            local container = Settings.CreateControlTextContainer()
-            container:Add("spec", L["Specialization"])
-            container:Add("class", L["Class"])
-            return container:GetData()
-        end, L["Specialization says more than class: who heals, who tanks."])
-    end
-
-    -- Janela -----------------------------------------------------------------
-    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Window"]))
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_autoScoreboard", "autoScoreboard",
-            ns.db, "boolean", L["Scoreboard at the end of M+ and raid"], ns.defaults.autoScoreboard)
-        Settings.CreateCheckbox(category, setting, L["Opens the run summary automatically when it ends."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_locked", "locked",
-            ns.db, "boolean", L["Lock position"], ns.defaults.locked)
-        Settings.CreateCheckbox(category, setting, L["Prevents dragging the window by accident."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rows", "rows",
-            ns.db, "number", L["Rows"], ns.defaults.rows)
-        Settings.SetOnValueChangedCallback(ADDON .. "_rows", function()
-            ns.Window.Rebuild()
-        end)
-        Settings.CreateSlider(category, setting,
-            Settings.CreateSliderOptions(3, 25, 1), L["How many players to show."])
-    end
-
-    do
-        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_scale", "scale",
-            ns.db, "number", L["Scale"], ns.defaults.scale)
-        Settings.SetOnValueChangedCallback(ADDON .. "_scale", function()
-            ns.Window.ApplyScale()
-        end)
-        Settings.CreateSlider(category, setting,
-            Settings.CreateSliderOptions(0.6, 2.0, 0.05), L["Window size."])
     end
 
     Settings.RegisterAddOnCategory(category)

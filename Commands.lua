@@ -21,7 +21,7 @@ commands["score"] = function()
 end
 
 commands["columns"] = function()
-    ns.Picker.Toggle()
+    ns.OpenOptions()
 end
 
 commands["config"] = function()

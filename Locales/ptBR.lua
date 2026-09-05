@@ -200,3 +200,12 @@ L["Round icons"] = "Ícones redondos"
 L["Column header"] = "Faixa de colunas"
 
 L["Fit height to the rows"] = "Ajustar altura ao conteúdo"
+
+-- Painel unico (0.18.0)
+L["Open the settings"] = "Abrir as opções"
+L["Opacity of the coloured fill."] = "Opacidade do preenchimento colorido."
+L["Opacity of the window background."] = "Opacidade do fundo da janela."
+L["Circular icon, like the built-in meter."] = "Ícone circular, como no medidor nativo."
+L["Strip with the column names."] = "Faixa com os nomes das colunas."
+L["The window shrinks to the number of players with data."] =
+    "A janela encolhe para o número de jogadores com dados."
