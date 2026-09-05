@@ -59,8 +59,19 @@ local function widget(kind)
     function self.GetCenter() return 400, 300 end
     function self.GetID() return 1 end
     -- Getters numericos: sem isso o codigo que faz conta com GetWidth quebra so no simulador.
-    function self.GetWidth() return 400 end
-    function self.GetHeight() return 200 end
+    --
+    -- E `SetWidth`/`SetHeight` MUDAM o que os getters devolvem, como no jogo. Antes eram
+    -- constantes, entao qualquer teste sobre "a janela mudou de tamanho?" respondia sempre que
+    -- nao -- foi assim que a altura por aba passou despercebida.
+    self.__width, self.__height = 400, 200
+    function self.SetWidth(_, v) if type(v) == "number" then self.__width = v end end
+    function self.SetHeight(_, v) if type(v) == "number" then self.__height = v end end
+    function self.SetSize(_, w, h)
+        if type(w) == "number" then self.__width = w end
+        if type(h) == "number" then self.__height = h end
+    end
+    function self.GetWidth() return self.__width end
+    function self.GetHeight() return self.__height end
     function self.GetStringWidth() return 40 end
     function self.GetFrameLevel() return 1 end
     -- A MESMA textura em toda chamada, como no jogo. Devolver uma nova a cada
@@ -1487,6 +1498,64 @@ do
 
     ns.db.font, ns.db.fontOutline, ns.db.fontShadow = fonte, contorno, sombra
     ns.RefreshSkin()
+end
+
+print("== geometria do configurador ==")
+-- O primeiro teste in-game da tela nova mostrou tres defeitos de layout de uma vez: abas
+-- sobrepostas, conteudo por baixo delas e campos colados. Os tres viram numero aqui.
+do
+    local L = ns.Picker.__layout
+
+    -- CONTEUDO ABAIXO DAS ABAS. A aba tem 32px de altura (do template), entao o conteudo tem
+    -- que comecar depois de `tabTop + 32` -- e com folga, senao encosta.
+    check("conteudo comeca abaixo das abas",
+        L.contentTop >= L.tabTop + L.tabHeight, true)
+    check("e com respiro, nao colado", L.contentTop - (L.tabTop + L.tabHeight) >= 10, true)
+
+    -- ESPACAMENTO ENTRE CAMPOS. Um combo tem 24px; com passo de 30 sobravam 6px, que foi o
+    -- "muito colados". A referencia (Chattynator) usa 40 por linha.
+    check("passo cabe um combo de 24px com folga", L.line - 24 >= 10, true)
+
+    -- A JANELA ACOMPANHA A ABA, em vez de ficar na altura da maior.
+    ns.Picker.Create()
+    ns.Picker.Toggle()
+    local alturas = {}
+    for i = 1, 3 do
+        ns.Picker.__selectTab(i)
+        alturas[i] = ns.Picker.__frameHeight()
+    end
+    check("a aba de colunas e a mais alta", alturas[1] > alturas[2], true)
+    check("cada aba tem a sua altura", alturas[2] ~= alturas[3] or alturas[1] ~= alturas[2], true)
+    ns.Picker.__selectTab(1)
+    ns.Picker.Toggle()
+end
+
+print("== migracao do contorno salvo ==")
+-- `fontOutline` guardava a FLAG do WoW ("OUTLINE"); agora guarda a escolha do jogador
+-- ("thin"). Sem converter, o valor salvo nao casa com nenhuma opcao e o combo aparece VAZIO --
+-- foi exatamente o que apareceu no primeiro teste da tela.
+do
+    local salvo = ns.db.fontOutline
+
+    for antigo, novo in pairs({ OUTLINE = "thin", THICKOUTLINE = "thick", [""] = "none" }) do
+        ns.db.fontOutline = antigo
+        ns.Profile.EnsureRuntimeDefaults()
+        check("'" .. antigo .. "' vira '" .. novo .. "'", ns.db.fontOutline, novo)
+    end
+
+    -- Valor ja novo nao pode ser mexido.
+    ns.db.fontOutline = "thick"
+    ns.Profile.EnsureRuntimeDefaults()
+    check("valor ja convertido fica como esta", ns.db.fontOutline, "thick")
+
+    -- E o combo tem que achar o valor: se nao achar, ele desenha em branco.
+    local achou = false
+    for _, escolha in ipairs(ns.OUTLINE_CHOICES) do
+        if escolha.value == ns.db.fontOutline then achou = true end
+    end
+    check("o valor salvo casa com uma opcao do combo", achou, true)
+
+    ns.db.fontOutline = salvo
 end
 
 print("== comandos ==")

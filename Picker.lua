@@ -26,14 +26,49 @@ local L = ns.L
 local Picker = {}
 ns.Picker = Picker
 
-local WIDTH = 360
-local ROW_HEIGHT = 22
-local TAB_TOP = 30              -- espaço que a fileira de abas ocupa
-local CONTENT_TOP = 62          -- primeira linha de conteúdo, abaixo das abas
-local LINE = 30                 -- passo vertical entre controles
-local FOOTER = 40               -- o botão de limpar dados, sempre visível
+local WIDTH = 380
+local ROW_HEIGHT = 24
+
+-- GEOMETRIA DAS ABAS, medida no template e no uso que a Blizzard faz dele.
+--
+--   `PanelTabButtonTemplate` tem `Size y="32"` (`SharedUIPanelTemplates.xml:906`).
+--   O `Blizzard_MacroUI` ancora a primeira em `TOPLEFT y=-28` e a segunda em `LEFT` da
+--   anterior com **x=0** (`Blizzard_MacroUI.xml:183,193`).
+--
+-- O `x=0` é o que estava errado aqui: eu tinha posto −14, chutando que estas abas se encaixam
+-- como as do rastreador de missões. Não se encaixam — ficam lado a lado, e o −14 as sobrepunha
+-- uma na outra, que foi o que o usuário viu.
+local TAB_TOP = 26              -- do topo da janela até a fileira de abas
+local TAB_HEIGHT = 32           -- do template
+local TAB_GAP = 14              -- respiro entre a base das abas e a primeira linha
+
+local CONTENT_TOP = TAB_TOP + TAB_HEIGHT + TAB_GAP
+
+-- PASSO VERTICAL ENTRE CONTROLES. Um combo tem 24px de altura e um deslizador 20; com 30
+-- sobravam 6px entre uma linha e a seguinte, e foi isso que o usuário chamou de "muito
+-- colados". A janela do Chattynator, que é a referência, usa **40** por linha
+-- (`CustomiseDialog/Components.lua`: `holder:SetHeight(40)`). 36 dá a mesma folga sem esticar
+-- a janela nas cinco linhas da aba de aparência.
+local LINE = 36
+
+local FOOTER = 44               -- o botão de limpar dados, sempre visível
+local PADDING = 16              -- margem lateral do conteúdo
 
 local frame, rows
+
+-- Geometria exposta para o harness. O espacamento e a posicao do conteudo em relacao as abas
+-- sao exatamente o que regrediu no primeiro teste da tela, entao viram teste em vez de ficarem
+-- so no comentario.
+Picker.__layout = {
+    width = WIDTH,
+    tabTop = TAB_TOP,
+    tabHeight = TAB_HEIGHT,
+    tabGap = TAB_GAP,
+    contentTop = CONTENT_TOP,
+    line = LINE,
+    footer = FOOTER,
+    padding = PADDING,
+}
 
 local function IsEnabled(key)
     for _, id in ipairs(ns.db.columns) do
@@ -241,6 +276,11 @@ end
 --------------------------------------------------------------------------------
 local tabs, panels = {}, {}
 
+---A janela acompanha a aba.
+---
+---Com altura unica, a aba de colunas (14 linhas) mandava, e a de aparencia (5 controles) ficava
+---com metade da janela vazia -- foi o que apareceu no primeiro teste. Cada painel guarda de
+---quanto precisa, e a janela cresce ou encolhe ao trocar.
 local function SelectTab(index)
     for i, tab in ipairs(tabs) do
         if i == index then
@@ -251,6 +291,9 @@ local function SelectTab(index)
             panels[i]:Hide()
         end
     end
+
+    local needed = panels[index] and panels[index].contentHeight or 0
+    frame:SetHeight(CONTENT_TOP + needed + FOOTER)
     frame.activeTab = index
     Picker.__activeTab = index
     Picker.__tabCount = #tabs
@@ -261,6 +304,7 @@ end
 -- que redescobrir os frames por `_G` e passaria a testar o simulador em vez do addon.
 Picker.__selectTab = function(index) SelectTab(index) end
 Picker.__panelShown = function(index) return panels[index] and panels[index]:IsShown() or false end
+Picker.__frameHeight = function() return frame and frame:GetHeight() or 0 end
 
 local function BuildTab(index, label)
     local tab = CreateFrame("Button", ADDON .. "PickerTab" .. index, frame,
@@ -273,16 +317,17 @@ local function BuildTab(index, label)
     if PanelTemplates_TabResize then PanelTemplates_TabResize(tab, 15, nil, 10) end
 
     if index == 1 then
-        tab:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -TAB_TOP)
+        tab:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -TAB_TOP)
     else
-        tab:SetPoint("LEFT", tabs[index - 1], "RIGHT", -14, 0)
+        -- x=0: as abas ficam LADO A LADO, nao encaixadas.
+        tab:SetPoint("LEFT", tabs[index - 1], "RIGHT", 0, 0)
     end
 
     tabs[index] = tab
 
     local panel = CreateFrame("Frame", nil, frame)
-    panel:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -CONTENT_TOP)
-    panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -14, FOOTER)
+    panel:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -CONTENT_TOP)
+    panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PADDING, FOOTER)
     panels[index] = panel
     return panel
 end
@@ -319,7 +364,8 @@ function Picker.Create()
     local colunas = BuildTab(1, L["Columns"])
     frame.columnsPanel = colunas
 
-    frame.rowsSlider = BuildSlider(colunas, #columns * ROW_HEIGHT + 6, L["Rows"],
+    colunas.contentHeight = #columns * ROW_HEIGHT + LINE + 8
+    frame.rowsSlider = BuildSlider(colunas, #columns * ROW_HEIGHT + 10, L["Rows"],
         ns.Skin.rowsMin, ns.Skin.rowsMax, "%d",
         function() return ns.Window.GetRows() or 5 end,
         function(v) ns.Window.SetRows(v) end)
@@ -328,6 +374,7 @@ function Picker.Create()
     -- Aba 2: aparência
     ----------------------------------------------------------------------------
     local aparencia = BuildTab(2, L["Appearance"])
+    aparencia.contentHeight = LINE * 5 + 8
 
     local fontEntries = {}
     for _, choice in ipairs(ns.FONT_CHOICES) do
@@ -367,6 +414,7 @@ function Picker.Create()
     -- Aba 3: placar
     ----------------------------------------------------------------------------
     local placar = BuildTab(3, L["Scoreboard"])
+    placar.contentHeight = LINE * 4 + 12
 
     frame.autoMPlus = BuildCheck(placar, 0, L["Open at the end of a Mythic+ run"],
         L["When the keystone ends, the summary of the run opens by itself."],

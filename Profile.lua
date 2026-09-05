@@ -51,6 +51,15 @@ function Profile.EnsureRuntimeDefaults()
         active.autoScoreboardRaid = active.autoScoreboard
         active.autoScoreboard = nil
     end
+
+    -- `fontOutline` guardava a FLAG do WoW ("OUTLINE"); agora guarda a escolha do jogador
+    -- ("thin"), na mesma escala do Chattynator. Sem esta conversão o valor salvo não casa com
+    -- nenhuma opção do combo e ele aparece **vazio** — que foi exatamente o que apareceu no
+    -- primeiro teste da tela nova.
+    local fromFlags = { OUTLINE = "thin", THICKOUTLINE = "thick", [""] = "none" }
+    if fromFlags[active.fontOutline] then
+        active.fontOutline = fromFlags[active.fontOutline]
+    end
 end
 
 function Profile.Init()
