@@ -386,6 +386,35 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         end
     end
 
+    -- Índice guid -> ator, por métrica.
+    --
+    -- O cruzamento antes usava `GetCombatSessionSourceFromType`, que devolve o **contêiner de
+    -- magias** — tem `totalAmount` e `combatSpells`, mas **não tem `amountPerSecond`**. Por isso
+    -- as colunas de taxa cruzada (CPS) ficavam em branco enquanto o total aparecia.
+    -- A lista da sessão traz o ator completo; um índice por métrica resolve, e ainda troca N
+    -- chamadas de API por linha por uma só por coluna.
+    local sourceMaps = {}
+    local function SourceFor(attr, wantedGuid)
+        local map = sourceMaps[attr]
+        if map == nil then
+            map = false
+            local other = SessionFor(attr)
+            local list = other and other.combatSources
+            if list then
+                map = {}
+                for i = 1, #list do
+                    local candidate = list[i]
+                    local candidateGuid = candidate.sourceGUID
+                    if candidateGuid ~= nil and not issecretvalue(candidateGuid) then
+                        map[candidateGuid] = candidate
+                    end
+                end
+            end
+            sourceMaps[attr] = map
+        end
+        return map and map[wantedGuid] or nil
+    end
+
     local rows = {}
     local total = #sources
 
@@ -414,7 +443,7 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
                 local from = cache[def.attr]
                 if from == nil then
                     if guidReadable then
-                        from = Data.GetSource(sessionType, def.attr, guid, source.sourceCreatureID) or false
+                        from = SourceFor(def.attr, guid) or false
                     elseif isLocal then
                         -- Em combate: sem GUID legível, só a própria linha pode ser casada.
                         from = Data.GetLocalPlayerSource(SessionFor(def.attr)) or false

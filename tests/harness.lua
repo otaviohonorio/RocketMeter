@@ -140,7 +140,25 @@ C_DamageMeter = {
     GetSessionDurationSeconds = function() return 134 end,
     ResetAllCombatSessions = function() end,
     GetAvailableCombatSessions = function() return { { sessionID = 1 } } end,
-    GetCombatSessionFromType = function()
+    GetCombatSessionFromType = function(sessionType, attribute)
+        -- Cada metrica tem seus proprios valores: e o que torna os testes de cruzamento
+        -- significativos. Antes tudo devolvia a sessao de dano e o teste passava por acidente.
+        local perAttribute = {
+            [Enum.DamageMeterType.HealingDone] = { 120000, 900000, 50000 },
+            [Enum.DamageMeterType.Interrupts] = { 1, 0, 5 },
+            [Enum.DamageMeterType.Deaths] = { 0, 2, 1 },
+        }
+        local values = perAttribute[attribute]
+        if values then
+            local sources = { fakeSource("Thalyra", values[1]), fakeSource("Brumm", values[2]),
+                              fakeSource("Sarien", values[3]) }
+            local total = values[1] + values[2] + values[3]
+            local maximum = math.max(values[1], values[2], values[3])
+            return {
+                combatSources = sources, totalAmount = total,
+                maxAmount = maximum, durationSeconds = 134,
+            }
+        end
         return {
             combatSources = { fakeSource("Thalyra", 1200000), fakeSource("Brumm", 980000),
                               fakeSource("Sarien", 740000) },
@@ -329,7 +347,8 @@ local first = rows[1].values
 check("dano total", first[1], 1200000)
 check("dps (amountPerSecond, nao o total)", first[2], 1200000 / 120)
 check("cura total (metrica cruzada)", first[3], 120000)
-check("hps (metrica cruzada)", first[4], 1000)
+-- Regressao: CPS ficava em branco porque o conteiner de magias nao tem amountPerSecond.
+check("cps (metrica cruzada, nao pode ser nil)", first[4], 120000 / 120)
 check("interrupcoes (metrica cruzada)", first[5], 1)
 
 -- Lider por coluna: Thalyra lidera o dano (linha 1), mas quem cura mais e o Brumm (linha 2)
