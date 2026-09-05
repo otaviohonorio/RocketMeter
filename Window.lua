@@ -603,15 +603,14 @@ function Window.Create()
         return b
     end
 
-    frame.closeButton = HeaderButton(
-        { atlas = "common-icon-redx", texture = "Interface\\Buttons\\UI-GroupLoot-Pass-Up" },
-        L["Close"], function() Window.Hide() end)
-    frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -5, 0)
+    -- Sem botão de fechar: ninguém fecha o medidor no meio do jogo, e um X ao lado do
+    -- ícone de limpar dados convida ao clique errado — um esconde a janela, o outro apaga
+    -- o que foi registrado. Para esconder: `/rm` ou clique no botão do minimapa.
 
     frame.gearButton = HeaderButton(
         { atlas = "questlog-icon-setting", texture = "Interface\\Buttons\\UI-OptionsButton" },
         L["Configure columns"], function() ns.Picker.Toggle(frame) end)
-    frame.gearButton:SetPoint("RIGHT", frame.closeButton, "LEFT", -5, 0)
+    frame.gearButton:SetPoint("RIGHT", header, "RIGHT", -5, 0)
 
     frame.resetButton = HeaderButton(
         { atlas = "common-icon-undo", texture = "Interface\\Buttons\\UI-RefreshButton" },
