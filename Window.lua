@@ -17,7 +17,9 @@ ns.Window = Window
 -- Os valores saem da referencia (Details com a skin do medidor nativo).
 local FONT = "Fonts\\FRIZQT__.TTF"
 local FONT_SIZE = 12
-local FONT_OUTLINE = "OUTLINE"
+-- A skin usa `rowTextShadow = true` e deixa o contorno desligado: é **sombra**, não outline.
+-- Outline engorda o traço e foi o que deixou o texto pesado.
+local FONT_OUTLINE = ""
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 -- Estes números vêm do `styleConfig` da skin Details_Midnight, que está instalada:
 --   wallpaperAlpha = 0.4      -> fundo da janela
@@ -26,7 +28,7 @@ local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
 local ROW_BG_ALPHA = 0.4            -- fundo da linha (skin: barBackgroundAlpha)
 local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
-local WINDOW_ALPHA = 0.4            -- fundo da janela (skin: wallpaperAlpha)
+local WINDOW_ALPHA = 1.0            -- fundo opaco (a skin usa 0.4; testando 100%)
 local ROW_HEIGHT_FIXED = 20         -- skin: barHeight
 local COLUMN_WIDTH_FIXED = 58
 
@@ -67,12 +69,11 @@ function ns.ApplyFont(fontString, delta, flags)
     local size = FONT_SIZE + (delta or 0)
     if size < 6 then size = 6 end
 
-    -- Contorno é o que faz o texto branco sobreviver a qualquer cor de barra.
     fontString:SetFont(FONT, size, flags or FONT_OUTLINE)
-    if flags == nil then
-        fontString:SetShadowOffset(1, -1)
-        fontString:SetShadowColor(0, 0, 0, 1)
-    end
+
+    -- Sombra de 1px carrega o texto branco sobre a barra colorida sem o peso do contorno.
+    fontString:SetShadowOffset(1, -1)
+    fontString:SetShadowColor(0, 0, 0, 1)
 end
 
 ---Em combate `classFilename` pode ser secret, e indexar tabela com chave secret é proibido.
