@@ -161,6 +161,14 @@ local function BuildRow(index)
         row.icon = row.text:CreateTexture(nil, "OVERLAY")
         row.icon:SetSize(ICON_SIZE, ICON_SIZE)
         row.icon:SetPoint("LEFT", row.rank, "RIGHT", 2, 0)
+        if row.icon.SetMask then
+            row.icon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        end
+
+        row.iconClass = row.text:CreateTexture(nil, "OVERLAY")
+        row.iconClass:SetSize(ICON_SIZE, ICON_SIZE)
+        row.iconClass:SetPoint("LEFT", row.rank, "RIGHT", 2, 0)
+        row.iconClass:Hide()
 
         row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
@@ -299,7 +307,7 @@ function Scoreboard.Draw()
             row.rank:SetTextColor(0.6, 0.6, 0.62)
 
             row.rank:SetText(i)
-            ns.ApplyRowIcon(row.icon, source)
+            ns.ApplyRowIcon(row.icon, row.iconClass, source)
             row.name:SetText(source.name)
 
             for c = 1, #columns do

@@ -13,6 +13,18 @@ local L = ns.L
 local Window = {}
 ns.Window = Window
 
+-- APARENCIA FIXA. Nada aqui e configuravel: primeiro o padrao precisa estar certo.
+-- Os valores saem da referencia (Details com a skin do medidor nativo).
+local FONT = "Fonts\\FRIZQT__.TTF"
+local FONT_SIZE = 12
+local FONT_OUTLINE = "OUTLINE"
+local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
+local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
+local ROW_BG_TINT = 0.16            -- fundo da linha: a mesma cor, bem apagada
+local WINDOW_ALPHA = 0.92
+local ROW_HEIGHT_FIXED = 20
+local COLUMN_WIDTH_FIXED = 58
+
 local HEADER_HEIGHT = 22
 local COLHEAD_HEIGHT = 14
 local NAME_MIN_WIDTH = 96
@@ -31,11 +43,7 @@ ns.BAR_TEXTURES = {
 }
 
 function ns.BarTexture()
-    local wanted = ns.db.barTexture
-    for _, entry in ipairs(ns.BAR_TEXTURES) do
-        if entry.key == wanted then return entry.path end
-    end
-    return ns.BAR_TEXTURES[1].path
+    return BAR_TEXTURE
 end
 
 local frame, headerRow, rows
@@ -46,22 +54,16 @@ local visibleRows = -1
 -- Fonte e cor
 --------------------------------------------------------------------------------
 function ns.FontPath()
-    return ns.db.font or "Fonts\\FRIZQT__.TTF"
+    return FONT
 end
 
 ---Aplica a fonte configurada. `delta` ajusta o corpo para rótulos secundários.
 function ns.ApplyFont(fontString, delta, flags)
-    local size = (ns.db.fontSize or 12) + (delta or 0)
+    local size = FONT_SIZE + (delta or 0)
     if size < 6 then size = 6 end
 
     -- Contorno é o que faz o texto branco sobreviver a qualquer cor de barra.
-    local outline = flags
-    if outline == nil then
-        outline = ns.db.fontOutline
-        if outline == nil or outline == "none" then outline = "" end
-    end
-
-    fontString:SetFont(ns.FontPath(), size, outline)
+    fontString:SetFont(FONT, size, flags or FONT_OUTLINE)
     if flags == nil then
         fontString:SetShadowOffset(1, -1)
         fontString:SetShadowColor(0, 0, 0, 1)
@@ -91,14 +93,13 @@ end
 ---Details a barra é uma versão **escurecida** dela. `barBrightness` controla o quanto.
 function ns.BarColor(classFilename)
     local r, g, b = ns.ClassColor(classFilename)
-    local k = ns.db.barBrightness or 0.65
-    return r * k, g * k, b * k
+    return r * BAR_BRIGHTNESS, g * BAR_BRIGHTNESS, b * BAR_BRIGHTNESS
 end
 
 ---Fundo da linha: a mesma cor, bem apagada, para a parte vazia não ser um buraco preto.
 function ns.RowBackdropColor(classFilename)
     local r, g, b = ns.ClassColor(classFilename)
-    return r * 0.18, g * 0.18, b * 0.18, 0.85
+    return r * ROW_BG_TINT, g * ROW_BG_TINT, b * ROW_BG_TINT, 0.9
 end
 
 local function ApplyClassIcon(texture, classFilename)
@@ -116,44 +117,47 @@ end
 
 ---Ícone da linha: especialização por padrão (diz mais que a classe — quem é o healer, quem
 ---tanka), com a classe como reserva quando a spec não veio.
----Máscara circular: o medidor nativo usa ícone redondo, e é um dos detalhes que mais
----aproxima o visual da referência.
+---Máscara circular: o medidor nativo usa ícone redondo.
+---
+---`SetMask` e `SetTexCoord` **não convivem** — a API responde
+---"Cannot set tex coords when texture has mask". E o ícone de classe é um recorte de atlas,
+---então precisa de texcoord. Solução: duas texturas por linha, e mostra-se a que serve.
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 
-local function ApplyIconShape(texture)
-    if ns.db.roundIcons == false then
-        if texture.SetMask then texture:SetMask("") end
+---@param spec texture redonda, para o ícone de especialização (id inteiro, sem recorte)
+---@param class texture com texcoord, para o recorte do atlas de classes
+function ns.ApplyRowIcon(spec, class, source)
+    local specIcon = source.specIconID
+    if specIcon ~= nil and not issecretvalue(specIcon) and specIcon ~= 0 then
+        spec:SetTexture(specIcon)
+        spec:Show()
+        class:Hide()
         return
     end
-    if texture.SetMask then
-        texture:SetMask(ROUND_MASK)
-    end
-end
 
-function ns.ApplyRowIcon(texture, source)
-    if ns.db.rowIcon ~= "class" then
-        local specIcon = source.specIconID
-        if specIcon ~= nil and not issecretvalue(specIcon) and specIcon ~= 0 then
-            texture:SetTexture(specIcon)
-            texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)   -- corta a borda preta do ícone
-            ApplyIconShape(texture)
-            texture:Show()
-            return
-        end
+    local name = SafeClass(source.classFilename)
+    local coords = name and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[name]
+    if coords then
+        class:SetTexture(CLASS_ICONS)
+        class:SetTexCoord(unpack(coords))
+        class:Show()
+        spec:Hide()
+        return
     end
-    ApplyClassIcon(texture, source.classFilename)
-    ApplyIconShape(texture)
+
+    spec:Hide()
+    class:Hide()
 end
 
 --------------------------------------------------------------------------------
 -- Geometria
 --------------------------------------------------------------------------------
 local function RowHeight()
-    return ns.db.rowHeight or 20
+    return ROW_HEIGHT_FIXED
 end
 
 local function ColumnWidth()
-    return ns.db.columnWidth or 58
+    return COLUMN_WIDTH_FIXED
 end
 
 local function ColumnOffsets()
@@ -178,9 +182,6 @@ local function WindowWidth()
 end
 
 local function ColumnHeaderHeight()
-    if ns.db.showColumnHeader == false or ns.db.valueFormat == "details" then
-        return 0
-    end
     return COLHEAD_HEIGHT
 end
 
@@ -320,8 +321,15 @@ local function BuildRow(index)
         row.highlight:SetAllPoints()
         row.highlight:SetColorTexture(1, 1, 1, 0.12)
 
+        -- Redonda (especialização): recebe a máscara e nunca texcoord.
         row.icon = row.text:CreateTexture(nil, "OVERLAY")
         row.icon:SetPoint("LEFT", 4, 0)
+        if row.icon.SetMask then row.icon:SetMask(ROUND_MASK) end
+
+        -- Quadrada (classe): recebe texcoord e nunca máscara.
+        row.iconClass = row.text:CreateTexture(nil, "OVERLAY")
+        row.iconClass:SetPoint("LEFT", 4, 0)
+        row.iconClass:Hide()
 
         row.name = row.text:CreateFontString(nil, "OVERLAY")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
@@ -341,15 +349,12 @@ local function BuildRow(index)
     row.bar:SetStatusBarTexture(ns.BarTexture())
 
     if row.SetBackdropBorderColor then
-        if ns.db.rowBorder == false then
-            row:SetBackdropBorderColor(0, 0, 0, 0)
-        else
-            row:SetBackdropBorderColor(0, 0, 0, 0.9)
-        end
+        row:SetBackdropBorderColor(0, 0, 0, 0.9)
     end
 
     local iconSize = height - 4
     row.icon:SetSize(iconSize, iconSize)
+    row.iconClass:SetSize(iconSize, iconSize)
     ns.ApplyFont(row.name, 0)
 
     for _, cell in pairs(row.cells) do
@@ -367,17 +372,10 @@ local function BuildRow(index)
         end
         -- A coluna de ordenação é a que importa: fica no corpo cheio, as outras menores.
         ns.ApplyFont(cell, ns.db.columns[c] == ns.db.sortBy and 0 or -1)
-        if ns.db.valueFormat == "details" then
-            cell:SetWidth(0)
-            cell:ClearAllPoints()
-            cell:SetPoint("RIGHT", row.text, "RIGHT", -6, 0)
-            cell:Show()
-        else
-            cell:SetWidth(ColumnWidth() - 8)
-            cell:ClearAllPoints()
-            cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, 0)
-            cell:Show()
-        end
+        cell:SetWidth(ColumnWidth() - 8)
+        cell:ClearAllPoints()
+        cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, 0)
+        cell:Show()
     end
 
     row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 12)
@@ -399,7 +397,7 @@ function Window.Create()
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 1,
     })
-    frame:SetBackdropColor(0.02, 0.02, 0.03, ns.db.windowAlpha or 0.9)
+    frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
     frame:SetBackdropBorderColor(0, 0, 0, 1)
 
     local header = CreateFrame("Frame", nil, frame)
@@ -413,26 +411,13 @@ function Window.Create()
     header.bg = header:CreateTexture(nil, "BACKGROUND")
     header.bg:SetAllPoints()
 
-    local atlasOk = false
-    if header.bg.SetAtlas then
-        atlasOk = header.bg:SetAtlas("ui-damagemeters-header-bar", false) ~= false
-            and header.bg:GetAtlas() ~= nil
-    end
-
-    if not atlasOk then
-        -- Bege claro, como na referência: e o texto escuro por cima so funciona se a faixa
-        -- for clara de verdade. A versao anterior ficou escura e o titulo sumiu.
-        header.bg:SetColorTexture(1, 1, 1, 1)
-        header.bg:SetGradient("VERTICAL",
-            CreateColor(0.60, 0.54, 0.35, 1),
-            CreateColor(0.86, 0.79, 0.56, 1))
-    end
-
-    if ns.Log then
-        ns.Log.Add("cabecalho", {
-            atlas = atlasOk and "ui-damagemeters-header-bar" or "indisponivel; gradiente proprio",
-        })
-    end
+    -- O atlas `ui-damagemeters-header-bar` EXISTE, mas e escuro — confirmado no log do
+    -- usuario, e por isso o gradiente que eu desenhava nunca aparecia (codigo morto).
+    -- A faixa bege da referencia e desenhada aqui, sempre.
+    header.bg:SetColorTexture(1, 1, 1, 1)
+    header.bg:SetGradient("VERTICAL",
+        CreateColor(0.52, 0.46, 0.29, 1),
+        CreateColor(0.84, 0.77, 0.54, 1))
 
     header.line = header:CreateTexture(nil, "BORDER")
     header.line:SetPoint("BOTTOMLEFT")
@@ -491,7 +476,7 @@ function Window.Create()
     frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -4, 0)
 
     frame.gearButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
-        L["Open the settings"], function() ns.OpenOptions() end)
+        L["Configure columns"], function() ns.Picker.Toggle(frame) end)
     frame.gearButton:SetPoint("RIGHT", frame.closeButton, "LEFT", -3, 0)
 
     frame.resetButton = HeaderButton("Interface\\Buttons\\UI-RefreshButton",
@@ -571,19 +556,12 @@ end
 function Window.Rebuild()
     if not frame then return end
 
-    frame:SetBackdropColor(0.03, 0.03, 0.04, ns.db.windowAlpha or 0.9)
+    frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
 
     ns.ApplyFont(frame.header.segment.text, 0)
     ns.ApplyFont(frame.header.clock, -1)
 
     BuildColumnHeader()
-    if headerRow then
-        if ns.db.showColumnHeader == false or ns.db.valueFormat == "details" then
-            headerRow:Hide()
-        else
-            headerRow:Show()
-        end
-    end
     for i = 1, ns.db.rows do
         BuildRow(i)
     end
@@ -732,44 +710,27 @@ function Window.Draw()
             if value == nil then value = 0 end
             row.bar:SetMinMaxValues(0, top)
             row.bar:SetValue(value)
-            local br, bg2, bb = ns.BarColor(source.classFilename)
-            row.bar:SetStatusBarColor(br, bg2, bb, ns.db.barAlpha or 1)
+            row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
             row.bg:SetColorTexture(ns.RowBackdropColor(source.classFilename))
 
-            ns.ApplyRowIcon(row.icon, source)
+            ns.ApplyRowIcon(row.icon, row.iconClass, source)
             row.name:SetText(source.name)
             row.name:SetTextColor(1, 1, 1)
 
-            if ns.db.valueFormat == "details" then
-                -- Formato da referência: total, e entre parênteses o por-segundo e a fatia.
-                local cell = row.cells[1]
-                local text = ns.Data.FormatDetailsStyle(source.totalAmount,
-                    source.amountPerSecond, entry.percentOfTotal)
-                if text ~= nil then
-                    cell:SetText(text)
-                else
-                    cell:SetText(source.totalAmount)
-                end
-                cell:SetTextColor(1, 1, 1)
-                for c = 2, #row.cells do
-                    row.cells[c]:SetText("")
-                end
-            else
-                for c = 1, #ns.db.columns do
-                    local key = ns.db.columns[c]
-                    ns.SetCellText(row.cells[c], entry.values[c], key)
-                    ns.ColorCell(row.cells[c], key)
-                    ns.MarkBest(row, c, key, entry.best and entry.best[c])
-                end
+            for c = 1, #ns.db.columns do
+                local key = ns.db.columns[c]
+                ns.SetCellText(row.cells[c], entry.values[c], key)
+                ns.ColorCell(row.cells[c], key)
+                ns.MarkBest(row, c, key, entry.best and entry.best[c])
             end
 
             row:Show()
         end
     end
 
-    -- Com autoHeight a janela acompanha quantos jogadores existem; depois de um
-    -- redimensionamento manual, ela mantém a altura escolhida.
-    local wanted = ns.db.autoHeight ~= false and shown or ns.db.rows
+    -- A janela acompanha quantos jogadores existem: espaço vazio reservado para gente que
+    -- não está lá é o que mais faz uma janela parecer quebrada.
+    local wanted = shown
     if wanted ~= visibleRows then
         visibleRows = wanted
         frame:SetHeight(WindowHeight(wanted))
