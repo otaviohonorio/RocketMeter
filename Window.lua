@@ -76,6 +76,11 @@ function ns.ApplyHeaderArt(texture)
         local w, h = r - l, b - t
         local crop = ns.Skin.headerCrop
         texture:SetTexCoord(l + w * crop[1], l + w * crop[2], t + h * crop[3], t + h * crop[4])
+
+        -- Amostragem do print do medidor nativo: a faixa dele mede RGB(19,17,10) na região
+        -- central, a nossa media RGB(30,26,13) — cerca de 1,5x mais clara. Este multiplicador
+        -- aproxima, com um leve viés frio, que é a outra diferença perceptível.
+        texture:SetVertexColor(0.78, 0.78, 0.84)
         return true
     end
 
