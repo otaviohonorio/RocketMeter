@@ -232,6 +232,7 @@ local function CreatePanel()
     local closeTexture = frame.close:GetNormalTexture()
     if closeTexture then
         if closeTexture.SetAtlas then closeTexture:SetAtlas("common-icon-redx", false) end
+        if closeTexture.SetDesaturated then closeTexture:SetDesaturated(true) end
         closeTexture:SetVertexColor(0.78, 0.73, 0.58)
     end
     frame.close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")

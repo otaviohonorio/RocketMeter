@@ -541,6 +541,10 @@ function Window.Create()
             tex:SetAtlas(spec.atlas, false)
         end
         if tex then
+            -- Dessaturar primeiro: cada atlas traz cor própria (o X é vermelho, a engrenagem
+            -- puxa dourado) e o `SetVertexColor` **multiplica** em cima dela — sem tirar a cor
+            -- de origem, os botões nunca ficam do mesmo tom.
+            if tex.SetDesaturated then tex:SetDesaturated(true) end
             tex:SetVertexColor(ICON_TINT[1], ICON_TINT[2], ICON_TINT[3])
         end
 
