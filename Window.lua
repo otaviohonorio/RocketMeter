@@ -662,14 +662,23 @@ end
 local LEADER = { 1, 1, 1 }
 local NORMAL = { 0.86, 0.86, 0.88 }
 
----Estiliza a célula: cor do texto e a placa de destaque de quem lidera a coluna.
+---Estiliza a célula: peso, cor e a placa de destaque de quem lidera a coluna.
+---
+---O "negrito" é o flag `OUTLINE` aplicado **só na célula do líder** — é como o WoW simula peso,
+---já que não há variante bold das fontes do jogo. Em uma célula isolada ele engrossa o traço o
+---suficiente para o olho notar, sem o peso que incomodava quando estava em todo o texto.
 function ns.StyleCell(row, index, isBest)
     local cell = row.cells[index]
     local highlight = isBest and ns.db.highlightBest ~= false
 
+    -- A coluna ordenada já usa o corpo cheio; as demais, um ponto menor.
+    local delta = ns.db.columns[index] == ns.db.sortBy and 0 or -1
+
     if highlight then
+        ns.ApplyFont(cell, delta, "OUTLINE")
         cell:SetTextColor(LEADER[1], LEADER[2], LEADER[3])
     else
+        ns.ApplyFont(cell, delta, "")
         cell:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
     end
 
@@ -683,7 +692,7 @@ function ns.StyleCell(row, index, isBest)
 
     if not plate then
         plate = row.text:CreateTexture(nil, "BACKGROUND")
-        plate:SetColorTexture(1, 1, 1, 0.08)
+        plate:SetColorTexture(1, 1, 1, 0.06)
         row.plates[index] = plate
     end
 
