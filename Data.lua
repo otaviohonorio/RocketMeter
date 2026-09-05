@@ -415,7 +415,6 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         return map and map[wantedGuid] or nil
     end
 
-    local rows = {}
     local total = #sources
 
     offset = offset or 0
@@ -426,8 +425,18 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     local count = total - offset
     if count > maxRows then count = maxRows end
 
-    for i = 1, count do
-        local position = offset + i
+    -- MONTA TODOS OS ATORES, não só os que cabem na tela.
+    --
+    -- O realce de líder é "o melhor de cada coluna", e isso é uma propriedade do GRUPO, não da
+    -- página. Antes o laço parava em `count` e `MarkColumnLeaders` recebia só a fatia visível:
+    -- rolar a janela trocava quem estava marcado, porque o melhor da fatia mudava junto. Era
+    -- um realce que dizia "o melhor entre os que você está vendo", o que não significa nada.
+    --
+    -- O custo é montar valores para o grupo inteiro em vez de para 5 linhas. É barato: as
+    -- consultas de sessão e os índices por GUID já são memorizados acima, então cada ator a
+    -- mais são apenas buscas em tabela — não chamadas de API.
+    local built = {}
+    for position = 1, total do
         local source = sources[ascending and (total - position + 1) or position]
         local values = {}
         local cache = { [sortDef.attr] = source }
@@ -466,10 +475,17 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
             percentOfTotal = own / sessionTotal * 100
         end
 
-        rows[i] = { source = source, values = values, percentOfTotal = percentOfTotal }
+        built[position] = { source = source, values = values, percentOfTotal = percentOfTotal }
     end
 
-    Data.MarkColumnLeaders(rows, columns)
+    -- Marca sobre a lista COMPLETA: quem lidera não muda ao rolar nem ao trocar a ordenação.
+    Data.MarkColumnLeaders(built, columns)
+
+    -- Só agora recorta a janela visível. `best` já veio decidido de cima.
+    local rows = {}
+    for i = 1, count do
+        rows[i] = built[offset + i]
+    end
 
     return rows, session, total
 end

@@ -531,6 +531,33 @@ check("janela mostra 2 linhas", #scrolled, 2)
 local clamped = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 99)
 check("rolagem excessiva nao estoura", clamped ~= nil and #clamped > 0, true)
 
+print("== lider e o melhor de TODOS, nao da pagina ==")
+-- Reclamacao do usuario (05/09): "eu rolo e ele vai trocando". O realce era calculado sobre a
+-- fatia visivel, entao dizia "o melhor entre os que voce esta vendo" — que nao significa nada.
+-- O harness tem 3 atores; com janela de 2, a segunda pagina nao contem o lider de dano e
+-- portanto nao pode ter NINGUEM marcado.
+local pagina1 = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 0)
+local pagina2 = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 1)
+
+check("o primeiro colocado e o lider", pagina1[1].best ~= nil and pagina1[1].best[1] == true, true)
+check("o segundo da primeira pagina nao e lider",
+    pagina1[2].best ~= nil and pagina1[2].best[1] == true, false)
+check("rolar nao promove ninguem",
+    pagina2[1].best ~= nil and pagina2[1].best[1] == true, false)
+check("nem na ultima linha",
+    pagina2[2] ~= nil and pagina2[2].best ~= nil and pagina2[2].best[1] == true, false)
+
+-- Trocar a coluna de ordenacao tambem nao pode mexer em quem lidera cada coluna.
+local porDano = ns.Data.GetRows(0, "damage", { "damage", "healing" }, 3, false, 0)
+local porCura = ns.Data.GetRows(0, "healing", { "damage", "healing" }, 3, false, 0)
+local function lider(lista, coluna)
+    for i = 1, #lista do
+        if lista[i].best and lista[i].best[coluna] then return lista[i].source.name end
+    end
+end
+check("o lider de dano nao muda com a ordenacao",
+    lider(porDano, 1), lider(porCura, 1))
+
 print("== degrade da faixa ==")
 -- Regressao da 0.50.0: a faixa era pintada chapada com a cor cheia da classe
 -- (`SetStatusBarColor(ns.ClassColor(...))`), e por isso saia visivelmente mais clara que a do
