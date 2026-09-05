@@ -681,10 +681,12 @@ end
 --
 -- O líder se distingue por três sinais sem cor: corpo +1pt, placa neutra e um branco mais
 -- quente que o dos demais.
-local LEADER = { 1, 0.94, 0.78 }    -- branco quente
-local NORMAL = { 0.86, 0.87, 0.90 } -- branco levemente frio
+local LEADER = { 1, 0.88, 0.62 }    -- creme fechado, com presença
+local NORMAL = { 0.80, 0.81, 0.84 } -- branco frio, um passo atrás
 
----Estiliza a célula: presença, cor e a placa de destaque de quem lidera a coluna.
+---Estiliza a célula de quem lidera a coluna. O realce mora **no texto**: tom mais fechado e
+---um ponto de corpo a mais. Sem placa atrás — ela clareava a célula inteira e virava um bloco
+---estranho no meio da linha.
 ---
 ---`OUTLINE` foi testado e reprovado: engrossa o traço da letra, o que é peso na tinta e não
 ---hierarquia — fica pesado mesmo numa célula só. O que funciona é **corpo de fonte**: +1pt no
@@ -707,24 +709,6 @@ function ns.StyleCell(row, index, isBest)
         cell:SetShadowColor(0, 0, 0, 1)
     end
 
-    row.plates = row.plates or {}
-    local plate = row.plates[index]
-
-    if not highlight then
-        if plate then plate:Hide() end
-        return
-    end
-
-    if not plate then
-        plate = row.text:CreateTexture(nil, "BACKGROUND")
-        plate:SetColorTexture(1, 1, 1, 0.08)
-        row.plates[index] = plate
-    end
-
-    plate:ClearAllPoints()
-    plate:SetPoint("TOPLEFT", cell, "TOPLEFT", -4, 3)
-    plate:SetPoint("BOTTOMRIGHT", cell, "BOTTOMRIGHT", 3, -3)
-    plate:Show()
 end
 
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
