@@ -55,22 +55,22 @@ local function BuildSpellRow(section, index)
         row.icon:SetPoint("LEFT", 3, 0)
         row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-        row.name = row:CreateFontString(nil, "OVERLAY")
+        row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
         row.name:SetJustifyH("LEFT")
         row.name:SetWordWrap(false)
 
-        row.percent = row:CreateFontString(nil, "OVERLAY")
+        row.percent = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.percent:SetPoint("RIGHT", -6, 0)
         row.percent:SetWidth(42)
         row.percent:SetJustifyH("RIGHT")
 
-        row.rate = row:CreateFontString(nil, "OVERLAY")
+        row.rate = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.rate:SetPoint("RIGHT", row.percent, "LEFT", -6, 0)
         row.rate:SetWidth(52)
         row.rate:SetJustifyH("RIGHT")
 
-        row.amount = row:CreateFontString(nil, "OVERLAY")
+        row.amount = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.amount:SetPoint("RIGHT", row.rate, "LEFT", -6, 0)
         row.amount:SetWidth(56)
         row.amount:SetJustifyH("RIGHT")
@@ -200,7 +200,7 @@ local function CreatePanel()
     frame.iconClass:SetPoint("LEFT", 5, 0)
     frame.iconClass:Hide()
 
-    frame.title = header:CreateFontString(nil, "OVERLAY")
+    frame.title = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     frame.title:SetPoint("LEFT", frame.icon, "RIGHT", 5, 0)
 
     frame.close = CreateFrame("Button", nil, header)
@@ -210,7 +210,7 @@ local function CreatePanel()
     frame.close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
     frame.close:SetScript("OnClick", function() frame:Hide() end)
 
-    frame.subtitle = frame:CreateFontString(nil, "OVERLAY")
+    frame.subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     frame.subtitle:SetPoint("TOPLEFT", 12, -28)
     frame.subtitle:SetTextColor(0.7, 0.71, 0.74)
 
@@ -222,7 +222,7 @@ local function CreatePanel()
         section:SetPoint("RIGHT", -12, 0)
         section.rows = {}
 
-        section.title = section:CreateFontString(nil, "OVERLAY")
+        section.title = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         section.title:SetPoint("TOPLEFT", 0, -2)
         section.title:SetTextColor(1, 0.82, 0)
 
@@ -232,7 +232,7 @@ local function CreatePanel()
         section.line:SetHeight(1)
         section.line:SetColorTexture(1, 0.82, 0, 0.25)
 
-        section.empty = section:CreateFontString(nil, "OVERLAY")
+        section.empty = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         section.empty:SetPoint("TOPLEFT", 2, -SECTION_HEADER - 3)
         section.empty:SetTextColor(0.5, 0.5, 0.53)
         section.empty:SetText(L["nothing here"])
@@ -247,10 +247,12 @@ end
 function Breakdown.Draw()
     if not frame or not current then return end
 
-    frame.title:SetText(current.name)
-    frame.title:SetTextColor(ns.ClassColor(current.classFilename))
+    -- Fonte primeiro, texto depois: FontString sem fonte responde "Font not set" no SetText.
     ns.ApplyFont(frame.title, 1, "")
     ns.ApplyFont(frame.subtitle, -2, "")
+
+    frame.title:SetText(current.name)
+    frame.title:SetTextColor(ns.ClassColor(current.classFilename))
 
     local scope = current.sessionType == 0 and L["Current fight"] or L["Overall"]
     frame.subtitle:SetText(scope)

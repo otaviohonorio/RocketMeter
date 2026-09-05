@@ -19,7 +19,20 @@ local function widget(kind)
     function self.GetScript(_, name) return self.__scripts[name] end
     function self.RegisterEvent(_, event) self.__events[event] = true end
     function self.RegisterUnitEvent(_, event) self.__events[event] = true end
-    function self.CreateFontString() return widget("FontString") end
+    -- FontString sem template nao tem fonte, e o jogo responde "Font not set" no SetText.
+    -- O simulador reproduz isso: sem template e sem SetFont previo, SetText estoura.
+    function self.CreateFontString(_, _, template)
+        local fs = widget("FontString")
+        fs.__hasFont = template ~= nil
+        function fs.SetFont() fs.__hasFont = true end
+        function fs.SetText(_, ...)
+            if not fs.__hasFont then
+                error("FontString:SetText(): Font not set", 2)
+            end
+            return ...
+        end
+        return fs
+    end
     function self.CreateTexture() return widget("Texture") end
     function self.GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
     function self.GetName() return kind .. "Stub" end

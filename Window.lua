@@ -238,7 +238,7 @@ local function BuildColumnHeader()
         if not button then
             button = CreateFrame("Button", nil, headerRow)
             button:SetHeight(COLHEAD_HEIGHT)
-            button.text = button:CreateFontString(nil, "OVERLAY")
+            button.text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             button.text:SetPoint("RIGHT", -4, 0)
 
             button:SetScript("OnClick", function(self)
@@ -369,7 +369,7 @@ local function BuildRow(index)
         row.iconClass:SetPoint("LEFT", 0, 0)
         row.iconClass:Hide()
 
-        row.name = row.text:CreateFontString(nil, "OVERLAY")
+        row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
         row.name:SetJustifyH("LEFT")
         -- Nome comprido corta em vez de quebrar linha ou invadir a coluna de números.
@@ -407,7 +407,7 @@ local function BuildRow(index)
     for c = 1, #ns.db.columns do
         local cell = row.cells[c]
         if not cell then
-            cell = row.text:CreateFontString(nil, "OVERLAY")
+            cell = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end
@@ -482,7 +482,7 @@ function Window.Create()
     header.segment = CreateFrame("Button", nil, header)
     header.segment:SetSize(120, HEADER_HEIGHT - 6)
     header.segment:SetPoint("LEFT", 7, 1)
-    header.segment.text = header.segment:CreateFontString(nil, "OVERLAY")
+    header.segment.text = header.segment:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     header.segment.text:SetPoint("LEFT")
     header.segment.text:SetTextColor(1, 0.82, 0)      -- dourado padrão da Blizzard
     header.segment:SetScript("OnClick", function()
@@ -496,7 +496,7 @@ function Window.Create()
     end)
     header.segment:SetScript("OnLeave", GameTooltip_Hide)
 
-    header.clock = header:CreateFontString(nil, "OVERLAY")
+    header.clock = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     header.clock:SetPoint("LEFT", header.segment, "RIGHT", 6, 0)
     header.clock:SetTextColor(0.85, 0.72, 0.36)
 
