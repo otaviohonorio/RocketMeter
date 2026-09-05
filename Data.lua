@@ -475,6 +475,72 @@ function Data.MarkColumnLeaders(rows, columns)
 end
 
 --------------------------------------------------------------------------------
+-- Detalhamento por magia
+--------------------------------------------------------------------------------
+---Lista de magias de um ator, somando uma ou mais métricas.
+---
+---Cura e absorção viram uma seção só; interrupções e dissipações também. Quando a mesma magia
+---aparece em duas métricas, os valores somam.
+---@param attributes number[] métricas a agregar
+---@return table[]|nil spells ordenadas da maior para a menor: { spellID, amount, perSecond }
+---@return number|nil total
+function Data.GetSpellBreakdown(sessionType, attributes, guid, creatureId, limit)
+    if not Data.IsAvailable() or guid == nil or issecretvalue(guid) then
+        return nil, nil
+    end
+
+    local bySpell, total = {}, 0
+
+    for _, attribute in ipairs(attributes) do
+        local ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
+            Data.SessionValue(sessionType), attribute, guid, creatureId)
+
+        local spells = ok and container and container.combatSpells or nil
+        if spells then
+            for i = 1, #spells do
+                local spell = spells[i]
+                local id = spell.spellID
+                local amount = spell.totalAmount
+
+                -- Sem id legível ou com valor secret não há o que somar nem ordenar.
+                if id ~= nil and not issecretvalue(id)
+                    and amount ~= nil and not issecretvalue(amount) then
+                    local entry = bySpell[id]
+                    if not entry then
+                        entry = { spellID = id, amount = 0, perSecond = 0 }
+                        bySpell[id] = entry
+                    end
+                    entry.amount = entry.amount + amount
+
+                    local rate = spell.amountPerSecond
+                    if rate ~= nil and not issecretvalue(rate) then
+                        entry.perSecond = entry.perSecond + rate
+                    end
+
+                    total = total + amount
+                end
+            end
+        end
+    end
+
+    local list = {}
+    for _, entry in pairs(bySpell) do
+        list[#list + 1] = entry
+    end
+    if #list == 0 then return nil, nil end
+
+    table.sort(list, function(a, b) return a.amount > b.amount end)
+
+    if limit and #list > limit then
+        for i = #list, limit + 1, -1 do
+            list[i] = nil
+        end
+    end
+
+    return list, total
+end
+
+--------------------------------------------------------------------------------
 -- Formatação
 --------------------------------------------------------------------------------
 function Data.IsSessionSecret(session)

@@ -18,6 +18,7 @@ Log.lua
 Data.lua
 Window.lua
 Minimap.lua
+Breakdown.lua
 Scoreboard.lua
 Picker.lua
 Commands.lua

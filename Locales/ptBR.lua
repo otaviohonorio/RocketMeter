@@ -209,3 +209,12 @@ L["Circular icon, like the built-in meter."] = "Ícone circular, como no medidor
 L["Strip with the column names."] = "Faixa com os nomes das colunas."
 L["The window shrinks to the number of players with data."] =
     "A janela encolhe para o número de jogadores com dados."
+
+-- Detalhamento por magia (0.37.0)
+L["Damage"] = "Dano"
+L["Healing"] = "Cura"
+L["Control"] = "Controle"
+L["nothing here"] = "nada aqui"
+L["Click to see the spell breakdown."] = "Clique para ver o detalhamento por magia."
+L["the spell breakdown of other players is only available out of combat."] =
+    "o detalhamento de outros jogadores só fica disponível fora de combate."

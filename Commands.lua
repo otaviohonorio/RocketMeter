@@ -16,6 +16,10 @@ commands["hide"] = function()
     ns.Window.Hide()
 end
 
+commands["details"] = function()
+    ns.Breakdown.Hide()
+end
+
 commands["score"] = function()
     ns.Scoreboard.Toggle()
 end

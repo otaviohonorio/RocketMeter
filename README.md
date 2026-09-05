@@ -155,6 +155,26 @@ Nao e limitacao de implementacao: e o que a API permite. Durante a luta voce ve 
 metrica ordenada com todo mundo, e o seu proprio detalhe completo; ao sair do combate a tabela
 inteira se completa.
 
+## Detalhamento por magia
+
+**Clique numa linha** e abre o painel do jogador: o que ele fez, magia por magia, com ícone,
+nome, total, valor por segundo, percentual e uma barra proporcional atrás.
+
+Três seções de uma vez, em vez de só a métrica da janela:
+
+| Seção | Agrega |
+|---|---|
+| Dano | dano causado |
+| Cura | cura + absorções |
+| Controle | interrupções + dissipações |
+
+No Details isso é um tooltip que some quando o mouse sai. Aqui é painel: fica aberto, dá para
+ler com calma e acompanha a janela enquanto a luta continua.
+
+**Em combate só funciona para a sua própria linha** — o GUID dos outros vem *secret* e a API
+recusa recebê-lo de volta; o seu vem de `UnitGUID("player")`, que é legível. Ao sair do combate,
+todos ficam disponíveis.
+
 ## Placar de fim de corrida
 
 No fim de um Mítico+ (`CHALLENGE_MODE_COMPLETED`) ou de um encontro de raide vencido

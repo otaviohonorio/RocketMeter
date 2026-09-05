@@ -298,6 +298,20 @@ local function BuildRow(index)
     local row = rows[index]
     if not row then
         row = CreateFrame("Button", nil, frame, "BackdropTemplate")
+        row:RegisterForClicks("LeftButtonUp")
+        row:SetScript("OnClick", function(self)
+            if self.source then
+                ns.Breakdown.Show(self.source, ns.db.sessionType, frame)
+            end
+        end)
+        row:SetScript("OnEnter", function(self)
+            if not self.source then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.source.name, 1, 1, 1)
+            GameTooltip:AddLine(L["Click to see the spell breakdown."], 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end)
+        row:SetScript("OnLeave", GameTooltip_Hide)
         row:SetBackdrop({
             edgeFile = "Interface\\Buttons\\WHITE8X8",
             edgeSize = 1,
@@ -801,6 +815,7 @@ function Window.Draw()
             row.name:SetText(source.name)
             row.name:SetTextColor(1, 1, 1)
             row.classFilename = source.classFilename
+            row.source = source
 
             for c = 1, #ns.db.columns do
                 local key = ns.db.columns[c]
@@ -813,6 +828,10 @@ function Window.Draw()
     end
 
     -- Altura fixa, definida pela alça: as linhas vazias mostram o fundo, como no Details.
+    if ns.Breakdown and ns.Breakdown.Refresh then
+        ns.Breakdown.Refresh()
+    end
+
     if visibleRows ~= ns.db.rows then
         visibleRows = ns.db.rows
         frame:SetHeight(WindowHeight(ns.db.rows))

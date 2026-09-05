@@ -96,6 +96,12 @@ function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 tinsert, tremove, wipe = table.insert, table.remove, function(t) for k in pairs(t) do t[k] = nil end end
 format = string.format
 
+C_Spell = {
+    GetSpellInfo = function(id) return { name = "Magia " .. tostring(id), iconID = 134400 } end,
+    RequestLoadSpellData = function() end,
+}
+function UnitGUID() return "Player-Thalyra" end
+
 C_AddOns = { GetAddOnMetadata = function() return "0.6.0" end }
 C_Texture = {
     GetAtlasInfo = function()
@@ -156,7 +162,12 @@ C_DamageMeter = {
         }
         local entry = byAttribute[attribute] or { totalAmount = 42000, amountPerSecond = 350 }
         return {
-            combatSpells = {}, maxAmount = entry.totalAmount,
+            combatSpells = {
+                { spellID = 1001, totalAmount = 500000, amountPerSecond = 4000 },
+                { spellID = 1002, totalAmount = 300000, amountPerSecond = 2500 },
+                { spellID = 1003, totalAmount = 120000, amountPerSecond = 1000 },
+            },
+            maxAmount = entry.totalAmount,
             totalAmount = entry.totalAmount, amountPerSecond = entry.amountPerSecond,
         }
     end,
@@ -287,6 +298,12 @@ try("Log.OnCombatStart", ns.Log.OnCombatStart)
 try("Log.OnCombatEnd", ns.Log.OnCombatEnd)
 try("Log.Clear", ns.Log.Clear)
 try("Scoreboard.Show", ns.Scoreboard.Show)
+try("Breakdown.Show", function()
+    local session = C_DamageMeter.GetCombatSessionFromType(0, Enum.DamageMeterType.DamageDone)
+    ns.Breakdown.Show(session.combatSources[1], 0)
+end)
+try("Breakdown.Refresh", ns.Breakdown.Refresh)
+try("Breakdown.Hide", ns.Breakdown.Hide)
 try("Data.GetRows", ns.Data.GetRows, 0, "damage", { "damage", "dps", "hps" }, 5, false)
 
 
