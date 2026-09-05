@@ -36,6 +36,44 @@ local COLUMN_WIDTH_FIXED = 58
 
 -- Proporção da referência: a skin usa faixa de 32px com texto de 13pt, ou seja, o texto
 -- ocupa ~40% da altura. Com 20px e 13pt eu tinha 65% — daí a sensação de apertado.
+-- Exposto para os outros painéis (detalhamento, placar) seguirem a mesma linguagem sem
+-- copiar valores — cópia é o que faz as telas divergirem com o tempo.
+ns.Skin = {
+    font = FONT,
+    fontSize = FONT_SIZE,
+    barTexture = BAR_TEXTURE,
+    barBrightness = BAR_BRIGHTNESS,
+    rowHeight = ROW_HEIGHT_FIXED,
+    rowSpacing = 1,
+    rowBackground = { 0, 0, 0, ROW_BG_ALPHA },
+    windowAlpha = WINDOW_ALPHA,
+    headerAtlas = "ui-damagemeters-header-bar",
+    headerCrop = { 0.045, 0.965, 4 / 60, 56 / 60 },
+    gold = { 1, 0.82, 0 },
+    cream = { 1, 0.88, 0.62 },
+    text = { 0.86, 0.87, 0.90 },
+    dim = { 0.68, 0.69, 0.72 },
+}
+
+---Aplica a arte do cabeçalho da Blizzard numa textura, com o mesmo recorte da referência.
+function ns.ApplyHeaderArt(texture)
+    local info = C_Texture and C_Texture.GetAtlasInfo
+        and C_Texture.GetAtlasInfo(ns.Skin.headerAtlas)
+
+    if info and (info.file or info.filename) then
+        texture:SetTexture(info.file or info.filename)
+        local l, r = info.leftTexCoord or 0, info.rightTexCoord or 1
+        local t, b = info.topTexCoord or 0, info.bottomTexCoord or 1
+        local w, h = r - l, b - t
+        local crop = ns.Skin.headerCrop
+        texture:SetTexCoord(l + w * crop[1], l + w * crop[2], t + h * crop[3], t + h * crop[4])
+        return true
+    end
+
+    texture:SetColorTexture(0.13, 0.11, 0.07, 0.95)
+    return false
+end
+
 local HEADER_HEIGHT = 25
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
@@ -453,31 +491,8 @@ function Window.Create()
     header.bg = header:CreateTexture(nil, "BACKGROUND")
     header.bg:SetAllPoints()
 
-    -- A arte É o atlas `ui-damagemeters-header-bar` — a mesma que a skin Midnight do Details
-    -- usa (ela empacota o PNG e recorta com texCoord 0.045..0.965 na horizontal e 4/60..56/60
-    -- na vertical, para tirar o padding transparente das bordas).
-    --
-    -- O erro anterior não era a arte: era o **texto escuro** por cima dela. O padrão da
-    -- Blizzard — rastreador de missões, medidor nativo — é faixa escura com **texto dourado**.
-    local info = C_Texture and C_Texture.GetAtlasInfo
-        and C_Texture.GetAtlasInfo("ui-damagemeters-header-bar")
-
-    if info and (info.file or info.filename) then
-        header.bg:SetTexture(info.file or info.filename)
-
-        local left = info.leftTexCoord or 0
-        local right = info.rightTexCoord or 1
-        local top = info.topTexCoord or 0
-        local bottom = info.bottomTexCoord or 1
-        local width, height = right - left, bottom - top
-
-        header.bg:SetTexCoord(
-            left + width * 0.045, left + width * 0.965,
-            top + height * (4 / 60), top + height * (56 / 60))
-    else
-        -- Sem o atlas: faixa escura equivalente, para o texto dourado continuar legível.
-        header.bg:SetColorTexture(0.13, 0.11, 0.07, 0.95)
-    end
+    -- A arte é o atlas do medidor nativo, recortada como na skin de referência.
+    ns.ApplyHeaderArt(header.bg)
 
     header.segment = CreateFrame("Button", nil, header)
     header.segment:SetSize(120, HEADER_HEIGHT - 6)
