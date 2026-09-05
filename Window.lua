@@ -24,15 +24,21 @@ local FONT = "Fonts\\FRIZQT__.TTF"
 -- mostra seis colunas de números. A mesma altura de letra rende muito mais tinta aqui, e o
 -- que lá é confortável aqui vira bloco. Igualar o corpo não igualaria a densidade.
 --
--- A descida foi 16 -> 14 -> 13 -> **12**, cada degrau pedido depois de ver in-game.
+-- A busca foi 16 -> 14 -> 13 -> 12 -> **13**, cada degrau visto in-game. O 12 foi testado e o
+-- usuário voltou: "aumenta para 13px, acho que fica melhor o tamanho do texto para a janela de
+-- combate". 13 é o valor final desta janela.
 --
--- 12 vale para a linha INTEIRA: nome e todas as células, com ou sem realce, na coluna ordenada
--- ou não. Isso tira o corpo de fonte da lista de sinais de realce — o que sobra para marcar o
+-- Vale para a linha INTEIRA: nome e todas as células, com ou sem realce, na coluna ordenada ou
+-- não. Isso tira o corpo de fonte da lista de sinais de realce — o que sobra para marcar o
 -- líder de uma coluna é a cor (a da própria classe, clareada) e, para a coluna ordenada, o
 -- dourado no cabeçalho. Tamanho variando dentro da mesma linha fazia a régua dos números dançar.
 --
--- Em px de caixa alta, pela taxa medida (~0,69px por ponto): 13 rendia 9px, 12 rende ~8px.
-local FONT_SIZE = 12
+-- Em px de caixa alta, pela taxa medida (~0,69px por ponto): 13 rende 9px, 12 rendia ~8px.
+local FONT_SIZE = 13
+-- O PLACAR não segue esta janela. Ele foi visto e aprovado com corpo 12, e a subida para 13
+-- foi pedida para "a janela de combate" — mudar as duas juntas desfaria uma aprovação que já
+-- existe. Mesma razão de `PANEL_FONT_SIZE`: tela diferente, densidade diferente, corpo próprio.
+local SCOREBOARD_FONT_SIZE = 12
 -- O título da faixa e o cabeçalho de colunas são valores ABSOLUTOS, não deltas: não seguem o
 -- corpo da linha. No nativo o título mede 9px de caixa contra 11px da linha, e é essa diferença
 -- que dá a hierarquia da janela dele.
@@ -104,6 +110,7 @@ ns.Skin = {
     -- placar tinha um `11` cravado no código que precisaria ser caçado à mão se este mudasse.
     colheadFontSize = COLHEAD_FONT_SIZE,
     titleFontSize = TITLE_FONT_SIZE,
+    scoreboardFontSize = SCOREBOARD_FONT_SIZE,
     barTexture = BAR_TEXTURE,
     barBrightness = BAR_BRIGHTNESS,
     rowHeight = ROW_HEIGHT_FIXED,
@@ -221,6 +228,11 @@ end
 ---Fonte do painel de leitura, que tem corpo próprio (ver `PANEL_FONT_SIZE`).
 function ns.ApplyPanelFont(fontString, delta, flags)
     ns.ApplyFont(fontString, (delta or 0) + PANEL_FONT_SIZE - FONT_SIZE, flags)
+end
+
+---Fonte do placar de fim de corrida, que também tem corpo próprio.
+function ns.ApplyScoreboardFont(fontString, delta, flags)
+    ns.ApplyFont(fontString, (delta or 0) + SCOREBOARD_FONT_SIZE - FONT_SIZE, flags)
 end
 
 --------------------------------------------------------------------------------
@@ -1107,11 +1119,15 @@ end
 ---ao custo de os números de uma mesma coluna mudarem de tamanho de linha para linha — a régua
 ---vertical dançava. Se o realce ficar fraco demais in-game, o próximo sinal a tentar é a placa
 ---neutra atrás da célula, não o corpo.
-function ns.StyleCell(row, index, isBest)
+---@param delta number|nil ajuste de corpo para telas com tipografia própria (o placar usa -1)
+function ns.StyleCell(row, index, isBest, delta)
     local cell = row.cells[index]
     local highlight = isBest and ns.db.highlightBest ~= false
 
-    ns.ApplyFont(cell, 0, CELL_FONT_FLAGS)
+    -- O `delta` existe porque esta função é compartilhada: ela reaplica a fonte a cada
+    -- desenho, e sem ele o placar (corpo 12) teria as células puxadas de volta para o corpo
+    -- da janela (13) — nome em 12 e números em 13 na mesma linha.
+    ns.ApplyFont(cell, delta or 0, CELL_FONT_FLAGS)
     cell:SetShadowColor(0, 0, 0, 1)
 
     if highlight then

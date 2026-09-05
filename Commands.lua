@@ -22,14 +22,16 @@ end
 
 commands["score"] = function(rest)
     local arg = rest and rest:lower():match("^%S*")
+
     if arg == "demo" then
         ns.Scoreboard.ShowDemo()
-        return
+    elseif arg == "mplus" or arg == "m+" or arg == "key" then
+        ns.Scoreboard.ShowLast("mplus")
+    elseif arg == "raid" then
+        ns.Scoreboard.ShowLast("raid")
+    else
+        ns.Scoreboard.Toggle()
     end
-    if arg == "real" then
-        ns.Scoreboard.ClearDemo()
-    end
-    ns.Scoreboard.Toggle()
 end
 
 -- Instrumentação, não conveniência. `SetAtlas` com nome inexistente falha em SILÊNCIO: a
@@ -208,6 +210,8 @@ commands["help"] = function()
     print("  /rm move <n> left|right         " .. L["moves a column left or right"])
     print("  /rm preset mplus|raid|damage    " .. L["switches the column preset"])
     print("  /rm score                       " .. L["opens the scoreboard of the last run"])
+    print("  /rm score mplus                 " .. L["opens the last Mythic+ scoreboard"])
+    print("  /rm score raid                  " .. L["opens the last raid scoreboard"])
     print("  /rm score demo                  " .. L["opens the scoreboard with invented data"])
     print("  /rm atlas [name]                " .. L["checks whether the panel art exists"])
     print("  /rm overall                     " .. L["switches current fight / overall"])

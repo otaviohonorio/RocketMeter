@@ -61,62 +61,41 @@ local MEMBERS = {
     },
 }
 
----Monta a linha no MESMO formato que `ns.Data.GetRows` devolve, para o placar não precisar
----de dois caminhos de desenho. `values` é indexado pela POSIÇÃO da coluna, não pela chave —
----é assim que `Data.GetRows` faz (`Data.lua:449`), e divergir aqui quebraria o realce.
----@param columns table lista de descritores de coluna do placar
-local function BuildRows(columns)
+---Monta as linhas no formato de RETRATO do placar: `values` indexado pela **chave** da coluna,
+---não pela posição.
+---
+---A chave é o que permite o retrato sobreviver a uma mudança na lista de colunas: uma corrida
+---gravada semana passada continua desenhando certo mesmo que hoje a ordem seja outra ou tenha
+---entrado coluna nova. Posição não sobrevive a isso — e o placar guarda corrida em disco.
+local function BuildRows()
     local rows = {}
 
     for i = 1, #MEMBERS do
         local member = MEMBERS[i]
-        local values = {}
-
-        for c = 1, #columns do
-            local column = columns[c]
-            values[c] = Demo.Value(member, column.key)
-        end
 
         rows[i] = {
-            source = {
-                name = member.name,
-                classFilename = member.class,
-                specIconID = member.specIconID,
-                isLocalPlayer = member.isLocalPlayer == true,
-                sourceGUID = "Demo-" .. i,
-                totalAmount = member.dps * COMBAT_SECONDS,
-                amountPerSecond = member.dps,
+            name = member.name,
+            classFilename = member.class,
+            specIconID = member.specIconID,
+            role = member.role,
+            isLocalPlayer = member.isLocalPlayer == true,
+            scoreGain = member.scoreGain,
+            values = {
+                score = member.score,
+                deaths = member.deaths,
+                taken = member.taken,
+                avoidable = member.avoidable,
+                dps = member.dps,
+                hps = member.hps,
+                interrupts = member.interrupts,
+                dispels = member.dispels,
+                damage = member.dps * COMBAT_SECONDS,
+                healing = member.hps * COMBAT_SECONDS,
             },
-            demo = member,
-            values = values,
         }
     end
 
-    -- O realce de líder é do próprio Data, não uma cópia: se a regra mudar lá (hoje exige
-    -- valor > 0, e sai cedo com menos de duas linhas), a simulação acompanha sozinha.
-    if ns.Data and ns.Data.MarkColumnLeaders then
-        local keys = {}
-        for c = 1, #columns do keys[c] = columns[c].key end
-        pcall(ns.Data.MarkColumnLeaders, rows, keys)
-    end
-
     return rows
-end
-
----Valor de um membro para uma coluna do placar. Fica separado porque o placar precisa dele
----tanto para montar a linha quanto para o desempate por ordenação.
-function Demo.Value(member, key)
-    if key == "dps" then return member.dps end
-    if key == "hps" then return member.hps end
-    if key == "damage" then return member.dps * COMBAT_SECONDS end
-    if key == "healing" then return member.hps * COMBAT_SECONDS end
-    if key == "taken" then return member.taken end
-    if key == "avoidable" then return member.avoidable end
-    if key == "deaths" then return member.deaths end
-    if key == "interrupts" then return member.interrupts end
-    if key == "dispels" then return member.dispels end
-    if key == "score" then return member.score end
-    return nil
 end
 
 ---Uma corrida inteira, pronta para `ns.Scoreboard.Show`.
@@ -124,10 +103,10 @@ end
 ---`mapID` fica **nil de propósito**: com id inventado, `C_ChallengeMode.GetMapUIInfo` devolveria
 ---nada e o painel cairia no fallback de qualquer jeito; com id real, a simulação passaria a
 ---depender de qual masmorra existe na temporada corrente. O nome entra como texto.
----@param columns table descritores de coluna do placar
-function Demo.Run(columns)
+function Demo.Run()
     return {
         demo = true,
+        kind = "mplus",
         title = L["Ruins of the Ember Court"],
         mapID = nil,
         level = KEY_LEVEL,
@@ -143,7 +122,7 @@ function Demo.Run(columns)
         -- Afixos por id. Resolvidos por `C_ChallengeMode.GetAffixInfo` na hora de desenhar;
         -- se o cliente não conhecer o id, o painel simplesmente não mostra o ícone.
         affixes = { 10, 152, 148 },
-        rows = BuildRows(columns),
+        rows = BuildRows(),
         -- Linha do tempo: o mesmo contrato que a corrida real produz.
         --   bosses  = { segundos, nome }
         --   deaths  = { segundos, nome de quem morreu }
@@ -174,6 +153,3 @@ function Demo.Run(columns)
     }
 end
 
-function Demo.RunSeconds()
-    return RUN_SECONDS
-end

@@ -13,7 +13,7 @@ ns.Picker = Picker
 local WIDTH = 260
 local ROW_HEIGHT = 22
 local TOP = 34
-local BOTTOM = 88      -- rodapé: linhas + ver o placar + limpar dados
+local BOTTOM = 114     -- rodapé: linhas + simulação + os dois placares + limpar dados
 
 local frame, rows
 
@@ -135,13 +135,13 @@ function Picker.Create()
     -- Quantas linhas mostrar: dois passos e o número no meio. Um slider aqui seria maior que
     -- o painel inteiro, e o valor é discreto (3 a 25) — steppers cabem melhor.
     local rowsLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rowsLabel:SetPoint("BOTTOMLEFT", 12, 66)
+    rowsLabel:SetPoint("BOTTOMLEFT", 12, 92)
     rowsLabel:SetText(L["Rows"])
 
     local function StepperButton(offsetX, delta, symbol)
         local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
         b:SetSize(22, 20)
-        b:SetPoint("BOTTOMLEFT", offsetX, 64)
+        b:SetPoint("BOTTOMLEFT", offsetX, 90)
         b:SetText(symbol)
         b:SetScript("OnClick", function()
             ns.Window.SetRows((ns.Window.GetRows() or 5) + delta)
@@ -153,18 +153,46 @@ function Picker.Create()
     frame.rowsMinus = StepperButton(WIDTH - 92, -1, "-")
 
     frame.rowsValue = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    frame.rowsValue:SetPoint("BOTTOMLEFT", WIDTH - 68, 66)
+    frame.rowsValue:SetPoint("BOTTOMLEFT", WIDTH - 68, 92)
     frame.rowsValue:SetWidth(24)
     frame.rowsValue:SetJustifyH("CENTER")
 
     frame.rowsPlus = StepperButton(WIDTH - 42, 1, "+")
 
-    -- Ver o placar sem rodar uma M+. O painel só aparece no fim de uma corrida de verdade,
-    -- e testar aparência assim custa meia hora de jogo por ajuste — foi por isso que ele
-    -- ficou tanto tempo sem ninguém olhar. Os dados são inventados e não tocam em nada real.
+    -- Os dois últimos placares, lado a lado. Ficam aqui porque esta é a única tela de
+    -- configuração do addon, e o placar não tem outro ponto de entrada além do slash.
+    -- Desabilitados quando não há corrida guardada: botão que responde com uma mensagem de
+    -- erro no chat ensina menos que um botão apagado.
+    local function ScoreButton(offsetX, width, label, tip, onClick, hasRun)
+        local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        b:SetSize(width, 22)
+        b:SetPoint("BOTTOMLEFT", offsetX, 38)
+        b:SetText(label)
+        b:SetScript("OnClick", onClick)
+        b:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(label, 1, 1, 1)
+            GameTooltip:AddLine(tip, 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", GameTooltip_Hide)
+        b.hasRun = hasRun
+        return b
+    end
+
+    local half = math.floor((WIDTH - 28) / 2)
+
+    frame.lastMPlus = ScoreButton(12, half, L["Last Mythic+"],
+        L["Opens the scoreboard of the last Mythic+ run finished on this character."],
+        function() ns.Scoreboard.ShowLast("mplus") end, "mplus")
+
+    frame.lastRaid = ScoreButton(16 + half, half, L["Last raid"],
+        L["Opens the scoreboard of the last raid boss defeated on this character."],
+        function() ns.Scoreboard.ShowLast("raid") end, "raid")
+
     local demo = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    demo:SetSize(WIDTH - 24, 22)
-    demo:SetPoint("BOTTOMLEFT", 12, 38)
+    demo:SetSize(WIDTH - 24, 20)
+    demo:SetPoint("BOTTOMLEFT", 12, 64)
     demo:SetText(L["Preview the scoreboard"])
     demo:SetScript("OnClick", function() ns.Scoreboard.ShowDemo() end)
     demo:SetScript("OnEnter", function(self)
@@ -175,7 +203,6 @@ function Picker.Create()
         GameTooltip:Show()
     end)
     demo:SetScript("OnLeave", GameTooltip_Hide)
-
     local clear = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     clear:SetSize(WIDTH - 24, 22)
     clear:SetPoint("BOTTOMLEFT", 12, 10)
@@ -195,6 +222,11 @@ end
 function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
     Picker.RefreshRows()
+
+    for _, b in ipairs({ frame.lastMPlus, frame.lastRaid }) do
+        b:SetEnabled(ns.Scoreboard.HasRun(b.hasRun))
+    end
+
     local columns = ns.Data.GetColumns()
     for i = 1, #columns do
         BuildRow(i, columns[i])

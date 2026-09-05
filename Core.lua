@@ -156,7 +156,7 @@ end
 
 function handlers:CHALLENGE_MODE_COMPLETED()
     RunCall("Stop")
-    if not ns.db.autoScoreboard then return end
+    -- Idem: grava sempre, mostra conforme a preferência.
     -- Pequena espera: a sessão ainda está sendo fechada quando o evento dispara.
     C_Timer.After(1.5, function()
         ns.Scoreboard.OnChallengeCompleted()
@@ -168,13 +168,14 @@ function handlers:ENCOUNTER_END(encounterID, encounterName, difficultyID, groupS
     -- placar automático está desligado.
     RunCall("OnEncounterEnd", encounterName, success)
 
-    if not ns.db.autoScoreboard then return end
     if success ~= 1 and success ~= true then return end
     if not IsInRaid() then return end   -- em M+ quem manda é o CHALLENGE_MODE_COMPLETED
 
-    local difficultyName = difficultyID and select(1, GetDifficultyInfo(difficultyID)) or nil
+    -- A captura acontece mesmo com o painel automático desligado: "ver o último placar de
+    -- raide" só funciona se a corrida tiver sido gravada quando aconteceu. Quem decide se a
+    -- janela aparece é o `autoScoreboard`, lá dentro.
     C_Timer.After(1, function()
-        ns.Scoreboard.OnEncounterEnd(encounterName, difficultyName)
+        ns.Scoreboard.OnEncounterEnd(encounterName, difficultyID)
     end)
 end
 

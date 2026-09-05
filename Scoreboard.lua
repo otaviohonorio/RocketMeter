@@ -34,8 +34,9 @@ ns.Scoreboard = Scoreboard
 --------------------------------------------------------------------------------
 -- A linha do placar é mais alta que a da janela (25px) de propósito: lá são seis colunas
 -- disputando espaço num overlay que fica sobre o jogo; aqui a corrida acabou e a tela é para
--- ler. O corpo da fonte, porém, é o MESMO da janela (`ns.Skin.fontSize`) — quem decide isso é
--- o `Window.lua`, e o placar não tem por que ter tipografia própria.
+-- ler. O corpo da fonte é **próprio** (`ns.Skin.scoreboardFontSize`, hoje 12): este painel foi
+-- visto e aprovado nesse tamanho, e a janela de combate subiu para 13 depois — herdar dela
+-- desfaria uma aprovação que já existe. Os valores continuam saindo todos de `ns.Skin`.
 local ROW_HEIGHT = 34
 local ROW_SPACING = 2
 local ICON_SIZE = 26
@@ -279,71 +280,158 @@ end
 ---indexados por ela. Remapear aqui é o que permite ao desenho ter um caminho só, valendo
 ---igual para corrida real e para simulação — dois caminhos de desenho divergem na terceira
 ---mudança, e o projeto já pagou por isso uma vez.
-local function CollectRows(rowCount)
-    if context and context.rows then
-        return context.rows          -- simulação: já vem pronta e no formato final
+--------------------------------------------------------------------------------
+-- Retrato da corrida: da sessão viva para dado gravável
+--------------------------------------------------------------------------------
+---Todas as chaves de coluna que um retrato guarda.
+---
+---Guarda o catálogo INTEIRO, não só o que está visível: quem abrir a corrida daqui a uma
+---semana pode ter mudado as colunas, e um retrato que só gravou o que estava na tela naquele
+---dia obriga a resposta "esse dado eu não tenho". Gravar tudo custa oito números por jogador.
+local function SnapshotKeys()
+    local keys = {}
+    for c = 1, #ALL_COLUMNS do
+        if not ALL_COLUMNS[c].custom then keys[#keys + 1] = ALL_COLUMNS[c].key end
     end
+    return keys
+end
 
-    local meterKeys, meterIndex = {}, {}
-    local scoreIndex
-    for c = 1, #columns do
-        if columns[c].custom then
-            if columns[c].key == "score" then scoreIndex = c end
-        else
-            meterKeys[#meterKeys + 1] = columns[c].key
-            meterIndex[c] = #meterKeys
+---Um número que possa ir para o disco, ou nil.
+---
+---Secret value **não pode ser serializado** — é regra explícita do Midnight, e tentar gravá-lo
+---nos SavedVariables é erro. Aqui ele simplesmente não entra: a célula fica vazia no retrato,
+---que é honesto, em vez de gravar lixo ou derrubar a captura.
+local function Storable(value)
+    if value == nil or issecretvalue(value) then return nil end
+    if type(value) ~= "number" then return nil end
+    return value
+end
+
+---Copia a sessão viva para uma tabela solta, pronta para desenhar e para gravar.
+---@param base table o contexto da corrida (título, tempo, afixos, linha do tempo...)
+---@return table retrato
+function Scoreboard.Snapshot(base)
+    local keys = SnapshotKeys()
+    local data = ns.Data.GetRows(base.sessionType or 1, DEFAULT_SORT, keys, MAX_ROWS, false)
+
+    local rows = {}
+    for i = 1, (data and #data or 0) do
+        local source = data[i].source
+        local name = source.name
+        if issecretvalue(name) then name = nil end
+
+        local values = {}
+        for k = 1, #keys do
+            values[keys[k]] = Storable(data[i].values[k])
         end
+        if base.kind == "mplus" then
+            values.score = Storable(ScoreFor(source.name))
+        end
+
+        local classFilename = source.classFilename
+        if issecretvalue(classFilename) then classFilename = nil end
+        local specIconID = source.specIconID
+        if issecretvalue(specIconID) then specIconID = nil end
+        local isLocal = source.isLocalPlayer
+        isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
+
+        rows[i] = {
+            name = name or (UNKNOWN or "?"),
+            classFilename = classFilename,
+            specIconID = specIconID,
+            role = RoleFor(source.name),
+            isLocalPlayer = isLocal,
+            scoreGain = isLocal and base.scoreGain or nil,
+            values = values,
+        }
     end
 
-    -- Ordenar por coluna própria (pontuação) não dá para pedir à API: ela ordena pelo que
-    -- mede. Nesse caso pedimos a ordem padrão e reordenamos aqui, o que só é possível fora de
-    -- combate — com valor secret, comparar é proibido.
-    local apiSort = sortBy
-    local sortColumn
-    for c = 1, #columns do
-        if columns[c].key == sortBy then sortColumn = columns[c] end
-    end
-    if not sortColumn or sortColumn.custom then apiSort = DEFAULT_SORT end
+    base.rows = rows
+    base.recordedAt = time and time() or nil
+    return base
+end
 
-    local data, session = ns.Data.GetRows(
-        context and context.sessionType or 1, apiSort, meterKeys, rowCount, not sortDesc)
-    if not data then return nil, nil end
+--------------------------------------------------------------------------------
+-- Corridas guardadas
+--------------------------------------------------------------------------------
+---Onde as corridas moram.
+---
+---SavedVariable PRÓPRIO, por personagem, fora de `ns.db`: `Profile.Reset()` apaga tudo que
+---está na configuração, e "restaurar o padrão" não pode significar "perder as corridas". Além
+---disso a corrida é do personagem que a fez, não da conta.
+local function Store()
+    if RocketMeterRunsDB == nil then RocketMeterRunsDB = {} end
+    return RocketMeterRunsDB
+end
+
+function Scoreboard.SaveRun(kind, snapshot)
+    if not kind or not snapshot then return end
+    Store()[kind] = snapshot
+end
+
+function Scoreboard.GetRun(kind)
+    local run = Store()[kind]
+    if type(run) ~= "table" or type(run.rows) ~= "table" or #run.rows == 0 then return nil end
+    return run
+end
+
+---Há quanto tempo a corrida foi feita, em texto curto ("há 2 dias").
+local function RunAge(snapshot)
+    if not snapshot or not snapshot.recordedAt or not time then return nil end
+
+    local seconds = time() - snapshot.recordedAt
+    if seconds < 0 then return nil end
+    if seconds < 3600 then
+        return format(L["%d min ago"], math.max(1, math.floor(seconds / 60)))
+    end
+    if seconds < 86400 then
+        return format(L["%d h ago"], math.floor(seconds / 3600))
+    end
+    return format(L["%d d ago"], math.floor(seconds / 86400))
+end
+
+---Converte o retrato (valores por CHAVE) para o formato que o desenho usa (por POSIÇÃO).
+---
+---O placar não lê mais a sessão viva. Ele lê sempre um retrato: da corrida que acabou, de uma
+---corrida guardada em disco, ou da simulação. Três motivos:
+---
+---  1. A sessão do `C_DamageMeter` é zerada pela próxima luta. "Ver o último placar" só é
+---     possível se os números tiverem sido copiados para fora dela no momento certo.
+---  2. Um retrato é dado morto: não tem secret value, não tem referência para tabela da API,
+---     e por isso pode ser gravado nos SavedVariables.
+---  3. Um caminho de desenho só. Corrida real, corrida guardada e simulação desenham pelo
+---     mesmo código — o que faz a simulação valer como teste do painel de verdade.
+local function CollectRows(rowCount)
+    local stored = context and context.rows
+    if not stored then return {} end
 
     local out = {}
-    for i = 1, #data do
-        local entry = data[i]
-        local values, best = {}, {}
+    local limit = #stored
+    if rowCount and rowCount < limit then limit = rowCount end
 
+    for i = 1, limit do
+        local entry = stored[i]
+        local values = {}
         for c = 1, #columns do
-            local at = meterIndex[c]
-            if at then
-                values[c] = entry.values[at]
-                best[c] = entry.best and entry.best[at]
-            end
+            values[c] = entry.values and entry.values[columns[c].key]
         end
-
-        if scoreIndex then
-            values[scoreIndex] = ScoreFor(entry.source.name)
-        end
-
-        out[i] = { source = entry.source, values = values, best = best }
+        out[i] = {
+            source = entry,          -- nome, classe, ícone: o retrato tem os mesmos campos
+            row = entry,
+            values = values,
+            best = {},
+        }
     end
 
-    -- Realce da coluna própria: o `Data` marcou só as de medidor. Reusar `MarkColumnLeaders`
-    -- em vez de repetir a regra garante que "zero não lidera" e "menos de duas linhas não
-    -- marca nada" continuem valendo aqui se mudarem lá.
-    if scoreIndex and ns.Data.MarkColumnLeaders then
-        local onlyScore = {}
-        for i = 1, #out do
-            onlyScore[i] = { values = { out[i].values[scoreIndex] } }
-        end
-        pcall(ns.Data.MarkColumnLeaders, onlyScore, { "score" })
-        for i = 1, #out do
-            out[i].best[scoreIndex] = onlyScore[i].best and onlyScore[i].best[1]
-        end
+    -- O realce sai do próprio `Data`, não de uma cópia da regra: se lá mudar o que conta como
+    -- liderança (hoje exige valor > 0 e pelo menos duas linhas), o placar acompanha sozinho.
+    if ns.Data.MarkColumnLeaders then
+        local keys = {}
+        for c = 1, #columns do keys[c] = columns[c].key end
+        pcall(ns.Data.MarkColumnLeaders, out, keys)
     end
 
-    return out, session
+    return out
 end
 
 ---Reordena as linhas já montadas. Só roda quando o valor é legível — em combate os campos são
@@ -426,7 +514,7 @@ local function BuildColumnHeader()
 
         -- O mesmo corpo do cabeçalho de colunas da janela, lido de `ns.Skin` em vez de
         -- redigitado: é absoluto, não delta, e não deve crescer junto se a linha mudar.
-        ns.ApplyFont(button.text, ns.Skin.colheadFontSize - ns.Skin.fontSize, "")
+        ns.ApplyScoreboardFont(button.text, ns.Skin.colheadFontSize - ns.Skin.scoreboardFontSize, "")
         -- Só a cor marca a coluna ordenada; seta ao lado repetiria a informação.
         local label = ColumnLabel(columns[c])
         if columns[c].key == sortBy then
@@ -512,10 +600,12 @@ local function BuildRow(index)
     row:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE, offsetY)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE, offsetY)
 
-    ns.ApplyFont(row.name, 0, "")
-    ns.SyncHaloFont(row.name, row.nameHalo, 0)
-    ns.ApplyFont(row.realm, ns.REALM_FONT_DELTA, "")
-    ns.SyncHaloFont(row.realm, row.realmHalo, ns.REALM_FONT_DELTA)
+    ns.ApplyScoreboardFont(row.name, 0, "")
+    ns.SyncHaloFont(row.name, row.nameHalo,
+        ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
+    ns.ApplyScoreboardFont(row.realm, ns.REALM_FONT_DELTA, "")
+    ns.SyncHaloFont(row.realm, row.realmHalo,
+        ns.REALM_FONT_DELTA + ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
 
     local offsets = ColumnOffsets()
 
@@ -533,7 +623,8 @@ local function BuildRow(index)
         for _, echo in ipairs(row.cellHalos[c]) do
             echo:SetWidth(columns[c].width - 8)
         end
-        ns.SyncHaloFont(cell, row.cellHalos[c], 0)
+        ns.ApplyScoreboardFont(cell, 0, "")
+        ns.SyncHaloFont(cell, row.cellHalos[c], ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
         cell:Show()
     end
 
@@ -552,10 +643,9 @@ local function ScoreText(entry, index)
     if type(value) ~= "number" then return tostring(value) end
 
     local text = tostring(math.floor(value + 0.5))
-    local gain = entry.demo and entry.demo.scoreGain
-    if not gain and entry.source and entry.source.isLocalPlayer and context and context.scoreGain then
-        gain = context.scoreGain
-    end
+    -- O ganho é por jogador no retrato: só o próprio jogador tem esse número (vem de
+    -- `oldOverallDungeonScore`/`newOverallDungeonScore`, que o cliente só informa de si).
+    local gain = entry.row and entry.row.scoreGain
     if gain and gain > 0 then
         text = text .. " |cff40d878(+" .. gain .. ")|r"
     end
@@ -883,8 +973,14 @@ end
 local function DrawHeader()
     frame.title:SetText(context.title or L["Dungeon"])
 
-    if context.level then
-        frame.level:SetText(tostring(context.level))
+    -- A estrela é o selo de "que conteúdo é este". Em Mítico+ carrega o nível da pedra; em
+    -- raide, a inicial da dificuldade (N / H / M), que é a informação equivalente — sem ela o
+    -- placar de raide não diz se aquele boss caiu no normal ou no mítico.
+    local badge = context.level and tostring(context.level) or context.badge
+    if badge and badge ~= "" then
+        frame.level:SetText(badge)
+        -- Dois caracteres ("LFR", "+2") não cabem no mesmo corpo de um número de dois dígitos.
+        frame.level:SetFont(ns.Skin.font, #badge > 2 and 20 or 28, "OUTLINE")
         frame.level:Show()
         if frame.star:GetTexture() then frame.star:Show() end
     else
@@ -999,8 +1095,9 @@ local function DrawRows(list, rowCount)
 
             row.bg:SetColorTexture(0, 0, 0, i % 2 == 0 and 0.16 or 0.28)
 
-            -- Simulação traz a função pronta; corrida real descobre pelo grupo.
-            local role = (entry.demo and entry.demo.role) or RoleFor(source.name)
+            -- A função foi resolvida na captura e viajou junto no retrato: uma corrida
+            -- guardada não pode depender de o grupo ainda existir para saber quem tankava.
+            local role = entry.row and entry.row.role
             if role and ROLE_ATLAS[role] and Atlas(row.role, ROLE_ATLAS[role]) then
                 row.role:Show()
                 -- `ClearAllPoints` antes: `SetPoint` ACRESCENTA âncora, não substitui, e sem
@@ -1032,7 +1129,8 @@ local function DrawRows(list, rowCount)
                 else
                     ns.SetCellText(row.cells[c], entry.values[c], columns[c].key, row.cellHalos[c])
                 end
-                ns.StyleCell(row, c, entry.best and entry.best[c])
+                ns.StyleCell(row, c, entry.best and entry.best[c],
+                    ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
             end
 
             row:Show()
@@ -1075,11 +1173,14 @@ function Scoreboard.Draw()
     BuildColumnHeader()
     DrawRows(list, rowCount)
 
-    frame.footer:SetText(context.demo and L["Simulation — invented data."]
-        or L["Click a column header to sort. Drag to move."])
     if context.demo then
+        frame.footer:SetText(L["Simulation — invented data."])
         frame.footer:SetTextColor(1, 0.72, 0.2)
     else
+        -- "há 2 dias" importa quando o painel mostra corrida guardada: sem isso não dá para
+        -- saber se aquilo é de agora ou da semana passada.
+        local age = RunAge(context)
+        frame.footer:SetText(age or L["Click a column header to sort. Drag to move."])
         frame.footer:SetTextColor(0.5, 0.5, 0.5)
     end
 
@@ -1117,9 +1218,14 @@ end
 function Scoreboard.Toggle()
     if frame and frame:IsShown() then
         frame:Hide()
-    else
-        Scoreboard.Show()
+        return
     end
+
+    -- Depois de um `/reload` não há corrida em memória, mas pode haver em disco. Sem isto o
+    -- `/rm score` respondia "nenhuma corrida registrada" com a corrida gravada ali do lado.
+    if not context and Scoreboard.ShowMostRecent() then return end
+
+    Scoreboard.Show()
 end
 
 function Scoreboard.GetLastError()
@@ -1131,40 +1237,67 @@ end
 --------------------------------------------------------------------------------
 ---Abre o placar com uma corrida inventada.
 ---
----Não toca em nada real: `ns.Demo.Run` devolve uma tabela solta e o placar desenha a partir
----dela. A corrida anterior de verdade, se houver, volta na próxima chamada sem argumento —
----por isso o contexto real fica guardado à parte.
-local realContext
+---Não toca em nada real: `ns.Demo.Run` devolve uma tabela solta, e ela **não** é gravada em
+---disco. Existe para ver o painel sem rodar uma masmorra — testar aparência de um placar de
+---fim de M+ custava meia hora de jogo por ajuste.
 function Scoreboard.ShowDemo()
     if not ns.Demo then
         ns.Print(L["restart the client: the demo module was not loaded yet."])
         return
     end
-
-    if context and not context.demo then realContext = context end
-
-    local demo = ns.Demo.Run(ALL_COLUMNS)
-    demo.rowCount = #demo.rows
-    Scoreboard.Show(demo)
+    Scoreboard.Show(ns.Demo.Run())
 end
 
----Volta para a última corrida real.
----
----Enquanto a simulação está na tela ela é o contexto corrente, então `/rm score` reabriria a
----simulação — o que é certo (você acabou de pedi-la) e confuso (parece que o placar "travou"
----nos dados falsos). Este é o caminho explícito de volta, e ele diz quando não há para onde.
-function Scoreboard.ClearDemo()
-    if not context or not context.demo then return end
-
-    if not realContext then
-        ns.Print(L["no run recorded in this session yet."])
-        if frame then frame:Hide() end
-        context = nil
+---Abre a última corrida guardada de um tipo ("mplus" ou "raid").
+function Scoreboard.ShowLast(kind)
+    local run = Scoreboard.GetRun(kind)
+    if not run then
+        ns.Print(kind == "raid" and L["no raid encounter recorded yet."]
+            or L["no Mythic+ run recorded yet."])
         return
     end
+    Scoreboard.Show(run)
+end
 
-    context = realContext
-    if frame and frame:IsShown() then SafeDraw() end
+---Abre a mais recente entre as duas guardadas.
+function Scoreboard.ShowMostRecent()
+    local mplus, raid = Scoreboard.GetRun("mplus"), Scoreboard.GetRun("raid")
+    if mplus and raid then
+        local a, b = mplus.recordedAt or 0, raid.recordedAt or 0
+        Scoreboard.Show(a >= b and mplus or raid)
+        return true
+    end
+    if mplus or raid then
+        Scoreboard.Show(mplus or raid)
+        return true
+    end
+    return false
+end
+
+function Scoreboard.HasRun(kind)
+    return Scoreboard.GetRun(kind) ~= nil
+end
+
+---Captura a corrida que acabou, guarda em disco e mostra.
+---
+---A captura vai por `ns.RunWhenSafe`: em combate os números da sessão são secret e o retrato
+---sairia vazio. A fila do `Core.lua` já drena no `PLAYER_REGEN_ENABLED`, então o placar de um
+---boss de raide morto com adds ainda vivos aparece quando a luta realmente acaba — que é
+---também quando ele é útil.
+local function CaptureAndShow(base, kind, auto)
+    base.kind = kind
+    ns.RunWhenSafe(function()
+        local ok, snapshot = pcall(Scoreboard.Snapshot, base)
+        if not ok or not snapshot then
+            ns.Print(L["error while drawing:"] .. " " .. tostring(snapshot))
+            return
+        end
+
+        Scoreboard.SaveRun(kind, snapshot)
+        if auto == false or ns.db.autoScoreboard then
+            Scoreboard.Show(snapshot)
+        end
+    end)
 end
 
 --------------------------------------------------------------------------------
@@ -1232,7 +1365,7 @@ function Scoreboard.OnChallengeCompleted()
     local seconds
     if timeMs and not issecretvalue(timeMs) then seconds = timeMs / 1000 end
 
-    Scoreboard.Show({
+    CaptureAndShow({
         title = mapName or L["Dungeon"],
         mapID = mapID,
         level = level,
@@ -1252,25 +1385,43 @@ function Scoreboard.OnChallengeCompleted()
         deathMarks = ns.Run and ns.Run.GetDeaths(),
         sessionType = 1,   -- geral: a corrida inteira
         rowCount = GroupRowCount(),
-    })
+    }, "mplus")
 end
 
-function Scoreboard.OnEncounterEnd(encounterName, difficultyName)
+---Selo da estrela para uma dificuldade de raide: a inicial, como o jogo faz nos seus próprios
+---indicadores (N / H / M).
+---
+---Sai de `displayHeroic` / `displayMythic`, que são os campos que o cliente entrega justamente
+---para isso — em vez de uma tabela de ids de dificuldade, que muda de expansão em expansão. A
+---inicial do nome localizado é a reserva, e funciona em pt-BR (Normal, Heroico, Mítico).
+local function DifficultyBadge(difficultyID)
+    if not difficultyID or not GetDifficultyInfo then return nil, nil end
+
+    local ok, name, _, _, _, displayHeroic, displayMythic = pcall(GetDifficultyInfo, difficultyID)
+    if not ok then return nil, nil end
+
+    if displayMythic then return "M", name end
+    if displayHeroic then return "H", name end
+    if type(name) == "string" and name ~= "" then
+        return name:sub(1, 1):upper(), name
+    end
+    return nil, name
+end
+
+function Scoreboard.OnEncounterEnd(encounterName, difficultyID)
     local duration = ns.Data.GetDuration(0)
     local seconds = (duration and not issecretvalue(duration)) and duration or nil
+    local badge, difficultyName = DifficultyBadge(difficultyID)
 
-    -- A dificuldade entra na linha de resultado em vez de virar um campo que ninguém desenha:
-    -- "Mítico · derrotado" diz as duas coisas no espaço de uma.
-    local result = "|cff40d878" .. L["defeated"] .. "|r"
-    if difficultyName and difficultyName ~= "" then
-        result = "|cffb8ac8a" .. difficultyName .. "|r  ·  " .. result
-    end
-
-    Scoreboard.Show({
+    CaptureAndShow({
         title = encounterName or L["Encounter"],
+        -- Sem nível de chave, a estrela carrega a dificuldade: é o mesmo papel, e sem ela o
+        -- placar de raide não diria se o boss caiu no normal ou no mítico.
+        badge = badge,
+        subtitle = difficultyName,
         durationSeconds = seconds,
-        result = result,
+        result = "|cff40d878" .. L["defeated"] .. "|r",
         sessionType = 0,
         rowCount = GroupRowCount(),
-    })
+    }, "raid")
 end

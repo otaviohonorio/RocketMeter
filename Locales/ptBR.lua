@@ -245,3 +245,18 @@ L["Last boss"] = "Último chefe"
 L["checks whether the panel art exists"] = "confere se a arte do painel existe"
 L["checking %d atlas name(s):"] = "conferindo %d nome(s) de atlas:"
 L["%d name(s) do not exist on this client."] = "%d nome(s) não existem neste cliente."
+
+-- Placares guardados (0.52.0)
+L["Last Mythic+"] = "Último Mítico+"
+L["Last raid"] = "Última raide"
+L["Opens the scoreboard of the last Mythic+ run finished on this character."] =
+    "Abre o placar da última corrida de Mítico+ concluída neste personagem."
+L["Opens the scoreboard of the last raid boss defeated on this character."] =
+    "Abre o placar do último chefe de raide derrotado neste personagem."
+L["opens the last Mythic+ scoreboard"] = "abre o último placar de Mítico+"
+L["opens the last raid scoreboard"] = "abre o último placar de raide"
+L["no Mythic+ run recorded yet."] = "nenhuma corrida de Mítico+ registrada ainda."
+L["no raid encounter recorded yet."] = "nenhum chefe de raide registrado ainda."
+L["%d min ago"] = "há %d min"
+L["%d h ago"] = "há %d h"
+L["%d d ago"] = "há %d dia(s)"

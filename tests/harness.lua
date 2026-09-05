@@ -107,7 +107,6 @@ local PARTY = {
 function UnitName(unit) return PARTY[unit] and PARTY[unit].name end
 function UnitGroupRolesAssigned(unit) return PARTY[unit] and PARTY[unit].role or "NONE" end
 function IsInRaid() return false end
-function GetDifficultyInfo() return "Mítico" end
 function GetLocale() return "ptBR" end
 -- Nome cross-realm: o jogo devolve "Nome-Reino" e Ambiguate tira o reino.
 function Ambiguate(name, context)
@@ -117,6 +116,18 @@ end
 function date(fmt) return "12:00:00" end
 local fakeClock = 1000
 function GetTime() return fakeClock end
+function time() return 1789000000 end
+UNKNOWN = "Desconhecido"
+function GetDifficultyInfo(id)
+    local map = {
+        [14] = { "Normal",  false, false },
+        [15] = { "Heroico", true,  false },
+        [16] = { "Mitico",  false, true  },
+    }
+    local d = map[id] or { "Normal", false, false }
+    -- name, groupType, isHeroic, isChallengeMode, displayHeroic, displayMythic
+    return d[1], "raid", d[2], false, d[2], d[3]
+end
 function AdvanceClock(seconds) fakeClock = fakeClock + seconds end
 function SecondsToClock(s) return string.format("%02d:%02d", s / 60, s % 60) end
 function AbbreviateNumbers(v) return tostring(math.floor(v)) end
@@ -335,7 +346,7 @@ fire("DAMAGE_METER_CURRENT_SESSION_UPDATED")
 fire("DAMAGE_METER_COMBAT_SESSION_UPDATED")
 fire("CHALLENGE_MODE_START")
 fire("PLAYER_REGEN_DISABLED")
-fire("ENCOUNTER_END", 1234, "Chefe de Teste", 8, 5, 1)
+fire("ENCOUNTER_END", 1234, "Chefe de Teste", 16, 20, 1)
 fire("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
 fire("PLAYER_REGEN_ENABLED")
 fire("CHALLENGE_MODE_COMPLETED")
@@ -586,35 +597,65 @@ check("ponta direita mais clara", string.format("%.3f", pintado.gradiente.max.r)
 check("cor de vertice neutra antes do degrade", pintado.chapado[1], 1)
 check("faixa nunca recebe a cor cheia", pintado.gradiente.max.b < 0.9, true)
 
-print("== placar: simulacao ==")
--- A simulacao existe para ver o painel sem rodar uma M+. O contrato que ela precisa cumprir
--- e um so: devolver linhas no MESMO formato que ns.Data.GetRows, com values indexado pela
--- POSICAO da coluna. Se divergir, o placar precisaria de dois caminhos de desenho — e telas
--- com dois caminhos divergem na terceira mudanca.
-local demoColumns = { { key = "score" }, { key = "dps" }, { key = "deaths" }, { key = "hps" } }
-local run = ns.Demo.Run(demoColumns)
+print("== placar: retrato ==")
+-- O placar NAO le mais a sessao viva: le sempre um retrato solto. Tres produtores (corrida
+-- que acabou, corrida guardada em disco, simulacao) e um caminho de desenho so. O contrato do
+-- retrato e `values` indexado pela CHAVE da coluna — nao pela posicao, que nao sobrevive a uma
+-- mudanca na lista de colunas entre o dia da gravacao e o dia da leitura.
+local run = ns.Demo.Run()
 
 check("corrida marcada como simulacao", run.demo, true)
+check("simulacao e do tipo mplus", run.kind, "mplus")
 check("cinco jogadores", #run.rows, 5)
-check("values segue a posicao da coluna (dps)", run.rows[1].values[2], run.rows[1].demo.dps)
-check("values segue a posicao da coluna (mortes)", run.rows[1].values[3], run.rows[1].demo.deaths)
-check("values segue a posicao da coluna (cura)", run.rows[1].values[4], run.rows[1].demo.hps)
-check("linha tem source, como Data.GetRows", type(run.rows[1].source), "table")
-check("source tem classe para a cor da barra", run.rows[1].source.classFilename, "DEATHKNIGHT")
+check("valores indexados por chave", run.rows[1].values.dps, 103000)
+check("nao ha valores por posicao", run.rows[1].values[1], nil)
+check("a linha carrega a classe", run.rows[1].classFilename, "DEATHKNIGHT")
+check("a linha carrega a funcao", run.rows[1].role, "TANK")
 
--- Os totais sao reconstruidos por taxa * tempo em combate. Se alguem mexer num sem mexer no
+-- Os totais sao reconstruidos por taxa * tempo em combate: se alguem mexer num sem mexer no
 -- outro, as colunas param de fechar entre si e o placar mostra numeros que se contradizem.
 check("dano reconstruido do dps",
-    ns.Demo.Value(run.rows[1].demo, "damage"),
-    run.rows[1].demo.dps * run.combatSeconds)
+    run.rows[1].values.damage, run.rows[1].values.dps * run.combatSeconds)
 check("tempo em combate menor que a corrida", run.combatSeconds < run.durationSeconds, true)
 
--- Realce de lider vem do proprio Data, nao de copia.
-local topDps, topIndex = -1, nil
-for i = 1, #run.rows do
-    if run.rows[i].values[2] > topDps then topDps, topIndex = run.rows[i].values[2], i end
+print("== placar: corridas guardadas ==")
+-- "Ver o ultimo placar" so funciona se a corrida tiver sido copiada para fora da sessao no
+-- momento certo: a sessao do C_DamageMeter e zerada pela proxima luta.
+-- O CHALLENGE_MODE_COMPLETED do ciclo de vida (bem la em cima) ja deve ter capturado e
+-- gravado: e esse o caminho que faz o botao "Ultimo Mitico+" ter o que mostrar.
+check("o fim da corrida gravou sozinho", ns.Scoreboard.HasRun("mplus"), true)
+-- O ENCOUNTER_END tambem disparou, mas IsInRaid() e falso no simulador: em masmorra quem
+-- manda e o CHALLENGE_MODE_COMPLETED, e o caminho de raide tem que sair cedo.
+check("encounter fora de raide nao grava placar de raide", ns.Scoreboard.HasRun("raid"), false)
+
+local guardada = ns.Scoreboard.Snapshot({ kind = "mplus", title = "Teste", level = 12,
+    durationSeconds = 1500, sessionType = 1 })
+check("o retrato tem linhas", #guardada.rows > 0, true)
+check("o retrato carimba a hora", type(guardada.recordedAt), "number")
+check("o retrato guarda por chave", type(guardada.rows[1].values.dps), "number")
+check("o retrato guarda TODAS as metricas, nao so as visiveis",
+    guardada.rows[1].values.taken ~= nil and guardada.rows[1].values.dispels ~= nil, true)
+
+ns.Scoreboard.SaveRun("mplus", guardada)
+check("agora ha corrida de mplus", ns.Scoreboard.HasRun("mplus"), true)
+check("raide continua vazia", ns.Scoreboard.HasRun("raid"), false)
+check("gravou no SavedVariable proprio, fora da configuracao",
+    RocketMeterRunsDB ~= nil and RocketMeterRunsDB.mplus == guardada, true)
+
+-- Profile.Reset apaga a CONFIGURACAO. Nao pode levar as corridas junto.
+ns.Profile.Reset()
+check("restaurar o padrao nao apaga as corridas", ns.Scoreboard.HasRun("mplus"), true)
+
+-- Nada no retrato pode ser secret: SavedVariables nao serializa valor opaco.
+local function temSecret(t, profundidade)
+    if profundidade > 6 then return false end
+    for k, v in pairs(t) do
+        if issecretvalue(k) or issecretvalue(v) then return true end
+        if type(v) == "table" and temSecret(v, profundidade + 1) then return true end
+    end
+    return false
 end
-check("lider de dps marcado", run.rows[topIndex].best ~= nil and run.rows[topIndex].best[2], true)
+check("retrato nao carrega secret value", temSecret(guardada, 0), false)
 
 print("== corpos de fonte ==")
 -- A descida foi 16 -> 14 -> 13 -> 12, cada degrau pedido depois de teste in-game. O que este
@@ -635,10 +676,16 @@ end
 
 local fs = spyFontString()
 ns.ApplyFont(fs, 0)
-check("corpo da linha", fs.size, 12)
+check("corpo da linha da janela", fs.size, 13)
 check("linha usa Friz Quadrata", fs.path, ns.Skin.font)
 check("linha sem contorno de fonte (o reforco e o halo)", fs.flags, "")
-check("ns.Skin.fontSize expoe o mesmo corpo", ns.Skin.fontSize, 12)
+check("ns.Skin.fontSize expoe o mesmo corpo", ns.Skin.fontSize, 13)
+
+-- O placar NAO segue a janela: ele foi visto e aprovado em 12, e a janela subiu para 13
+-- depois, a pedido. Herdar desfaria uma aprovacao que ja existe.
+ns.ApplyScoreboardFont(fs, 0)
+check("corpo do placar e proprio", fs.size, 12)
+check("ns.Skin expoe o corpo do placar", ns.Skin.scoreboardFontSize, 12)
 
 ns.ApplyPanelFont(fs, 0)
 check("painel de detalhamento tem corpo proprio", fs.size, 13)
@@ -671,7 +718,7 @@ check("delta do reino e -1", ns.REALM_FONT_DELTA, -1)
 local fsNome, fsReino = spyFontString(), spyFontString()
 ns.ApplyFont(fsNome, 0)
 ns.ApplyFont(fsReino, ns.REALM_FONT_DELTA)
-check("nome 12 / reino 11", fsNome.size .. "/" .. fsReino.size, "12/11")
+check("nome 13 / reino 12 na janela", fsNome.size .. "/" .. fsReino.size, "13/12")
 
 print("== halo nao herda cor ==")
 -- As copias do halo sao pretas por SetTextColor, mas um |cff...| dentro da string SOBRESCREVE
@@ -748,7 +795,7 @@ check("boss fora da corrida nao entra", #ns.Run.GetBosses(), 1)
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",
-                       "move 2 right", "score", "score demo", "score real",
+                       "move 2 right", "score", "score demo", "score mplus", "score raid",
                        "atlas", "atlas ChallengeMode-SpikeyStar", "config", "reset" }) do
     local ok, err = pcall(SlashCmdList.ROCKETMETER, cmd)
     print(ok and ("  ok    /rm " .. cmd) or ("  ERRO  /rm " .. cmd .. ": " .. tostring(err)))
