@@ -140,3 +140,19 @@ L["columns migrated to the new format."] = "colunas convertidas para o formato n
 L["Clear the data"] = "Limpar dados"
 L["Clear the current fight and the overall? This cannot be undone."] =
     "Limpar o combate atual e o geral? Nao da para desfazer."
+
+-- Aparencia (0.11.0)
+L["Appearance"] = "Aparência"
+L["Font"] = "Fonte"
+L["Typeface used by the window."] = "Tipo de letra usado na janela."
+L["Font size"] = "Tamanho da fonte"
+L["Size of the text in the rows."] = "Tamanho do texto nas linhas."
+L["Row height"] = "Altura da linha"
+L["Thickness of each bar."] = "Espessura de cada barra."
+L["Column width"] = "Largura da coluna"
+L["Width reserved for each metric."] = "Espaço reservado para cada métrica."
+L["Row icon"] = "Ícone da linha"
+L["Specialization"] = "Especialização"
+L["Class"] = "Classe"
+L["Specialization says more than class: who heals, who tanks."] =
+    "A especialização diz mais que a classe: quem cura, quem tanka."

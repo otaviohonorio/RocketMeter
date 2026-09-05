@@ -20,6 +20,16 @@ local columnProxy = setmetatable({}, {
     end,
 })
 
+-- Fontes que existem no cliente, sem precisar de biblioteca de mídia.
+local FONTS = {
+    { path = "Fonts\\FRIZQT__.TTF", label = "Friz Quadrata" },
+    { path = "Fonts\\ARIALN.TTF",   label = "Arial Narrow" },
+    { path = "Fonts\\2002.TTF",     label = "2002" },
+    { path = "Fonts\\2002B.TTF",    label = "2002 Bold" },
+    { path = "Fonts\\skurri.TTF",   label = "Skurri" },
+    { path = "Fonts\\MORPHEUS.TTF", label = "Morpheus" },
+}
+
 -- O botão de minimapa mora em ns.db.minimap.hide; a Settings API quer um campo direto.
 local minimapProxy = setmetatable({}, {
     __index = function(_, key)
@@ -107,6 +117,69 @@ function ns.SetupOptions()
             profileProxy, "boolean", L["Settings for this character only"], false)
         Settings.CreateCheckbox(category, setting,
             L["Off: every character shares the same setup. On: this character keeps its own."])
+    end
+
+    -- Aparência ---------------------------------------------------------------
+    layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Appearance"]))
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_font", "font",
+            ns.db, "string", L["Font"], FONTS[1].path)
+        Settings.SetOnValueChangedCallback(ADDON .. "_font", function()
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateDropdown(category, setting, function()
+            local container = Settings.CreateControlTextContainer()
+            for _, font in ipairs(FONTS) do
+                container:Add(font.path, font.label)
+            end
+            return container:GetData()
+        end, L["Typeface used by the window."])
+    end
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_fontSize", "fontSize",
+            ns.db, "number", L["Font size"], ns.defaults.fontSize)
+        Settings.SetOnValueChangedCallback(ADDON .. "_fontSize", function()
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateSlider(category, setting,
+            Settings.CreateSliderOptions(8, 20, 1), L["Size of the text in the rows."])
+    end
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rowHeight", "rowHeight",
+            ns.db, "number", L["Row height"], ns.defaults.rowHeight)
+        Settings.SetOnValueChangedCallback(ADDON .. "_rowHeight", function()
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateSlider(category, setting,
+            Settings.CreateSliderOptions(14, 32, 1), L["Thickness of each bar."])
+    end
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_columnWidth", "columnWidth",
+            ns.db, "number", L["Column width"], ns.defaults.columnWidth)
+        Settings.SetOnValueChangedCallback(ADDON .. "_columnWidth", function()
+            ns.db.width = nil
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateSlider(category, setting,
+            Settings.CreateSliderOptions(40, 100, 2), L["Width reserved for each metric."])
+    end
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rowIcon", "rowIcon",
+            ns.db, "string", L["Row icon"], ns.defaults.rowIcon)
+        Settings.SetOnValueChangedCallback(ADDON .. "_rowIcon", function()
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateDropdown(category, setting, function()
+            local container = Settings.CreateControlTextContainer()
+            container:Add("spec", L["Specialization"])
+            container:Add("class", L["Class"])
+            return container:GetData()
+        end, L["Specialization says more than class: who heals, who tanks."])
     end
 
     -- Janela -----------------------------------------------------------------

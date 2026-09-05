@@ -151,6 +151,18 @@ end
 
 É o mesmo caminho que o Details! usa internamente no `parser_nocleu1.lua`.
 
+### A linha é uma barra, não uma célula
+
+Cada jogador é uma **barra**: fundo escuro, preenchimento sólido na cor da classe proporcional ao
+valor, ícone de **especialização** (opcional: classe) e nome por cima, número à direita. É o
+formato do medidor nativo do jogo. As métricas extras entram como colunas à direita — e é aí que
+está o ganho: no Details essa mesma informação exige uma janela por métrica.
+
+Ajustável nas opções: **fonte** (Friz Quadrata, Arial Narrow, 2002, Skurri, Morpheus),
+**tamanho da fonte**, **altura da barra**, **largura das colunas** e o **ícone da linha**.
+A janela também redimensiona pela alça do canto inferior direito: a largura vai para o nome, e a
+altura vira quantidade de linhas.
+
 ### Uma coluna e (metrica, campo)
 
 O erro que mais custou: `Enum.DamageMeterType.Dps` **nao e** "a metrica de DPS". Os atributos
@@ -217,8 +229,8 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.10.0 — botão de limpar dados com confirmação, colunas (métrica, campo) com DPS/CPS
-corretos, seta de ordenação como textura, percentual de participação.**
+**0.11.0 — linhas em formato de barra (não planilha), ícone de especialização, fonte e
+tamanhos configuráveis, redimensionamento pela alça, botão de limpar dados.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
 interrupções e mortes com números reais), o `.toc` carrega e a ordenação responde. O que faltava

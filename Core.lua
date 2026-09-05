@@ -13,6 +13,12 @@ ns.defaults = {
     sortDesc = true,      -- maior primeiro
     rows = 8,
     scale = 1.0,
+    font = nil,               -- caminho da fonte; nil = Friz Quadrata do jogo
+    fontSize = 12,
+    rowHeight = 20,
+    columnWidth = 58,
+    width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
+    rowIcon = "spec",         -- "spec" (padrão) ou "class"
     locked = false,
     shown = true,             -- a janela volta como o usuário deixou
     combatOnly = false,       -- só aparece em combate

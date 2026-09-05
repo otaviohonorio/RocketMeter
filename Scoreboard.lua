@@ -288,7 +288,7 @@ function Scoreboard.Draw()
             end
 
             row.rank:SetText(i)
-            ns.ApplyClassIcon(row.icon, source.classFilename)
+            ns.ApplyRowIcon(row.icon, source)
             row.name:SetText(source.name)
 
             for c = 1, #columns do

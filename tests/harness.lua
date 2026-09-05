@@ -29,6 +29,13 @@ local function widget(kind)
     function self.GetEffectiveScale() return 1 end
     function self.GetCenter() return 400, 300 end
     function self.GetID() return 1 end
+    -- Getters numericos: sem isso o codigo que faz conta com GetWidth quebra so no simulador.
+    function self.GetWidth() return 400 end
+    function self.GetHeight() return 200 end
+    function self.GetStringWidth() return 40 end
+    function self.GetFrameLevel() return 1 end
+    function self.GetNormalTexture() return widget("Texture") end
+    function self.GetTexture() return "texture" end
 
     return setmetatable(self, {
         __index = function(_, key)
@@ -233,6 +240,15 @@ try("Window.OnCombatStart", ns.Window.OnCombatStart)
 try("Window.OnCombatEnd", ns.Window.OnCombatEnd)
 try("Window.Draw", ns.Window.Draw)
 try("Window.Rebuild", ns.Window.Rebuild)
+try("ApplyRowIcon (spec)", function()
+    ns.db.rowIcon = "spec"
+    ns.Window.Rebuild()
+end)
+try("ApplyRowIcon (class)", function()
+    ns.db.rowIcon = "class"
+    ns.Window.Rebuild()
+    ns.db.rowIcon = "spec"
+end)
 try("Window.ToggleColumn", ns.Window.ToggleColumn, "absorb")
 try("Window.MoveColumn", ns.Window.MoveColumn, 2, -1)
 try("Window.ApplyPreset(raid)", ns.Window.ApplyPreset, "raid")
