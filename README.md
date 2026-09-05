@@ -209,6 +209,30 @@ O botão de refresh no cabeçalho zera as sessões — e **pergunta antes**, por
 apagar tudo de uma vez: o combate atual e o geral juntos, sem desfazer. O mesmo botão está no
 rodapé do painel de colunas e no placar. Por chat, `/rm reset` pergunta e `/rm reset now` não.
 
+### Contraste: por que a barra nao usa a cor pura da classe
+
+A cor de classe pura e clara demais atras de texto branco. No medidor da Blizzard — e no Details
+com a skin nativa — a barra e uma versao **escurecida** dela. Aqui isso e o `barBrightness`
+(padrao 0.65): a cor da classe multiplicada, com o fundo da linha tingido da mesma cor bem
+apagada, para a parte vazia nao virar um buraco preto.
+
+Some-se a isso o **contorno** no texto (padrao fino), que e o que garante leitura sobre qualquer
+cor de barra.
+
+A **textura** da barra e escolhivel, entre as que o proprio jogo traz — nenhum arquivo nosso,
+nenhuma biblioteca de midia:
+
+| Opcao | Textura |
+|---|---|
+| Blizzard (padrao) | `RaidFrame\Raid-Bar-Hp-Fill` |
+| Chapada | `Buttons\WHITE8X8` |
+| Classica | `TargetingFrame\UI-StatusBar` |
+| Pericias | `PaperDollInfoFrame\UI-Character-Skills-Bar` |
+| Placar | `WorldStateFrame\WORLDSTATEFINALSCORE-HIGHLIGHT` |
+
+**Icone por especializacao, cor por classe** — como no Details. A Blizzard nao define cor por
+especializacao; `RAID_CLASS_COLORS` e a tabela oficial.
+
 ### Diagnóstico: log em SavedVariables
 
 Addon não escreve arquivo onde quer, mas SavedVariables vira um `.lua` legível fora do jogo —
@@ -269,7 +293,7 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.13.0 — log de diagnóstico em SavedVariables, realce do líder por coluna, linhas em formato de barra, ícone de especialização,
+**0.14.0 — textura de barra escolhível, contraste corrigido, log de diagnóstico, realce do líder por coluna, linhas em formato de barra, ícone de especialização,
 fonte e tamanhos configuráveis, redimensionamento, botão de limpar dados.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
