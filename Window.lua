@@ -34,13 +34,8 @@ local WINDOW_ALPHA = 0
 local ROW_HEIGHT_FIXED = 20         -- skin: barHeight
 local COLUMN_WIDTH_FIXED = 58
 
--- Uma faixa só, mais alta, com o título em cima e os rótulos de coluna embaixo.
--- A skin usa `titlebarHeight = 32`: a arte foi desenhada para essa altura, então cabem as
--- duas linhas sem apertar. Duas barras empilhadas (título + faixa de colunas) competiam
--- entre si e criavam um segundo retângulo escuro logo abaixo do primeiro.
-local HEADER_HEIGHT = 32
-local TITLE_ROW_HEIGHT = 18         -- parte de cima da faixa
-local COLHEAD_HEIGHT = 12           -- parte de baixo, dentro da mesma faixa
+local HEADER_HEIGHT = 20            -- faixa da referência (a skin usa 32 na escala dela)
+local COLHEAD_HEIGHT = 13
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
 local GRIP = 14
@@ -194,9 +189,8 @@ local function WindowWidth()
     return saved > minimum and saved or minimum
 end
 
----Os rótulos moram dentro da faixa do título, então não custam altura extra à janela.
 local function ColumnHeaderHeight()
-    return 0
+    return COLHEAD_HEIGHT
 end
 
 ---Altura da janela para N linhas.
@@ -206,7 +200,7 @@ end
 ---alça inútil — com um jogador só, arrastar não mudava nada e parecia travado.
 local function WindowHeight(rowCount)
     if rowCount < 1 then rowCount = 1 end
-    return HEADER_HEIGHT + rowCount * (RowHeight() + 1) + PADDING
+    return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
 end
 
 --------------------------------------------------------------------------------
@@ -214,17 +208,18 @@ end
 --------------------------------------------------------------------------------
 local function BuildColumnHeader()
     if not headerRow then
-        headerRow = CreateFrame("Frame", nil, frame.header)
+        headerRow = CreateFrame("Frame", nil, frame)
         headerRow.labels = {}
-        -- Sem fundo próprio: quem faz o fundo é a arte da faixa do título.
+        -- Sem fundo: com a janela transparente, uma faixa escura aqui vira um segundo
+        -- retângulo opaco logo abaixo do título e pesa a tela.
         headerRow.bg = headerRow:CreateTexture(nil, "BACKGROUND")
         headerRow.bg:SetAllPoints()
         headerRow.bg:SetColorTexture(0, 0, 0, 0)
     end
 
     headerRow:ClearAllPoints()
-    headerRow:SetPoint("BOTTOMLEFT", frame.header, "BOTTOMLEFT", PADDING, 2)
-    headerRow:SetPoint("BOTTOMRIGHT", frame.header, "BOTTOMRIGHT", -PADDING, 2)
+    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -HEADER_HEIGHT)
+    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -HEADER_HEIGHT)
     headerRow:SetHeight(COLHEAD_HEIGHT)
 
     for _, button in pairs(headerRow.labels) do
@@ -282,7 +277,7 @@ local function BuildColumnHeader()
         button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
-        ns.ApplyFont(button.text, -3, "")
+        ns.ApplyFont(button.text, -2, "")
 
         local label = ns.Data.GetShortLabel(key)
         if key == ns.db.sortBy then
@@ -298,7 +293,7 @@ local function BuildColumnHeader()
             button.arrow:Show()
         else
             button.text:SetText(label)
-            button.text:SetTextColor(0.72, 0.66, 0.48)
+            button.text:SetTextColor(0.78, 0.74, 0.60)
             button.arrow:Hide()
         end
         button:Show()
@@ -370,7 +365,7 @@ local function BuildRow(index)
     local height = RowHeight()
     row:SetHeight(height)
     row:ClearAllPoints()
-    local offsetY = -(HEADER_HEIGHT + (index - 1) * (height + 1))
+    local offsetY = -(HEADER_HEIGHT + ColumnHeaderHeight() + (index - 1) * (height + 1))
     row:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, offsetY)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
 
@@ -474,8 +469,8 @@ function Window.Create()
     header.line:SetColorTexture(0, 0, 0, 0.8)
 
     header.segment = CreateFrame("Button", nil, header)
-    header.segment:SetSize(120, TITLE_ROW_HEIGHT)
-    header.segment:SetPoint("TOPLEFT", 6, -2)
+    header.segment:SetSize(110, HEADER_HEIGHT - 4)
+    header.segment:SetPoint("LEFT", 6, 0)
     header.segment.text = header.segment:CreateFontString(nil, "OVERLAY")
     header.segment.text:SetPoint("LEFT")
     header.segment.text:SetTextColor(1, 0.82, 0)      -- dourado padrão da Blizzard
@@ -521,7 +516,7 @@ function Window.Create()
 
     frame.closeButton = HeaderButton("Interface\\Buttons\\UI-Panel-MinimizeButton-Up",
         L["Close"], function() Window.Hide() end)
-    frame.closeButton:SetPoint("TOPRIGHT", header, "TOPRIGHT", -4, -3)
+    frame.closeButton:SetPoint("RIGHT", header, "RIGHT", -4, 0)
 
     frame.gearButton = HeaderButton("Interface\\Buttons\\UI-OptionsButton",
         L["Configure columns"], function() ns.Picker.Toggle(frame) end)
