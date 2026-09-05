@@ -81,6 +81,8 @@ local HEADER_HEIGHT = 25
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
+local MIN_ROWS = 1              -- uma linha ainda é útil: só você, no boneco de treino
+local MAX_ROWS = 20             -- tamanho de uma raide; acima disso a janela toma a tela
 local GRIP = 14
 
 -- Cadeado plano: o mesmo ícone nos dois estados, distinguidos por cor e saturação. Não há
@@ -634,7 +636,7 @@ function Window.Create()
     frame:SetResizable(true)
     if frame.SetResizeBounds then
         -- Máximo generoso: quem arrasta decide, o limite é só para não virar tela cheia.
-        frame:SetResizeBounds(MinWidth(), WindowHeight(1), 1400, WindowHeight(40))
+        frame:SetResizeBounds(MinWidth(), WindowHeight(MIN_ROWS), 1400, WindowHeight(MAX_ROWS))
     end
 
     local grip = CreateFrame("Button", nil, frame)
@@ -693,7 +695,7 @@ function Window.Rebuild()
 
     frame:SetWidth(WindowWidth())
     if frame.SetResizeBounds then
-        frame:SetResizeBounds(MinWidth(), WindowHeight(1), 1400, WindowHeight(40))
+        frame:SetResizeBounds(MinWidth(), WindowHeight(MIN_ROWS), 1400, WindowHeight(MAX_ROWS))
     end
 
     visibleRows = -1
@@ -1006,8 +1008,8 @@ end
 ---caminhos calculariam a altura de formas diferentes.
 function Window.SetRows(count)
     if type(count) ~= "number" then return end
-    if count < 1 then count = 1 end
-    if count > 40 then count = 40 end
+    if count < MIN_ROWS then count = MIN_ROWS end
+    if count > MAX_ROWS then count = MAX_ROWS end
     if count == ns.db.rows then return end
 
     ns.db.rows = count

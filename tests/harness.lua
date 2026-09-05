@@ -473,7 +473,7 @@ check("stepper muda a quantidade", ns.Window.GetRows(), 12)
 ns.Window.SetRows(0)
 check("minimo respeitado", ns.Window.GetRows(), 1)
 ns.Window.SetRows(99)
-check("maximo respeitado", ns.Window.GetRows(), 40)
+check("maximo respeitado", ns.Window.GetRows(), 20)
 ns.Window.SetRows(5)
 
 print("== rolagem ==")
