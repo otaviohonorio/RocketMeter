@@ -22,6 +22,23 @@ local GRIP = 14
 
 local CLASS_ICONS = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
 
+-- Texturas do próprio jogo (nenhum arquivo nosso, nenhuma biblioteca de mídia).
+ns.BAR_TEXTURES = {
+    { key = "blizzard", path = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",              label = "Blizzard" },
+    { key = "flat",     path = "Interface\\Buttons\\WHITE8X8",                        label = "Chapada" },
+    { key = "classic",  path = "Interface\\TargetingFrame\\UI-StatusBar",             label = "Clássica" },
+    { key = "skills",   path = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar", label = "Perícias" },
+    { key = "score",    path = "Interface\\WorldStateFrame\\WORLDSTATEFINALSCORE-HIGHLIGHT", label = "Placar" },
+}
+
+function ns.BarTexture()
+    local wanted = ns.db.barTexture
+    for _, entry in ipairs(ns.BAR_TEXTURES) do
+        if entry.key == wanted then return entry.path end
+    end
+    return ns.BAR_TEXTURES[1].path
+end
+
 local frame, headerRow, rows
 local dirty, throttle = false, 0
 local visibleRows = -1
@@ -37,7 +54,15 @@ end
 function ns.ApplyFont(fontString, delta, flags)
     local size = (ns.db.fontSize or 12) + (delta or 0)
     if size < 6 then size = 6 end
-    fontString:SetFont(ns.FontPath(), size, flags or "")
+
+    -- Contorno é o que faz o texto branco sobreviver a qualquer cor de barra.
+    local outline = flags
+    if outline == nil then
+        outline = ns.db.fontOutline
+        if outline == nil or outline == "none" then outline = "" end
+    end
+
+    fontString:SetFont(ns.FontPath(), size, outline)
     if flags == nil then
         fontString:SetShadowOffset(1, -1)
         fontString:SetShadowColor(0, 0, 0, 1)
@@ -59,6 +84,22 @@ function ns.ClassColor(classFilename)
         return color.r, color.g, color.b
     end
     return 0.45, 0.5, 0.62
+end
+
+---Cor do preenchimento da barra.
+---
+---A cor pura da classe é clara demais atrás de texto branco — no medidor da Blizzard e no
+---Details a barra é uma versão **escurecida** dela. `barBrightness` controla o quanto.
+function ns.BarColor(classFilename)
+    local r, g, b = ns.ClassColor(classFilename)
+    local k = ns.db.barBrightness or 0.65
+    return r * k, g * k, b * k
+end
+
+---Fundo da linha: a mesma cor, bem apagada, para a parte vazia não ser um buraco preto.
+function ns.RowBackdropColor(classFilename)
+    local r, g, b = ns.ClassColor(classFilename)
+    return r * 0.18, g * 0.18, b * 0.18, 0.85
 end
 
 local function ApplyClassIcon(texture, classFilename)
@@ -237,7 +278,7 @@ local function BuildRow(index)
         row.bar = CreateFrame("StatusBar", nil, row)
         row.bar:SetPoint("TOPLEFT", 1, -1)
         row.bar:SetPoint("BOTTOMRIGHT", -1, 1)
-        row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+        row.bar:SetStatusBarTexture(ns.BarTexture())
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)
         row.bar:SetFrameLevel(row:GetFrameLevel() + 1)
@@ -275,6 +316,8 @@ local function BuildRow(index)
     local offsetY = -(HEADER_HEIGHT + COLHEAD_HEIGHT + (index - 1) * (height + 1))
     row:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, offsetY)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
+
+    row.bar:SetStatusBarTexture(ns.BarTexture())
 
     local iconSize = height - 4
     row.icon:SetSize(iconSize, iconSize)
@@ -589,8 +632,8 @@ function Window.Draw()
             if value == nil then value = 0 end
             row.bar:SetMinMaxValues(0, top)
             row.bar:SetValue(value)
-            local r, g, b = ns.ClassColor(source.classFilename)
-            row.bar:SetStatusBarColor(r, g, b, 1)
+            row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
+            row.bg:SetColorTexture(ns.RowBackdropColor(source.classFilename))
 
             row.rank:SetText(i .. ".")
             row.rank:SetTextColor(0.85, 0.85, 0.88)

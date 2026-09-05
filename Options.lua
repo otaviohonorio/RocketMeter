@@ -138,6 +138,46 @@ function ns.SetupOptions()
     end
 
     do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_barTexture", "barTexture",
+            ns.db, "string", L["Bar texture"], ns.defaults.barTexture)
+        Settings.SetOnValueChangedCallback(ADDON .. "_barTexture", function()
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateDropdown(category, setting, function()
+            local container = Settings.CreateControlTextContainer()
+            for _, entry in ipairs(ns.BAR_TEXTURES) do
+                container:Add(entry.key, entry.label)
+            end
+            return container:GetData()
+        end, L["Look of the filled bar."])
+    end
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_barBrightness", "barBrightness",
+            ns.db, "number", L["Bar brightness"], ns.defaults.barBrightness)
+        Settings.SetOnValueChangedCallback(ADDON .. "_barBrightness", function()
+            ns.Window.Refresh(true)
+        end)
+        Settings.CreateSlider(category, setting,
+            Settings.CreateSliderOptions(0.3, 1.0, 0.05), L["Lower values darken the bar so the white text reads better."])
+    end
+
+    do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_fontOutline", "fontOutline",
+            ns.db, "string", L["Text outline"], ns.defaults.fontOutline)
+        Settings.SetOnValueChangedCallback(ADDON .. "_fontOutline", function()
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateDropdown(category, setting, function()
+            local container = Settings.CreateControlTextContainer()
+            container:Add("OUTLINE", L["Thin"])
+            container:Add("THICKOUTLINE", L["Thick"])
+            container:Add("none", L["None"])
+            return container:GetData()
+        end, L["Outline keeps the text readable over any bar colour."])
+    end
+
+    do
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_fontSize", "fontSize",
             ns.db, "number", L["Font size"], ns.defaults.fontSize)
         Settings.SetOnValueChangedCallback(ADDON .. "_fontSize", function()

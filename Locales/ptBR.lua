@@ -173,3 +173,16 @@ L["records a diagnostic snapshot"] = "grava uma foto de diagnóstico"
 L["log cleared."] = "log limpo."
 L["snapshot saved (%d entries). Type /reload so the file is written."] =
     "foto gravada (%d entradas). Digite /reload para o arquivo ser escrito."
+
+-- Skin da barra (0.14.0)
+L["Bar texture"] = "Textura da barra"
+L["Look of the filled bar."] = "Aparência do preenchimento."
+L["Bar brightness"] = "Brilho da barra"
+L["Lower values darken the bar so the white text reads better."] =
+    "Valores menores escurecem a barra e o texto branco fica mais legível."
+L["Text outline"] = "Contorno do texto"
+L["Outline keeps the text readable over any bar colour."] =
+    "O contorno mantém o texto legível sobre qualquer cor de barra."
+L["Thin"] = "Fino"
+L["Thick"] = "Grosso"
+L["None"] = "Nenhum"

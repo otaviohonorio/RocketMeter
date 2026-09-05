@@ -133,7 +133,7 @@ local function BuildRow(index)
 
         row.bar = CreateFrame("StatusBar", nil, row)
         row.bar:SetAllPoints()
-        row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+        row.bar:SetStatusBarTexture(ns.BarTexture())
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)
         row.bar:SetFrameLevel(row:GetFrameLevel() + 1)
@@ -279,10 +279,14 @@ function Scoreboard.Draw()
         else
             local source = entry.source
 
-            row.bar:SetMinMaxValues(0, maxAmount or 1)
-            row.bar:SetValue(source.totalAmount or 0)
-            local r, g, b = ns.ClassColor(source.classFilename)
-            row.bar:SetStatusBarColor(r, g, b, 0.45)
+            local top = maxAmount
+            if top == nil then top = 1 end
+            local value = source.totalAmount
+            if value == nil then value = 0 end
+            row.bar:SetStatusBarTexture(ns.BarTexture())
+            row.bar:SetMinMaxValues(0, top)
+            row.bar:SetValue(value)
+            row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
 
             -- Quem lidera a métrica ordenada ganha um fundo dourado discreto.
             if i == 1 and sortDesc then
