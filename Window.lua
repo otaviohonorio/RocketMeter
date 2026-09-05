@@ -113,6 +113,13 @@ local function BuildColumnHeader()
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
             button.text:SetPoint("RIGHT", -4, 0)
 
+            -- Seta como textura: o caractere unicode nao existe na fonte do jogo e virava quadrado.
+            button.arrow = button:CreateTexture(nil, "OVERLAY")
+            button.arrow:SetSize(10, 10)
+            button.arrow:SetPoint("RIGHT", button.text, "LEFT", -1, 0)
+            button.arrow:SetVertexColor(1, 0.75, 0.4)
+            button.arrow:Hide()
+
             button:SetScript("OnClick", function(self)
                 local attributeId = ns.db.columns[self.columnIndex]
                 if IsShiftKeyDown() then
@@ -147,9 +154,13 @@ local function BuildColumnHeader()
 
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == ns.db.sortBy then
-            button.text:SetText("|cffffc06a" .. label .. (ns.db.sortDesc and " \226\150\188" or " \226\150\178") .. "|r")
+            button.text:SetText("|cffffc06a" .. label .. "|r")
+            button.arrow:SetTexture(ns.db.sortDesc and "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up"
+                or "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
+            button.arrow:Show()
         else
             button.text:SetText("|cff8a8a8a" .. label .. "|r")
+            button.arrow:Hide()
         end
         button:Show()
     end
@@ -381,17 +392,29 @@ function Window.Refresh(immediate)
     end
 end
 
----Escreve um valor que pode ser secret: formatado fora de combate, cru dentro.
-function ns.SetAmountText(fontString, value, suffix)
+---Escreve o valor de uma celula. Fora de combate formata; dentro, repassa o valor cru ao
+---FontString (o motor renderiza secret values que o Lua nao pode ler).
+function ns.SetCellText(fontString, value, columnKey)
     if value == nil then
         fontString:SetText("|cff4a4a4a-|r")
         return
     end
+
+    if ns.Data.IsPercentColumn(columnKey) then
+        fontString:SetText(ns.Data.FormatPercent(value) or "|cff4a4a4a-|r")
+        return
+    end
+
     local text = ns.Data.FormatAmount(value)
-    if text then
-        fontString:SetText(suffix and (text .. "|cff777777" .. suffix .. "|r") or text)
-    else
+    if not text then
         fontString:SetText(value)
+        return
+    end
+
+    if ns.Data.IsRateColumn(columnKey) then
+        fontString:SetText(text .. "|cff777777/s|r")
+    else
+        fontString:SetText(text)
     end
 end
 
@@ -433,8 +456,7 @@ function Window.Draw()
             row.name:SetText(source.name)
 
             for c = 1, #ns.db.columns do
-                local suffix = ns.Data.IsRateColumn(ns.db.columns[c]) and "/s" or nil
-                ns.SetAmountText(row.cells[c], entry.values[c], suffix)
+                ns.SetCellText(row.cells[c], entry.values[c], ns.db.columns[c])
             end
 
             row:Show()

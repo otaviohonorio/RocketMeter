@@ -126,3 +126,12 @@ L["clears the sessions"] = "zera as sessões"
 L["opens the options"] = "abre as opções"
 L["(click a column header to sort by it)"] = "(clique num cabeçalho de coluna para ordenar por ela)"
 L["Close"] = "Fechar"
+
+-- Colunas novas (0.9.0)
+L["Dmg%"] = "Dano%"
+L["Heal%"] = "Cura%"
+L["TPS"] = "RPS"
+L["Share of the group damage"] = "Fatia do dano do grupo"
+L["Share of the group healing"] = "Fatia da cura do grupo"
+L["Damage taken per second"] = "Dano recebido por segundo"
+L["columns migrated to the new format."] = "colunas convertidas para o formato novo."

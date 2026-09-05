@@ -151,6 +151,25 @@ end
 
 É o mesmo caminho que o Details! usa internamente no `parser_nocleu1.lua`.
 
+### Uma coluna e (metrica, campo)
+
+O erro que mais custou: `Enum.DamageMeterType.Dps` **nao e** "a metrica de DPS". Os atributos
+`Dps` e `Hps` devolvem os mesmos totais de dano e cura — quem carrega o valor por segundo e o
+campo `amountPerSecond`, no mesmo objeto que traz `totalAmount`. E assim que o Details! faz.
+
+Por isso uma coluna aqui e um par:
+
+| Coluna | metrica (`attr`) | campo |
+|---|---|---|
+| Dano | `DamageDone` | `totalAmount` |
+| DPS | `DamateDone` | `amountPerSecond` |
+| Dano% | `DamageDone` | percentual do total do grupo |
+| Cura | `HealingDone` | `totalAmount` |
+| CPS | `HealingDone` | `amountPerSecond` |
+
+O percentual custa uma consulta por coluna (nao por linha) para obter o total do grupo naquela
+metrica, e so aparece fora de combate — calcular exige aritmetica, proibida com secret values.
+
 ### Comportamento da janela
 
 - **Volta como você deixou**: a visibilidade é salva, então a janela reaparece sozinha na posição
@@ -192,8 +211,8 @@ um colega funciona em qualquer instalação.
 
 ## Estado
 
-**0.8.0 — UI retrabalhada: ícones de classe, zebra, destaque do líder, placar redesenhado,
-janela persistente, modo só-em-combate.**
+**0.9.0 — colunas (metrica, campo): DPS e CPS agora batem com o Details. Seta de ordenacao
+como textura. Percentual de participacao. Colunas salvas migram sozinhas.**
 
 Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
 interrupções e mortes com números reais), o `.toc` carrega e a ordenação responde. O que faltava

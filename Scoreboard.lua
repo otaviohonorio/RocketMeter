@@ -29,10 +29,9 @@ local lastContext
 
 --------------------------------------------------------------------------------
 local function DefaultColumns()
-    local E = Enum.DamageMeterType
     return {
-        E.DamageDone, E.Dps, E.HealingDone, E.Hps,
-        E.Interrupts, E.Dispels, E.DamageTaken, E.AvoidableDamageTaken, E.Deaths,
+        "damage", "dps", "damagepct", "healing", "hps",
+        "interrupts", "dispels", "taken", "avoidable", "deaths",
     }
 end
 
@@ -80,6 +79,11 @@ local function BuildColumnHeader()
             button:SetWidth(COLUMN_WIDTH)
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
             button.text:SetPoint("RIGHT", -4, 0)
+            button.arrow = button:CreateTexture(nil, "OVERLAY")
+            button.arrow:SetSize(10, 10)
+            button.arrow:SetPoint("RIGHT", button.text, "LEFT", -1, 0)
+            button.arrow:SetVertexColor(1, 0.75, 0.4)
+            button.arrow:Hide()
             button:SetScript("OnClick", function(self)
                 local attributeId = columns[self.columnIndex]
                 if sortBy == attributeId then
@@ -106,9 +110,13 @@ local function BuildColumnHeader()
 
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == sortBy then
-            button.text:SetText("|cffffc06a" .. label .. (sortDesc and " \226\150\188" or " \226\150\178") .. "|r")
+            button.text:SetText("|cffffc06a" .. label .. "|r")
+            button.arrow:SetTexture(sortDesc and "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up"
+                or "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
+            button.arrow:Show()
         else
             button.text:SetText("|cff8a8a8a" .. label .. "|r")
+            button.arrow:Hide()
         end
         button:Show()
     end
@@ -278,8 +286,7 @@ function Scoreboard.Draw()
             row.name:SetText(source.name)
 
             for c = 1, #columns do
-                local suffix = ns.Data.IsRateColumn(columns[c]) and "/s" or nil
-                ns.SetAmountText(row.cells[c], entry.values[c], suffix)
+                ns.SetCellText(row.cells[c], entry.values[c], columns[c])
             end
             row:Show()
         end

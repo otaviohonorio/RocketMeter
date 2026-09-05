@@ -1,77 +1,146 @@
 -- RocketMeter | Data.lua
 -- Camada única sobre C_DamageMeter. Nenhum outro arquivo fala com a API do jogo.
 --
--- Regra do Midnight: durante o combate os campos da sessão (inclusive `name`) são
--- SECRET VALUES. Não dá para comparar, somar ou formatar — só repassar a widget.
--- Fora de combate os mesmos campos voltam a ser números/strings legíveis.
+-- DUAS LIÇÕES QUE CUSTARAM CARO:
+--
+-- 1) Uma coluna é **(métrica, campo)**, não só uma métrica. O valor por segundo vem no campo
+--    `amountPerSecond` do MESMO objeto que traz o total — é assim que o Details! faz. Os
+--    atributos `Enum.DamageMeterType.Dps` e `.Hps` devolvem os mesmos totais do dano/cura, e
+--    usá-los como "coluna de DPS" faz a tela repetir o total (era o bug até a 0.8.0).
+--
+-- 2) Em combate os campos são SECRET VALUES: não dá para comparar, somar ou formatar — só
+--    repassar a widget. Fora de combate voltam a ser números legíveis.
 local ADDON, ns = ...
 local L = ns.L
 
 local Data = {}
 ns.Data = Data
 
--- Cada métrica é uma coluna independente: total e por segundo são colunas separadas,
--- para você ligar só o que quiser ver.
-function Data.GetAttributes()
+--------------------------------------------------------------------------------
+-- Catálogo de colunas
+--------------------------------------------------------------------------------
+local columnList, columnByKey
+
+local function BuildColumns()
     local E = Enum.DamageMeterType
-    if not E then return {} end
-    return {
-        { id = E.DamageDone,           short = L["Dmg"],     label = L["Total damage"] },
-        { id = E.Dps,                  short = L["DPS"],     label = L["Damage per second"] },
-        { id = E.HealingDone,          short = L["Heal"],    label = L["Total healing"] },
-        { id = E.Hps,                  short = L["HPS"],     label = L["Healing per second"] },
-        { id = E.Absorbs,              short = L["Absorb"],  label = L["Absorbs"] },
-        { id = E.DamageTaken,          short = L["Taken"],   label = L["Damage taken"] },
-        { id = E.AvoidableDamageTaken, short = L["Avoid"],   label = L["Avoidable damage"] },
-        { id = E.Interrupts,           short = L["Interr"],  label = L["Interrupts"] },
-        { id = E.Dispels,              short = L["Dispel"],  label = L["Dispels"] },
-        { id = E.Deaths,               short = L["Deaths"],  label = L["Player deaths"] },
-        { id = E.EnemyDamageTaken,     short = L["Enemies"], label = L["Damage on enemies"] },
+    if not E then return {}, {} end
+
+    local list = {
+        { key = "damage",     attr = E.DamageDone,           field = "total",     short = L["Dmg"],    label = L["Total damage"] },
+        { key = "dps",        attr = E.DamageDone,           field = "perSecond", short = L["DPS"],    label = L["Damage per second"] },
+        { key = "damagepct",  attr = E.DamageDone,           field = "percent",   short = L["Dmg%"],   label = L["Share of the group damage"] },
+        { key = "healing",    attr = E.HealingDone,          field = "total",     short = L["Heal"],   label = L["Total healing"] },
+        { key = "hps",        attr = E.HealingDone,          field = "perSecond", short = L["HPS"],    label = L["Healing per second"] },
+        { key = "healingpct", attr = E.HealingDone,          field = "percent",   short = L["Heal%"],  label = L["Share of the group healing"] },
+        { key = "absorb",     attr = E.Absorbs,              field = "total",     short = L["Absorb"], label = L["Absorbs"] },
+        { key = "taken",      attr = E.DamageTaken,          field = "total",     short = L["Taken"],  label = L["Damage taken"] },
+        { key = "takenps",    attr = E.DamageTaken,          field = "perSecond", short = L["TPS"],    label = L["Damage taken per second"] },
+        { key = "avoidable",  attr = E.AvoidableDamageTaken, field = "total",     short = L["Avoid"],  label = L["Avoidable damage"] },
+        { key = "interrupts", attr = E.Interrupts,           field = "total",     short = L["Interr"], label = L["Interrupts"] },
+        { key = "dispels",    attr = E.Dispels,              field = "total",     short = L["Dispel"], label = L["Dispels"] },
+        { key = "deaths",     attr = E.Deaths,               field = "total",     short = L["Deaths"], label = L["Player deaths"] },
+        { key = "enemies",    attr = E.EnemyDamageTaken,     field = "total",     short = L["Enemies"],label = L["Damage on enemies"] },
     }
-end
 
-local function FindAttribute(attributeId)
-    for _, attr in ipairs(Data.GetAttributes()) do
-        if attr.id == attributeId then return attr end
+    local byKey = {}
+    for i, def in ipairs(list) do
+        def.order = i
+        byKey[def.key] = def
     end
-    return nil
+    return list, byKey
 end
 
-function Data.GetAttributeLabel(attributeId)
-    local attr = FindAttribute(attributeId)
-    return attr and attr.label or "?"
+local function EnsureColumns()
+    if not columnList then
+        columnList, columnByKey = BuildColumns()
+    end
+    return columnList, columnByKey
 end
 
-function Data.GetShortLabel(attributeId)
-    local attr = FindAttribute(attributeId)
-    return attr and attr.short or "?"
+function Data.GetColumns()
+    local list = EnsureColumns()
+    return list
 end
 
----Métricas que já são "por segundo": mostradas com o sufixo /s quando legíveis.
-function Data.IsRateColumn(attributeId)
+function Data.GetColumn(key)
+    local _, byKey = EnsureColumns()
+    return byKey[key]
+end
+
+function Data.GetShortLabel(key)
+    local def = Data.GetColumn(key)
+    return def and def.short or "?"
+end
+
+function Data.GetAttributeLabel(key)
+    local def = Data.GetColumn(key)
+    return def and def.label or "?"
+end
+
+function Data.IsRateColumn(key)
+    local def = Data.GetColumn(key)
+    return def ~= nil and def.field == "perSecond"
+end
+
+function Data.IsPercentColumn(key)
+    local def = Data.GetColumn(key)
+    return def ~= nil and def.field == "percent"
+end
+
+---Converte colunas salvas no formato antigo (ids de Enum) para as chaves atuais.
+function Data.MigrateColumns(saved)
+    if type(saved) ~= "table" then return nil end
+
     local E = Enum.DamageMeterType
-    if not E then return false end
-    return attributeId == E.Dps or attributeId == E.Hps
+    if not E then return nil end
+
+    local fromEnum = {
+        [E.DamageDone] = "damage",
+        [E.Dps] = "dps",
+        [E.HealingDone] = "healing",
+        [E.Hps] = "hps",
+        [E.Absorbs] = "absorb",
+        [E.DamageTaken] = "taken",
+        [E.AvoidableDamageTaken] = "avoidable",
+        [E.Interrupts] = "interrupts",
+        [E.Dispels] = "dispels",
+        [E.Deaths] = "deaths",
+        [E.EnemyDamageTaken] = "enemies",
+    }
+
+    local out, changed = {}, false
+    for _, entry in ipairs(saved) do
+        if type(entry) == "number" then
+            changed = true
+            local key = fromEnum[entry]
+            if key then out[#out + 1] = key end
+        elseif Data.GetColumn(entry) then
+            out[#out + 1] = entry
+        else
+            changed = true
+        end
+    end
+
+    if #out == 0 then return nil end
+    return out, changed
 end
 
--- Conjuntos prontos, pensados no que se olha de verdade em cada conteúdo.
+--------------------------------------------------------------------------------
+-- Conjuntos prontos
+--------------------------------------------------------------------------------
 function Data.GetPresets()
-    local E = Enum.DamageMeterType
-    if not E then return {} end
     return {
         mplus = {
             label = L["Mythic+"],
-            columns = { E.DamageDone, E.Dps, E.HealingDone, E.Hps, E.Interrupts,
-                        E.AvoidableDamageTaken, E.Deaths },
+            columns = { "damage", "dps", "healing", "hps", "interrupts", "avoidable", "deaths" },
         },
         raid = {
             label = L["Raid"],
-            columns = { E.DamageDone, E.Dps, E.HealingDone, E.Hps, E.Absorbs,
-                        E.AvoidableDamageTaken, E.Deaths },
+            columns = { "damage", "dps", "damagepct", "healing", "hps", "taken", "deaths" },
         },
         damage = {
             label = L["Damage only"],
-            columns = { E.DamageDone, E.Dps },
+            columns = { "damage", "dps", "damagepct" },
         },
     }
 end
@@ -83,13 +152,11 @@ function Data.IsAvailable()
     return C_DamageMeter and C_DamageMeter.IsDamageMeterAvailable and C_DamageMeter.IsDamageMeterAvailable()
 end
 
----@return table|nil session campos: combatSources, totalAmount, maxAmount, durationSeconds
 function Data.GetSession(sessionType, attributeId)
     if not Data.IsAvailable() then return nil end
     return C_DamageMeter.GetCombatSessionFromType(sessionType, attributeId)
 end
 
----Detalhe de um ator dentro de um atributo: o total daquele ator naquela métrica.
 ---O `guid` pode ser secret em combate — a API aceita de volta o valor opaco que ela mesma
 ---produziu, e é isso que torna possível cruzar métricas.
 function Data.GetSource(sessionType, attributeId, guid, creatureId)
@@ -108,36 +175,74 @@ function Data.ResetAll()
     end
 end
 
----Monta as linhas da janela: uma por ator, com um valor por coluna.
+--------------------------------------------------------------------------------
+-- Montagem das linhas
+--------------------------------------------------------------------------------
+local function ValueFromSource(source, def, sessionTotal)
+    if not source then return nil end
+
+    if def.field == "total" then
+        return source.totalAmount
+    elseif def.field == "perSecond" then
+        return source.amountPerSecond
+    elseif def.field == "percent" then
+        local value, total = source.totalAmount, sessionTotal
+        -- Percentual exige aritmética: só existe quando os dois valores são legíveis.
+        if value == nil or total == nil then return nil end
+        if issecretvalue(value) or issecretvalue(total) or total <= 0 then return nil end
+        return value / total * 100
+    end
+    return nil
+end
+
+---Monta as linhas: uma por ator, com um valor por coluna.
 ---
----A ordem vem da API (consulta do atributo de ordenação) porque ordenar no Lua exigiria
----comparar valores — proibido em combate. As demais colunas são buscadas ator a ator,
----passando o GUID de volta para a API.
----A direção é obtida percorrendo a lista de trás para frente quando `ascending` é true —
----inverter não exige comparar nada, então funciona mesmo com valores secret.
----@return table[]|nil rows cada uma: { source = <combat_source>, values = { [coluna] = valor } }
+---A ordem vem da API (consulta da métrica de ordenação) porque ordenar no Lua exigiria comparar
+---valores — proibido em combate. `ascending` percorre a lista ao contrário, o que não compara nada.
+---@param columns string[] chaves de coluna
+---@return table[]|nil rows { source = <combat_source>, values = { [coluna] = número } }
 ---@return table|nil session
-function Data.GetRows(sessionType, sortAttr, columns, maxRows, ascending)
-    local session = Data.GetSession(sessionType, sortAttr)
+function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
+    local sortDef = Data.GetColumn(sortKey)
+    if not sortDef then return nil, nil end
+
+    local session = Data.GetSession(sessionType, sortDef.attr)
     local sources = session and session.combatSources
     if not sources then return nil, nil end
+
+    -- Totais por métrica: uma consulta por coluna (não por linha), para os percentuais.
+    local sessionTotals, needTotals = {}, false
+    for c = 1, #columns do
+        local def = Data.GetColumn(columns[c])
+        if def and def.field == "percent" and sessionTotals[def.attr] == nil then
+            needTotals = true
+            local other = def.attr == sortDef.attr and session or Data.GetSession(sessionType, def.attr)
+            sessionTotals[def.attr] = other and other.totalAmount or false
+        end
+    end
+    if not needTotals then sessionTotals = nil end
 
     local rows = {}
     local count = #sources
     if count > maxRows then count = maxRows end
-
     local total = #sources
 
     for i = 1, count do
         local source = sources[ascending and (total - i + 1) or i]
         local values = {}
+        local cache = { [sortDef.attr] = source }
 
         for c = 1, #columns do
-            if columns[c] == sortAttr then
-                values[c] = source.totalAmount
-            else
-                local other = Data.GetSource(sessionType, columns[c], source.sourceGUID, source.sourceCreatureID)
-                values[c] = other and other.totalAmount or nil
+            local def = Data.GetColumn(columns[c])
+            if def then
+                local from = cache[def.attr]
+                if from == nil then
+                    from = Data.GetSource(sessionType, def.attr, source.sourceGUID, source.sourceCreatureID)
+                        or false
+                    cache[def.attr] = from
+                end
+                values[c] = ValueFromSource(from or nil, def,
+                    sessionTotals and sessionTotals[def.attr] or nil)
             end
         end
 
@@ -150,7 +255,6 @@ end
 --------------------------------------------------------------------------------
 -- Formatação
 --------------------------------------------------------------------------------
----True quando a sessão está com dados protegidos (combate em andamento).
 function Data.IsSessionSecret(session)
     if not session then return false end
     local first = session.combatSources and session.combatSources[1]
@@ -165,9 +269,9 @@ function Data.FormatAmount(value)
     return AbbreviateNumbers(value)
 end
 
-function Data.FormatPercent(value, total)
-    if value == nil or total == nil then return nil end
-    if issecretvalue(value) or issecretvalue(total) then return nil end
-    if total <= 0 then return nil end
-    return format("%.1f%%", value / total * 100)
+function Data.FormatPercent(value)
+    if value == nil or issecretvalue(value) then
+        return nil
+    end
+    return format("%.0f%%", value)
 end

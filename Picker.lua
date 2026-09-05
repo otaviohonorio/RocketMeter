@@ -15,16 +15,16 @@ local BOTTOM = 34     -- rodapé
 
 local frame, rows, presetButtons
 
-local function IsEnabled(attributeId)
+local function IsEnabled(key)
     for _, id in ipairs(ns.db.columns) do
-        if id == attributeId then return true end
+        if id == key then return true end
     end
     return false
 end
 
-local function IndexOf(attributeId)
+local function IndexOf(key)
     for i, id in ipairs(ns.db.columns) do
-        if id == attributeId then return i end
+        if id == key then return i end
     end
     return nil
 end
@@ -81,16 +81,16 @@ local function BuildRow(index, attr)
         rows[index] = row
     end
 
-    row.check.attributeId = attr.id
-    row.up.attributeId = attr.id
-    row.down.attributeId = attr.id
+    row.check.attributeId = attr.key
+    row.up.attributeId = attr.key
+    row.down.attributeId = attr.key
 
-    local enabled = IsEnabled(attr.id)
+    local enabled = IsEnabled(attr.key)
     row.check:SetChecked(enabled)
     row.label:SetText(attr.label)
 
     if enabled then
-        local position = IndexOf(attr.id)
+        local position = IndexOf(attr.key)
         row.label:SetTextColor(1, 1, 1)
         row.order:SetText(position .. "º")
         row.order:Show()
@@ -113,7 +113,7 @@ end
 function Picker.Create()
     if frame then return frame end
 
-    local attributes = ns.Data.GetAttributes()
+    local attributes = ns.Data.GetColumns()
 
     frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "DefaultPanelTemplate")
     frame:SetSize(WIDTH, TOP + #attributes * ROW_HEIGHT + BOTTOM)
@@ -167,7 +167,7 @@ end
 
 function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
-    local attributes = ns.Data.GetAttributes()
+    local attributes = ns.Data.GetColumns()
     for i = 1, #attributes do
         BuildRow(i, attributes[i])
     end

@@ -26,12 +26,20 @@ end
 function Profile.EnsureRuntimeDefaults()
     if not active then return end
 
+    -- Colunas salvas no formato antigo (ids de Enum) viram chaves.
+    local migrated, changed = ns.Data.MigrateColumns(active.columns)
+    if migrated and changed then
+        active.columns = migrated
+        active.sortBy = nil
+        ns.Print(L["columns migrated to the new format."])
+    end
+
     if not active.columns or #active.columns == 0 then
         local preset = ns.Data.GetPresets().mplus
-        active.columns = preset and CopyTable(preset.columns)
-            or { Enum.DamageMeterType.DamageDone }
+        active.columns = preset and CopyTable(preset.columns) or { "damage" }
     end
-    if not active.sortBy then
+
+    if not active.sortBy or not ns.Data.GetColumn(active.sortBy) then
         active.sortBy = active.columns[1]
     end
 end

@@ -54,10 +54,10 @@ commands["preset"] = function(rest)
 end
 
 commands["col"] = function(rest)
-    local list = ns.Data.GetAttributes()
+    local list = ns.Data.GetColumns()
     local index = tonumber(rest)
     if index and list[index] then
-        ns.Window.ToggleColumn(list[index].id)
+        ns.Window.ToggleColumn(list[index].key)
         ns.Print(L["column toggled:"] .. " " .. list[index].label)
         return
     end
@@ -66,7 +66,7 @@ commands["col"] = function(rest)
     for i, attr in ipairs(list) do
         local isOn = false
         for _, id in ipairs(ns.db.columns) do
-            if id == attr.id then isOn = true break end
+            if id == attr.key then isOn = true break end
         end
         print(("  %d - %s%s|r"):format(i, isOn and "|cff33ff99" or "|cff808080", attr.label))
     end

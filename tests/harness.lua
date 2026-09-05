@@ -116,8 +116,18 @@ C_DamageMeter = {
             totalAmount = 2920000, maxAmount = 1200000, durationSeconds = 134,
         }
     end,
-    GetCombatSessionSourceFromType = function()
-        return { combatSpells = {}, totalAmount = 42000, maxAmount = 42000, amountPerSecond = 350 }
+    GetCombatSessionSourceFromType = function(sessionType, attribute, guid)
+        -- Valores distintos por metrica: se o cruzamento estiver errado, o teste abaixo pega.
+        local byAttribute = {
+            [Enum.DamageMeterType.HealingDone] = { totalAmount = 600000, amountPerSecond = 5000 },
+            [Enum.DamageMeterType.Interrupts] = { totalAmount = 3, amountPerSecond = 0 },
+            [Enum.DamageMeterType.Deaths] = { totalAmount = 1, amountPerSecond = 0 },
+        }
+        local entry = byAttribute[attribute] or { totalAmount = 42000, amountPerSecond = 350 }
+        return {
+            combatSpells = {}, maxAmount = entry.totalAmount,
+            totalAmount = entry.totalAmount, amountPerSecond = entry.amountPerSecond,
+        }
     end,
     GetCombatSessionFromID = function() return nil end,
 }
@@ -213,7 +223,7 @@ try("Window.OnCombatStart", ns.Window.OnCombatStart)
 try("Window.OnCombatEnd", ns.Window.OnCombatEnd)
 try("Window.Draw", ns.Window.Draw)
 try("Window.Rebuild", ns.Window.Rebuild)
-try("Window.ToggleColumn", ns.Window.ToggleColumn, Enum.DamageMeterType.Absorbs)
+try("Window.ToggleColumn", ns.Window.ToggleColumn, "absorb")
 try("Window.MoveColumn", ns.Window.MoveColumn, 2, -1)
 try("Window.ApplyPreset(raid)", ns.Window.ApplyPreset, "raid")
 try("Picker.Toggle", ns.Picker.Toggle)
@@ -223,8 +233,42 @@ try("Profile.SetPerCharacter(true)", ns.Profile.SetPerCharacter, true)
 try("Profile.SetPerCharacter(false)", ns.Profile.SetPerCharacter, false)
 try("Profile.Reset", ns.Profile.Reset)
 try("Scoreboard.Show", ns.Scoreboard.Show)
-try("Data.GetRows", ns.Data.GetRows, 0, Enum.DamageMeterType.DamageDone,
-    { Enum.DamageMeterType.DamageDone, Enum.DamageMeterType.Hps }, 5, false)
+try("Data.GetRows", ns.Data.GetRows, 0, "damage", { "damage", "dps", "hps" }, 5, false)
+
+
+print("== valores ==")
+-- Regressao da 0.8.0: a coluna de DPS mostrava o total, porque usava o atributo Enum.Dps
+-- em vez do campo amountPerSecond. Aqui isso quebra o teste.
+local function check(label, got, want)
+    local ok = got == want
+    print(ok and ("  ok    " .. label .. " = " .. tostring(got))
+        or ("  ERRO  " .. label .. ": esperado " .. tostring(want) .. ", veio " .. tostring(got)))
+    if not ok then os.exit(1) end
+end
+
+local cols = { "damage", "dps", "healing", "hps", "interrupts", "damagepct" }
+local rows = ns.Data.GetRows(0, "damage", cols, 5, false)
+if not rows or not rows[1] then
+    print("  ERRO  GetRows nao devolveu linhas")
+    os.exit(1)
+end
+
+local first = rows[1].values
+check("dano total", first[1], 1200000)
+check("dps (amountPerSecond, nao o total)", first[2], 1200000 / 120)
+check("cura total (metrica cruzada)", first[3], 600000)
+check("hps (metrica cruzada)", first[4], 5000)
+check("interrupcoes (metrica cruzada)", first[5], 3)
+check("percentual do dano", math.floor(first[6] + 0.5), math.floor(1200000 / 2920000 * 100 + 0.5))
+
+-- ordem invertida: a ultima linha vira a primeira, sem comparar nada
+local asc = ns.Data.GetRows(0, "damage", cols, 5, true)
+check("ordem crescente comeca pelo menor", asc[1].source.totalAmount, 740000)
+
+-- migracao das colunas salvas no formato antigo (ids de Enum)
+local migrated = ns.Data.MigrateColumns({ Enum.DamageMeterType.DamageDone, Enum.DamageMeterType.Hps })
+check("migracao converte id em chave", migrated[1], "damage")
+check("migracao converte Hps em hps", migrated[2], "hps")
 
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",

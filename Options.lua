@@ -7,19 +7,15 @@ local L = ns.L
 -- campos de tabela. Este proxy expõe cada atributo como um booleano.
 local columnProxy = setmetatable({}, {
     __index = function(_, key)
-        local attributeId = tonumber(key)
-        if not attributeId then return nil end
         for _, id in ipairs(ns.db.columns) do
-            if id == attributeId then return true end
+            if id == key then return true end
         end
         return false
     end,
     __newindex = function(_, key, value)
-        local attributeId = tonumber(key)
-        if not attributeId then return end
         local isOn = columnProxy[key]
         if value ~= isOn then
-            ns.Window.ToggleColumn(attributeId)
+            ns.Window.ToggleColumn(key)
         end
     end,
 })
@@ -80,8 +76,8 @@ function ns.SetupOptions()
     -- Colunas ----------------------------------------------------------------
     layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L["Visible columns"]))
 
-    for _, attr in ipairs(ns.Data.GetAttributes()) do
-        local key = tostring(attr.id)
+    for _, attr in ipairs(ns.Data.GetColumns()) do
+        local key = attr.key
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_col" .. key, key,
             columnProxy, "boolean", attr.label, false)
         Settings.CreateCheckbox(category, setting, attr.label .. " — " .. L["Show as a column."])
