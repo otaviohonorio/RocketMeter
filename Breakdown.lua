@@ -188,10 +188,17 @@ local function CreatePanel()
         header.bg:SetColorTexture(0.13, 0.11, 0.07, 0.95)
     end
 
+    -- Duas texturas, como nas linhas da janela: uma para o ícone de especialização e outra
+    -- para o de classe (que precisa de texCoord). Passar a mesma nas duas pontas fazia a
+    -- função mostrá-la e escondê-la em seguida.
     frame.icon = header:CreateTexture(nil, "OVERLAY")
     frame.icon:SetSize(18, 18)
     frame.icon:SetPoint("LEFT", 5, 0)
-    frame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    frame.iconClass = header:CreateTexture(nil, "OVERLAY")
+    frame.iconClass:SetSize(18, 18)
+    frame.iconClass:SetPoint("LEFT", 5, 0)
+    frame.iconClass:Hide()
 
     frame.title = header:CreateFontString(nil, "OVERLAY")
     frame.title:SetPoint("LEFT", frame.icon, "RIGHT", 5, 0)
@@ -248,7 +255,7 @@ function Breakdown.Draw()
     local scope = current.sessionType == 0 and L["Current fight"] or L["Overall"]
     frame.subtitle:SetText(scope)
 
-    ns.ApplyRowIcon(frame.icon, frame.icon, current.source)
+    ns.ApplyRowIcon(frame.icon, frame.iconClass, current.source)
 
     local offset = TOP
     for _, spec in ipairs(SectionSpecs()) do

@@ -218,3 +218,6 @@ L["nothing here"] = "nada aqui"
 L["Click to see the spell breakdown."] = "Clique para ver o detalhamento por magia."
 L["the spell breakdown of other players is only available out of combat."] =
     "o detalhamento de outros jogadores só fica disponível fora de combate."
+
+L["restart the client: the breakdown module was not loaded yet."] =
+    "reinicie o cliente: o módulo de detalhamento ainda não foi carregado."

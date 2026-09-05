@@ -309,9 +309,16 @@ local function BuildRow(index)
                 ns.OpenOptions()
                 return
             end
-            if self.source then
-                ns.Breakdown.Show(self.source, ns.db.sessionType, frame)
+            if not self.source then return end
+
+            -- Arquivo .lua novo no .toc só entra depois de sair para a tela de personagens;
+            -- com /reload o módulo fica ausente e o clique morreria calado.
+            if not ns.Breakdown then
+                ns.Print(L["restart the client: the breakdown module was not loaded yet."])
+                return
             end
+
+            ns.Breakdown.Show(self.source, ns.db.sessionType, frame)
         end)
 
         -- Realce ao passar o mouse, no lugar de tooltip: mostra que a linha é clicável sem
