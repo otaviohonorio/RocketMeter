@@ -13,7 +13,7 @@ ns.Picker = Picker
 local WIDTH = 260
 local ROW_HEIGHT = 22
 local TOP = 34
-local BOTTOM = 62      -- rodapé: linhas + limpar dados
+local BOTTOM = 88      -- rodapé: linhas + ver o placar + limpar dados
 
 local frame, rows
 
@@ -135,13 +135,13 @@ function Picker.Create()
     -- Quantas linhas mostrar: dois passos e o número no meio. Um slider aqui seria maior que
     -- o painel inteiro, e o valor é discreto (3 a 25) — steppers cabem melhor.
     local rowsLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    rowsLabel:SetPoint("BOTTOMLEFT", 12, 40)
+    rowsLabel:SetPoint("BOTTOMLEFT", 12, 66)
     rowsLabel:SetText(L["Rows"])
 
     local function StepperButton(offsetX, delta, symbol)
         local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
         b:SetSize(22, 20)
-        b:SetPoint("BOTTOMLEFT", offsetX, 38)
+        b:SetPoint("BOTTOMLEFT", offsetX, 64)
         b:SetText(symbol)
         b:SetScript("OnClick", function()
             ns.Window.SetRows((ns.Window.GetRows() or 5) + delta)
@@ -153,11 +153,28 @@ function Picker.Create()
     frame.rowsMinus = StepperButton(WIDTH - 92, -1, "-")
 
     frame.rowsValue = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    frame.rowsValue:SetPoint("BOTTOMLEFT", WIDTH - 68, 40)
+    frame.rowsValue:SetPoint("BOTTOMLEFT", WIDTH - 68, 66)
     frame.rowsValue:SetWidth(24)
     frame.rowsValue:SetJustifyH("CENTER")
 
     frame.rowsPlus = StepperButton(WIDTH - 42, 1, "+")
+
+    -- Ver o placar sem rodar uma M+. O painel só aparece no fim de uma corrida de verdade,
+    -- e testar aparência assim custa meia hora de jogo por ajuste — foi por isso que ele
+    -- ficou tanto tempo sem ninguém olhar. Os dados são inventados e não tocam em nada real.
+    local demo = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    demo:SetSize(WIDTH - 24, 22)
+    demo:SetPoint("BOTTOMLEFT", 12, 38)
+    demo:SetText(L["Preview the scoreboard"])
+    demo:SetScript("OnClick", function() ns.Scoreboard.ShowDemo() end)
+    demo:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L["Preview the scoreboard"], 1, 1, 1)
+        GameTooltip:AddLine(L["Opens the end-of-run panel with invented data, so you can see it without running a dungeon."],
+            0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+    end)
+    demo:SetScript("OnLeave", GameTooltip_Hide)
 
     local clear = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     clear:SetSize(WIDTH - 24, 22)

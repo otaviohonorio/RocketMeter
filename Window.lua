@@ -24,21 +24,24 @@ local FONT = "Fonts\\FRIZQT__.TTF"
 -- mostra seis colunas de números. A mesma altura de letra rende muito mais tinta aqui, e o
 -- que lá é confortável aqui vira bloco. Igualar o corpo não igualaria a densidade.
 --
--- 14 foi um degrau intermediário (10px de caixa) e também ficou grande in-game. **13 é o corpo
--- da linha**, decidido pelo usuário em 05/09/2026, e vale para a linha INTEIRA: nome e todas as
--- células, com ou sem realce, na coluna ordenada ou não.
+-- A descida foi 16 -> 14 -> 13 -> **12**, cada degrau pedido depois de ver in-game.
 --
--- Isso tira o corpo de fonte da lista de sinais de realce. O que sobra para marcar o líder de
--- uma coluna é a cor (a da própria classe, clareada) e, para a coluna ordenada, o dourado no
--- cabeçalho. Tamanho variando dentro da mesma linha era o que fazia a régua dos números dançar.
-local FONT_SIZE = 13
+-- 12 vale para a linha INTEIRA: nome e todas as células, com ou sem realce, na coluna ordenada
+-- ou não. Isso tira o corpo de fonte da lista de sinais de realce — o que sobra para marcar o
+-- líder de uma coluna é a cor (a da própria classe, clareada) e, para a coluna ordenada, o
+-- dourado no cabeçalho. Tamanho variando dentro da mesma linha fazia a régua dos números dançar.
+--
+-- Em px de caixa alta, pela taxa medida (~0,69px por ponto): 13 rendia 9px, 12 rende ~8px.
+local FONT_SIZE = 12
 -- O título da faixa e o cabeçalho de colunas são valores ABSOLUTOS, não deltas: não seguem o
 -- corpo da linha. No nativo o título mede 9px de caixa contra 11px da linha, e é essa diferença
 -- que dá a hierarquia da janela dele.
 --
--- ATENÇÃO: com a linha em 13, o título ficou do MESMO corpo do conteúdo e essa hierarquia sumiu
--- — quem separa a faixa da lista agora é só a arte do cabeçalho e o dourado. Se in-game o
--- título competir com as linhas, o ajuste é aqui (12), não no corpo da linha.
+-- ATENÇÃO — a relação com a linha INVERTEU. Com a linha em 12, o título (13) passou a ser
+-- MAIOR que o conteúdo, e no nativo ele é menor. Deixei assim porque a mudança pedida foi no
+-- corpo da linha e mexer no título junto seria decidir por conta própria; mas se ele ficar
+-- gritando na tela, o conserto é aqui: 12 empata com a linha, 11 volta a relação do nativo.
+-- (11 e 12 podem rasterizar na mesma altura de caixa — a fonte não tem degrau entre elas.)
 local TITLE_FONT_SIZE = 13
 local CLOCK_FONT_SIZE = 12
 local COLHEAD_FONT_SIZE = 11
@@ -55,6 +58,12 @@ local FONT_OUTLINE = ""
 -- longe (nome e a coluna que ordena) e apenas sombra nas colunas secundárias. O conjunto fica
 -- mais leve sem perder a leitura do que importa.
 local ROW_FONT_FLAGS = ""               -- o reforço vem do halo, não do contorno da fonte
+-- O nome do reino entra sempre um ponto abaixo do nome do personagem. Fora do próprio reino o
+-- servidor devolve "Nome-Reino", e no corpo cheio os dois competiam: o print de 05/09 mostrava
+-- "Magicpandá-Tic…" — nome e reino brigando pela mesma largura, e as reticências comendo os
+-- dois. Hierarquia por corpo resolve sem esconder de onde a pessoa é.
+local REALM_FONT_DELTA = -1
+ns.REALM_FONT_DELTA = REALM_FONT_DELTA
 local CELL_FONT_FLAGS = ""
 -- Medição do print lado a lado corrige o que eu havia concluído antes: a linha do medidor
 -- nativo mede RGB(23,42,51) e o cenário ao lado dela RGB(27,46,54) — ou seja, **ela também é
@@ -91,6 +100,10 @@ local COLUMN_WIDTH_FIXED = 58
 ns.Skin = {
     font = FONT,
     fontSize = FONT_SIZE,
+    -- Corpos com valor próprio, expostos para as outras telas não redigitarem o literal: o
+    -- placar tinha um `11` cravado no código que precisaria ser caçado à mão se este mudasse.
+    colheadFontSize = COLHEAD_FONT_SIZE,
+    titleFontSize = TITLE_FONT_SIZE,
     barTexture = BAR_TEXTURE,
     barBrightness = BAR_BRIGHTNESS,
     rowHeight = ROW_HEIGHT_FIXED,
@@ -104,6 +117,10 @@ ns.Skin = {
     -- A janela é overlay sobre o jogo e fica transparente; painel de leitura pede fundo,
     -- senão o texto disputa com o cenário. Daí dois alfas em vez de um.
     panelAlpha = 0.70,
+    -- O placar é o mais opaco dos três: ele abre por cima de tudo no fim da corrida, ocupa
+    -- meia tela e carrega arte de fundo da masmorra. Valor próprio, não `panelAlpha + 0.22`
+    -- somado no lugar de uso — token que vira conta perde a função de fonte única de verdade.
+    scoreboardAlpha = 0.92,
     headerAtlas = "ui-damagemeters-header-bar",
     -- Vertical sem recorte: o recorte de 4/60 que eu usava comia justamente as fileiras de
     -- borda do atlas. No nativo elas aparecem inteiras — dourado fraco de 2px em cima e
@@ -144,6 +161,9 @@ end
 local HEADER_HEIGHT = 27        -- medido no nativo: faixa de y=41 a y=67
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
+-- Largura minima do botao que troca sessao ("Combate atual" / "Geral"). E MINIMA, nao fixa:
+-- quando o indicador de rolagem entra no texto o botao cresce junto (ver Window.Draw).
+local SEGMENT_MIN_WIDTH = 120
 local PADDING = 3
 local PROGRESS_HEIGHT = 3       -- a faixa de progresso; o trilho a contorna com 1px de cada lado
 -- No nativo o texto fica **centrado na linha**, não erguido: centro dos glifos em y=81 contra
@@ -236,13 +256,105 @@ local function SyncHaloFont(source, halo, delta)
     end
 end
 
+-- As duas continuam `local` de propósito: `BuildRow` chama ambas sem prefixo em quatro pontos
+-- deste arquivo, e trocar a declaração por `function ns.X` transformaria essas chamadas em
+-- global nil na primeira linha construída. O alias dá o mesmo acesso aos outros painéis sem
+-- tocar em nada aqui dentro.
+ns.CreateHalo = CreateHalo
+ns.SyncHaloFont = SyncHaloFont
+
 ---Escreve no original e nas cópias de uma vez.
+---
+---As cópias levam o texto **sem os escapes de cor**. Elas são pretas por `SetTextColor`, mas
+---`|cff40d878...|r` dentro da string SOBRESCREVE isso — o trecho colorido reaparecia verde nas
+---duas cópias, deslocado 1px, e o que devia ser contorno virava fantasma colorido. Aparece em
+---qualquer célula com cor embutida (o `(+16)` da pontuação no placar é o caso atual).
+---
+---`issecretvalue` vem ANTES do `type`: para um valor opaco `type()` responde o tipo real
+---("string"), então testar só o tipo deixaria o `gsub` receber um secret — e aí estoura.
 function ns.SetHaloText(source, halo, text)
     source:SetText(text)
     if not halo then return end
-    for _, echo in ipairs(halo) do
-        echo:SetText(text)
+
+    local plain = text
+    if not issecretvalue(text) and type(text) == "string" then
+        plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     end
+
+    for _, echo in ipairs(halo) do
+        echo:SetText(plain)
+    end
+end
+
+---Separa `"Nome-Reino"` em nome e reino.
+---
+---O reino **não some**. A primeira tentativa foi apagá-lo com `Ambiguate`, e estava errada: o
+---usuário quer ver de onde a pessoa é (decisão de 05/09/2026). O problema do print daquele dia
+---— `Magicpandá-Tic…`, `Huntwave-Stor…` — não era o reino existir, era ele ocupar a mesma
+---largura de letra do nome e empurrar os dois para as reticências. A solução é hierarquia, não
+---remoção: o reino entra **um ponto menor** que o nome.
+---
+---Em combate o nome pode ser secret. `string.match` num secret é proibido, então nesse caso ele
+---volta inteiro no primeiro retorno e sem reino — o widget sabe desenhar o valor cru, que é
+---exatamente o comportamento certo.
+---@return string|nil name
+---@return string|nil realm  sem o hífen; nil quando não há reino no nome
+function ns.SplitName(full)
+    if full == nil or issecretvalue(full) or type(full) ~= "string" then
+        return full, nil
+    end
+
+    -- O hífen separa; nome de personagem não tem hífen, nome de reino pode ter espaço.
+    local name, realm = full:match("^([^%-]+)%-(.+)$")
+    if name and realm ~= "" then return name, realm end
+    return full, nil
+end
+
+---Escreve nome e reino numa linha, repartindo a largura entre os dois.
+---
+---A repartição não dá para ser fixa: ela depende do texto. `row.name` recebe a largura do
+---próprio texto (limitada pela área) para o reino colar logo depois; sem isso o reino
+---apareceria no fim da caixa do nome, com um vão no meio. O que sobra vai para o reino, que
+---corta em reticências quando não couber — cortar o reino é aceitável, cortar o nome não.
+---
+---Quem tem os dois campos é `row` porque a janela e o placar montam a linha do mesmo jeito;
+---a função vive aqui para as duas telas não divergirem.
+---@param row table linha com `name`, `nameHalo`, `realm`, `realmHalo` e `nameArea`
+function ns.DrawName(row, full)
+    local name, realm = ns.SplitName(full)
+
+    local area = row.nameArea or 0
+    row.name:SetWidth(area)
+    ns.SetHaloText(row.name, row.nameHalo, name)
+    row.name:SetTextColor(1, 1, 1)
+
+    if not realm or area <= 0 then
+        ns.SetHaloText(row.realm, row.realmHalo, "")
+        row.realm:SetWidth(0)
+        row.name:SetWidth(area)
+        return
+    end
+
+    -- `GetStringWidth` mede o texto ignorando a caixa, então serve para saber quanto ele
+    -- realmente ocupa antes de decidir a divisão.
+    local used = row.name:GetStringWidth() or 0
+    if used > area then used = area end
+    row.name:SetWidth(used)
+    for _, echo in ipairs(row.nameHalo) do echo:SetWidth(used) end
+
+    local left = area - used
+    if left < 12 then
+        -- Nome sozinho já toma a área: o reino não cabe e some. Melhor sumir inteiro do que
+        -- aparecer como um hífen solto seguido de reticências.
+        ns.SetHaloText(row.realm, row.realmHalo, "")
+        row.realm:SetWidth(0)
+        return
+    end
+
+    row.realm:SetWidth(left)
+    for _, echo in ipairs(row.realmHalo) do echo:SetWidth(left) end
+    ns.SetHaloText(row.realm, row.realmHalo, "-" .. realm)
+    row.realm:SetTextColor(unpack(ns.Skin.dim))
 end
 
 ---Em combate `classFilename` pode ser secret, e indexar tabela com chave secret é proibido.
@@ -586,6 +698,20 @@ local function BuildRow(index)
             echo:SetWordWrap(false)
         end
 
+        -- O reino é uma SEGUNDA FontString, não parte da primeira: o corpo menor é o que o
+        -- separa do nome, e uma FontString só tem um corpo. Ela é colada ao fim do texto do
+        -- nome, não à caixa dele — por isso a largura do nome é ajustada ao conteúdo no
+        -- desenho (ver `Window.Draw`), senão o reino apareceria lá na frente, no fim da caixa.
+        row.realm = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.realm:SetPoint("LEFT", row.name, "RIGHT", 0, TEXT_LIFT)
+        row.realm:SetJustifyH("LEFT")
+        row.realm:SetWordWrap(false)
+
+        row.realmHalo = CreateHalo(row.text, row.realm)
+        for _, echo in ipairs(row.realmHalo) do
+            echo:SetWordWrap(false)
+        end
+
         row.cells = {}
         rows[index] = row
     end
@@ -610,6 +736,11 @@ local function BuildRow(index)
     row.bar:SetHeight(PROGRESS_HEIGHT)
     ns.ApplyFont(row.name, 0, ROW_FONT_FLAGS)
     SyncHaloFont(row.name, row.nameHalo, 0)
+    -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
+    -- em 12, o reino fica em 11. E delta, nao valor fixo — se o corpo da linha mudar de novo,
+    -- a diferenca de um ponto acompanha sozinha.
+    ns.ApplyFont(row.realm, REALM_FONT_DELTA, ROW_FONT_FLAGS)
+    SyncHaloFont(row.realm, row.realmHalo, REALM_FONT_DELTA)
 
     for _, cell in pairs(row.cells) do
         cell:Hide()
@@ -643,7 +774,11 @@ local function BuildRow(index)
         cell:Show()
     end
 
-    row.name:SetWidth(WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 10)
+    -- Area disponivel para nome + reino. A repartição entre os dois acontece no desenho,
+    -- porque depende do texto de cada linha.
+    row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 10
+    row.name:SetWidth(row.nameArea)
+    row.realm:SetWidth(0)
     return row
 end
 
@@ -681,7 +816,7 @@ function Window.Create()
     ns.ApplyHeaderArt(header.bg)
 
     header.segment = CreateFrame("Button", nil, header)
-    header.segment:SetSize(120, HEADER_HEIGHT - 6)
+    header.segment:SetSize(SEGMENT_MIN_WIDTH, HEADER_HEIGHT - 6)
     header.segment:SetPoint("LEFT", 7, 1)
     header.segment.text = header.segment:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     header.segment.text:SetPoint("LEFT")
@@ -1044,6 +1179,17 @@ function Window.Draw()
     end
     frame.header.segment.text:SetText(scope)
 
+    -- O botão tem largura fixa, mas o texto dele CRESCE quando o indicador de rolagem entra
+    -- ("Combate atual" vira "Combate atual  1-5/8"). Como o relógio é ancorado à direita do
+    -- BOTÃO e não do texto, o excedente passava por baixo do relógio e os dois se desenhavam
+    -- um sobre o outro — o print de 05/09 mostra "1-5" e "02:58" empilhados, ilegíveis.
+    -- Acompanhar o texto resolve os dois problemas de uma vez: o relógio sai da frente e a
+    -- área clicável passa a cobrir tudo que está escrito.
+    local textWidth = frame.header.segment.text:GetStringWidth()
+    if textWidth and textWidth > 0 then
+        frame.header.segment:SetWidth(math.max(SEGMENT_MIN_WIDTH, textWidth + 6))
+    end
+
     local duration = ns.Data.GetDuration(ns.db.sessionType)
     if duration ~= nil and not issecretvalue(duration) and duration > 0 then
         frame.header.clock:SetText(SecondsToClock(duration))
@@ -1075,8 +1221,13 @@ function Window.Draw()
             row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
-            row.name:SetText(source.name)
-            row.name:SetTextColor(1, 1, 1)
+            -- Pelo halo, não por `SetText` direto: `row.nameHalo` é criado em `BuildRow` e tem
+            -- a fonte sincronizada, mas nunca recebia texto — as cópias pretas ficavam vazias
+            -- e o nome saía sem contorno nenhum. Com a janela transparente é justamente o nome
+            -- que precisa dele: no print de 05/09 a primeira linha cai sobre uma labareda e o
+            -- branco sobre laranja claro não se lê. Os números já tinham o contorno; o nome,
+            -- que é o texto mais importante da linha, era o único sem.
+            ns.DrawName(row, source.name)
             row.classFilename = source.classFilename
             row.source = source
 

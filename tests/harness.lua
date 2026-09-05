@@ -80,6 +80,9 @@ end
 -- Globais que o addon usa
 --------------------------------------------------------------------------------
 UIParent = widget("Frame")
+-- Altura de tela plausivel: o placar limita as linhas pelo que cabe, e o stub generico de
+-- 200px faria todo teste cair no piso, escondendo o calculo.
+UIParent.GetHeight = function() return 1080 end
 Minimap = widget("Frame")
 GameTooltip = widget("GameTooltip")
 UISpecialFrames = {}
@@ -93,11 +96,28 @@ function IsShiftKeyDown() return false end
 function IsControlKeyDown() return false end
 function GetCursorPosition() return 400, 300 end
 function GetNumGroupMembers() return 5 end
+-- Grupo de 5, para o placar descobrir a funcao de cada um sem inspecionar.
+local PARTY = {
+    player = { name = "Bolva",      role = "TANK" },
+    party1 = { name = "Drakaris",   role = "HEALER" },
+    party2 = { name = "Kaelvorn",   role = "DAMAGER" },
+    party3 = { name = "Sargath",    role = "DAMAGER" },
+    party4 = { name = "Lilianvoss", role = "DAMAGER" },
+}
+function UnitName(unit) return PARTY[unit] and PARTY[unit].name end
+function UnitGroupRolesAssigned(unit) return PARTY[unit] and PARTY[unit].role or "NONE" end
 function IsInRaid() return false end
 function GetDifficultyInfo() return "Mítico" end
 function GetLocale() return "ptBR" end
+-- Nome cross-realm: o jogo devolve "Nome-Reino" e Ambiguate tira o reino.
+function Ambiguate(name, context)
+    if context == "short" then return (tostring(name):gsub("%-.*$", "")) end
+    return name
+end
 function date(fmt) return "12:00:00" end
-function GetTime() return 1000 end
+local fakeClock = 1000
+function GetTime() return fakeClock end
+function AdvanceClock(seconds) fakeClock = fakeClock + seconds end
 function SecondsToClock(s) return string.format("%02d:%02d", s / 60, s % 60) end
 function AbbreviateNumbers(v) return tostring(math.floor(v)) end
 function CopyTable(t)
@@ -122,13 +142,35 @@ C_AddOns = { GetAddOnMetadata = function() return "0.6.0" end }
 C_Texture = {
     GetAtlasInfo = function()
         return { file = "atlas.blp", leftTexCoord = 0, rightTexCoord = 1,
-                 topTexCoord = 0, bottomTexCoord = 1 }
+                 topTexCoord = 0, bottomTexCoord = 1, width = 64, height = 64 }
     end,
 }
 C_Timer = { After = function(_, fn) fn() end }
 C_ChallengeMode = {
-    GetChallengeCompletionInfo = function() return { mapChallengeModeID = 2, level = 12, time = 1500000, onTime = true } end,
-    GetMapUIInfo = function() return "Masmorra de Teste" end,
+    -- Formato do 12.1.0: UMA TABELA. Os campos abaixo sao os que o placar le.
+    GetChallengeCompletionInfo = function()
+        return {
+            mapChallengeModeID = 2, level = 12, time = 1500000, onTime = true,
+            keystoneUpgradeLevels = 1, practiceRun = false,
+            oldOverallDungeonScore = 2800, newOverallDungeonScore = 2871,
+            isEligibleForScore = true,
+        }
+    end,
+    -- name, id, timeLimit, texture, backgroundTexture
+    GetMapUIInfo = function() return "Masmorra de Teste", 2, 1800, 1, 2 end,
+    GetDeathCount = function() return 3, 45 end,
+    GetActiveKeystoneInfo = function() return 12, { 10, 152 } end,
+    GetAffixInfo = function(id) return "Afixo " .. tostring(id), "descricao", 100 end,
+}
+C_PlayerInfo = {
+    GetPlayerMythicPlusRatingSummary = function(name)
+        if name == nil then return nil end
+        return { currentSeasonScore = 2500 + #tostring(name), runs = {} }
+    end,
+}
+C_MythicPlus = {
+    GetCurrentAffixes = function() return { { id = 10 }, { id = 152 }, { id = 148 } } end,
+    RequestMapInfo = function() end,
 }
 
 Enum = {
@@ -291,7 +333,10 @@ fire("PLAYER_LOGIN")
 fire("PLAYER_ENTERING_WORLD", true, false)
 fire("DAMAGE_METER_CURRENT_SESSION_UPDATED")
 fire("DAMAGE_METER_COMBAT_SESSION_UPDATED")
+fire("CHALLENGE_MODE_START")
 fire("PLAYER_REGEN_DISABLED")
+fire("ENCOUNTER_END", 1234, "Chefe de Teste", 8, 5, 1)
+fire("CHALLENGE_MODE_DEATH_COUNT_UPDATED")
 fire("PLAYER_REGEN_ENABLED")
 fire("CHALLENGE_MODE_COMPLETED")
 
@@ -514,10 +559,170 @@ check("ponta direita mais clara", string.format("%.3f", pintado.gradiente.max.r)
 check("cor de vertice neutra antes do degrade", pintado.chapado[1], 1)
 check("faixa nunca recebe a cor cheia", pintado.gradiente.max.b < 0.9, true)
 
+print("== placar: simulacao ==")
+-- A simulacao existe para ver o painel sem rodar uma M+. O contrato que ela precisa cumprir
+-- e um so: devolver linhas no MESMO formato que ns.Data.GetRows, com values indexado pela
+-- POSICAO da coluna. Se divergir, o placar precisaria de dois caminhos de desenho — e telas
+-- com dois caminhos divergem na terceira mudanca.
+local demoColumns = { { key = "score" }, { key = "dps" }, { key = "deaths" }, { key = "hps" } }
+local run = ns.Demo.Run(demoColumns)
+
+check("corrida marcada como simulacao", run.demo, true)
+check("cinco jogadores", #run.rows, 5)
+check("values segue a posicao da coluna (dps)", run.rows[1].values[2], run.rows[1].demo.dps)
+check("values segue a posicao da coluna (mortes)", run.rows[1].values[3], run.rows[1].demo.deaths)
+check("values segue a posicao da coluna (cura)", run.rows[1].values[4], run.rows[1].demo.hps)
+check("linha tem source, como Data.GetRows", type(run.rows[1].source), "table")
+check("source tem classe para a cor da barra", run.rows[1].source.classFilename, "DEATHKNIGHT")
+
+-- Os totais sao reconstruidos por taxa * tempo em combate. Se alguem mexer num sem mexer no
+-- outro, as colunas param de fechar entre si e o placar mostra numeros que se contradizem.
+check("dano reconstruido do dps",
+    ns.Demo.Value(run.rows[1].demo, "damage"),
+    run.rows[1].demo.dps * run.combatSeconds)
+check("tempo em combate menor que a corrida", run.combatSeconds < run.durationSeconds, true)
+
+-- Realce de lider vem do proprio Data, nao de copia.
+local topDps, topIndex = -1, nil
+for i = 1, #run.rows do
+    if run.rows[i].values[2] > topDps then topDps, topIndex = run.rows[i].values[2], i end
+end
+check("lider de dps marcado", run.rows[topIndex].best ~= nil and run.rows[topIndex].best[2], true)
+
+print("== corpos de fonte ==")
+-- A descida foi 16 -> 14 -> 13 -> 12, cada degrau pedido depois de teste in-game. O que este
+-- bloco tranca nao e o numero em si, e sim que a LINHA tem corpo unico e que as telas com
+-- corpo proprio (titulo, cabecalho de coluna, painel de detalhamento) NAO seguem a linha —
+-- eles sao valores absolutos, e ja se perderam rodadas por alguem tratar um deles como delta.
+local function spyFontString()
+    local fs = {}
+    function fs.SetFont(_, path, size, flags) fs.path, fs.size, fs.flags = path, size, flags end
+    function fs.SetShadowOffset() end
+    function fs.SetShadowColor() end
+    function fs.SetAlpha() end
+    function fs.GetWidth() return 40 end
+    function fs.SetWidth() end
+    function fs.SetText() end
+    return fs
+end
+
+local fs = spyFontString()
+ns.ApplyFont(fs, 0)
+check("corpo da linha", fs.size, 12)
+check("linha usa Friz Quadrata", fs.path, ns.Skin.font)
+check("linha sem contorno de fonte (o reforco e o halo)", fs.flags, "")
+check("ns.Skin.fontSize expoe o mesmo corpo", ns.Skin.fontSize, 12)
+
+ns.ApplyPanelFont(fs, 0)
+check("painel de detalhamento tem corpo proprio", fs.size, 13)
+
+ns.ApplyFont(fs, -30)
+check("piso de 6pt respeitado", fs.size, 6)
+
+print("== nome cross-realm ==")
+-- Print de 05/09: as tres linhas mostravam "Magicpanda-Tic...", "Huntwave-Stor...",
+-- "Szarazard-Ticho..." — nome e reino brigando pela mesma largura, reticencias comendo os dois.
+-- A correcao NAO e apagar o reino (primeira tentativa, reprovada pelo usuario): e hierarquia,
+-- com o reino um ponto abaixo do nome.
+local nome, reino = ns.SplitName("Magicpanda-Tichondrius")
+check("separa o nome", nome, "Magicpanda")
+check("separa o reino, sem o hifen", reino, "Tichondrius")
+
+nome, reino = ns.SplitName("Bolva")
+check("nome sem reino volta inteiro", nome, "Bolva")
+check("sem reino devolve nil", reino, nil)
+
+-- Reino com espaco existe ("Nemesis", "Azralon", mas tambem "Ragnaros" vs "Nome-Reino Composto")
+nome, reino = ns.SplitName("Thrall-Ragnaros Prime")
+check("reino com espaco nao quebra", reino, "Ragnaros Prime")
+
+check("nil nao estoura", (ns.SplitName(nil)), nil)
+check("nao-string passa cru", (ns.SplitName(42)), 42)
+check("delta do reino e -1", ns.REALM_FONT_DELTA, -1)
+
+-- O reino e um ponto abaixo do nome — se o corpo da linha mudar, a diferenca acompanha.
+local fsNome, fsReino = spyFontString(), spyFontString()
+ns.ApplyFont(fsNome, 0)
+ns.ApplyFont(fsReino, ns.REALM_FONT_DELTA)
+check("nome 12 / reino 11", fsNome.size .. "/" .. fsReino.size, "12/11")
+
+print("== halo nao herda cor ==")
+-- As copias do halo sao pretas por SetTextColor, mas um |cff...| dentro da string SOBRESCREVE
+-- isso: o "(+16)" verde da coluna de pontuacao reaparecia nas duas copias, deslocado 1px, e o
+-- que devia ser contorno virava fantasma verde. As copias levam o texto sem escape de cor.
+local original, copias = spyFontString(), { spyFontString(), spyFontString() }
+for _, echo in ipairs(copias) do
+    function echo.SetText(_, t) echo.text = t end
+end
+function original.SetText(_, t) original.text = t end
+
+ns.SetHaloText(original, copias, "2847 |cff40d878(+16)|r")
+check("o original mantem a cor", original.text, "2847 |cff40d878(+16)|r")
+check("a copia perde o escape de cor", copias[1].text, "2847 (+16)")
+check("as duas copias iguais", copias[2].text, copias[1].text)
+
+ns.SetHaloText(original, copias, "sem cor nenhuma")
+check("texto sem escape passa igual", copias[1].text, "sem cor nenhuma")
+ns.SetHaloText(original, nil, "halo ausente nao estoura")
+check("halo nil e aceito", original.text, "halo ausente nao estoura")
+
+print("== placar: nomes de atlas ==")
+-- SetAtlas com nome errado falha em SILENCIO. Dois nomes aqui sao armadilha conhecida:
+-- a Blizzard escreve "Fillagree" com dois L, e "Filigree" (a grafia correta do ingles) some
+-- sem avisar. Este teste existe para ninguem "corrigir" a grafia.
+local sawFillagree = 0
+for _, name in ipairs(ns.SCOREBOARD_ATLASES) do
+    if name:match("Filigree") then
+        print("  ERRO  grafia errada no atlas: " .. name .. " (a Blizzard usa Fillagree)")
+        os.exit(1)
+    end
+    if name:match("Fillagree") then sawFillagree = sawFillagree + 1 end
+end
+check("as tres filigranas do BossBanner na lista", sawFillagree, 3)
+check("estrela do nivel na lista",
+    (function()
+        for _, n in ipairs(ns.SCOREBOARD_ATLASES) do
+            if n == "ChallengeMode-SpikeyStar" then return true end
+        end
+        return false
+    end)(), true)
+
+print("== linha do tempo da corrida ==")
+-- Sem combat log no Midnight, a linha do tempo so existe se for gravada durante a corrida.
+ns.Run.Start()
+check("comeca com a semente de fora de combate", #ns.Run.GetCombatTimeline(), 1)
+
+AdvanceClock(30) ; ns.Run.OnCombatStart()
+AdvanceClock(60) ; ns.Run.OnCombatEnd()
+check("dois toggles gravados", #ns.Run.GetCombatTimeline(), 3)
+check("entrada de combate aos 30s", ns.Run.GetCombatTimeline()[2][1], 30)
+check("saida de combate aos 90s", ns.Run.GetCombatTimeline()[3][1], 90)
+
+AdvanceClock(10) ; ns.Run.OnEncounterEnd("Chefe de Teste", 1)
+check("boss gravado", #ns.Run.GetBosses(), 1)
+check("boss no instante certo", ns.Run.GetBosses()[1][1], 100)
+ns.Run.OnEncounterEnd("Wipe", 0)
+check("wipe nao vira marcador de boss", #ns.Run.GetBosses(), 1)
+
+-- O stub de GetDeathCount devolve 3: tres mortes acumuladas viram tres marcadores.
+AdvanceClock(5) ; ns.Run.OnDeathCountUpdated()
+check("mortes gravadas pela diferenca do contador", #ns.Run.GetDeaths(), 3)
+ns.Run.OnDeathCountUpdated()
+check("contador que nao subiu grava uma so", #ns.Run.GetDeaths(), 4)
+
+-- Fora de corrida o modulo e inerte: sem isso ele gravaria em toda luta do jogo.
+local before = #ns.Run.GetCombatTimeline()
+ns.Run.Stop()
+ns.Run.OnCombatStart()
+ns.Run.OnEncounterEnd("Chefe fora da corrida", 1)
+check("fora de corrida nao grava", #ns.Run.GetCombatTimeline(), before)
+check("boss fora da corrida nao entra", #ns.Run.GetBosses(), 1)
+
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",
-                       "move 2 right", "score", "config", "reset" }) do
+                       "move 2 right", "score", "score demo", "score real",
+                       "atlas", "atlas ChallengeMode-SpikeyStar", "config", "reset" }) do
     local ok, err = pcall(SlashCmdList.ROCKETMETER, cmd)
     print(ok and ("  ok    /rm " .. cmd) or ("  ERRO  /rm " .. cmd .. ": " .. tostring(err)))
     if not ok then os.exit(1) end

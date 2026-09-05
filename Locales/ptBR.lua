@@ -221,3 +221,27 @@ L["the spell breakdown of other players is only available out of combat."] =
 
 L["restart the client: the breakdown module was not loaded yet."] =
     "reinicie o cliente: o módulo de detalhamento ainda não foi carregado."
+
+-- Placar reconstruido (0.51.0)
+L["Score"] = "Pont."
+L["%d deaths"] = "%d mortes"
+L["Simulation — invented data."] = "Simulação — dados inventados."
+L["Preview the scoreboard"] = "Ver o placar"
+L["Opens the end-of-run panel with invented data, so you can see it without running a dungeon."] =
+    "Abre o painel de fim de corrida com dados inventados, para ver como ficou sem precisar rodar uma masmorra."
+L["opens the scoreboard with invented data"] = "abre o placar com dados inventados"
+L["restart the client: the demo module was not loaded yet."] =
+    "reinicie o cliente: o módulo de simulação ainda não foi carregado."
+
+-- Nomes da corrida simulada. Masmorra inventada de proposito: nome de masmorra real daria a
+-- entender que o placar sabe algo sobre ela.
+L["Ruins of the Ember Court"] = "Ruínas da Corte de Brasas"
+L["First boss"] = "Primeiro chefe"
+L["Second boss"] = "Segundo chefe"
+L["Last boss"] = "Último chefe"
+
+-- Conferencia de atlas (0.51.0). SetAtlas com nome errado falha em silencio; este comando
+-- troca "acho que existe" por um dado.
+L["checks whether the panel art exists"] = "confere se a arte do painel existe"
+L["checking %d atlas name(s):"] = "conferindo %d nome(s) de atlas:"
+L["%d name(s) do not exist on this client."] = "%d nome(s) não existem neste cliente."

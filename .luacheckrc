@@ -10,6 +10,8 @@ read_globals = {
     "CopyTable", "wipe", "tinsert", "tremove", "format", "hooksecurefunc",
     "issecretvalue", "scrubsecretvalues", "print", "UnitGUID",
     "C_DamageMeter", "C_AddOns", "C_Timer", "C_Secrets", "Enum", "C_ChallengeMode",
+    "C_Texture", "C_PlayerInfo", "C_MythicPlus", "CreateColor", "Ambiguate", "GetTime",
+    "table", "string",
     "GetNumGroupMembers", "IsInRaid", "GetDifficultyInfo", "select", "math",
     "IsShiftKeyDown", "IsControlKeyDown", "GetLocale", "tonumber", "tostring", "ipairs", "pairs",
     "Settings", "CreateSettingsListSectionHeaderInitializer", "SlashCmdList",

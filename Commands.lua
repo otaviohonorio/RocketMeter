@@ -20,8 +20,42 @@ commands["details"] = function()
     ns.Breakdown.Hide()
 end
 
-commands["score"] = function()
+commands["score"] = function(rest)
+    local arg = rest and rest:lower():match("^%S*")
+    if arg == "demo" then
+        ns.Scoreboard.ShowDemo()
+        return
+    end
+    if arg == "real" then
+        ns.Scoreboard.ClearDemo()
+    end
     ns.Scoreboard.Toggle()
+end
+
+-- Instrumentação, não conveniência. `SetAtlas` com nome inexistente falha em SILÊNCIO: a
+-- textura não desenha e nada avisa. A pesquisa que embasou o placar novo confirmou os nomes
+-- lendo addons instalados, mas addon referenciar um nome não prova que o cliente o conhece.
+-- Este comando resolve a categoria inteira com uma linha em vez de uma rodada de teste por
+-- nome quebrado.
+commands["atlas"] = function(rest)
+    local wanted = rest and rest:match("^%S+")
+    local list = wanted and { wanted } or ns.SCOREBOARD_ATLASES
+
+    ns.Print(format(L["checking %d atlas name(s):"], #list))
+    local missing = 0
+    for _, name in ipairs(list) do
+        local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)
+        if info then
+            print(format("  |cff33ff99ok|r    %s  (%dx%d)",
+                name, info.width or 0, info.height or 0))
+        else
+            missing = missing + 1
+            print(format("  |cffff5555--|r    %s", name))
+        end
+    end
+    if missing > 0 then
+        ns.Print(format(L["%d name(s) do not exist on this client."], missing))
+    end
 end
 
 commands["columns"] = function()
@@ -174,6 +208,8 @@ commands["help"] = function()
     print("  /rm move <n> left|right         " .. L["moves a column left or right"])
     print("  /rm preset mplus|raid|damage    " .. L["switches the column preset"])
     print("  /rm score                       " .. L["opens the scoreboard of the last run"])
+    print("  /rm score demo                  " .. L["opens the scoreboard with invented data"])
+    print("  /rm atlas [name]                " .. L["checks whether the panel art exists"])
     print("  /rm overall                     " .. L["switches current fight / overall"])
     print("  /rm profile char|account|reset  " .. L["account-wide or per-character settings"])
     print("  /rm reset                       " .. L["clears the sessions"])

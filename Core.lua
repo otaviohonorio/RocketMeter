@@ -106,9 +106,56 @@ function handlers:DAMAGE_METER_RESET()
 end
 
 --------------------------------------------------------------------------------
--- Scoreboard de fim de conteúdo
+-- Gravação da corrida e placar de fim de conteúdo
 --------------------------------------------------------------------------------
+-- `Run.lua` é arquivo NOVO, e arquivo novo no `.toc` só entra depois de sair para a tela de
+-- personagens — `/reload` não basta. Entre atualizar o addon e reiniciar o cliente, `ns.Run`
+-- é nil, e `ns.Run.OnCombatStart()` cru derrubaria o `PLAYER_REGEN_DISABLED` a CADA LUTA,
+-- levando junto o refresh da janela. O addon inteiro pareceria quebrado por causa de um
+-- arquivo que ainda não carregou. `Window.lua` já usa essa guarda pelo mesmo motivo.
+local function RunCall(method, ...)
+    local run = ns.Run
+    if not run or not run[method] then return end
+    local ok, err = pcall(run[method], ...)
+    if not ok then ns.Print("Run." .. method .. ": " .. tostring(err)) end
+end
+
+function handlers:CHALLENGE_MODE_START()
+    -- A gravação da linha do tempo não depende de `autoScoreboard`: quem desliga o painel
+    -- automático ainda pode abrir depois com `/rm score`, e aí o rodapé precisa ter dados.
+    RunCall("Start")
+end
+
+function handlers:CHALLENGE_MODE_RESET()
+    RunCall("Start")    -- refazer a chave recomeça a corrida do zero
+end
+
+function handlers:CHALLENGE_MODE_DEATH_COUNT_UPDATED()
+    RunCall("OnDeathCountUpdated")
+end
+
+-- Entrar no mundo cobre os dois lados que faltavam:
+--   * `/reload` no meio da chave — o `CHALLENGE_MODE_START` já passou e a gravação nunca
+--     ligaria; `Resume` religa e recupera o instante zero pelo cronômetro do mundo (ou marca
+--     a corrida como parcial e cala o rodapé, em vez de mostrar marcador fora de lugar);
+--   * sair da masmorra sem completar — nada desarmava a gravação, e ela seguiria anotando
+--     as lutas do mundo aberto como se fossem da corrida.
+function handlers:PLAYER_ENTERING_WORLD()
+    local active
+    if C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
+        local ok, mapID = pcall(C_ChallengeMode.GetActiveChallengeMapID)
+        active = ok and mapID and mapID ~= 0
+    end
+
+    if active then
+        RunCall("Resume")
+    else
+        RunCall("Stop")
+    end
+end
+
 function handlers:CHALLENGE_MODE_COMPLETED()
+    RunCall("Stop")
     if not ns.db.autoScoreboard then return end
     -- Pequena espera: a sessão ainda está sendo fechada quando o evento dispara.
     C_Timer.After(1.5, function()
@@ -117,6 +164,10 @@ function handlers:CHALLENGE_MODE_COMPLETED()
 end
 
 function handlers:ENCOUNTER_END(encounterID, encounterName, difficultyID, groupSize, success)
+    -- Dentro de uma corrida, todo boss vira marcador na linha do tempo — inclusive quando o
+    -- placar automático está desligado.
+    RunCall("OnEncounterEnd", encounterName, success)
+
     if not ns.db.autoScoreboard then return end
     if success ~= 1 and success ~= true then return end
     if not IsInRaid() then return end   -- em M+ quem manda é o CHALLENGE_MODE_COMPLETED
@@ -133,12 +184,14 @@ function handlers:PLAYER_REGEN_ENABLED()
     ns.Window.Refresh(true)
     ns.Window.OnCombatEnd()
     ns.Log.OnCombatEnd()
+    RunCall("OnCombatEnd")
 end
 
 function handlers:PLAYER_REGEN_DISABLED()
     ns.Window.OnCombatStart()
     ns.Window.Refresh(true)
     ns.Log.OnCombatStart()
+    RunCall("OnCombatStart")
 end
 
 local frame = CreateFrame("Frame", ADDON .. "EventFrame")
