@@ -226,9 +226,10 @@ L["restart the client: the breakdown module was not loaded yet."] =
 L["Score"] = "Pont."
 L["%d deaths"] = "%d mortes"
 L["Simulation — invented data."] = "Simulação — dados inventados."
-L["Preview the scoreboard"] = "Ver o placar"
+L["Simulate the scoreboard"] = "Simular placar (exemplo)"
 L["Opens the end-of-run panel with invented data, so you can see it without running a dungeon."] =
-    "Abre o painel de fim de corrida com dados inventados, para ver como ficou sem precisar rodar uma masmorra."
+    "Abre o painel com dados INVENTADOS, sempre os mesmos. Serve para ajustar a aparência sem "
+    .. "precisar rodar uma masmorra — não mostra nenhuma corrida sua."
 L["opens the scoreboard with invented data"] = "abre o placar com dados inventados"
 L["restart the client: the demo module was not loaded yet."] =
     "reinicie o cliente: o módulo de simulação ainda não foi carregado."

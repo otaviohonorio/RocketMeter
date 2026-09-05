@@ -166,7 +166,7 @@ function Picker.Create()
     local function ScoreButton(offsetX, width, label, tip, onClick, hasRun)
         local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
         b:SetSize(width, 22)
-        b:SetPoint("BOTTOMLEFT", offsetX, 38)
+        b:SetPoint("BOTTOMLEFT", offsetX, 62)
         b:SetText(label)
         b:SetScript("OnClick", onClick)
         b:SetScript("OnEnter", function(self)
@@ -190,14 +190,18 @@ function Picker.Create()
         L["Opens the scoreboard of the last raid boss defeated on this character."],
         function() ns.Scoreboard.ShowLast("raid") end, "raid")
 
+    -- A simulação fica ABAIXO dos dois placares reais e menor que eles. Ela é ferramenta de
+    -- ajuste de aparência, não um jeito de ver o placar — e enquanto estava em cima, com
+    -- rótulo "Ver o placar", parecia o botão principal. O usuário perguntou, com razão, se
+    -- aquilo "sempre mostra dados fake": mostra, e o rótulo tinha que dizer.
     local demo = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     demo:SetSize(WIDTH - 24, 20)
-    demo:SetPoint("BOTTOMLEFT", 12, 64)
-    demo:SetText(L["Preview the scoreboard"])
+    demo:SetPoint("BOTTOMLEFT", 12, 38)
+    demo:SetText(L["Simulate the scoreboard"])
     demo:SetScript("OnClick", function() ns.Scoreboard.ShowDemo() end)
     demo:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L["Preview the scoreboard"], 1, 1, 1)
+        GameTooltip:SetText(L["Simulate the scoreboard"], 1, 1, 1)
         GameTooltip:AddLine(L["Opens the end-of-run panel with invented data, so you can see it without running a dungeon."],
             0.7, 0.7, 0.7, true)
         GameTooltip:Show()
