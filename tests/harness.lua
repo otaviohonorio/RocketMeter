@@ -24,6 +24,13 @@ local function widget(kind)
     function self.CreateFontString(_, _, template)
         local fs = widget("FontString")
         fs.__hasFont = template ~= nil
+        -- O PAI DE VERDADE, e nao o generico do `__index`: o addon pergunta o pai para criar as
+        -- copias do contorno desenhado nele. Com o generico, cada copia nasceria num frame
+        -- diferente do original e o teste de espelhamento passaria sem provar nada.
+        function fs.GetParent() return self end
+        fs.__alpha = 1
+        function fs.SetAlpha(_, a) fs.__alpha = a end
+        function fs.GetAlpha() return fs.__alpha end
         -- Guarda e devolve, como no jogo: `GetFont` e o unico jeito de o addon saber se o
         -- `SetFont` pegou, e e nele que a guarda de fonte invalida se apoia.
         function fs.SetFont(_, path, size, flags)
@@ -32,12 +39,17 @@ local function widget(kind)
             return true
         end
         function fs.GetFont() return fs.__font, fs.__size, fs.__flags end
-        function fs.SetText(_, ...)
+        -- GUARDA O QUE ESCREVEU. Antes ele so devolvia os argumentos, entao nada que dependesse
+        -- do texto era conferivel -- e o contorno desenhado depende: as copias tem que receber a
+        -- mesma string do original, sem os escapes de cor.
+        function fs.SetText(_, text)
             if not fs.__hasFont then
                 error("FontString:SetText(): Font not set", 2)
             end
-            return ...
+            fs.__text = text
+            return text
         end
+        function fs.GetText() return fs.__text end
         return fs
     end
     function self.CreateTexture() return widget("Texture") end
@@ -220,6 +232,18 @@ function CopyTable(t)
     for k, v in pairs(t) do out[k] = type(v) == "table" and CopyTable(v) or v end
     return out
 end
+---O gancho do jogo, com a semantica que importa aqui: o original roda PRIMEIRO e o gancho
+---depois, com os mesmos argumentos, e o retorno e o do original. Um stub que so trocasse a
+---funcao testaria o gancho e nao o par -- e o defeito real seria o original deixar de rodar.
+function hooksecurefunc(tbl, name, hook)
+    local original = tbl[name]
+    tbl[name] = function(...)
+        local a, b, c = original(...)
+        hook(...)
+        return a, b, c
+    end
+end
+
 function issecretvalue() return false end
 function securecallfunction(fn, ...) return fn(...) end
 function BreakUpLargeNumbers(v) return tostring(v) end
@@ -1585,6 +1609,150 @@ do
     -- controle, como a da Blizzard (30x29 numa linha de 26, `SettingControls.xml:81`). O que
     -- precisa sobrar e o respiro, e ele nao pode virar negativo.
     check("caixa de opcao tem folga ate a proxima", L.check - L.checkSize >= 8, true)
+end
+
+print("== contorno medio: o meio-termo que a API nao tem ==")
+-- O usuario testou fino e grosso e pediu o meio: "sao bem gritantes as diferencas, senti falta
+-- de um 'meio termo' dos dois". O motor do jogo tem DOIS niveis e so -- `outline="NORMAL"` e
+-- `outline="THICK"` sao os unicos valores em toda a fonte do 12.1.0, e a lista do Details
+-- confirma o mesmo conjunto. Entao o meio-termo e DESENHADO: copias pretas a 1px, com a
+-- opacidade dando a espessura continua.
+do
+    local salvo = ns.Window.GetRoleOutline("body")
+
+    -- A LISTA E UMA SO. Ela ja divergiu: o combo do configurador era escrito a mao e nao seguiu
+    -- quando `Window.lua` mudou. Aqui as duas pontas se conferem.
+    local doPicker = {}
+    for _, e in ipairs(ns.Picker.__outlineEntries()) do doPicker[#doPicker + 1] = e.value end
+    local doWindow = {}
+    for _, c in ipairs(ns.OUTLINE_CHOICES) do doWindow[#doWindow + 1] = c.value end
+    check("o combo lista o mesmo que a janela conhece",
+        table.concat(doPicker, ","), table.concat(doWindow, ","))
+    check("e o medio esta na lista", table.concat(doWindow, ","), "none,thin,medium,thick")
+
+    -- O MEDIO USA AS FLAGS DO FINO: a espessura extra nao vem do motor, vem do desenho. Se um
+    -- dia ele passar a mandar THICKOUTLINE, o desenho soma em cima e vira mais grosso que o
+    -- grosso -- exatamente o oposto do pedido.
+    ns.Window.SetRoleSize("body", 16)
+    ns.Window.SetRoleOutline("body", "medium")
+    check("o medio manda as flags do fino", ns.OutlineFor("body"), "OUTLINE")
+    check("e pede contorno desenhado", ns.HaloAlphaFor("body") > 0, true)
+
+    ns.Window.SetRoleOutline("body", "thin")
+    check("o fino NAO desenha nada", ns.HaloAlphaFor("body"), 0)
+    ns.Window.SetRoleOutline("body", "thick")
+    check("o grosso tambem nao", ns.HaloAlphaFor("body"), 0)
+
+    -- E ELE FICA ENTRE OS DOIS, que e o pedido literal. Espessura aparente nao se mede aqui, mas
+    -- a ORDEM se mede: o medio tem que ter mais tinta que o fino e menos que o grosso.
+    local function tinta(valor)
+        ns.Window.SetRoleOutline("body", valor)
+        local flags = ns.OutlineFor("body")
+        local doMotor = (flags == "THICKOUTLINE" and 2) or (flags == "OUTLINE" and 1) or 0
+        return doMotor + ns.HaloAlphaFor("body")
+    end
+    local fino, medio, grosso = tinta("thin"), tinta("medium"), tinta("thick")
+    check("o medio tem mais traco que o fino", medio > fino, true)
+    check("e menos que o grosso", medio < grosso, true)
+
+    -- POR PAPEL, como todo o resto da tipografia: mexer no corpo nao pode mexer no titulo.
+    ns.Window.SetRoleOutline("body", "medium")
+    ns.Window.SetRoleOutline("title", "thin")
+    check("o desenhado e por papel", ns.HaloAlphaFor("title"), 0)
+    check("e o outro papel mantem o dele", ns.HaloAlphaFor("body") > 0, true)
+
+    -- ABAIXO DO LIMIAR ELE ZERA junto com o contorno do motor: num corpo pequeno o traco fecha
+    -- os vazados do "a", do "e" e do "8", e o desenhado fecha MAIS, porque soma 1px por fora do
+    -- que o OUTLINE ja pos.
+    ns.Window.SetRoleSize("body", 10)
+    check("num corpo pequeno o desenhado some", ns.HaloAlphaFor("body"), 0)
+    ns.Window.SetRoleSize("body", 16)
+    check("e volta quando o corpo cresce", ns.HaloAlphaFor("body") > 0, true)
+
+    ns.Window.SetRoleOutline("body", salvo)
+    ns.Window.SetRoleSize("body", ns.ROLE_DEFAULTS.body.size)
+end
+
+print("== contorno desenhado: simetria e espelhamento ==")
+do
+    -- SIMETRIA. Os dois deslocamentos antigos ({-1,0} e {0,1}) cobriam esquerda e topo, e a
+    -- sombra cobria a base a direita: tres lados de um jeito, um de outro. Era o relato exato --
+    -- "umas colunas parece ta com mais borda a fonte, outras nao". Nao era impressao.
+    local soma = { 0, 0 }
+    for _, off in ipairs(ns.HALO_OFFSETS) do
+        soma[1] = soma[1] + off[1]
+        soma[2] = soma[2] + off[2]
+    end
+    check("os deslocamentos se anulam no eixo x", soma[1], 0)
+    check("e no eixo y", soma[2], 0)
+    check("sao quatro, um por lado", #ns.HALO_OFFSETS, 4)
+
+    -- ESPELHAMENTO. As copias tem que seguir cada `SetText` do original sem que o codigo que
+    -- escreve saiba que elas existem -- sao muitos os pontos que escrevem.
+    local pai = CreateFrame("Frame")
+    local fs = pai:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+
+    ns.Window.SetRoleSize("body", 16)
+    ns.Window.SetRoleOutline("body", "medium")
+    ns.ApplyRoleFont(fs, "body", 0)
+    check("o contorno desenhado nasceu", fs.rmHalo and #fs.rmHalo, 4)
+
+    fs:SetText("Magicpanda")
+    check("a copia recebeu o mesmo texto", fs.rmHalo[1]:GetText(), "Magicpanda")
+
+    -- SEM OS ESCAPES DE COR: as copias sao pretas por SetTextColor, e |cff...|r dentro da string
+    -- SOBRESCREVE isso -- o trecho colorido reaparecia verde, 1px deslocado, e o que devia ser
+    -- contorno virava fantasma colorido. Acontece em qualquer celula com cor embutida.
+    fs:SetText("120k |cff40d878(+16)|r")
+    check("e sem os escapes de cor", fs.rmHalo[1]:GetText(), "120k (+16)")
+
+    -- E O ORIGINAL CONTINUA COM A COR. O gancho nao pode roubar a escrita de quem chamou.
+    check("o original manteve a string inteira", fs:GetText(), "120k |cff40d878(+16)|r")
+
+    -- DESLIGAR APAGA. Trocar para fino nao pode deixar o desenhado ligado por tras.
+    ns.Window.SetRoleOutline("body", "thin")
+    ns.ApplyRoleFont(fs, "body", 0)
+    check("voltar para o fino apaga o desenhado", fs.rmHalo[1]:GetAlpha(), 0)
+
+    -- QUEM NUNCA PEDE NAO PAGA. Um texto de papel sem "medium" nao cria widget nenhum.
+    local outro = pai:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ns.ApplyRoleFont(outro, "body", 0)
+    check("sem medio, nenhum widget e criado", outro.rmHalo, nil)
+
+    -- A COPIA NAO GANHA COPIA. Sincronizar as copias por `ApplyRoleFont` parece o caminho limpo e
+    -- e recursao infinita: a copia entra na mesma funcao e cria a copia dela. Travou o harness.
+    ns.Window.SetRoleOutline("body", "medium")
+    ns.ApplyRoleFont(fs, "body", 0)
+    local comCopia = 0
+    for _, echo in ipairs(fs.rmHalo) do
+        if echo.rmHalo then comCopia = comCopia + 1 end
+    end
+    check("nenhuma copia tem copia propria", comCopia, 0)
+
+    -- E A COPIA SEGUE O CORPO DO PAPEL DELA, nao o das linhas. `SyncHaloFont` usa `ns.ApplyFont`,
+    -- que le sempre o papel "body" -- no placar isso e certo, aqui sairia o halo do titulo com o
+    -- corpo das linhas, deslocado do glifo que deveria contornar.
+    -- 14, e nao 12: abaixo de 13 o desenhado zera de proposito, e o teste mediria o zero em vez
+    -- de medir o corpo. Os dois papeis so precisam ser DIFERENTES para a conta valer.
+    ns.Window.SetRoleSize("body", 20)
+    ns.Window.SetRoleSize("title", 14)
+    ns.Window.SetRoleOutline("title", "medium")
+
+    local tit = pai:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ns.ApplyRoleFont(tit, "title", 0)
+    check("a copia do titulo existe", tit.rmHalo and #tit.rmHalo, 4)
+    local _, corpoDaCopia = tit.rmHalo[1]:GetFont()
+    check("a copia do titulo tem o corpo do titulo, nao o das linhas", corpoDaCopia, 14)
+
+    -- E sem o contorno do motor: repetido nas quatro copias ele engrossaria de novo.
+    local _, _, flagsDaCopia = tit.rmHalo[1]:GetFont()
+    check("e sem o contorno do motor", flagsDaCopia, "")
+
+    ns.Window.SetRoleOutline("title", ns.ROLE_DEFAULTS.title.outline)
+    ns.Window.SetRoleSize("title", ns.ROLE_DEFAULTS.title.size)
+
+    ns.Window.SetRoleOutline("body", ns.ROLE_DEFAULTS.body.outline)
+    ns.Window.SetRoleSize("body", ns.ROLE_DEFAULTS.body.size)
 end
 
 print("== fonte, contorno e sombra configuraveis ==")

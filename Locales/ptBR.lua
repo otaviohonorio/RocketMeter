@@ -218,6 +218,7 @@ L["the font %s could not be loaded; using the default."] =
 L["Columns"] = "Colunas"
 L["None"] = "Nenhum"
 L["Thin"] = "Fino"
+L["Medium"] = "Médio"
 L["Thick"] = "Grosso"
 L["Appearance"] = "Aparência"
 

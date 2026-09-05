@@ -156,6 +156,30 @@ local function IndexOf(key)
     return nil
 end
 
+---As opções de contorno, montadas a partir de `ns.OUTLINE_CHOICES`.
+---
+---A lista era escrita à mão aqui, e por isso não seguiu quando `Window.lua` ganhou o "medium":
+---duas fontes de verdade para a mesma lista divergem na primeira mudança. Agora a ordem e o
+---conjunto vêm de lá; aqui fica só o rótulo, que é a única parte que precisa de tradução.
+---
+---Os rótulos ficam DENTRO da função e com a chave escrita por extenso, e isso é requisito, não
+---estilo: `tests/locales.lua` procura exatamente essa forma para saber quais chaves estão em uso.
+---Montar a chave por variável (`L[MAPA[v]]`) apaga as quatro do radar e o teste as dá por mortas.
+local function OutlineEntries()
+    local label = {
+        none   = L["None"],
+        thin   = L["Thin"],
+        medium = L["Medium"],
+        thick  = L["Thick"],
+    }
+
+    local entries = {}
+    for _, choice in ipairs(ns.OUTLINE_CHOICES) do
+        entries[#entries + 1] = { label = label[choice.value] or choice.value, value = choice.value }
+    end
+    return entries
+end
+
 --------------------------------------------------------------------------------
 -- Componentes
 --------------------------------------------------------------------------------
@@ -546,11 +570,7 @@ function Picker.Create()
             function() return ns.Window.GetRoleSize(role) end,
             function(v) ns.Window.SetRoleSize(role, v) end)
 
-        ry, widgets.outline = BuildDropdown(colText, ry, L["Font outline"], {
-            { label = L["None"],  value = "none" },
-            { label = L["Thin"],  value = "thin" },
-            { label = L["Thick"], value = "thick" },
-        },
+        ry, widgets.outline = BuildDropdown(colText, ry, L["Font outline"], OutlineEntries(),
             function() return ns.Window.GetRoleOutline(role) end,
             function(v) ns.Window.SetRoleOutline(role, v) end)
 
@@ -590,6 +610,11 @@ Picker.__layout = {
     check = H_CHECK,
     section = H_SECTION,
 }
+
+---A lista de contorno como o combo a monta, para o harness conferir contra `ns.OUTLINE_CHOICES`.
+function Picker.__outlineEntries()
+    return OutlineEntries()
+end
 
 ---Cada controle e onde ele fica DENTRO da coluna. É com isso que o harness confere que nada
 ---vaza pela borda.

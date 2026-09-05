@@ -45,9 +45,32 @@ ns.FONT_CHOICES = {
 
 -- Contorno: os três níveis que o WoW tem, com os nomes que o jogador entende. Mesma escala do
 -- Chattynator (nenhum / fino / grosso), que é a referência que ele pediu.
+-- A ESPESSURA DO MEIO-TERMO, e ela e continua: as copias ficam a 1px do glifo, entao o envelope
+-- do "medium" e o mesmo do `THICKOUTLINE` (2px), so que a camada de fora vem em `HALO_ALPHA` em
+-- vez de preto cheio. Meio caminho pede meia opacidade.
+--
+-- O numero e o unico ponto desta funcionalidade que NAO tem medicao por tras -- espessura
+-- aparente e renderizacao, e renderizacao so o jogo responde. E deliberadamente um valor so:
+-- se ficar pesado ou fraco, muda-se este numero e nada mais.
+local HALO_ALPHA = 0.5
+-- (Declarada AQUI, e nao junto das outras constantes de aparencia mais abaixo: `HaloAlphaFor` a
+-- le, e local declarada depois de quem a usa resolve como global nil dentro da funcao. E a
+-- terceira vez que esta armadilha aparece neste arquivo.)
+
+-- O MOTOR DO JOGO TEM DOIS NIVEIS DE CONTORNO, e ponto: `outline="NORMAL"` e `outline="THICK"`
+-- sao os unicos valores que aparecem em toda a fonte do 12.1.0, e a lista do Details -- a
+-- referencia mais completa instalada -- confirma o mesmo conjunto (`Libs/DF/fw.lua:1865-1874`:
+-- None, Slug, Monochrome, Outline, Thick Outline e as combinacoes). `SLUG` e um rasterizador
+-- vetorial, atributo separado de `outline` (`Fonts.xml:774-790`), nao uma espessura.
+--
+-- Entre "fino" e "grosso" o salto e de 1px para 2px de traco, e o usuario descreveu isso como
+-- "bem gritantes as diferencas". O MEIO-TERMO NAO EXISTE NA API -- ele e **desenhado**, com o
+-- halo que este arquivo ja tinha pronto e desligado (ver `HALO_OFFSETS`). Por isso "medium"
+-- usa as MESMAS flags de "thin": a espessura extra vem do halo, nao do motor.
 ns.OUTLINE_CHOICES = {
     { value = "none",         flags = "" },
     { value = "thin",         flags = "OUTLINE" },
+    { value = "medium",       flags = "OUTLINE", halo = true },
     { value = "thick",        flags = "THICKOUTLINE" },
 }
 -- Medido no print oficial lado a lado: os dígitos do medidor nativo têm 11px de altura de
@@ -205,6 +228,23 @@ function ns.OutlineFor(role)
     return flags
 end
 
+---A opacidade do contorno DESENHADO de um papel: > 0 só no "medium".
+---
+---Abaixo do limiar ele zera junto com o contorno do motor — é a mesma regra, aplicada à mesma
+---razão: num corpo pequeno o traço fecha os vazados do "a", do "e" e do "8", e o desenhado
+---fecha mais que o do motor, porque soma 1px por fora do que o `OUTLINE` já pôs.
+function ns.HaloAlphaFor(role)
+    local config = ns.RoleConfig(role)
+    if config.size < OUTLINE_MIN_SIZE then return 0 end
+
+    for _, choice in ipairs(ns.OUTLINE_CHOICES) do
+        if choice.value == config.outline then
+            return choice.halo and HALO_ALPHA or 0
+        end
+    end
+    return 0
+end
+
 ---A sombra de um papel: alfa 0.8 quando ligada, 0 quando nao.
 function ns.ShadowAlphaFor(role)
     return ns.RoleConfig(role).shadow and 0.8 or 0
@@ -286,7 +326,6 @@ ns.REALM_FONT_DELTA = REALM_FONT_DELTA
 -- transparente**. Então o preto ao redor das letras dele não vem de fundo escuro: é contorno
 -- de verdade. Entorno dos glifos: mediana 10 no nome e 0 nos números. O nosso nome já mede 0,
 -- os números mediam 34 — o halo estava certo, faltava corpo de fonte para ele cobrir.
-local HALO_ALPHA = 0.75                 -- espessura do contorno desenhado: 0 = nada, 1 ≈ OUTLINE
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 -- Estes números vêm do `styleConfig` da skin Details_Midnight, que está instalada:
 --   wallpaperAlpha = 0.4      -> fundo da janela
@@ -525,6 +564,15 @@ function ns.ApplyRoleFont(fontString, role, delta, flagsOverride)
     -- engrossa o traço duas vezes no mesmo pixel.
     fontString:SetShadowOffset(1, -1)
     fontString:SetShadowColor(0, 0, 0, config.shadow and 0.8 or 0)
+
+    -- O CONTORNO DESENHADO entra por aqui e por mais lugar nenhum. `ApplyRoleFont` é o funil de
+    -- todo texto que tem papel — sete pontos de chamada — e pendurar o halo no funil é o que faz
+    -- o "medium" valer para os três papéis sem tocar em nenhum dos sete.
+    --
+    -- Chamada por `ns.`, e não pela local: `ApplyRoleHalo` é declarada mais abaixo neste arquivo,
+    -- e local declarada depois resolve como global nil aqui dentro. Já custou duas rodadas neste
+    -- projeto (`ROW_HEIGHT_FIXED` e os deltas de fonte).
+    ns.ApplyRoleHalo(fontString, role, delta)
 end
 
 ---O corpo das linhas, para quem tem corpo próprio e só precisa herdar contorno e sombra: o
@@ -571,30 +619,46 @@ end
 -- borda a fonte, outras não". Não era impressão: dependia de qual lado do glifo encostava no
 -- vizinho, e mudava de coluna para coluna.
 --
--- A máquina fica: `HALO_OFFSETS` com quatro deslocamentos simétricos devolve o contorno sem
--- reintroduzir a assimetria, se um dia fizer falta.
-local HALO_OFFSETS = {}
+-- Isso foi escrito na 0.49.0 e terminava em "se um dia fizer falta". Fez: o usuário testou os
+-- dois contornos e pediu o meio-termo — "são bem gritantes as diferenças, senti falta de um
+-- 'meio termo' dos dois". A máquina volta, com as DUAS correções que a desligaram:
+--
+--   1. QUATRO deslocamentos, simétricos. Os dois de antes ({-1,0} e {0,1}) cobriam esquerda e
+--      topo e deixavam direita e base para a sombra — três lados de um jeito, um de outro. Era
+--      isso o "umas colunas parece tá com mais borda a fonte, outras não": não era impressão,
+--      dependia de qual lado do glifo encostava no vizinho.
+--   2. Só entra quando o papel pede ("medium"). Antes ele somava com a sombra em todo texto, e
+--      dois traços no mesmo pixel engrossam duas vezes.
+local HALO_OFFSETS = {
+    { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 },
+}
 
 ---Cria as cópias de contorno para um FontString.
-local function CreateHalo(parent, source)
+---
+---`alpha` ausente ou zero devolve uma tabela VAZIA, e não `nil`: os chamadores percorrem o
+---resultado com `ipairs` sem guarda, e vazio faz cada laço virar no-op sem custo de widget.
+---É por isso que o placar, que passa dois argumentos, continua exatamente como estava.
+local function CreateHalo(parent, source, alpha)
     local halo = {}
+    if not alpha or alpha <= 0 then return halo end
+
     for i, offset in ipairs(HALO_OFFSETS) do
         local echo = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         echo:SetPoint("CENTER", source, "CENTER", offset[1], offset[2])
         echo:SetJustifyH(source:GetJustifyH() or "LEFT")
         echo:SetTextColor(0, 0, 0)
-        echo:SetAlpha(HALO_ALPHA)
+        echo:SetAlpha(alpha)
         halo[i] = echo
     end
     return halo
 end
 
 ---Mantém as cópias com a mesma fonte e largura do original.
-local function SyncHaloFont(source, halo, delta)
+local function SyncHaloFont(source, halo, delta, alpha)
     if not halo then return end
     for _, echo in ipairs(halo) do
         ns.ApplyFont(echo, delta, "")
-        echo:SetAlpha(HALO_ALPHA)
+        echo:SetAlpha(alpha or HALO_ALPHA)
         if source.GetWidth then echo:SetWidth(source:GetWidth()) end
     end
 end
@@ -605,6 +669,80 @@ end
 -- tocar em nada aqui dentro.
 ns.CreateHalo = CreateHalo
 ns.SyncHaloFont = SyncHaloFont
+ns.HALO_OFFSETS = HALO_OFFSETS
+
+---Tira os escapes de cor: as cópias são pretas por `SetTextColor`, e `|cff40d878…|r` dentro da
+---string sobrescreve isso — o trecho colorido reaparecia verde nas cópias, 1px deslocado, e o
+---que devia ser contorno virava fantasma colorido.
+---
+---`issecretvalue` vem ANTES do `type`: para um valor opaco `type()` responde o tipo real
+---("string"), então testar só o tipo deixaria o `gsub` receber um secret — e aí estoura.
+local function PlainText(text)
+    if text == nil or issecretvalue(text) or type(text) ~= "string" then return text end
+    return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+end
+
+---Liga (ou atualiza) o contorno desenhado de um FontString que tem papel.
+---
+---O TEXTO SE ESPELHA SOZINHO. As cópias precisam acompanhar cada `SetText` do original, e são
+---muitos os pontos que escrevem — cabeçalho, nome, reino, seis células por linha, relógio. Em vez
+---de trocar todos por uma função nossa, o gancho fica no próprio widget: `hooksecurefunc(fs,
+---"SetText", …)` é o padrão que os addons instalados usam sobre widget e sobre FontString
+---(`hooksecurefunc(tab, "SetText")`, `hooksecurefunc(header.Text, "Show")`).
+---
+---Só cria quando o papel de fato pede. Quem nunca escolher "medium" não paga um widget sequer.
+function ns.ApplyRoleHalo(fontString, role, delta)
+    local alpha = ns.HaloAlphaFor(role)
+
+    if not fontString.rmHalo then
+        if alpha <= 0 then return end
+
+        local parent = fontString.GetParent and fontString:GetParent()
+        if not parent or not parent.CreateFontString then return end
+
+        fontString.rmHalo = CreateHalo(parent, fontString, alpha)
+        hooksecurefunc(fontString, "SetText", function(self, text)
+            if not self.rmHalo then return end
+            local plain = PlainText(text)
+            for _, echo in ipairs(self.rmHalo) do
+                echo:SetText(plain)
+            end
+        end)
+
+        -- O texto que já está escrito não passaria pelo gancho: ele só pega as escritas dali em
+        -- diante. Sem isto, o contorno só aparece na primeira atualização depois de trocar a
+        -- opção — o jogador mexe no combo e nada muda.
+        if fontString.GetText then
+            local atual = PlainText(fontString:GetText())
+            for _, echo in ipairs(fontString.rmHalo) do
+                echo:SetText(atual)
+            end
+        end
+    end
+
+    -- SINCRONIZA PELO PAPEL, e não por `SyncHaloFont`. Aquela usa `ns.ApplyFont`, que sempre lê o
+    -- corpo do papel **body** — no placar isso é certo, porque lá tudo tem o corpo do placar; aqui
+    -- seria errado, e do jeito silencioso: o halo do título sairia com o corpo das linhas e ficaria
+    -- deslocado do glifo que ele deveria contornar.
+    --
+    -- As cópias vão com contorno "" de propósito: o traço do motor já está no original, e repeti-lo
+    -- nas quatro cópias somaria 1px por fora de cada uma — voltaria a ser mais grosso que o grosso.
+    -- `SafeSetFont` direto, e NÃO `ApplyRoleFont`: aquela chama esta função de volta, e a cópia
+    -- ganharia a própria cópia — recursão infinita na primeira linha desenhada. (Encontrado aqui,
+    -- não in-game: o harness travou.)
+    local size = ns.RoleConfig(role).size + (delta or 0)
+    if size < 6 then size = 6 end
+
+    for _, echo in ipairs(fontString.rmHalo) do
+        -- Contorno "" de propósito: o traço do motor já está no original, e repeti-lo nas quatro
+        -- cópias somaria 1px por fora de cada uma — voltaria a ficar mais grosso que o grosso.
+        SafeSetFont(echo, ns.FontPath(), size, "")
+        echo:SetShadowColor(0, 0, 0, 0)      -- a sombra é do original; na cópia vira borrão
+        echo:SetTextColor(0, 0, 0)
+        echo:SetAlpha(alpha)
+        if fontString.GetWidth then echo:SetWidth(fontString:GetWidth()) end
+    end
+end
 
 ---Escreve no original e nas cópias de uma vez.
 ---
