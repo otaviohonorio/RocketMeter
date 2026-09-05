@@ -666,11 +666,22 @@ end
 -- Só que cor de classe crua não serve para texto: vermelho de cavaleiro da morte e roxo de
 -- bruxo são escuros demais sobre fundo escuro. A cor é **clareada em direção ao branco**, o
 -- que preserva a identidade e garante a leitura.
-local LEADER_LIGHTEN = 0.55         -- quanto da cor caminha para o branco
+-- A cor **real** da classe, não uma versão lavada: clarear demais tira justamente a
+-- identidade que faz a ideia funcionar.
+--
+-- Só que algumas classes são escuras (cavaleiro da morte, bruxo) e sumiriam sobre o fundo
+-- escuro da linha. Em vez de clarear todas por igual, existe um **piso de luminância**: a cor
+-- só é clareada se ficar abaixo dele, e apenas o necessário para alcançá-lo. Quem já é claro
+-- — mago, ladino, monge — sai intacto.
+local LEADER_MIN_LUMA = 0.55
 local LEADER_FALLBACK = { 1, 0.94, 0.78 }
 local NORMAL = { 0.86, 0.87, 0.90 }
 
----Cor do texto de quem lidera: a classe, clareada o bastante para ler.
+local function Luminance(r, g, b)
+    return 0.299 * r + 0.587 * g + 0.114 * b
+end
+
+---Cor do texto de quem lidera: a da classe, com o mínimo de correção para continuar legível.
 local function LeaderColor(classFilename)
     local class = SafeClass(classFilename)
     local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
@@ -678,10 +689,15 @@ local function LeaderColor(classFilename)
         return LEADER_FALLBACK[1], LEADER_FALLBACK[2], LEADER_FALLBACK[3]
     end
 
-    local k = LEADER_LIGHTEN
-    return color.r + (1 - color.r) * k,
-           color.g + (1 - color.g) * k,
-           color.b + (1 - color.b) * k
+    local r, g, b = color.r, color.g, color.b
+    local luma = Luminance(r, g, b)
+    if luma >= LEADER_MIN_LUMA then
+        return r, g, b          -- cor da classe intacta
+    end
+
+    -- Clareia só o suficiente para atingir o piso, preservando o matiz.
+    local k = (LEADER_MIN_LUMA - luma) / (1 - luma)
+    return r + (1 - r) * k, g + (1 - g) * k, b + (1 - b) * k
 end
 
 ---Estiliza a célula: presença, cor e a placa de destaque de quem lidera a coluna.
