@@ -555,6 +555,13 @@ function Window.Create()
         L["Clear the data"], function() ns.Data.RequestReset() end)
     frame.resetButton:SetPoint("RIGHT", frame.gearButton, "LEFT", -3, 0)
 
+    frame.lockButton = HeaderButton("Interface\\Buttons\\LockButton-Unlocked-Up",
+        L["Lock position"], function()
+            ns.db.locked = not ns.db.locked
+            Window.ApplyLock()
+        end)
+    frame.lockButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -3, 0)
+
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
     else
@@ -627,6 +634,7 @@ function Window.Create()
 
     rows = {}
     Window.Rebuild()
+    Window.ApplyLock()
 
     frame:SetScript("OnUpdate", function(_, elapsed)
         if not dirty then return end
@@ -935,6 +943,47 @@ function Window.RowsAreClickable()
     local row = rows and rows[1]
     if not row then return false end
     return row:IsMouseEnabled() and row:GetScript("OnClick") ~= nil and row.source ~= nil
+end
+
+---Aplica o estado travado: ícone do cadeado e visibilidade da alça.
+---
+---A alça só faz sentido destravada — deixá-la visível travada convida a arrastar algo que não
+---vai se mexer. Some junto.
+local LOCK_ICONS = {
+    locked = "Interface\\Buttons\\LockButton-Locked-Up",
+    unlocked = "Interface\\Buttons\\LockButton-Unlocked-Up",
+    fallback = "Interface\\PetBattles\\PetBattle-LockIcon",
+}
+
+function Window.ApplyLock()
+    if not frame then return end
+
+    local locked = ns.db.locked and true or false
+
+    if frame.grip then
+        frame.grip:SetShown(not locked)
+    end
+
+    local button = frame.lockButton
+    if not button then return end
+
+    button:SetNormalTexture(locked and LOCK_ICONS.locked or LOCK_ICONS.unlocked)
+    local texture = button:GetNormalTexture()
+
+    -- Se o par de cadeados não existir neste cliente, cai num ícone confirmado e distingue
+    -- os estados pelo brilho, em vez de mostrar o quadrado de textura ausente.
+    if texture and not texture:GetTexture() then
+        button:SetNormalTexture(LOCK_ICONS.fallback)
+        texture = button:GetNormalTexture()
+        if texture then
+            texture:SetDesaturated(not locked)
+        end
+    end
+
+    if texture then
+        texture:SetVertexColor(locked and 1 or 0.80, locked and 0.82 or 0.74,
+            locked and 0.35 or 0.55)
+    end
 end
 
 function Window.ApplyScale()

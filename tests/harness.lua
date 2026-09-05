@@ -50,6 +50,8 @@ local function widget(kind)
     function self.GetFrameLevel() return 1 end
     function self.GetNormalTexture() return widget("Texture") end
     function self.GetTexture() return "texture" end
+    function self.SetDesaturated() end
+    function self.SetShown() end
 
     return setmetatable(self, {
         -- Metodo do WoW e PascalCase; campo que o addon guarda no frame e minusculo.
@@ -301,6 +303,14 @@ local function try(label, fn, ...)
 end
 
 try("Window.ApplyVisibility", ns.Window.ApplyVisibility)
+try("Window.ApplyLock (travado)", function()
+    ns.db.locked = true
+    ns.Window.ApplyLock()
+end)
+try("Window.ApplyLock (destravado)", function()
+    ns.db.locked = false
+    ns.Window.ApplyLock()
+end)
 try("Window.Show", ns.Window.Show)
 try("Window.Hide", ns.Window.Hide)
 try("Window.OnCombatStart", ns.Window.OnCombatStart)
