@@ -47,6 +47,9 @@ ns.Skin = {
     rowSpacing = 1,
     rowBackground = { 0, 0, 0, ROW_BG_ALPHA },
     windowAlpha = WINDOW_ALPHA,
+    -- A janela é overlay sobre o jogo e fica transparente; painel de leitura pede fundo,
+    -- senão o texto disputa com o cenário. Daí dois alfas em vez de um.
+    panelAlpha = 0.70,
     headerAtlas = "ui-damagemeters-header-bar",
     headerCrop = { 0.045, 0.965, 4 / 60, 56 / 60 },
     gold = { 1, 0.82, 0 },
