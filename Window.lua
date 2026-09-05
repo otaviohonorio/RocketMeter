@@ -16,7 +16,7 @@ ns.Window = Window
 -- APARENCIA FIXA. Nada aqui e configuravel: primeiro o padrao precisa estar certo.
 -- Os valores saem da referencia (Details com a skin do medidor nativo).
 local FONT = "Fonts\\FRIZQT__.TTF"
-local FONT_SIZE = 12
+local FONT_SIZE = 13                -- um ponto acima: sem fundo, o texto precisa de corpo
 -- A skin usa `rowTextShadow = true` e deixa o contorno desligado: é **sombra**, não outline.
 -- Outline engorda o traço e foi o que deixou o texto pesado.
 local FONT_OUTLINE = ""
@@ -34,7 +34,7 @@ local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
 -- Fundo invisível: é a variante "No Background" da skin (`wallpaperAlpha = 0.0`).
 -- Quem sustenta a leitura é a sombra do texto; a separação vem da faixa de progresso.
 local WINDOW_ALPHA = 0
-local ROW_HEIGHT_FIXED = 20         -- skin: barHeight
+local ROW_HEIGHT_FIXED = 22         -- um passo acima do skin (20): com fundo transparente, respira
 local COLUMN_WIDTH_FIXED = 58
 
 -- Proporção da referência: a skin usa faixa de 32px com texto de 13pt, ou seja, o texto
@@ -449,8 +449,9 @@ local function BuildRow(index)
     row.bar:SetStatusBarTexture(ns.BarTexture())
 
     if row.SetBackdropBorderColor then
-        -- A referência não tem borda na linha: o espaçamento de 1px já separa as barras.
-        row:SetBackdropBorderColor(0, 0, 0, 0)
+        -- Borda discreta: sem fundo, é o que dá contorno à linha e a separa do cenário.
+        -- Quando havia fundo escuro atrás, ela era redundante — agora não é.
+        row:SetBackdropBorderColor(0, 0, 0, 0.55)
     end
 
     local iconSize = height          -- preenche a linha inteira, como no Details
