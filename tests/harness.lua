@@ -48,8 +48,29 @@ local function widget(kind)
     function self.GetHeight() return 200 end
     function self.GetStringWidth() return 40 end
     function self.GetFrameLevel() return 1 end
-    function self.GetNormalTexture() return widget("Texture") end
-    function self.GetTexture() return "texture" end
+    -- A MESMA textura em toda chamada, como no jogo. Devolver uma nova a cada
+    -- `GetNormalTexture()` fazia todo teste sobre estado de icone olhar um objeto recem criado
+    -- em vez do que o addon acabou de configurar -- o defeito passaria despercebido.
+    function self.GetNormalTexture()
+        if not self.__normalTexture then
+            self.__normalTexture = widget("Texture")
+        end
+        return self.__normalTexture
+    end
+    function self.SetNormalTexture(_, path)
+        local t = self:GetNormalTexture()
+        -- Trocar a textura DESFAZ o atlas, como no jogo: sem isso o atlas anterior ficava
+        -- grudado e um teste de "o icone mudou?" respondia sempre que nao.
+        t.__texture, t.__atlas = path, nil
+        return t
+    end
+    function self.SetHighlightTexture() end
+    -- `SetAtlas` e `SetTexture` REGISTRAM o que receberam: e o unico jeito de um teste
+    -- distinguir "trocou o icone" de "nao trocou", ja que o WoW nao devolve isso.
+    function self.SetAtlas(_, name) self.__atlas = name; self.__texture = nil end
+    function self.SetTexture(_, path) self.__texture = path; self.__atlas = nil end
+    function self.GetAtlas() return self.__atlas end
+    function self.GetTexture() return self.__texture or "texture" end
     function self.SetDesaturated() end
     function self.SetShown() end
 
@@ -1068,6 +1089,78 @@ do
 
     for name in pairs(touched) do
         _G[name] = saved[name]
+    end
+end
+
+print("== cadeado: a forma muda, nao so a cor ==")
+-- Ate a 0.54.0 os dois estados usavam a MESMA textura e so trocavam o tom. Num glifo de 14px
+-- isso nao se le -- o usuario disse que nao conseguia perceber. E a licao ja estava registrada
+-- na saga do realce de lider: cor sozinha ficou fraca.
+do
+    local btn = ns.Window.__frame and ns.Window.__frame.lockButton
+    check("o botao de cadeado existe", btn ~= nil, true)
+
+    if btn then
+        ns.db.locked = false
+        ns.Window.ApplyLock()
+        local destravado = btn:GetNormalTexture().__atlas
+
+        ns.db.locked = true
+        ns.Window.ApplyLock()
+        local travado = btn:GetNormalTexture().__atlas
+
+        check("os dois estados nao usam a mesma arte", destravado ~= travado, true)
+        check("destravado usa o glifo de mover", destravado, "common-icon-move")
+        check("travado nao usa o glifo de mover", travado ~= "common-icon-move", true)
+    end
+end
+
+print("== cadeado: atlas ausente nao deixa o botao vazio ==")
+-- `SetAtlas` com nome invalido falha em SILENCIO. Se o cliente nao tiver o atlas, o botao tem
+-- que continuar mostrando o cadeado de sempre -- nunca sumir.
+do
+    local btn = ns.Window.__frame and ns.Window.__frame.lockButton
+    local real = C_Texture.GetAtlasInfo
+    C_Texture.GetAtlasInfo = function() return nil end
+
+    ns.db.locked = false
+    ns.Window.ApplyLock()
+    check("sem o atlas, sobra a textura do cadeado",
+        btn:GetNormalTexture().__texture, "Interface\\PetBattles\\PetBattle-LockIcon")
+
+    C_Texture.GetAtlasInfo = real
+    ns.db.locked = false
+    ns.Window.ApplyLock()
+end
+
+print("== redimensionar nao pode cortar a linha de um jogador ==")
+-- Pedido do usuario: "criar um minimo aceitavel para caber as informacoes de acordo com as
+-- colunas e as linhas, para nao cortar a linha de um jogador".
+do
+    local altura = ns.Window.__WindowHeight
+    local cabem = ns.Window.__RowsThatFit
+    check("os dois auxiliares estao expostos", altura ~= nil and cabem ~= nil, true)
+
+    if altura and cabem then
+        -- Meia linha a mais NAO pode virar uma linha a mais.
+        for n = 1, 12 do
+            local exata = altura(n)
+            if cabem(exata) ~= n then
+                check("altura exata de " .. n .. " linha(s) devolve " .. n, cabem(exata), n)
+            end
+            -- sobra de meia linha: continua sendo n, nunca n+1
+            local sobrando = exata + math.floor(ns.Window.__RowStep() / 2)
+            if cabem(sobrando) ~= n then
+                check("meia linha sobrando nao promove (" .. n .. ")", cabem(sobrando), n)
+            end
+        end
+        check("varredura de 1 a 12 linhas sem corte", true, true)
+
+        -- Faltando um pixel para a ultima linha: tem que devolver n-1, nao n.
+        check("faltando 1px, a ultima linha nao entra", cabem(altura(6) - 1), 5)
+
+        -- Piso: nunca abaixo de uma linha, por menor que seja a altura.
+        check("altura absurda nao vai a zero linhas", cabem(10), 1)
     end
 end
 

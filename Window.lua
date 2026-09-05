@@ -197,14 +197,48 @@ local MIN_ROWS = 1              -- uma linha ainda é útil: só você, no bonec
 local MAX_ROWS = 20             -- tamanho de uma raide; acima disso a janela toma a tela
 local GRIP = 14
 
--- Cadeado plano: o mesmo ícone nos dois estados, distinguidos por cor e saturação. Não há
--- atlas de cadeado na família `common-icon-*`, então este é o glifo mais próximo dela.
+-- O CADEADO PRECISA MUDAR DE FORMA, NÃO DE COR.
+--
+-- Até a 0.54.0 os dois estados usavam a MESMA textura e só trocavam o tom: dourado quando
+-- travado, cinza quando não. Num glifo de 14px isso não se lê — o usuário disse que não
+-- conseguia perceber. E a lição já estava registrada neste projeto, na saga do realce de
+-- líder: **cor sozinha ficou fraca**.
+--
+-- Não existe cadeado na família `common-icon-*` (conferido: são 26 glifos e nenhum é).
+-- `Interface\Buttons\LockButton-Locked-Up` / `-Unlocked-Up` existem e formam par aberto/
+-- fechado, mas são **arte de botão** com moldura e relevo — foram reprovados na 0.43.1 pelo
+-- efeito "botão de Windows XP no meio de ícones planos".
+--
+-- A saída é dizer a mesma coisa por outro par:
+--
+--   destravado → `common-icon-move`, a cruz de setas. Glifo plano, da MESMA família dos
+--                outros botões do cabeçalho, e diz exatamente o que o estado significa:
+--                "dá para arrastar". Confirmado na fonte do 12.1.0, em
+--                `Blizzard_HouseEditor/Blizzard_HouseEditorLayoutModePin.xml:289`, usado
+--                como `iconAtlas`.
+--   travado    → o cadeado de sempre, que já está na tela e portanto é sabidamente válido.
+--
+-- As duas formas são inconfundíveis a 14px. Se o atlas não existir neste cliente, a reserva
+-- é o comportamento antigo (mesmo ícone, tons diferentes) — nunca um botão vazio. `/rm atlas`
+-- diz qual dos dois caminhos está valendo.
 local LOCK_ICON = "Interface\\PetBattles\\PetBattle-LockIcon"
+local UNLOCK_ATLAS = "common-icon-move"
 
 local CLASS_ICONS = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
 
 function ns.BarTexture()
     return BAR_TEXTURE
+end
+
+---Este atlas existe neste cliente?
+---
+---`SetAtlas` com um nome que não existe **falha em silêncio**: a textura fica como estava e
+---nada avisa. Perguntar antes é o que separa "o ícone mudou" de "o ícone continua igual e eu
+---não sei por quê". Mesma guarda que o placar já usa; `/rm atlas` lista os nomes conferidos.
+function ns.AtlasExists(name)
+    if name == nil then return false end
+    local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)
+    return info ~= nil
 end
 
 local frame, headerRow, rows
@@ -559,6 +593,30 @@ local function WindowHeight(rowCount)
     if rowCount < 1 then rowCount = 1 end
     return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
 end
+
+---Quanto uma linha ocupa de altura, com a separação.
+local function RowStep()
+    return RowHeight() + 1
+end
+
+---Quantas linhas INTEIRAS cabem nesta altura.
+---
+---`floor`, e não `floor(x + 0.5)`: arredondar para o mais próximo aceita uma altura em que a
+---última linha **não cabe**, e o jogador vê meia linha. O pedido foi literal — "para não
+---cortar a linha de um jogador". Para baixo sempre cabe.
+local function RowsThatFit(height)
+    local usable = height - HEADER_HEIGHT - ColumnHeaderHeight() - PADDING
+    local n = math.floor(usable / RowStep())
+    if n < MIN_ROWS then n = MIN_ROWS end
+    if n > MAX_ROWS then n = MAX_ROWS end
+    return n
+end
+
+-- Ganchos para o harness: a geometria é a parte testável desta tela, e sem isso o teste teria
+-- que recalcular as fórmulas por fora — o que confirmaria a cópia, não o código.
+Window.__WindowHeight = WindowHeight
+Window.__RowsThatFit = RowsThatFit
+Window.__RowStep = RowStep
 
 --------------------------------------------------------------------------------
 -- Cabeçalho das colunas
@@ -923,7 +981,9 @@ function Window.Create()
         b:SetScript("OnEnter", function(self)
             self:SetTint(ICON_HOVER)
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText(tooltip, 1, 1, 1)
+            -- `tooltipText` sobrescreve o texto fixo quando o botao tem estado. E o segundo
+            -- canal do cadeado: mesmo que o icone nao seja lido, a dica diz em palavras.
+            GameTooltip:SetText(self.tooltipText or tooltip, 1, 1, 1)
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
@@ -1009,18 +1069,38 @@ function Window.Create()
     grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
     grip:SetScript("OnMouseDown", function()
         if ns.db.locked then return end
+        frame.sizing = true
         frame:StartSizing("BOTTOMRIGHT")
     end)
     grip:SetScript("OnMouseUp", function()
         frame:StopMovingOrSizing()
+        frame.sizing = false
         ns.db.width = frame:GetWidth()
-
-        -- A altura vira quantidade de linhas: é o que faz sentido num medidor.
-        local usable = frame:GetHeight() - HEADER_HEIGHT - COLHEAD_HEIGHT - PADDING
-        Window.SetRows(math.floor(usable / (RowHeight() + 1) + 0.5))
+        Window.SetRows(RowsThatFit(frame:GetHeight()))
         frame:SetHeight(WindowHeight(ns.db.rows))
     end)
+
+    -- ENCAIXE AO VIVO. Antes o ajuste só acontecia ao SOLTAR o mouse, então a linha ficava
+    -- cortada o arraste inteiro e só se acertava no fim — o que dá a impressão de que a janela
+    -- não obedece. Aqui a altura vira número de linhas a cada quadro do arraste, e a janela
+    -- acompanha em passos de uma linha.
+    --
+    -- `frame.sizing` evita reentrada: `SetHeight` dispara `OnSizeChanged` de novo.
+    frame:SetScript("OnSizeChanged", function(self)
+        if not self.sizing or self.snapping then return end
+        local wanted = RowsThatFit(self:GetHeight())
+        if wanted == ns.db.rows then return end
+
+        self.snapping = true
+        Window.SetRows(wanted)
+        self.snapping = false
+    end)
+
     frame.grip = grip
+
+    -- Gancho para o harness: sem ele o teste do cadeado teria que redescobrir o frame por
+    -- `_G`, e passaria a testar o simulador em vez do addon.
+    Window.__frame = frame
 
     rows = {}
     Window.Rebuild()
@@ -1391,16 +1471,30 @@ function Window.ApplyLock()
     local button = frame.lockButton
     if not button then return end
 
+    -- Textura primeiro: `SetAtlas` precisa de uma textura já existente para atuar, e ela também
+    -- é a reserva quando o atlas não existe neste cliente.
     button:SetNormalTexture(LOCK_ICON)
     local texture = button:GetNormalTexture()
     if not texture then return end
 
+    -- Destravado ganha a cruz de setas; travado fica com o cadeado. Ver o comentário de
+    -- `UNLOCK_ATLAS` no topo: a diferença tem que ser de FORMA, porque cor num glifo de 14px
+    -- não se lê. Se o atlas faltar, sobra o comportamento antigo — nunca um botão vazio.
+    if not locked and texture.SetAtlas and ns.AtlasExists(UNLOCK_ATLAS) then
+        texture:SetAtlas(UNLOCK_ATLAS, false)
+    end
+
     texture:SetDesaturated(true)   -- sem a cor original do ícone, para entrar na família
 
-    -- Travado chama atenção; destravado fica no tom dos outros ícones.
+    -- A cor REFORÇA a forma, não substitui: travado chama atenção, destravado fica no tom dos
+    -- outros ícones.
     local tint = locked and { 1, 0.82, 0.30 } or button.baseTint
     button.activeTint = tint
     button:SetTint(tint)
+
+    -- Terceiro canal, e o unico que nao depende de o jogador interpretar um desenho de 14px.
+    button.tooltipText = locked and L["Locked — click to unlock and resize"]
+        or L["Unlocked — drag to move, corner to resize"]
 end
 
 ---Define quantas linhas a janela mostra, ajustando a altura.
@@ -1415,7 +1509,10 @@ function Window.SetRows(count)
 
     ns.db.rows = count
     Window.Rebuild()
-    if frame then
+    if frame and not frame.sizing then
+        -- Durante o arraste quem manda na altura é o mouse: cravar a altura aqui brigaria com
+        -- o `StartSizing` e a janela pularia embaixo do cursor. O encaixe final é feito ao
+        -- soltar, no `OnMouseUp` da alça.
         frame:SetHeight(WindowHeight(count))
     end
 end

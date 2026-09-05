@@ -198,3 +198,8 @@ L["When an encounter is defeated, the summary of the fight opens by itself."] =
 L["Show the realm next to the name"] = "Mostrar o reino ao lado do nome"
 L["Off by default: the realm eats the column and the name is what ends up cut."] =
     "Desligado por padrão: o reino come a coluna e quem acaba cortado é o nome."
+
+-- Estado do cadeado em palavras (0.55.0): o icone mudou de FORMA, mas a dica e o canal que
+-- nao depende de interpretar um desenho de 14px.
+L["Locked — click to unlock and resize"] = "Travado — clique para destravar e redimensionar"
+L["Unlocked — drag to move, corner to resize"] = "Destravado — arraste para mover, canto para redimensionar"

@@ -86,6 +86,9 @@ ns.SCOREBOARD_ATLASES = {
     "roleicon-tiny-dps",
     "ui-damagemeters-header-bar",
     "common-icon-redx",
+    -- Cadeado destravado do cabecalho da janela (0.55.0). Entra aqui porque `/rm atlas` e o
+    -- unico jeito de saber se ele existe: `SetAtlas` com nome invalido falha em silencio.
+    "common-icon-move",
 }
 
 --------------------------------------------------------------------------------
