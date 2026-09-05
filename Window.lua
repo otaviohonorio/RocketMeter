@@ -47,7 +47,12 @@ local FONT = "Fonts\\ARIALN.TTF"
 -- dourado no cabeçalho. Tamanho variando dentro da mesma linha fazia a régua dos números dançar.
 --
 -- Em px de caixa alta, pela taxa medida (~0,69px por ponto): 13 rende 9px, 12 rendia ~8px.
-local FONT_SIZE = 17            -- o mesmo corpo que o usuário configurou no chat dele
+-- 16, e não os 17 do chat: o chat dele ocupa a largura da tela com uma coluna de texto, e a
+-- nossa janela carrega seis colunas de número na mesma altura de linha. É a mesma correção que
+-- a 0.50.0 já tinha feito na outra direção — medida do lado de fora vale como ponto de partida,
+-- não como alvo, porque a densidade das duas telas é diferente. Pedido depois de ver os 17
+-- in-game.
+local FONT_SIZE = 16
 -- O PLACAR não segue esta janela. Ele foi visto e aprovado com corpo 12, e a subida para 13
 -- foi pedida para "a janela de combate" — mudar as duas juntas desfaria uma aprovação que já
 -- existe. Mesma razão de `PANEL_FONT_SIZE`: tela diferente, densidade diferente, corpo próprio.
@@ -56,14 +61,23 @@ local SCOREBOARD_FONT_SIZE = 12
 -- corpo da linha. No nativo o título mede 9px de caixa contra 11px da linha, e é essa diferença
 -- que dá a hierarquia da janela dele.
 --
--- ATENÇÃO — a relação com a linha INVERTEU. Com a linha em 12, o título (13) passou a ser
--- MAIOR que o conteúdo, e no nativo ele é menor. Deixei assim porque a mudança pedida foi no
--- corpo da linha e mexer no título junto seria decidir por conta própria; mas se ele ficar
--- gritando na tela, o conserto é aqui: 12 empata com a linha, 11 volta a relação do nativo.
--- (11 e 12 podem rasterizar na mesma altura de caixa — a fonte não tem degrau entre elas.)
-local TITLE_FONT_SIZE = 13
-local CLOCK_FONT_SIZE = 12
-local COLHEAD_FONT_SIZE = 11
+-- TÍTULO, RELÓGIO E CABEÇALHO ACOMPANHAM A LINHA, como deltas — não como números soltos.
+--
+-- Eram três absolutos, herdados de quando a linha era 13. Toda vez que o corpo da linha mudava
+-- (e ele mudou seis vezes), a hierarquia se desfazia sozinha: chegou ao ponto de o título (13)
+-- **empatar** com a linha (13), quando no medidor nativo ele é menor — é justamente o menor que
+-- dá a hierarquia. O comentário antigo aqui dizia "se ficar gritando, o conserto é aqui", o que
+-- é a descrição de um valor que devia ser derivado e não era.
+--
+-- Como delta, a relação sobrevive à próxima mudança de corpo sem ninguém lembrar dela. Medido
+-- no nativo: título ~0,82 do conteúdo, que com a linha em 16 dá 13–14.
+local TITLE_FONT_DELTA = -2     -- linha 16 -> 14
+local CLOCK_FONT_DELTA = -3     -- linha 16 -> 13
+local COLHEAD_FONT_DELTA = -4   -- linha 16 -> 12
+
+local TITLE_FONT_SIZE = FONT_SIZE + TITLE_FONT_DELTA
+local CLOCK_FONT_SIZE = FONT_SIZE + CLOCK_FONT_DELTA
+local COLHEAD_FONT_SIZE = FONT_SIZE + COLHEAD_FONT_DELTA
 -- O painel de detalhamento não tem equivalente no medidor da Blizzard, então não segue o corpo
 -- da linha: ele mantém o próprio, que é o que já estava aprovado. Crescer junto por herança
 -- seria mudar uma tela que ninguém pediu para mudar.
@@ -151,6 +165,7 @@ ns.Skin = {
     -- placar tinha um `11` cravado no código que precisaria ser caçado à mão se este mudasse.
     colheadFontSize = COLHEAD_FONT_SIZE,
     titleFontSize = TITLE_FONT_SIZE,
+    clockFontSize = CLOCK_FONT_SIZE,
     scoreboardFontSize = SCOREBOARD_FONT_SIZE,
     barTexture = BAR_TEXTURE,
     barBrightness = BAR_BRIGHTNESS,
@@ -726,7 +741,7 @@ local function BuildColumnHeader()
         button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
-        ns.ApplyFont(button.text, COLHEAD_FONT_SIZE - FONT_SIZE, "")
+        ns.ApplyFont(button.text, COLHEAD_FONT_DELTA, FONT_OUTLINE)
 
         local label = ns.Data.GetShortLabel(key)
         if key == ns.db.sortBy then
@@ -1167,8 +1182,8 @@ function Window.Rebuild()
 
     -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
     -- Título e relógio têm corpo próprio: no nativo eles são menores que o texto da linha.
-    ns.ApplyFont(frame.header.segment.text, TITLE_FONT_SIZE - FONT_SIZE, "")
-    ns.ApplyFont(frame.header.clock, CLOCK_FONT_SIZE - FONT_SIZE, "")
+    ns.ApplyFont(frame.header.segment.text, TITLE_FONT_DELTA, FONT_OUTLINE)
+    ns.ApplyFont(frame.header.clock, CLOCK_FONT_DELTA, FONT_OUTLINE)
 
     BuildColumnHeader()
     for i = 1, ns.db.rows do

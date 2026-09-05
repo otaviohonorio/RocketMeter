@@ -890,10 +890,12 @@ ns.ApplyFont(fs, 0)
 --     message_font_size = 17
 --     message_font_outline = "thin" -> "OUTLINE"
 --     show_font_shadow = true
-check("corpo da linha da janela", fs.size, 17)
+-- UM numero cravado, e so um: `ns.Skin.fontSize` e a fonte unica da verdade, e todo o resto e
+-- conferido POR RELACAO a ela. Assim mudar o corpo e uma linha aqui, e nao seis.
+check("corpo da linha e o que foi decidido", ns.Skin.fontSize, 16)
+check("ApplyFont usa o corpo do Skin", fs.size, ns.Skin.fontSize)
 check("linha usa a fonte do chat (Arial Narrow)", fs.path, ns.Skin.font)
 check("a fonte e mesmo Arial Narrow", ns.Skin.font:find("ARIALN", 1, true) ~= nil, true)
-check("ns.Skin.fontSize expoe o mesmo corpo", ns.Skin.fontSize, 17)
 
 -- UM CONTORNO SO PARA TUDO. A mistura anterior (celula sem contorno, nome com halo desenhado)
 -- foi o que o usuario leu como "umas colunas parece ta com mais borda a fonte, outras nao".
@@ -908,6 +910,57 @@ end
 
 -- O placar NAO segue a janela: ele foi visto e aprovado em 12, e a janela subiu para 13
 -- depois, a pedido. Herdar desfaria uma aprovacao que ja existe.
+-- HIERARQUIA DA JANELA. Titulo, relogio e cabecalho de coluna eram tres numeros ABSOLUTOS,
+-- herdados de quando a linha era 13. Cada vez que o corpo da linha mudava -- e mudou seis
+-- vezes -- a relacao se desfazia sozinha: chegou ao ponto de o titulo EMPATAR com a linha,
+-- quando no medidor nativo ele e menor, e e o menor que da a hierarquia.
+--
+-- Agora sao deltas. Estes checks travam a relacao, que e o que precisa sobreviver a proxima
+-- mudanca de corpo -- nao os numeros.
+check("titulo e menor que a linha", ns.Skin.titleFontSize < ns.Skin.fontSize, true)
+check("relogio e menor que o titulo", ns.Skin.clockFontSize < ns.Skin.titleFontSize, true)
+check("cabecalho e o menor de todos", ns.Skin.colheadFontSize < ns.Skin.clockFontSize, true)
+-- E nenhum pode despencar: hierarquia nao e sumir.
+check("cabecalho nao fica ilegivel", ns.Skin.colheadFontSize >= ns.Skin.fontSize - 5, true)
+
+-- O CONTORNO E O MESMO EM TODA A JANELA. Era isto que faltava quando o usuario disse "umas
+-- colunas parece ta com mais borda a fonte, outras nao": as celulas iam sem contorno, o nome
+-- ia com halo desenhado, e titulo/relogio/cabecalho iam sem nada.
+do
+    local titulo, relogio, cabecalho = spyFontString(), spyFontString(), spyFontString()
+    ns.ApplyFont(titulo,   ns.Skin.titleFontSize   - ns.Skin.fontSize, ns.Skin.fontOutline)
+    ns.ApplyFont(relogio,  ns.Skin.clockFontSize   - ns.Skin.fontSize, ns.Skin.fontOutline)
+    ns.ApplyFont(cabecalho, ns.Skin.colheadFontSize - ns.Skin.fontSize, ns.Skin.fontOutline)
+
+    check("titulo com o contorno da janela", titulo.flags, fs.flags)
+    check("relogio com o contorno da janela", relogio.flags, fs.flags)
+    check("cabecalho com o contorno da janela", cabecalho.flags, fs.flags)
+    check("e os tres na mesma familia", titulo.path, ns.Skin.font)
+end
+
+-- E o desenho de verdade tem que usar isso: sem este check, os tres poderiam continuar
+-- passando "" no codigo e os checks acima passariam mesmo assim.
+do
+    local vistos = {}
+    local arquivo = io.open("Window.lua")
+    local texto = arquivo:read("*a")
+    arquivo:close()
+    -- Os tres pelo nome exato: `REALM_FONT_DELTA` tambem casa com "FONT_DELTA" e nao e destes.
+    for _, nome in ipairs({ "TITLE_FONT_DELTA", "CLOCK_FONT_DELTA", "COLHEAD_FONT_DELTA" }) do
+        for chamada in texto:gmatch("ns%.ApplyFont%(([^\n]-)%)") do
+            if chamada:find(nome, 1, true) then
+                vistos[#vistos + 1] = chamada
+            end
+        end
+    end
+    check("titulo, relogio e cabecalho sao desenhados por delta", #vistos, 3)
+    local semContorno = 0
+    for _, chamada in ipairs(vistos) do
+        if chamada:find('""', 1, true) then semContorno = semContorno + 1 end
+    end
+    check("nenhum deles desenha sem contorno", semContorno, 0)
+end
+
 ns.ApplyScoreboardFont(fs, 0)
 check("corpo do placar e proprio", fs.size, 12)
 check("ns.Skin expoe o corpo do placar", ns.Skin.scoreboardFontSize, 12)
