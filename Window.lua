@@ -659,11 +659,30 @@ end
 --
 -- Agora o piso sobe para 0.86 (legível de verdade) e o líder ganha, além do branco puro, uma
 -- **placa neutra** atrás — branco a 8%, sem cor, sem ícone, sem ocupar espaço extra.
--- Líder num branco **quente** (creme), os demais num branco levemente **frio**. A diferença
--- de temperatura soma-se ao corpo maior e à placa, sem colidir com cor de classe — nenhuma
--- classe é bege — e ainda conversa com o dourado do cabeçalho.
-local LEADER = { 1, 0.94, 0.78 }
+-- O líder é pintado com a **cor da própria classe** — e isso não repete o erro do dourado:
+-- lá a cor era arbitrária e parecia dizer "ladino"; aqui ela diz exatamente o que a cor de
+-- classe sempre diz, "este jogador". O vocabulário é usado, não contrariado.
+--
+-- Só que cor de classe crua não serve para texto: vermelho de cavaleiro da morte e roxo de
+-- bruxo são escuros demais sobre fundo escuro. A cor é **clareada em direção ao branco**, o
+-- que preserva a identidade e garante a leitura.
+local LEADER_LIGHTEN = 0.55         -- quanto da cor caminha para o branco
+local LEADER_FALLBACK = { 1, 0.94, 0.78 }
 local NORMAL = { 0.86, 0.87, 0.90 }
+
+---Cor do texto de quem lidera: a classe, clareada o bastante para ler.
+local function LeaderColor(classFilename)
+    local class = SafeClass(classFilename)
+    local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    if not color then
+        return LEADER_FALLBACK[1], LEADER_FALLBACK[2], LEADER_FALLBACK[3]
+    end
+
+    local k = LEADER_LIGHTEN
+    return color.r + (1 - color.r) * k,
+           color.g + (1 - color.g) * k,
+           color.b + (1 - color.b) * k
+end
 
 ---Estiliza a célula: presença, cor e a placa de destaque de quem lidera a coluna.
 ---
@@ -679,7 +698,7 @@ function ns.StyleCell(row, index, isBest)
 
     if highlight then
         ns.ApplyFont(cell, delta + 1, "")
-        cell:SetTextColor(LEADER[1], LEADER[2], LEADER[3])
+        cell:SetTextColor(LeaderColor(row.classFilename))
     else
         ns.ApplyFont(cell, delta, "")
         cell:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
@@ -695,7 +714,7 @@ function ns.StyleCell(row, index, isBest)
 
     if not plate then
         plate = row.text:CreateTexture(nil, "BACKGROUND")
-        plate:SetColorTexture(1, 1, 1, 0.08)
+        plate:SetColorTexture(1, 1, 1, 0.06)
         row.plates[index] = plate
     end
 
@@ -796,6 +815,7 @@ function Window.Draw()
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
             row.name:SetText(source.name)
             row.name:SetTextColor(1, 1, 1)
+            row.classFilename = source.classFilename
 
             for c = 1, #ns.db.columns do
                 local key = ns.db.columns[c]
