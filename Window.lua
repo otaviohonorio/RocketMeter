@@ -29,6 +29,27 @@ ns.Window = Window
 -- caixa alta maior (12px contra os 9px do Friz 13) gastando MENOS largura por caractere. Cresce
 -- na altura, que é onde faltava, e encolhe na largura, que é onde faltava espaço.
 local FONT = "Fonts\\ARIALN.TTF"
+
+-- AS FONTES QUE O JOGO TRAZ, para o alfabeto romano. Só entram nomes que aparecem nas
+-- declarações de `Blizzard_Fonts_Shared` — inventar caminho de fonte não dá erro visível, dá
+-- texto que some.
+--
+-- Morpheus e Skurri são decorativas (título de missão e texto de combate) e ficam ruins numa
+-- coluna de números; entram porque a escolha é do jogador, não minha.
+ns.FONT_CHOICES = {
+    { path = "Fonts\\ARIALN.TTF",   label = "Arial Narrow" },
+    { path = "Fonts\\FRIZQT__.TTF", label = "Friz Quadrata" },
+    { path = "Fonts\\MORPHEUS.TTF", label = "Morpheus" },
+    { path = "Fonts\\skurri.ttf",   label = "Skurri" },
+}
+
+-- Contorno: os três níveis que o WoW tem, com os nomes que o jogador entende. Mesma escala do
+-- Chattynator (nenhum / fino / grosso), que é a referência que ele pediu.
+ns.OUTLINE_CHOICES = {
+    { value = "none",         flags = "" },
+    { value = "thin",         flags = "OUTLINE" },
+    { value = "thick",        flags = "THICKOUTLINE" },
+}
 -- Medido no print oficial lado a lado: os dígitos do medidor nativo têm 11px de altura de
 -- caixa alta; os nossos, com corpo 13, tinham 9px. FRIZQT rende ~0,69px de caixa por ponto,
 -- então 11px pediria corpo 16 — e 16 foi testado in-game e reprovado por ficar grande.
@@ -111,6 +132,7 @@ function ns.RefreshSkin()
     ns.Skin.clockFontSize = size + CLOCK_FONT_DELTA
     ns.Skin.colheadFontSize = size + COLHEAD_FONT_DELTA
     ns.Skin.fontOutline = ns.OutlineFor(size)
+    ns.Skin.font = ns.FontPath()
     ns.Skin.rowHeight = ns.RowHeightFor(size)
 end
 
@@ -121,7 +143,22 @@ end
 ---de 1px ali e mancha. Antes isso era decidido por constante, o que so funcionava enquanto o
 ---corpo fosse fixo.
 function ns.OutlineFor(size)
-    return size >= OUTLINE_MIN_SIZE and "OUTLINE" or ""
+    local wanted = (ns.db and ns.db.fontOutline) or "thin"
+
+    local flags = ""
+    for _, choice in ipairs(ns.OUTLINE_CHOICES) do
+        if choice.value == wanted then flags = choice.flags end
+    end
+
+    -- DEGRAU ABAIXO DO LIMIAR, em vez de obedecer cru. O jogador escolhe a intenção; o que ele
+    -- não tem como prever é que o cabeçalho de coluna sai quatro pontos menor que a linha, e
+    -- que num corpo pequeno o contorno fecha os vazados do "a", do "e" e do "8". Então cada
+    -- texto que cair abaixo do limiar desce um nível — só ele, não a janela toda.
+    if size < OUTLINE_MIN_SIZE then
+        if flags == "THICKOUTLINE" then return "OUTLINE" end
+        return ""
+    end
+    return flags
 end
 
 ---O corpo escolhido, sempre dentro dos limites.
@@ -388,8 +425,35 @@ local totalRows = 0         -- quantos atores existem ao todo, para limitar a ro
 --------------------------------------------------------------------------------
 -- Fonte e cor
 --------------------------------------------------------------------------------
+---A fonte escolhida, ou a padrão se a escolhida não estiver mais disponível.
+---
+---Uma fonte vinda de outro addon (via LibSharedMedia) some quando aquele addon é desinstalado,
+---e o caminho gravado aqui continua apontando para um arquivo que não existe. `SetFont` com
+---caminho inválido **não desenha** — o texto some, sem erro. Por isso a escolha é sempre
+---validada antes de virar o padrão de desenho (ver `ns.ApplyFont`).
 function ns.FontPath()
+    local chosen = ns.db and ns.db.font
+    if type(chosen) == "string" and chosen ~= "" then return chosen end
     return FONT
+end
+
+---A fonte que REALMENTE desenha. Se a escolhida falhar, cai na padrão e avisa uma vez.
+local fontWarned
+local function SafeSetFont(fontString, path, size, flags)
+    local ok = pcall(fontString.SetFont, fontString, path, size, flags)
+    -- `SetFont` devolve `false` quando o arquivo não serve (`RequiresValidFontAsset = true` na
+    -- documentação da API). Testar os dois cobre as duas formas de falhar.
+    if ok and fontString:GetFont() then return true end
+
+    if path ~= FONT then
+        if not fontWarned then
+            fontWarned = true
+            ns.Print(format(L["the font %s could not be loaded; using the default."],
+                tostring(path)))
+        end
+        return pcall(fontString.SetFont, fontString, FONT, size, flags)
+    end
+    return false
 end
 
 ---Aplica a fonte configurada. `delta` ajusta o corpo para rótulos secundários.
@@ -401,14 +465,15 @@ function ns.ApplyFont(fontString, delta, flags)
     -- pontos menor, e num corpo pequeno ele fecharia as letras antes da linha fechar.
     if flags == nil then flags = ns.OutlineFor(size) end
 
-    fontString:SetFont(FONT, size, flags)
+    SafeSetFont(fontString, ns.FontPath(), size, flags)
 
     -- Sombra de 1px carrega o texto branco sobre a barra colorida sem o peso do contorno.
-    fontString:SetShadowOffset(1, -1)
     -- Alfa 0.8, não 1: é o que o Chattynator usa no ramo `"SHADOW"` (`Core/Fonts.lua`), e a
     -- referência de legibilidade foi a janela de chat dele. Preto cheio somado ao contorno
     -- engrossa o traço duas vezes no mesmo pixel.
-    fontString:SetShadowColor(0, 0, 0, 0.8)
+    fontString:SetShadowOffset(1, -1)
+    local on = not ns.db or ns.db.fontShadow ~= false
+    fontString:SetShadowColor(0, 0, 0, on and 0.8 or 0)
 end
 
 ---Fonte do painel de leitura, que tem corpo próprio (ver `PANEL_FONT_SIZE`).
@@ -1705,6 +1770,46 @@ end
 
 function Window.GetFontSize()
     return ns.FontSize()
+end
+
+---Aplica uma escolha de aparencia e redesenha.
+---
+---Um so caminho para as tres: elas mudam a mesma coisa (como o texto e desenhado) e precisam
+---do mesmo trabalho depois -- refazer o Skin, reconstruir as linhas e recalcular a altura,
+---porque trocar de fonte muda a largura do que cabe.
+local function ApplyAppearance()
+    ns.RefreshSkin()
+    Window.Rebuild()
+    if frame then
+        frame:SetHeight(WindowHeight(ns.db.rows))
+        if frame.SetResizeBounds then
+            frame:SetResizeBounds(MinWidth(), WindowHeight(MIN_ROWS), 1400, WindowHeight(MAX_ROWS))
+        end
+    end
+end
+
+function Window.SetFont(path)
+    if type(path) ~= "string" or path == "" then return end
+    if path == ns.db.font then return end
+    ns.db.font = path
+    ApplyAppearance()
+end
+
+function Window.SetOutline(value)
+    for _, choice in ipairs(ns.OUTLINE_CHOICES) do
+        if choice.value == value and value ~= ns.db.fontOutline then
+            ns.db.fontOutline = value
+            ApplyAppearance()
+            return
+        end
+    end
+end
+
+function Window.SetShadow(on)
+    on = on and true or false
+    if on == (ns.db.fontShadow ~= false) then return end
+    ns.db.fontShadow = on
+    ApplyAppearance()
 end
 
 function Window.SetRows(count)

@@ -206,3 +206,17 @@ L["Unlocked — drag to move, corner to resize"] = "Destravado — arraste para 
 
 -- Corpo do texto configuravel (0.57.0)
 L["Text size"] = "Tamanho do texto"
+
+-- Configurador em abas (0.58.0)
+L["Font"] = "Fonte"
+L["Font outline"] = "Contorno da fonte"
+L["Font shadow"] = "Sombra da fonte"
+L["A 1px black shadow below the text. Carries the letters over any background."] =
+    "Sombra preta de 1px abaixo do texto. Carrega as letras sobre qualquer fundo."
+L["the font %s could not be loaded; using the default."] =
+    "não deu para carregar a fonte %s; usando a padrão."
+L["Columns"] = "Colunas"
+L["None"] = "Nenhum"
+L["Thin"] = "Fino"
+L["Thick"] = "Grosso"
+L["Appearance"] = "Aparência"

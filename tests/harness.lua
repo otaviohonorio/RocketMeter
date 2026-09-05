@@ -24,7 +24,14 @@ local function widget(kind)
     function self.CreateFontString(_, _, template)
         local fs = widget("FontString")
         fs.__hasFont = template ~= nil
-        function fs.SetFont() fs.__hasFont = true end
+        -- Guarda e devolve, como no jogo: `GetFont` e o unico jeito de o addon saber se o
+        -- `SetFont` pegou, e e nele que a guarda de fonte invalida se apoia.
+        function fs.SetFont(_, path, size, flags)
+            fs.__hasFont = true
+            fs.__font, fs.__size, fs.__flags = path, size, flags
+            return true
+        end
+        function fs.GetFont() return fs.__font, fs.__size, fs.__flags end
         function fs.SetText(_, ...)
             if not fs.__hasFont then
                 error("FontString:SetText(): Font not set", 2)
@@ -36,7 +43,15 @@ local function widget(kind)
     function self.CreateTexture() return widget("Texture") end
     function self.GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
     function self.GetName() return kind .. "Stub" end
-    function self.IsShown() return true end
+    -- Show/Hide MUDAM o estado, e `IsShown` responde de acordo. Antes ele devolvia `true` para
+    -- tudo, entao qualquer teste sobre "esta visivel?" passava sem olhar nada -- foi assim que
+    -- as tres abas do configurador apareceram todas ao mesmo tempo e o teste nao viu.
+    self.__shown = true
+    function self.Show() self.__shown = true end
+    function self.Hide() self.__shown = false end
+    function self.SetShown(_, v) self.__shown = v and true or false end
+    function self.IsShown() return self.__shown end
+    function self.IsVisible() return self.__shown end
     function self.IsMouseEnabled() return true end
     function self.IsForbidden() return false end
     function self.GetStatusBarTexture() return widget("Texture") end
@@ -72,7 +87,6 @@ local function widget(kind)
     function self.GetAtlas() return self.__atlas end
     function self.GetTexture() return self.__texture or "texture" end
     function self.SetDesaturated() end
-    function self.SetShown() end
 
     return setmetatable(self, {
         -- Metodo do WoW e PascalCase; campo que o addon guarda no frame e minusculo.
@@ -136,6 +150,20 @@ CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.49, 0, 0.25 },
 unpack = unpack or table.unpack
 
 function GameTooltip_Hide() end
+
+-- Templates do configurador em abas. Todos conferidos na fonte do 12.1.0 antes de entrar no
+-- addon; aqui sao no-ops com a MESMA forma de retorno, para o teste exercitar o caminho real.
+function PanelTemplates_TabResize() end
+function PanelTemplates_SelectTab() end
+function PanelTemplates_DeselectTab() end
+function CreateMinimalSliderFormatter() return function() end end
+MinimalSliderWithSteppersMixin = {
+    Label = { Right = 1, Left = 2, Top = 3, Bottom = 4 },
+    Event = { OnValueChanged = "OnValueChanged" },
+}
+MenuUtil = {
+    CreateRadioMenu = function() end,
+}
 function InCombatLockdown() return false end
 function IsShiftKeyDown() return false end
 function IsControlKeyDown() return false end
@@ -869,7 +897,13 @@ print("== corpos de fonte ==")
 -- eles sao valores absolutos, e ja se perderam rodadas por alguem tratar um deles como delta.
 local function spyFontString()
     local fs = {}
-    function fs.SetFont(_, path, size, flags) fs.path, fs.size, fs.flags = path, size, flags end
+    function fs.SetFont(_, path, size, flags)
+        fs.path, fs.size, fs.flags = path, size, flags
+        return true
+    end
+    -- `GetFont` existe porque a guarda de fonte invalida do addon pergunta por ela: sem isso o
+    -- espiao divergiria da API justamente no caminho que ele deveria testar.
+    function fs.GetFont() return fs.path, fs.size, fs.flags end
     function fs.SetShadowOffset() end
     function fs.SetShadowColor() end
     function fs.SetAlpha() end
@@ -1354,6 +1388,105 @@ do
     end
 
     ns.Window.SetFontSize(original)
+end
+
+print("== configurador em abas ==")
+-- A tela nasceu com uma lista de colunas e foi ganhando caixa por caixa ate virar um rodape de
+-- 236px com sete controles empilhados sem hierarquia. Virou tres abas, no formato da janela do
+-- Chattynator, que foi a referencia pedida.
+do
+    ns.Picker.Create()
+    ns.Picker.Toggle()      -- abre; `Refresh` so roda com a janela visivel
+
+    check("as tres abas existem", ns.Picker.__tabCount, 3)
+    check("uma aba comeca selecionada", ns.Picker.__activeTab, 1)
+
+    -- Trocar de aba mostra UMA e esconde as outras. Sem isso os controles se sobrepoem, que era
+    -- o defeito que as abas vieram resolver.
+    for i = 1, 3 do
+        ns.Picker.__selectTab(i)
+        local visiveis = 0
+        for j = 1, 3 do
+            if ns.Picker.__panelShown(j) then visiveis = visiveis + 1 end
+        end
+        check("aba " .. i .. " mostra so um painel", visiveis, 1)
+        check("e e o painel " .. i, ns.Picker.__panelShown(i), true)
+    end
+
+    ns.Picker.__selectTab(1)
+    ns.Picker.Toggle()      -- fecha
+end
+
+print("== fonte, contorno e sombra configuraveis ==")
+do
+    local fonte, contorno, sombra = ns.db.font, ns.db.fontOutline, ns.db.fontShadow
+
+    -- FONTE. So caminhos que aparecem nas declaracoes da Blizzard entram na lista: caminho de
+    -- fonte inventado nao da erro, da texto que some.
+    check("ha mais de uma fonte para escolher", #ns.FONT_CHOICES >= 2, true)
+    check("a primeira e a padrao da janela", ns.FONT_CHOICES[1].path, ns.Skin.font)
+
+    ns.Window.SetFont(ns.FONT_CHOICES[2].path)
+    check("trocar a fonte muda o que o Skin expoe", ns.Skin.font, ns.FONT_CHOICES[2].path)
+    do
+        local fs = spyFontString()
+        ns.ApplyFont(fs, 0)
+        check("e a janela desenha com ela", fs.path, ns.FONT_CHOICES[2].path)
+    end
+
+    -- FONTE QUEBRADA cai na padrao em vez de sumir. E o caso real: uma fonte vinda de outro
+    -- addon some quando aquele addon e desinstalado, e o caminho gravado continua aqui.
+    do
+        local fs = spyFontString()
+        local quebrada = "Interface\\AddOns\\Sumiu\\fonte.ttf"
+        -- O cliente recusa o arquivo: `SetFont` nao pega e `GetFont` continua sem nada. E o
+        -- que acontece de verdade quando o addon que trazia a fonte e desinstalado.
+        function fs.SetFont(_, path, size, flags)
+            if path == quebrada then return false end
+            fs.path, fs.size, fs.flags = path, size, flags
+            return true
+        end
+        function fs.GetFont() return fs.path, fs.size, fs.flags end
+
+        ns.db.font = quebrada
+        local ok = pcall(ns.ApplyFont, fs, 0)
+        check("fonte invalida nao derruba o desenho", ok, true)
+        -- O QUE IMPORTA: ela tem que CAIR NA PADRAO, nao ficar sem fonte. Sem isso o texto
+        -- simplesmente nao desenha, e nada avisa.
+        check("e cai na fonte padrao", fs.path, ns.FONT_CHOICES[1].path)
+    end
+
+    -- CONTORNO nos tres niveis do WoW, com os nomes do Chattynator.
+    ns.db.font = nil
+    ns.Window.SetOutline("none")
+    check("contorno nenhum", ns.OutlineFor(16), "")
+    ns.Window.SetOutline("thick")
+    check("contorno grosso", ns.OutlineFor(16), "THICKOUTLINE")
+    ns.Window.SetOutline("thin")
+    check("contorno fino", ns.OutlineFor(16), "OUTLINE")
+
+    -- E DESCE UM DEGRAU no corpo pequeno, em vez de obedecer cru: o cabecalho de coluna sai
+    -- quatro pontos menor que a linha, e ali o contorno fecha os vazados da letra.
+    ns.Window.SetOutline("thick")
+    check("grosso vira fino no corpo pequeno", ns.OutlineFor(10), "OUTLINE")
+    ns.Window.SetOutline("thin")
+    check("fino some no corpo pequeno", ns.OutlineFor(10), "")
+
+    -- SOMBRA liga e desliga pelo alfa, nao removendo a chamada.
+    do
+        local fs = spyFontString()
+        local alfa
+        function fs.SetShadowColor(_, _, _, _, a) alfa = a end
+        ns.Window.SetShadow(true)
+        ns.ApplyFont(fs, 0)
+        check("sombra ligada tem alfa", alfa > 0, true)
+        ns.Window.SetShadow(false)
+        ns.ApplyFont(fs, 0)
+        check("sombra desligada zera o alfa", alfa, 0)
+    end
+
+    ns.db.font, ns.db.fontOutline, ns.db.fontShadow = fonte, contorno, sombra
+    ns.RefreshSkin()
 end
 
 print("== comandos ==")

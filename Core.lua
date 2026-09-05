@@ -13,7 +13,7 @@ ns.defaults = {
     sortDesc = true,      -- maior primeiro
     rows = 5,                 -- linhas visíveis; a alça muda isso
     scale = 1.0,
-    font = nil,               -- caminho da fonte; nil = Friz Quadrata do jogo
+    font = nil,               -- caminho da fonte; nil = a padrao (ns.FONT_CHOICES[1])
     -- Corpo do texto da janela. Limites em Window.lua (FONT_SIZE_MIN/MAX) e o motivo de cada
     -- um esta escrito la: o teto vem da largura da celula, o piso de o texto deixar de ser
     -- lido de relance.
@@ -30,7 +30,8 @@ ns.defaults = {
     valueFormat = "columns",  -- colunas, como o usuário quer; "details" = 734K (28.2K, 100%)
     showColumnHeader = true,  -- faixa com os nomes das colunas
     barBrightness = 0.7,      -- escurece a cor da classe para o texto branco contrastar
-    fontOutline = "OUTLINE",  -- "none" | "OUTLINE" | "THICKOUTLINE"
+    fontOutline = "thin",     -- "none" | "thin" | "thick", a mesma escala do Chattynator
+    fontShadow = true,
     highlightBest = true,     -- realça quem lidera cada coluna
     autoHeight = true,        -- encolhe para o número de jogadores; a alça desliga isso
     locked = false,
