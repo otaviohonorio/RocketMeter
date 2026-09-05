@@ -90,7 +90,7 @@ local function BuildSpellRow(section, index)
         section.rows[index] = row
     end
 
-    local height = skin.rowHeight
+    local height = skin.panelRowHeight
     row:SetHeight(height)
     row:ClearAllPoints()
     local y = -(SECTION_TITLE + (index - 1) * (height + skin.rowSpacing))
@@ -100,10 +100,10 @@ local function BuildSpellRow(section, index)
     row.icon:SetSize(height, height)
     row.name:SetWidth(WIDTH - height - 172)
 
-    ns.ApplyFont(row.name, -1, "")
-    ns.ApplyFont(row.amount, -1, "")
-    ns.ApplyFont(row.rate, -2, "")
-    ns.ApplyFont(row.percent, -2, "")
+    ns.ApplyPanelFont(row.name, -1, "")
+    ns.ApplyPanelFont(row.amount, -1, "")
+    ns.ApplyPanelFont(row.rate, -2, "")
+    ns.ApplyPanelFont(row.percent, -2, "")
 
     -- Aqui o fundo existe: o painel tem backdrop, e um preto leve separa as magias.
     local bg = skin.panelRowBackground
@@ -170,7 +170,7 @@ local function DrawSection(section, spec)
     end
 
     local used = math.min(#spells, MAX_PER_SECTION)
-    local height = SECTION_TITLE + used * (skin.rowHeight + skin.rowSpacing)
+    local height = SECTION_TITLE + used * (skin.panelRowHeight + skin.rowSpacing)
     section:SetHeight(height)
     return height + SECTION_GAP
 end
@@ -261,8 +261,8 @@ function Breakdown.Draw()
     if not frame or not current then return end
     local skin = Skin()
 
-    ns.ApplyFont(frame.title, 0, "")
-    ns.ApplyFont(frame.scope, -2, "")
+    ns.ApplyPanelFont(frame.title, 0, "")
+    ns.ApplyPanelFont(frame.scope, -2, "")
 
     frame.title:SetText(current.name)
     frame.title:SetTextColor(ns.ClassColor(current.classFilename))
@@ -277,8 +277,8 @@ function Breakdown.Draw()
     for _, spec in ipairs(SectionSpecs()) do
         local section = sections[spec.key]
 
-        ns.ApplyFont(section.title, -1, "")
-        ns.ApplyFont(section.empty, -2, "")
+        ns.ApplyPanelFont(section.title, -1, "")
+        ns.ApplyPanelFont(section.empty, -2, "")
         section.title:SetTextColor(skin.gold[1], skin.gold[2], skin.gold[3])
         section.empty:SetText(L["nothing here"])
 

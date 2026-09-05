@@ -486,6 +486,34 @@ check("janela mostra 2 linhas", #scrolled, 2)
 local clamped = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 99)
 check("rolagem excessiva nao estoura", clamped ~= nil and #clamped > 0, true)
 
+print("== degrade da faixa ==")
+-- Regressao da 0.50.0: a faixa era pintada chapada com a cor cheia da classe
+-- (`SetStatusBarColor(ns.ClassColor(...))`), e por isso saia visivelmente mais clara que a do
+-- medidor nativo, que vai de ~52% a ~84% da cor ao longo do comprimento. Se alguem voltar a
+-- chapar, estes checks caem.
+local pintado = { gradiente = nil, chapado = nil }
+local faixa = {
+    GetStatusBarTexture = function()
+        return {
+            SetGradient = function(_, orientacao, minCor, maxCor)
+                pintado.gradiente = { orientacao = orientacao, min = minCor, max = maxCor }
+            end,
+        }
+    end,
+    SetStatusBarColor = function(_, r, g, b)
+        pintado.chapado = { r, g, b }
+    end,
+}
+
+ns.ApplyBarColor(faixa, "MAGE")
+check("degrade aplicado", pintado.gradiente ~= nil, true)
+check("degrade na horizontal", pintado.gradiente.orientacao, "HORIZONTAL")
+-- Mage e 0.4/0.8/0.9 no simulador; as pontas sao 52% e 84% disso.
+check("ponta esquerda escurecida", string.format("%.3f", pintado.gradiente.min.r), "0.208")
+check("ponta direita mais clara", string.format("%.3f", pintado.gradiente.max.r), "0.336")
+check("cor de vertice neutra antes do degrade", pintado.chapado[1], 1)
+check("faixa nunca recebe a cor cheia", pintado.gradiente.max.b < 0.9, true)
+
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",

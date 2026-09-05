@@ -16,7 +16,21 @@ ns.Window = Window
 -- APARENCIA FIXA. Nada aqui e configuravel: primeiro o padrao precisa estar certo.
 -- Os valores saem da referencia (Details com a skin do medidor nativo).
 local FONT = "Fonts\\FRIZQT__.TTF"
-local FONT_SIZE = 13                -- um ponto acima: sem fundo, o texto precisa de corpo
+-- Medido no print oficial lado a lado: os dígitos do medidor nativo têm 11px de altura de
+-- caixa alta; os nossos, com corpo 13, tinham 9px. FRIZQT rende ~0,69px de caixa por ponto,
+-- então 11px pede corpo 16. Conferido em 18 grupos de glifos, sempre 11 contra 9.
+local FONT_SIZE = 16
+-- O título da faixa e o cabeçalho de colunas NÃO acompanham o corpo da linha: no nativo o
+-- título mede 9px de caixa (corpo 13) enquanto a linha mede 11px. O título é menor que o
+-- conteúdo, e é isso que dá a hierarquia da janela dele.
+local TITLE_FONT_SIZE = 13
+local CLOCK_FONT_SIZE = 12
+local COLHEAD_FONT_SIZE = 11
+-- O painel de detalhamento não tem equivalente no medidor da Blizzard, então não segue o corpo
+-- da linha: ele mantém o próprio, que é o que já estava aprovado. Crescer junto por herança
+-- seria mudar uma tela que ninguém pediu para mudar.
+local PANEL_FONT_SIZE = 13
+local PANEL_ROW_HEIGHT = 22
 -- A skin usa `rowTextShadow = true` e deixa o contorno desligado: é **sombra**, não outline.
 -- Outline engorda o traço e foi o que deixou o texto pesado.
 local FONT_OUTLINE = ""
@@ -26,9 +40,11 @@ local FONT_OUTLINE = ""
 -- mais leve sem perder a leitura do que importa.
 local ROW_FONT_FLAGS = ""               -- o reforço vem do halo, não do contorno da fonte
 local CELL_FONT_FLAGS = ""
--- Calibrado pela medição do print oficial: lá os pixels ao redor das letras ficam em ~15/255,
--- quase pretos — mas isso vem do **fundo escuro da janela dele**, não de um contorno forte.
--- Como a nossa janela é transparente, o halo faz sozinho esse trabalho, e por isso fica alto.
+-- Medição do print lado a lado corrige o que eu havia concluído antes: a linha do medidor
+-- nativo mede RGB(23,42,51) e o cenário ao lado dela RGB(27,46,54) — ou seja, **ela também é
+-- transparente**. Então o preto ao redor das letras dele não vem de fundo escuro: é contorno
+-- de verdade. Entorno dos glifos: mediana 10 no nome e 0 nos números. O nosso nome já mede 0,
+-- os números mediam 34 — o halo estava certo, faltava corpo de fonte para ele cobrir.
 local HALO_ALPHA = 0.75                 -- espessura do contorno desenhado: 0 = nada, 1 ≈ OUTLINE
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 -- Estes números vêm do `styleConfig` da skin Details_Midnight, que está instalada:
@@ -36,6 +52,11 @@ local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 --   barBackgroundAlpha = 0.4  -> fundo escuro atrás do preenchimento
 --   barHeight = 20, barSpacingBetween = 1, barFontSize = 12
 local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
+-- A faixa fina do nativo **não é chapada**. Medida ao longo dela, sobre a mesma cor de classe
+-- que a nossa usa (163,164,255): 52% na ponta esquerda, 67% no meio, 84% na direita. A nossa
+-- estava chapada em 100% — era exatamente essa a diferença de "o nosso tá mais claro".
+local BAR_GRADIENT_MIN = 0.52
+local BAR_GRADIENT_MAX = 0.84
 -- Fundo da linha totalmente transparente: com a janela sem fundo, um preto parcial atrás de
 -- cada linha é meio-termo — aparece como um retângulo cinza flutuando sobre o cenário. Quem
 -- sustenta a leitura é a sombra do texto, e a separação entre linhas vem da faixa de progresso.
@@ -44,7 +65,7 @@ local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
 -- Fundo invisível: é a variante "No Background" da skin (`wallpaperAlpha = 0.0`).
 -- Quem sustenta a leitura é a sombra do texto; a separação vem da faixa de progresso.
 local WINDOW_ALPHA = 0
-local ROW_HEIGHT_FIXED = 22         -- um passo acima do skin (20): com fundo transparente, respira
+local ROW_HEIGHT_FIXED = 25         -- medido no nativo: linha de y=68 a y=92, 25px
 local COLUMN_WIDTH_FIXED = 58
 
 -- Proporção da referência: a skin usa faixa de 32px com texto de 13pt, ou seja, o texto
@@ -57,6 +78,7 @@ ns.Skin = {
     barTexture = BAR_TEXTURE,
     barBrightness = BAR_BRIGHTNESS,
     rowHeight = ROW_HEIGHT_FIXED,
+    panelRowHeight = PANEL_ROW_HEIGHT,
     rowSpacing = 1,
     rowBackground = { 0, 0, 0, ROW_BG_ALPHA },
     -- O painel de leitura tem fundo próprio, então lá as linhas ganham um preto leve para
@@ -67,7 +89,11 @@ ns.Skin = {
     -- senão o texto disputa com o cenário. Daí dois alfas em vez de um.
     panelAlpha = 0.70,
     headerAtlas = "ui-damagemeters-header-bar",
-    headerCrop = { 0.045, 0.965, 4 / 60, 56 / 60 },
+    -- Vertical sem recorte: o recorte de 4/60 que eu usava comia justamente as fileiras de
+    -- borda do atlas. No nativo elas aparecem inteiras — dourado fraco de 2px em cima e
+    -- dourado forte de 2px embaixo, com pico RGB(197,169,3). Com o recorte o nosso pico caía
+    -- para 131. As pontas laterais continuam recortadas, que é onde ficam os cantos.
+    headerCrop = { 0.045, 0.965, 0, 1 },
     gold = { 1, 0.82, 0 },
     cream = { 1, 0.88, 0.62 },
     text = { 0.86, 0.87, 0.90 },
@@ -87,10 +113,11 @@ function ns.ApplyHeaderArt(texture)
         local crop = ns.Skin.headerCrop
         texture:SetTexCoord(l + w * crop[1], l + w * crop[2], t + h * crop[3], t + h * crop[4])
 
-        -- Amostragem do print do medidor nativo: a faixa dele mede RGB(19,17,10) na região
-        -- central, a nossa media RGB(30,26,13) — cerca de 1,5x mais clara. Este multiplicador
-        -- aproxima, com um leve viés frio, que é a outra diferença perceptível.
-        texture:SetVertexColor(0.78, 0.78, 0.84)
+        -- Sem tingimento: a arte é a mesma do medidor nativo, e ele a desenha crua. O 0.78
+        -- que eu aplicava para escurecer o corpo da faixa apagava as bordas douradas junto —
+        -- corpo nosso 32 contra 35 dele (acerto de 3), borda nossa 131 contra 197 dele (erro
+        -- de 66). Trocar acerto de 3 por erro de 66 é o negócio errado.
+        texture:SetVertexColor(1, 1, 1)
         return true
     end
 
@@ -98,12 +125,15 @@ function ns.ApplyHeaderArt(texture)
     return false
 end
 
-local HEADER_HEIGHT = 25
+local HEADER_HEIGHT = 27        -- medido no nativo: faixa de y=41 a y=67
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
 local PADDING = 3
 local PROGRESS_HEIGHT = 3       -- a faixa de progresso; o trilho a contorna com 1px de cada lado
-local TEXT_LIFT = 2             -- quanto o texto sobe do centro, para não encostar na faixa
+-- No nativo o texto fica **centrado na linha**, não erguido: centro dos glifos em y=81 contra
+-- centro da linha em y=80,5. A folga até a faixa colorida sai de a linha ser mais alta (25px),
+-- não de empurrar o texto para cima — lá sobra 1px entre a base da letra e a faixa.
+local TEXT_LIFT = 0
 local MIN_ROWS = 1              -- uma linha ainda é útil: só você, no boneco de treino
 local MAX_ROWS = 20             -- tamanho de uma raide; acima disso a janela toma a tela
 local GRIP = 14
@@ -150,6 +180,11 @@ function ns.ApplyFont(fontString, delta, flags)
     -- Sombra de 1px carrega o texto branco sobre a barra colorida sem o peso do contorno.
     fontString:SetShadowOffset(1, -1)
     fontString:SetShadowColor(0, 0, 0, 1)
+end
+
+---Fonte do painel de leitura, que tem corpo próprio (ver `PANEL_FONT_SIZE`).
+function ns.ApplyPanelFont(fontString, delta, flags)
+    ns.ApplyFont(fontString, (delta or 0) + PANEL_FONT_SIZE - FONT_SIZE, flags)
 end
 
 --------------------------------------------------------------------------------
@@ -218,6 +253,31 @@ end
 function ns.BarColor(classFilename)
     local r, g, b = ns.ClassColor(classFilename)
     return r * BAR_BRIGHTNESS, g * BAR_BRIGHTNESS, b * BAR_BRIGHTNESS
+end
+
+---Pinta a faixa fina com o degradê horizontal do medidor nativo.
+---
+---A faixa dele escurece para a esquerda: 52% da cor da classe no início, 84% no fim. Chapar em
+---100%, como eu fazia, é o que deixava a nossa visivelmente mais clara que a dele.
+---
+---Ordem importa: `SetStatusBarColor` mexe na cor de vértice, e é ela que o degradê substitui —
+---chamar na ordem inversa apagaria o degradê.
+function ns.ApplyBarColor(bar, classFilename)
+    local r, g, b = ns.ClassColor(classFilename)
+    local texture = bar:GetStatusBarTexture()
+
+    if texture and texture.SetGradient and CreateColor then
+        bar:SetStatusBarColor(1, 1, 1)
+        texture:SetGradient("HORIZONTAL",
+            CreateColor(r * BAR_GRADIENT_MIN, g * BAR_GRADIENT_MIN, b * BAR_GRADIENT_MIN, 1),
+            CreateColor(r * BAR_GRADIENT_MAX, g * BAR_GRADIENT_MAX, b * BAR_GRADIENT_MAX, 1))
+        bar.__gradient = true
+        return
+    end
+
+    -- Cliente sem degradê: a média das duas pontas é o tom que o olho lê no conjunto.
+    local k = (BAR_GRADIENT_MIN + BAR_GRADIENT_MAX) / 2
+    bar:SetStatusBarColor(r * k, g * k, b * k)
 end
 
 ---Fundo da linha: a mesma cor, bem apagada, para a parte vazia não ser um buraco preto.
@@ -387,7 +447,7 @@ local function BuildColumnHeader()
         button:SetWidth(ColumnWidth())
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
-        ns.ApplyFont(button.text, -2, "")
+        ns.ApplyFont(button.text, COLHEAD_FONT_SIZE - FONT_SIZE, "")
 
         local label = ns.Data.GetShortLabel(key)
         if key == ns.db.sortBy then
@@ -781,8 +841,9 @@ function Window.Rebuild()
     frame:SetBackdropBorderColor(0, 0, 0, 0)
 
     -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
-    ns.ApplyFont(frame.header.segment.text, 0, "")   -- proporcional à faixa
-    ns.ApplyFont(frame.header.clock, -1, "")
+    -- Título e relógio têm corpo próprio: no nativo eles são menores que o texto da linha.
+    ns.ApplyFont(frame.header.segment.text, TITLE_FONT_SIZE - FONT_SIZE, "")
+    ns.ApplyFont(frame.header.clock, CLOCK_FONT_SIZE - FONT_SIZE, "")
 
     BuildColumnHeader()
     for i = 1, ns.db.rows do
@@ -858,7 +919,8 @@ end
 -- necessário — clarear todas por igual devolveria o tom lavado que já foi reprovado.
 local LEADER_MIN_LUMA = 0.55
 local LEADER_FALLBACK = { 1, 0.88, 0.62 }
-local NORMAL = { 0.80, 0.81, 0.84 }
+-- Glifos do nativo medem ~227/255; os nossos números mediam ~210. 0.88 fecha a diferença.
+local NORMAL = { 0.88, 0.88, 0.90 }
 
 local function Luminance(r, g, b)
     return 0.299 * r + 0.587 * g + 0.114 * b
@@ -994,8 +1056,8 @@ function Window.Draw()
             if value == nil then value = 0 end
             row.bar:SetMinMaxValues(0, top)
             row.bar:SetValue(value)
-            -- Cor cheia: não há texto por cima da linha, então não precisa escurecer.
-            row.bar:SetStatusBarColor(ns.ClassColor(source.classFilename))
+            -- Depois do SetValue: o degradê vive na textura de preenchimento.
+            ns.ApplyBarColor(row.bar, source.classFilename)
             row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
