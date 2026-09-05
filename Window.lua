@@ -28,7 +28,9 @@ local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
 local ROW_BG_ALPHA = 0.4            -- fundo da linha (skin: barBackgroundAlpha)
 local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
-local WINDOW_ALPHA = 1.0            -- fundo opaco (a skin usa 0.4; testando 100%)
+-- Fundo invisível: é a variante "No Background" da skin (`wallpaperAlpha = 0.0`).
+-- Quem sustenta a leitura são os fundos das próprias linhas (ROW_BG_ALPHA).
+local WINDOW_ALPHA = 0
 local ROW_HEIGHT_FIXED = 20         -- skin: barHeight
 local COLUMN_WIDTH_FIXED = 58
 
@@ -418,7 +420,7 @@ function Window.Create()
         edgeSize = 1,
     })
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
-    frame:SetBackdropBorderColor(0, 0, 0, 1)
+    frame:SetBackdropBorderColor(0, 0, 0, 0)      -- sem retângulo preto em volta
 
 
     local header = CreateFrame("Frame", nil, frame)
@@ -594,6 +596,7 @@ function Window.Rebuild()
     if not frame then return end
 
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
+    frame:SetBackdropBorderColor(0, 0, 0, 0)
 
     -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
     ns.ApplyFont(frame.header.segment.text, 1, "")   -- 13pt, como a skin
