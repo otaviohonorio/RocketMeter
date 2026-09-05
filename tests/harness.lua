@@ -1401,31 +1401,52 @@ do
     ns.Window.SetFontSize(original)
 end
 
-print("== configurador em abas ==")
--- A tela nasceu com uma lista de colunas e foi ganhando caixa por caixa ate virar um rodape de
--- 236px com sete controles empilhados sem hierarquia. Virou tres abas, no formato da janela do
--- Chattynator, que foi a referencia pedida.
+print("== grade do configurador: nada vaza da coluna ==")
+-- ESTE E O TESTE QUE FALTAVA. Duas rodadas seguidas de teste in-game caíram em geometria: as
+-- abas se sobrepondo, e depois o checkbox nascendo no meio da janela com o rotulo saindo pela
+-- borda direita. Os dois eram conferiveis sem desenhar nada.
+--
+-- A regra agora e uma so: todo controle vive DENTRO de uma coluna, e a coluna diz onde ele
+-- comeca e termina. Nada e posicionado em relacao a janela inteira.
 do
     ns.Picker.Create()
-    ns.Picker.Toggle()      -- abre; `Refresh` so roda com a janela visivel
+    local L = ns.Picker.__layout
+    local controles = ns.Picker.__probe()
 
-    check("as tres abas existem", ns.Picker.__tabCount, 3)
-    check("uma aba comeca selecionada", ns.Picker.__activeTab, 1)
+    check("ha controles para conferir", #controles > 0, true)
 
-    -- Trocar de aba mostra UMA e esconde as outras. Sem isso os controles se sobrepoem, que era
-    -- o defeito que as abas vieram resolver.
-    for i = 1, 3 do
-        ns.Picker.__selectTab(i)
-        local visiveis = 0
-        for j = 1, 3 do
-            if ns.Picker.__panelShown(j) then visiveis = visiveis + 1 end
-        end
-        check("aba " .. i .. " mostra so um painel", visiveis, 1)
-        check("e e o painel " .. i, ns.Picker.__panelShown(i), true)
+    -- NENHUM CONTROLE PODE COMECAR FORA DA COLUNA nem passar do fim dela.
+    local foraEsquerda, foraDireita = nil, nil
+    for _, c in ipairs(controles) do
+        if c.x < 0 then foraEsquerda = c.name end
+        if c.x + c.width > L.columnWidth then foraDireita = c.name end
     end
+    check("nenhum controle comeca antes da coluna", foraEsquerda or false, false)
+    check("nenhum controle passa do fim da coluna", foraDireita or false, false)
 
-    ns.Picker.__selectTab(1)
-    ns.Picker.Toggle()      -- fecha
+    -- E O DEFEITO EXATO DO RELATO: o checkbox comecava a 40% da largura da JANELA. Com duas
+    -- colunas de 288 numa janela de 634, 40% da janela sao ~253 -- dentro da coluna por
+    -- acidente, mas o rotulo (que vem depois da caixa) estourava. Aqui o inicio tem que ser a
+    -- margem da coluna, nao uma fracao da janela.
+    local checkForaDaMargem
+    for _, c in ipairs(controles) do
+        if c.x ~= 0 then checkForaDaMargem = c.name end
+    end
+    check("todo controle comeca na margem da coluna", checkForaDaMargem or false, false)
+
+    -- O ROTULO DO CHECKBOX tem que caber no que sobra da coluna depois da caixa. Era a largura
+    -- que faltava: sem ela a FontString cresce ate onde o texto pedir e atravessa a borda.
+    local sobra = L.columnWidth - L.checkSize - 6
+    check("sobra largura util para o rotulo do checkbox", sobra > 200, true)
+
+    -- AS DUAS COLUNAS CABEM NA JANELA, com as margens.
+    check("as duas colunas cabem na largura",
+        L.margin * 2 + L.columnWidth * 2 + L.gutter <= L.width, true)
+
+    -- ALTURA DE LINHA COMPORTA O CONTROLE. Um combo tem 24px; o campo tem que reservar o
+    -- rotulo em cima MAIS o controle, senao a proxima linha encosta -- foi o "muito colados".
+    check("campo com rotulo em cima comporta combo de 24px", L.field - 24 >= 16, true)
+    check("linha de checkbox comporta a caixa", L.check - L.checkSize >= 4, true)
 end
 
 print("== fonte, contorno e sombra configuraveis ==")
@@ -1500,35 +1521,6 @@ do
     ns.RefreshSkin()
 end
 
-print("== geometria do configurador ==")
--- O primeiro teste in-game da tela nova mostrou tres defeitos de layout de uma vez: abas
--- sobrepostas, conteudo por baixo delas e campos colados. Os tres viram numero aqui.
-do
-    local L = ns.Picker.__layout
-
-    -- CONTEUDO ABAIXO DAS ABAS. A aba tem 32px de altura (do template), entao o conteudo tem
-    -- que comecar depois de `tabTop + 32` -- e com folga, senao encosta.
-    check("conteudo comeca abaixo das abas",
-        L.contentTop >= L.tabTop + L.tabHeight, true)
-    check("e com respiro, nao colado", L.contentTop - (L.tabTop + L.tabHeight) >= 10, true)
-
-    -- ESPACAMENTO ENTRE CAMPOS. Um combo tem 24px; com passo de 30 sobravam 6px, que foi o
-    -- "muito colados". A referencia (Chattynator) usa 40 por linha.
-    check("passo cabe um combo de 24px com folga", L.line - 24 >= 10, true)
-
-    -- A JANELA ACOMPANHA A ABA, em vez de ficar na altura da maior.
-    ns.Picker.Create()
-    ns.Picker.Toggle()
-    local alturas = {}
-    for i = 1, 3 do
-        ns.Picker.__selectTab(i)
-        alturas[i] = ns.Picker.__frameHeight()
-    end
-    check("a aba de colunas e a mais alta", alturas[1] > alturas[2], true)
-    check("cada aba tem a sua altura", alturas[2] ~= alturas[3] or alturas[1] ~= alturas[2], true)
-    ns.Picker.__selectTab(1)
-    ns.Picker.Toggle()
-end
 
 print("== migracao do contorno salvo ==")
 -- `fontOutline` guardava a FLAG do WoW ("OUTLINE"); agora guarda a escolha do jogador
