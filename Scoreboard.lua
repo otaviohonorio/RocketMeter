@@ -295,13 +295,8 @@ function Scoreboard.Draw()
             row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
 
             -- Quem lidera a métrica ordenada ganha um fundo dourado discreto.
-            if i == 1 and sortDesc then
-                row.bg:SetColorTexture(1, 0.8, 0.2, 0.10)
-                row.rank:SetTextColor(1, 0.82, 0.3)
-            else
-                row.bg:SetColorTexture(0, 0, 0, i % 2 == 0 and 0.10 or 0.22)
-                row.rank:SetTextColor(0.6, 0.6, 0.62)
-            end
+            row.bg:SetColorTexture(0, 0, 0, i % 2 == 0 and 0.10 or 0.22)
+            row.rank:SetTextColor(0.6, 0.6, 0.62)
 
             row.rank:SetText(i)
             ns.ApplyRowIcon(row.icon, source)
@@ -309,7 +304,8 @@ function Scoreboard.Draw()
 
             for c = 1, #columns do
                 ns.SetCellText(row.cells[c], entry.values[c], columns[c])
-                ns.ColorCell(row.cells[c], columns[c], entry.best and entry.best[c])
+                ns.ColorCell(row.cells[c], columns[c])
+                ns.MarkBest(row, c, columns[c], entry.best and entry.best[c])
             end
             row:Show()
         end

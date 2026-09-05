@@ -38,8 +38,14 @@ local function widget(kind)
     function self.GetTexture() return "texture" end
 
     return setmetatable(self, {
+        -- Metodo do WoW e PascalCase; campo que o addon guarda no frame e minusculo.
+        -- Sem essa distincao, `row.arrows` devolveria uma funcao e o codigo que testa
+        -- "ja existe?" nunca veria nil — falso alarme que nao acontece no jogo.
         __index = function(_, key)
-            return function() return widget(key) end
+            if type(key) == "string" and key:match("^%u") then
+                return function() return widget(key) end
+            end
+            return nil
         end,
     })
 end

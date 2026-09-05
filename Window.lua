@@ -424,8 +424,8 @@ function Window.Create()
         -- for clara de verdade. A versao anterior ficou escura e o titulo sumiu.
         header.bg:SetColorTexture(1, 1, 1, 1)
         header.bg:SetGradient("VERTICAL",
-            CreateColor(0.46, 0.41, 0.26, 1),
-            CreateColor(0.78, 0.71, 0.47, 1))
+            CreateColor(0.60, 0.54, 0.35, 1),
+            CreateColor(0.86, 0.79, 0.56, 1))
     end
 
     if ns.Log then
@@ -625,19 +625,43 @@ function Window.GetLastError()
     return lastError
 end
 
--- Cores do realce: dourado para o que é bom liderar, vermelho para o que não é.
-local BEST_GOOD = { 1, 0.82, 0.25 }
-local BEST_BAD = { 1, 0.45, 0.45 }
-local NORMAL = { 0.92, 0.92, 0.94 }
+-- O texto das células é sempre branco. Realce por COR competiria com a cor de classe —
+-- o dourado do líder virava "amarelo de ladino" e confundia. O líder ganha uma seta ao lado:
+-- verde para cima onde liderar é bom, vermelha onde é ruim (mortes, dano recebido).
+local NORMAL = { 0.94, 0.94, 0.96 }
 
----Pinta a célula conforme lidere ou não aquela coluna.
-function ns.ColorCell(fontString, columnKey, isBest)
-    if not isBest or not ns.db.highlightBest then
-        fontString:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
+function ns.ColorCell(fontString, _, _)
+    fontString:SetTextColor(NORMAL[1], NORMAL[2], NORMAL[3])
+end
+
+---Seta de liderança ao lado da célula. As setas vivem na própria linha (`row.arrows`),
+---não num campo do FontString: elemento de UI guarda estado melhor no frame dono.
+function ns.MarkBest(row, index, columnKey, isBest)
+    row.arrows = row.arrows or {}
+    local arrow = row.arrows[index]
+
+    if not isBest or ns.db.highlightBest == false then
+        if arrow then arrow:Hide() end
         return
     end
-    local color = ns.Data.IsNegativeColumn(columnKey) and BEST_BAD or BEST_GOOD
-    fontString:SetTextColor(color[1], color[2], color[3])
+
+    if not arrow then
+        arrow = row.text:CreateTexture(nil, "OVERLAY")
+        arrow:SetSize(9, 9)
+        arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
+        arrow:SetTexCoord(0, 1, 1, 0)          -- invertida: aponta para cima
+        row.arrows[index] = arrow
+    end
+
+    arrow:ClearAllPoints()
+    arrow:SetPoint("RIGHT", row.cells[index], "LEFT", -1, 0)
+
+    if ns.Data.IsNegativeColumn(columnKey) then
+        arrow:SetVertexColor(0.95, 0.35, 0.35)  -- liderar aqui é má notícia
+    else
+        arrow:SetVertexColor(0.35, 0.95, 0.45)
+    end
+    arrow:Show()
 end
 
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
@@ -734,7 +758,8 @@ function Window.Draw()
                 for c = 1, #ns.db.columns do
                     local key = ns.db.columns[c]
                     ns.SetCellText(row.cells[c], entry.values[c], key)
-                    ns.ColorCell(row.cells[c], key, entry.best and entry.best[c])
+                    ns.ColorCell(row.cells[c], key)
+                    ns.MarkBest(row, c, key, entry.best and entry.best[c])
                 end
             end
 
