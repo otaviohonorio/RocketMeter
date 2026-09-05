@@ -579,11 +579,25 @@ function Data.IsSessionSecret(session)
 end
 
 ---@return string|nil texto pronto, ou nil se o valor for secret (aí use SetText direto)
+---Formato compacto: `2.9M`, `112K`, `847`.
+---
+---`AbbreviateNumbers` depende do idioma do cliente e devolve textos longos em pt-BR
+---("365.594"), que estouravam a largura da coluna e viravam reticências. A referência mostra
+---`2.9M` e `112K` — três a quatro caracteres, sempre.
 function Data.FormatAmount(value)
     if value == nil or issecretvalue(value) then
         return nil
     end
-    return AbbreviateNumbers(value)
+
+    local absolute = value < 0 and -value or value
+    if absolute >= 1000000 then
+        return format("%.1fM", value / 1000000)
+    elseif absolute >= 10000 then
+        return format("%.0fK", value / 1000)
+    elseif absolute >= 1000 then
+        return format("%.1fK", value / 1000)
+    end
+    return format("%d", value + 0.5)
 end
 
 --------------------------------------------------------------------------------

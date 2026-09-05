@@ -448,6 +448,13 @@ end
 C_DamageMeter.GetCombatSessionFromType = originalFromType
 C_DamageMeter.GetCombatSessionFromID = function() return nil end
 
+print("== formato dos numeros ==")
+-- Regressao: AbbreviateNumbers do cliente devolvia texto longo e a coluna virava reticencias.
+check("milhoes", ns.Data.FormatAmount(2900000), "2.9M")
+check("centenas de milhar", ns.Data.FormatAmount(786000), "786K")
+check("milhares com decimal", ns.Data.FormatAmount(9600), "9.6K")
+check("valor pequeno inteiro", ns.Data.FormatAmount(847), "847")
+
 print("== rolagem ==")
 -- Com 3 atores e janela de 2 linhas, rolar uma posicao mostra o 2o e o 3o.
 local scrolled, _, totalActors = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 1)

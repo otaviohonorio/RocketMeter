@@ -14,7 +14,7 @@ local L = ns.L
 local Breakdown = {}
 ns.Breakdown = Breakdown
 
-local WIDTH = 330
+local WIDTH = 350
 local HEADER_HEIGHT = 25
 local SECTION_TITLE = 16
 local SECTION_GAP = 8
@@ -74,17 +74,17 @@ local function BuildSpellRow(section, index)
 
         row.percent = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.percent:SetPoint("RIGHT", -5, 0)
-        row.percent:SetWidth(38)
+        row.percent:SetWidth(36)
         row.percent:SetJustifyH("RIGHT")
 
         row.rate = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.rate:SetPoint("RIGHT", row.percent, "LEFT", -6, 0)
-        row.rate:SetWidth(50)
+        row.rate:SetWidth(54)
         row.rate:SetJustifyH("RIGHT")
 
         row.amount = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.amount:SetPoint("RIGHT", row.rate, "LEFT", -6, 0)
-        row.amount:SetWidth(54)
+        row.amount:SetWidth(58)
         row.amount:SetJustifyH("RIGHT")
 
         section.rows[index] = row
@@ -98,7 +98,7 @@ local function BuildSpellRow(section, index)
     row:SetPoint("TOPRIGHT", section, "TOPRIGHT", 0, y)
 
     row.icon:SetSize(height, height)
-    row.name:SetWidth(WIDTH - height - 160)
+    row.name:SetWidth(WIDTH - height - 172)
 
     ns.ApplyFont(row.name, -1, "")
     ns.ApplyFont(row.amount, -1, "")
@@ -118,14 +118,15 @@ local function DrawSection(section, spec)
 
     section.title:SetText(spec.title)
 
+    -- Seção sem nada não aparece: "Controle — nada aqui" ocupa espaço para dizer que não há
+    -- informação. Quem não interrompeu simplesmente não tem a seção.
     if not spells or #spells == 0 then
-        section.empty:Show()
         for _, row in pairs(section.rows) do row:Hide() end
-        section:SetHeight(SECTION_TITLE + 14)
-        return SECTION_TITLE + 14 + SECTION_GAP
+        section:Hide()
+        return 0
     end
 
-    section.empty:Hide()
+    section:Show()
 
     -- A barra usa a cor da classe do jogador, como as linhas da janela.
     local r, g, b = ns.ClassColor(current.classFilename)
@@ -260,7 +261,8 @@ function Breakdown.Draw()
     frame.title:SetTextColor(ns.ClassColor(current.classFilename))
 
     frame.scope:SetText(current.sessionType == 0 and L["Current fight"] or L["Overall"])
-    frame.scope:SetTextColor(0.30, 0.26, 0.15)
+    -- Claro: a arte do cabeçalho escurece para a direita, e texto escuro sumia justo ali.
+    frame.scope:SetTextColor(0.82, 0.76, 0.56)
 
     ns.ApplyRowIcon(frame.icon, frame.iconClass, current.source)
 
