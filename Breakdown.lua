@@ -189,14 +189,14 @@ local function CreatePanel()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
     -- Mesma decisão da janela: sem fundo e sem moldura. Quem sustenta a leitura são os
-    -- fundos das próprias linhas.
+    -- Sem fundo, o texto disputaria com o cenário do jogo.
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 1,
     })
-    frame:SetBackdropColor(0.03, 0.03, 0.04, skin.windowAlpha)
-    frame:SetBackdropBorderColor(0, 0, 0, 0)
+    frame:SetBackdropColor(0.03, 0.03, 0.04, skin.panelAlpha)
+    frame:SetBackdropBorderColor(0, 0, 0, 1)
     frame:Hide()
 
     local header = CreateFrame("Frame", nil, frame)
