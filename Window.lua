@@ -58,6 +58,8 @@ end
 local frame, headerRow, rows
 local dirty, throttle = false, 0
 local visibleRows = -1
+local scrollOffset = 0      -- quantas linhas foram roladas para fora do topo
+local totalRows = 0         -- quantos atores existem ao todo, para limitar a rolagem
 
 --------------------------------------------------------------------------------
 -- Fonte e cor
@@ -236,7 +238,8 @@ local function BuildColumnHeader()
             button.text = button:CreateFontString(nil, "OVERLAY")
             button.text:SetPoint("RIGHT", -4, 0)
 
-            -- Seta como textura: o caractere unicode não existe na fonte do jogo.
+            -- Duas texturas distintas, não uma virada de cabeça para baixo: a arte tem
+            -- transparência assimétrica, então inverter o texCoord não lê como "para cima".
             button.arrow = button:CreateTexture(nil, "OVERLAY")
             button.arrow:SetSize(10, 10)
             button.arrow:SetPoint("RIGHT", button.text, "LEFT", -1, 0)
@@ -283,13 +286,8 @@ local function BuildColumnHeader()
         if key == ns.db.sortBy then
             button.text:SetText(label)
             button.text:SetTextColor(1, 0.82, 0)
-            button.arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
-            -- A mesma arte servindo para cima: inverte no eixo vertical.
-            if ns.db.sortDesc then
-                button.arrow:SetTexCoord(0, 1, 0, 1)
-            else
-                button.arrow:SetTexCoord(0, 1, 1, 0)
-            end
+            button.arrow:SetTexture(ns.db.sortDesc and "Interface\\Buttons\\Arrow-Down-Up"
+                or "Interface\\Buttons\\Arrow-Up-Up")
             button.arrow:Show()
         else
             button.text:SetText(label)
@@ -547,6 +545,23 @@ function Window.Create()
         if button == "RightButton" then ns.OpenOptions() end
     end)
 
+    -- Rolagem pela roda do mouse, sem barra: a barra ocuparia largura e apareceria mesmo
+    -- quando não há o que rolar, que é o caso quase sempre.
+    frame:EnableMouseWheel(true)
+    frame:SetScript("OnMouseWheel", function(_, delta)
+        local maximum = totalRows - ns.db.rows
+        if maximum < 0 then maximum = 0 end
+
+        local wanted = scrollOffset - delta
+        if wanted < 0 then wanted = 0 end
+        if wanted > maximum then wanted = maximum end
+
+        if wanted ~= scrollOffset then
+            scrollOffset = wanted
+            Window.Refresh(true)
+        end
+    end)
+
     -- Alça de redimensionamento: largura livre, altura em número de linhas.
     frame:SetResizable(true)
     if frame.SetResizeBounds then
@@ -720,11 +735,28 @@ end
 function Window.Draw()
     if not frame or not frame:IsShown() then return end
 
-    local data, session = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
-        ns.db.rows, not ns.db.sortDesc)
+    local data, session, total = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
+        ns.db.rows, not ns.db.sortDesc, scrollOffset)
     local maxAmount = session and session.maxAmount
 
+    totalRows = total or 0
+
+    -- Se gente saiu do grupo (ou a lista encolheu), a rolagem tem que voltar junto.
+    local maximum = totalRows - ns.db.rows
+    if maximum < 0 then maximum = 0 end
+    if scrollOffset > maximum then
+        scrollOffset = maximum
+        data, session = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
+            ns.db.rows, not ns.db.sortDesc, scrollOffset)
+        maxAmount = session and session.maxAmount
+    end
+
     local scope = ns.db.sessionType == 0 and L["Current fight"] or L["Overall"]
+    if totalRows > ns.db.rows then
+        -- Sem barra de rolagem: a contagem no título é o que avisa que há mais gente.
+        scope = format("%s  |cff909090%d-%d/%d|r", scope,
+            scrollOffset + 1, math.min(scrollOffset + ns.db.rows, totalRows), totalRows)
+    end
     frame.header.segment.text:SetText(scope)
 
     local duration = ns.Data.GetDuration(ns.db.sessionType)

@@ -398,6 +398,16 @@ end
 C_DamageMeter.GetCombatSessionFromType = originalFromType
 C_DamageMeter.GetCombatSessionFromID = function() return nil end
 
+print("== rolagem ==")
+-- Com 3 atores e janela de 2 linhas, rolar uma posicao mostra o 2o e o 3o.
+local scrolled, _, totalActors = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 1)
+check("total de atores", totalActors, 3)
+check("rolagem pula o primeiro", scrolled[1].source.name, "Brumm")
+check("janela mostra 2 linhas", #scrolled, 2)
+
+local clamped = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 99)
+check("rolagem excessiva nao estoura", clamped ~= nil and #clamped > 0, true)
+
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",

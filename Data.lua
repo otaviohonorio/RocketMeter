@@ -353,7 +353,11 @@ end
 ---@param columns string[] chaves de coluna
 ---@return table[]|nil rows { source = <combat_source>, values = { [coluna] = número } }
 ---@return table|nil session
-function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
+---@param offset number|nil quantas linhas pular no topo (rolagem)
+---@return table[]|nil rows
+---@return table|nil session
+---@return number total quantos atores existem ao todo, para limitar a rolagem
+function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     local sortDef = Data.GetColumn(sortKey)
     if not sortDef then return nil, nil end
 
@@ -383,12 +387,19 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
     end
 
     local rows = {}
-    local count = #sources
-    if count > maxRows then count = maxRows end
     local total = #sources
 
+    offset = offset or 0
+    if offset < 0 then offset = 0 end
+    if offset > total - 1 then offset = total - 1 end
+    if offset < 0 then offset = 0 end
+
+    local count = total - offset
+    if count > maxRows then count = maxRows end
+
     for i = 1, count do
-        local source = sources[ascending and (total - i + 1) or i]
+        local position = offset + i
+        local source = sources[ascending and (total - position + 1) or position]
         local values = {}
         local cache = { [sortDef.attr] = source }
 
@@ -431,7 +442,7 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending)
 
     Data.MarkColumnLeaders(rows, columns)
 
-    return rows, session
+    return rows, session, total
 end
 
 ---Marca quem lidera **cada** coluna, não só a ordenada: o healer que cura mais fica realçado
