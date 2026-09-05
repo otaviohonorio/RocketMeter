@@ -24,8 +24,9 @@ local FONT_OUTLINE = ""
 -- `OUTLINE` em tudo pesou, a graduação é **por elemento**: contorno no que precisa ser lido de
 -- longe (nome e a coluna que ordena) e apenas sombra nas colunas secundárias. O conjunto fica
 -- mais leve sem perder a leitura do que importa.
-local ROW_FONT_FLAGS = "OUTLINE"        -- nome e coluna ordenada
-local CELL_FONT_FLAGS = ""              -- colunas secundárias: sombra basta
+local ROW_FONT_FLAGS = ""               -- o reforço vem do halo, não do contorno da fonte
+local CELL_FONT_FLAGS = ""
+local HALO_ALPHA = 0.55                 -- "espessura" do contorno falso: 0 = nada, 1 = OUTLINE
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 -- Estes números vêm do `styleConfig` da skin Details_Midnight, que está instalada:
 --   wallpaperAlpha = 0.4      -> fundo da janela
@@ -146,6 +147,48 @@ function ns.ApplyFont(fontString, delta, flags)
     -- Sombra de 1px carrega o texto branco sobre a barra colorida sem o peso do contorno.
     fontString:SetShadowOffset(1, -1)
     fontString:SetShadowColor(0, 0, 0, 1)
+end
+
+--------------------------------------------------------------------------------
+-- Contorno com espessura ajustável
+--------------------------------------------------------------------------------
+-- O WoW só tem três níveis de contorno (nenhum, `OUTLINE`, `THICKOUTLINE`) — nada entre eles.
+-- Para um meio-termo, o contorno é **desenhado**: duas cópias pretas do texto, deslocadas 1px,
+-- atrás do original. A opacidade delas (`HALO_ALPHA`) dá a espessura contínua que faltava,
+-- somando-se à sombra que já existe do outro lado.
+local HALO_OFFSETS = { { -1, 0 }, { 0, 1 } }
+
+---Cria as cópias de contorno para um FontString.
+local function CreateHalo(parent, source)
+    local halo = {}
+    for i, offset in ipairs(HALO_OFFSETS) do
+        local echo = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        echo:SetPoint("CENTER", source, "CENTER", offset[1], offset[2])
+        echo:SetJustifyH(source:GetJustifyH() or "LEFT")
+        echo:SetTextColor(0, 0, 0)
+        echo:SetAlpha(HALO_ALPHA)
+        halo[i] = echo
+    end
+    return halo
+end
+
+---Mantém as cópias com a mesma fonte e largura do original.
+local function SyncHaloFont(source, halo, delta)
+    if not halo then return end
+    for _, echo in ipairs(halo) do
+        ns.ApplyFont(echo, delta, "")
+        echo:SetAlpha(HALO_ALPHA)
+        if source.GetWidth then echo:SetWidth(source:GetWidth()) end
+    end
+end
+
+---Escreve no original e nas cópias de uma vez.
+function ns.SetHaloText(source, halo, text)
+    source:SetText(text)
+    if not halo then return end
+    for _, echo in ipairs(halo) do
+        echo:SetText(text)
+    end
 end
 
 ---Em combate `classFilename` pode ser secret, e indexar tabela com chave secret é proibido.
@@ -459,6 +502,11 @@ local function BuildRow(index)
         -- Nome comprido corta em vez de quebrar linha ou invadir a coluna de números.
         row.name:SetWordWrap(false)
 
+        row.nameHalo = CreateHalo(row.text, row.name)
+        for _, echo in ipairs(row.nameHalo) do
+            echo:SetWordWrap(false)
+        end
+
         row.cells = {}
         rows[index] = row
     end
@@ -482,6 +530,7 @@ local function BuildRow(index)
     row.iconClass:SetSize(iconSize, iconSize)
     row.bar:SetHeight(PROGRESS_HEIGHT)
     ns.ApplyFont(row.name, 0, ROW_FONT_FLAGS)
+    SyncHaloFont(row.name, row.nameHalo, 0)
 
     for _, cell in pairs(row.cells) do
         cell:Hide()
@@ -495,11 +544,20 @@ local function BuildRow(index)
             cell = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
+
+            row.cellHalos = row.cellHalos or {}
+            row.cellHalos[c] = CreateHalo(row.text, cell)
         end
         -- A coluna de ordenação é a que importa: fica no corpo cheio, as outras menores.
         local isSorted = ns.db.columns[c] == ns.db.sortBy
         ns.ApplyFont(cell, isSorted and 0 or -1, isSorted and ROW_FONT_FLAGS or CELL_FONT_FLAGS)
+        SyncHaloFont(cell, row.cellHalos and row.cellHalos[c], isSorted and 0 or -1)
         cell:SetWidth(ColumnWidth() - 8)
+        if row.cellHalos and row.cellHalos[c] then
+            for _, echo in ipairs(row.cellHalos[c]) do
+                echo:SetWidth(ColumnWidth() - 8)
+            end
+        end
         cell:ClearAllPoints()
         cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, TEXT_LIFT)
         cell:Show()
@@ -851,14 +909,19 @@ end
 
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
 ---FontString (o motor renderiza secret values que o Lua não pode ler).
-function ns.SetCellText(fontString, value, columnKey)
+---@param halo table|nil cópias de contorno da célula, quando houver
+function ns.SetCellText(fontString, value, columnKey, halo)
+    local function write(text)
+        ns.SetHaloText(fontString, halo, text)
+    end
+
     if value == nil then
-        fontString:SetText("|cff4a4a4a-|r")
+        write("|cff4a4a4a-|r")
         return
     end
 
     if ns.Data.IsPercentColumn(columnKey) then
-        fontString:SetText(ns.Data.FormatPercent(value) or "|cff4a4a4a-|r")
+        write(ns.Data.FormatPercent(value) or "|cff4a4a4a-|r")
         return
     end
 
@@ -866,17 +929,13 @@ function ns.SetCellText(fontString, value, columnKey)
     if not text then
         -- Valor secret: tenta a estratégia de formatação que funcionou neste cliente.
         local secretText = ns.Data.FormatSecretAmount(value)
-        if secretText ~= nil then
-            fontString:SetText(secretText)
-        else
-            fontString:SetText(value)
-        end
+        write(secretText ~= nil and secretText or value)
         return
     end
 
     -- Sem sufixo "/s": o rótulo da coluna (DPS, CPS) já diz que é por segundo, e repetir
     -- em cada linha só rouba espaço da coluna.
-    fontString:SetText(text)
+    write(text)
 end
 
 function Window.Draw()
@@ -944,7 +1003,8 @@ function Window.Draw()
 
             for c = 1, #ns.db.columns do
                 local key = ns.db.columns[c]
-                ns.SetCellText(row.cells[c], entry.values[c], key)
+                ns.SetCellText(row.cells[c], entry.values[c], key,
+                    row.cellHalos and row.cellHalos[c])
                 ns.StyleCell(row, c, entry.best and entry.best[c])
             end
 
