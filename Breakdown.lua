@@ -105,7 +105,8 @@ local function BuildSpellRow(section, index)
     ns.ApplyFont(row.rate, -2, "")
     ns.ApplyFont(row.percent, -2, "")
 
-    local bg = skin.rowBackground
+    -- Aqui o fundo existe: o painel tem backdrop, e um preto leve separa as magias.
+    local bg = skin.panelRowBackground
     row.bg:SetColorTexture(bg[1], bg[2], bg[3], bg[4])
     return row
 end

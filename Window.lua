@@ -26,10 +26,13 @@ local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 --   barBackgroundAlpha = 0.4  -> fundo escuro atrás do preenchimento
 --   barHeight = 20, barSpacingBetween = 1, barFontSize = 12
 local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
-local ROW_BG_ALPHA = 0.45           -- fundo da linha; sem barra preenchida, ele sustenta o texto
+-- Fundo da linha totalmente transparente: com a janela sem fundo, um preto parcial atrás de
+-- cada linha é meio-termo — aparece como um retângulo cinza flutuando sobre o cenário. Quem
+-- sustenta a leitura é a sombra do texto, e a separação entre linhas vem da faixa de progresso.
+local ROW_BG_ALPHA = 0
 local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
 -- Fundo invisível: é a variante "No Background" da skin (`wallpaperAlpha = 0.0`).
--- Quem sustenta a leitura são os fundos das próprias linhas (ROW_BG_ALPHA).
+-- Quem sustenta a leitura é a sombra do texto; a separação vem da faixa de progresso.
 local WINDOW_ALPHA = 0
 local ROW_HEIGHT_FIXED = 20         -- skin: barHeight
 local COLUMN_WIDTH_FIXED = 58
@@ -46,6 +49,9 @@ ns.Skin = {
     rowHeight = ROW_HEIGHT_FIXED,
     rowSpacing = 1,
     rowBackground = { 0, 0, 0, ROW_BG_ALPHA },
+    -- O painel de leitura tem fundo próprio, então lá as linhas ganham um preto leve para
+    -- se separarem. Na janela transparente isso viraria listra cinza — por isso dois valores.
+    panelRowBackground = { 0, 0, 0, 0.25 },
     windowAlpha = WINDOW_ALPHA,
     -- A janela é overlay sobre o jogo e fica transparente; painel de leitura pede fundo,
     -- senão o texto disputa com o cenário. Daí dois alfas em vez de um.
@@ -383,7 +389,7 @@ local function BuildRow(index)
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
-        row.bg:SetColorTexture(0, 0, 0, 0.55)
+        row.bg:SetColorTexture(0, 0, 0, 0)
 
         -- Como no medidor nativo: nada de preenchimento tomando a linha inteira. O valor
         -- aparece como uma **linha fina no rodapé**, na cor da classe.
