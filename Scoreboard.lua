@@ -111,8 +111,8 @@ local function BuildColumnHeader()
         local label = ns.Data.GetShortLabel(attributeId)
         if attributeId == sortBy then
             button.text:SetText("|cffffc06a" .. label .. "|r")
-            button.arrow:SetTexture(sortDesc and "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up"
-                or "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
+            button.arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
+            button.arrow:SetTexCoord(0, 1, sortDesc and 0 or 1, sortDesc and 1 or 0)
             button.arrow:Show()
         else
             button.text:SetText("|cff8a8a8a" .. label .. "|r")
@@ -136,21 +136,27 @@ local function BuildRow(index)
         row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)
+        row.bar:SetFrameLevel(row:GetFrameLevel() + 1)
 
-        row.highlight = row:CreateTexture(nil, "HIGHLIGHT")
+        -- Texto acima da barra (ver o comentario em Window.lua: frame filho cobre o pai).
+        row.text = CreateFrame("Frame", nil, row)
+        row.text:SetAllPoints()
+        row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
+
+        row.highlight = row.text:CreateTexture(nil, "HIGHLIGHT")
         row.highlight:SetAllPoints()
         row.highlight:SetColorTexture(1, 1, 1, 0.08)
 
-        row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        row.rank = row.text:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         row.rank:SetPoint("LEFT", 6, 0)
         row.rank:SetWidth(RANK_WIDTH)
         row.rank:SetJustifyH("LEFT")
 
-        row.icon = row:CreateTexture(nil, "OVERLAY")
+        row.icon = row.text:CreateTexture(nil, "OVERLAY")
         row.icon:SetSize(ICON_SIZE, ICON_SIZE)
         row.icon:SetPoint("LEFT", row.rank, "RIGHT", 2, 0)
 
-        row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
         row.name:SetWidth(NAME_WIDTH - RANK_WIDTH - ICON_SIZE - 18)
         row.name:SetJustifyH("LEFT")
@@ -169,7 +175,7 @@ local function BuildRow(index)
     for c = 1, #columns do
         local cell = row.cells[c]
         if not cell then
-            cell = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            cell = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end

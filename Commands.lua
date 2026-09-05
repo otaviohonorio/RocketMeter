@@ -98,6 +98,32 @@ commands["move"] = function(rest)
     ns.Window.MoveColumn(from, direction == "right" and 1 or -1)
 end
 
+commands["debug"] = function()
+    ns.Print("--- diagnóstico ---")
+    print("  C_DamageMeter disponível:", tostring(ns.Data.IsAvailable()))
+    print("  em combate:", tostring(InCombatLockdown()))
+    print("  sessão:", ns.db.sessionType == 0 and "atual" or "geral",
+        "| ordenando por:", tostring(ns.db.sortBy))
+
+    local session = ns.Data.GetSession(ns.db.sessionType, ns.Data.GetColumn(ns.db.sortBy).attr)
+    if not session then
+        print("  |cffff5555a API não devolveu sessão|r")
+        return
+    end
+
+    local sources = session.combatSources
+    print("  atores na sessão:", sources and #sources or 0)
+    print("  duração:", tostring(ns.Data.GetDuration(ns.db.sessionType)))
+
+    local first = sources and sources[1]
+    if first then
+        print("  primeiro ator — nome secret?", tostring(issecretvalue(first.name)),
+            "| total secret?", tostring(issecretvalue(first.totalAmount)))
+        local amount = ns.Data.FormatAmount(first.totalAmount)
+        print("  valor legível:", amount or "(secret)")
+    end
+end
+
 commands["help"] = function()
     ns.Print(L["version"] .. " " .. ns.version .. " — " .. L["commands:"])
     print("  /rm                             " .. L["opens or closes the window"])
@@ -110,6 +136,7 @@ commands["help"] = function()
     print("  /rm profile char|account|reset  " .. L["account-wide or per-character settings"])
     print("  /rm reset                       " .. L["clears the sessions"])
     print("  /rm config                      " .. L["opens the options"])
+    print("  /rm debug                       " .. L["prints what the API is returning"])
     print("  " .. L["(click a column header to sort by it)"])
 end
 

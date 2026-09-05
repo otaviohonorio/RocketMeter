@@ -10,10 +10,10 @@ ns.Picker = Picker
 
 local ROW_HEIGHT = 22
 local WIDTH = 250
-local TOP = 58        -- título + linha de conjuntos
+local TOP = 32        -- só o título
 local BOTTOM = 34     -- rodapé
 
-local frame, rows, presetButtons
+local frame, rows
 
 local function IsEnabled(key)
     for _, id in ipairs(ns.db.columns) do
@@ -132,27 +132,6 @@ function Picker.Create()
     local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 1)
     close:SetScript("OnClick", function() frame:Hide() end)
-
-    -- Conjuntos prontos, como botões de verdade e não item de menu escondido.
-    presetButtons = {}
-    local presets = ns.Data.GetPresets()
-    local order = { "mplus", "raid", "damage" }
-    local x = 12
-    for _, key in ipairs(order) do
-        local preset = presets[key]
-        if preset then
-            local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-            b:SetSize(74, 20)
-            b:SetPoint("TOPLEFT", x, -30)
-            b:SetText(preset.label)
-            b:SetScript("OnClick", function()
-                ns.Window.ApplyPreset(key)
-                Picker.Refresh()
-            end)
-            presetButtons[key] = b
-            x = x + 76
-        end
-    end
 
     local clear = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     clear:SetSize((WIDTH - 28) / 2, 22)

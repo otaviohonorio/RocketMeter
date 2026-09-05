@@ -20,6 +20,7 @@ ns.defaults = {
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
     rowIcon = "spec",         -- "spec" (padrão) ou "class"
     highlightBest = true,     -- realça quem lidera cada coluna
+    autoHeight = true,        -- encolhe para o número de jogadores; a alça desliga isso
     locked = false,
     shown = true,             -- a janela volta como o usuário deixou
     combatOnly = false,       -- só aparece em combate

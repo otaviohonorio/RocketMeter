@@ -204,9 +204,13 @@ local function BuildColumnHeader()
         if key == ns.db.sortBy then
             button.text:SetText(label)
             button.text:SetTextColor(1, 0.75, 0.4)
-            button.arrow:SetTexture(ns.db.sortDesc
-                and "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up"
-                or "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
+            button.arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
+            -- A mesma arte servindo para cima: inverte no eixo vertical.
+            if ns.db.sortDesc then
+                button.arrow:SetTexCoord(0, 1, 0, 1)
+            else
+                button.arrow:SetTexCoord(0, 1, 1, 0)
+            end
             button.arrow:Show()
         else
             button.text:SetText(label)
@@ -236,20 +240,28 @@ local function BuildRow(index)
         row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)
+        row.bar:SetFrameLevel(row:GetFrameLevel() + 1)
 
-        row.highlight = row:CreateTexture(nil, "HIGHLIGHT")
+        -- Camada de texto ACIMA da barra. Sem isso o texto some: a StatusBar e um frame
+        -- filho, e frame filho desenha por cima dos FontStrings do pai — foi exatamente o
+        -- bug da 0.11.0, em que a linha aparecia como uma barra vazia.
+        row.text = CreateFrame("Frame", nil, row)
+        row.text:SetAllPoints()
+        row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
+
+        row.highlight = row.text:CreateTexture(nil, "HIGHLIGHT")
         row.highlight:SetAllPoints()
         row.highlight:SetColorTexture(1, 1, 1, 0.12)
 
-        row.rank = row:CreateFontString(nil, "OVERLAY")
+        row.rank = row.text:CreateFontString(nil, "OVERLAY")
         row.rank:SetPoint("LEFT", 5, 0)
         row.rank:SetWidth(RANK_WIDTH)
         row.rank:SetJustifyH("LEFT")
 
-        row.icon = row:CreateTexture(nil, "OVERLAY")
+        row.icon = row.text:CreateTexture(nil, "OVERLAY")
         row.icon:SetPoint("LEFT", row.rank, "RIGHT", 0, 0)
 
-        row.name = row:CreateFontString(nil, "OVERLAY")
+        row.name = row.text:CreateFontString(nil, "OVERLAY")
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
         row.name:SetJustifyH("LEFT")
 
@@ -278,7 +290,7 @@ local function BuildRow(index)
     for c = 1, #ns.db.columns do
         local cell = row.cells[c]
         if not cell then
-            cell = row:CreateFontString(nil, "OVERLAY")
+            cell = row.text:CreateFontString(nil, "OVERLAY")
             cell:SetJustifyH("RIGHT")
             row.cells[c] = cell
         end
@@ -286,7 +298,7 @@ local function BuildRow(index)
         ns.ApplyFont(cell, ns.db.columns[c] == ns.db.sortBy and 0 or -1)
         cell:SetWidth(ColumnWidth() - 8)
         cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
+        cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, 0)
         cell:Show()
     end
 
@@ -431,6 +443,10 @@ function Window.Create()
         if count > 40 then count = 40 end
         ns.db.rows = count
 
+        -- Quem arrastou a alça quer aquele tamanho. A altura deixa de encolher sozinha,
+        -- senão a janela voltaria para uma linha quando só há um jogador na lista.
+        ns.db.autoHeight = false
+
         Window.Rebuild()
     end)
     frame.grip = grip
@@ -573,9 +589,12 @@ function Window.Draw()
         end
     end
 
-    if shown ~= visibleRows then
-        visibleRows = shown
-        frame:SetHeight(WindowHeight(shown))
+    -- Com autoHeight a janela acompanha quantos jogadores existem; depois de um
+    -- redimensionamento manual, ela mantém a altura escolhida.
+    local wanted = ns.db.autoHeight ~= false and shown or ns.db.rows
+    if wanted ~= visibleRows then
+        visibleRows = wanted
+        frame:SetHeight(WindowHeight(wanted))
     end
 end
 
