@@ -186,3 +186,6 @@ L["Outline keeps the text readable over any bar colour."] =
 L["Thin"] = "Fino"
 L["Thick"] = "Grosso"
 L["None"] = "Nenhum"
+
+L["Row border"] = "Borda na linha"
+L["Separates one bar from the next."] = "Separa uma barra da outra."

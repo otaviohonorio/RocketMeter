@@ -24,8 +24,8 @@ local CLASS_ICONS = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASS
 
 -- Texturas do próprio jogo (nenhum arquivo nosso, nenhuma biblioteca de mídia).
 ns.BAR_TEXTURES = {
-    { key = "blizzard", path = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",              label = "Blizzard" },
     { key = "flat",     path = "Interface\\Buttons\\WHITE8X8",                        label = "Chapada" },
+    { key = "blizzard", path = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",              label = "Blizzard" },
     { key = "classic",  path = "Interface\\TargetingFrame\\UI-StatusBar",             label = "Clássica" },
     { key = "skills",   path = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar", label = "Perícias" },
     { key = "score",    path = "Interface\\WorldStateFrame\\WORLDSTATEFINALSCORE-HIGHLIGHT", label = "Placar" },
@@ -268,7 +268,11 @@ end
 local function BuildRow(index)
     local row = rows[index]
     if not row then
-        row = CreateFrame("Button", nil, frame)
+        row = CreateFrame("Button", nil, frame, "BackdropTemplate")
+        row:SetBackdrop({
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+        })
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
@@ -318,6 +322,14 @@ local function BuildRow(index)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
 
     row.bar:SetStatusBarTexture(ns.BarTexture())
+
+    if row.SetBackdropBorderColor then
+        if ns.db.rowBorder == false then
+            row:SetBackdropBorderColor(0, 0, 0, 0)
+        else
+            row:SetBackdropBorderColor(0, 0, 0, 0.9)
+        end
+    end
 
     local iconSize = height - 4
     row.icon:SetSize(iconSize, iconSize)

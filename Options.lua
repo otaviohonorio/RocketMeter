@@ -153,6 +153,15 @@ function ns.SetupOptions()
     end
 
     do
+        local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_rowBorder", "rowBorder",
+            ns.db, "boolean", L["Row border"], ns.defaults.rowBorder)
+        Settings.SetOnValueChangedCallback(ADDON .. "_rowBorder", function()
+            ns.Window.Rebuild()
+        end)
+        Settings.CreateCheckbox(category, setting, L["Separates one bar from the next."])
+    end
+
+    do
         local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_barBrightness", "barBrightness",
             ns.db, "number", L["Bar brightness"], ns.defaults.barBrightness)
         Settings.SetOnValueChangedCallback(ADDON .. "_barBrightness", function()

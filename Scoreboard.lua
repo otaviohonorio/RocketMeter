@@ -125,14 +125,20 @@ end
 local function BuildRow(index)
     local row = rows[index]
     if not row then
-        row = CreateFrame("Button", nil, frame)
+        row = CreateFrame("Button", nil, frame, "BackdropTemplate")
         row:SetHeight(ROW_HEIGHT)
+        row:SetBackdrop({
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+        })
+        row:SetBackdropBorderColor(0, 0, 0, 0.9)
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
 
         row.bar = CreateFrame("StatusBar", nil, row)
-        row.bar:SetAllPoints()
+        row.bar:SetPoint("TOPLEFT", 1, -1)
+        row.bar:SetPoint("BOTTOMRIGHT", -1, 1)
         row.bar:SetStatusBarTexture(ns.BarTexture())
         row.bar:SetMinMaxValues(0, 1)
         row.bar:SetValue(0)

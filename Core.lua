@@ -19,7 +19,8 @@ ns.defaults = {
     columnWidth = 58,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
     rowIcon = "spec",         -- "spec" (padrão) ou "class"
-    barTexture = "blizzard",  -- textura da barra; ver ns.BAR_TEXTURES
+    barTexture = "flat",      -- textura da barra; ver ns.BAR_TEXTURES
+    rowBorder = true,         -- borda de 1px separando as linhas
     barBrightness = 0.65,     -- escurece a cor da classe para o texto branco contrastar
     fontOutline = "OUTLINE",  -- "none" | "OUTLINE" | "THICKOUTLINE"
     highlightBest = true,     -- realça quem lidera cada coluna
