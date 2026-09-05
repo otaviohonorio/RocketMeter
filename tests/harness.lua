@@ -465,6 +465,17 @@ check("centenas de milhar", ns.Data.FormatAmount(786000), "786K")
 check("milhares com decimal", ns.Data.FormatAmount(9600), "9.6K")
 check("valor pequeno inteiro", ns.Data.FormatAmount(847), "847")
 
+print("== linhas ==")
+ns.Window.SetRows(5)
+check("altura padrao mostra 5 jogadores", ns.Window.GetRows(), 5)
+ns.Window.SetRows(12)
+check("stepper muda a quantidade", ns.Window.GetRows(), 12)
+ns.Window.SetRows(0)
+check("minimo respeitado", ns.Window.GetRows(), 1)
+ns.Window.SetRows(99)
+check("maximo respeitado", ns.Window.GetRows(), 40)
+ns.Window.SetRows(5)
+
 print("== rolagem ==")
 -- Com 3 atores e janela de 2 linhas, rolar uma posicao mostra o 2o e o 3o.
 local scrolled, _, totalActors = ns.Data.GetRows(0, "damage", { "damage" }, 2, false, 1)

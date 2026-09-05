@@ -1,5 +1,6 @@
 -- RocketMeter | Picker.lua
--- A única tela de configuração: quais colunas aparecem e em que ordem.
+-- A única tela de configuração: quais colunas aparecem, em que ordem, e quantas linhas a
+-- janela mostra.
 --
 -- Aparência não se configura — está fixa no código (ver o topo de `Window.lua`). Primeiro o
 -- padrão precisa estar certo; opção de layout só espalha o problema em vez de resolvê-lo.
@@ -12,7 +13,7 @@ ns.Picker = Picker
 local WIDTH = 260
 local ROW_HEIGHT = 22
 local TOP = 34
-local BOTTOM = 34
+local BOTTOM = 62      -- rodapé: linhas + limpar dados
 
 local frame, rows
 
@@ -124,12 +125,39 @@ function Picker.Create()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:Hide()
     if frame.SetTitle then
-        frame:SetTitle(L["Columns"])
+        frame:SetTitle(L["Configure"])
     end
 
     local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", 2, 1)
     close:SetScript("OnClick", function() frame:Hide() end)
+
+    -- Quantas linhas mostrar: dois passos e o número no meio. Um slider aqui seria maior que
+    -- o painel inteiro, e o valor é discreto (3 a 25) — steppers cabem melhor.
+    local rowsLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    rowsLabel:SetPoint("BOTTOMLEFT", 12, 40)
+    rowsLabel:SetText(L["Rows"])
+
+    local function StepperButton(offsetX, delta, symbol)
+        local b = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        b:SetSize(22, 20)
+        b:SetPoint("BOTTOMLEFT", offsetX, 38)
+        b:SetText(symbol)
+        b:SetScript("OnClick", function()
+            ns.Window.SetRows((ns.Window.GetRows() or 5) + delta)
+            Picker.RefreshRows()
+        end)
+        return b
+    end
+
+    frame.rowsMinus = StepperButton(WIDTH - 92, -1, "-")
+
+    frame.rowsValue = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    frame.rowsValue:SetPoint("BOTTOMLEFT", WIDTH - 68, 40)
+    frame.rowsValue:SetWidth(24)
+    frame.rowsValue:SetJustifyH("CENTER")
+
+    frame.rowsPlus = StepperButton(WIDTH - 42, 1, "+")
 
     local clear = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     clear:SetSize(WIDTH - 24, 22)
@@ -141,8 +169,15 @@ function Picker.Create()
     return frame
 end
 
+---Atualiza só o contador de linhas.
+function Picker.RefreshRows()
+    if not frame or not frame.rowsValue then return end
+    frame.rowsValue:SetText(tostring(ns.Window.GetRows() or 5))
+end
+
 function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
+    Picker.RefreshRows()
     local columns = ns.Data.GetColumns()
     for i = 1, #columns do
         BuildRow(i, columns[i])

@@ -652,12 +652,7 @@ function Window.Create()
 
         -- A altura vira quantidade de linhas: é o que faz sentido num medidor.
         local usable = frame:GetHeight() - HEADER_HEIGHT - COLHEAD_HEIGHT - PADDING
-        local count = math.floor(usable / (RowHeight() + 1) + 0.5)
-        if count < 1 then count = 1 end
-        if count > 40 then count = 40 end
-        ns.db.rows = count
-
-        Window.Rebuild()
+        Window.SetRows(math.floor(usable / (RowHeight() + 1) + 0.5))
         frame:SetHeight(WindowHeight(ns.db.rows))
     end)
     frame.grip = grip
@@ -1003,6 +998,27 @@ function Window.ApplyLock()
     local tint = locked and { 1, 0.82, 0.30 } or button.baseTint
     button.activeTint = tint
     button:SetTint(tint)
+end
+
+---Define quantas linhas a janela mostra, ajustando a altura.
+---
+---Ponto único usado pela alça de redimensionar e pelo painel de configuração — sem isto os dois
+---caminhos calculariam a altura de formas diferentes.
+function Window.SetRows(count)
+    if type(count) ~= "number" then return end
+    if count < 1 then count = 1 end
+    if count > 40 then count = 40 end
+    if count == ns.db.rows then return end
+
+    ns.db.rows = count
+    Window.Rebuild()
+    if frame then
+        frame:SetHeight(WindowHeight(count))
+    end
+end
+
+function Window.GetRows()
+    return ns.db.rows
 end
 
 function Window.ApplyScale()
