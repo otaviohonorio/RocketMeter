@@ -693,6 +693,16 @@ check("painel de detalhamento tem corpo proprio", fs.size, 13)
 ns.ApplyFont(fs, -30)
 check("piso de 6pt respeitado", fs.size, 6)
 
+print("== ponta da faixa de titulo ==")
+-- O atlas ui-damagemeters-header-bar tem 17px transparentes e depois uma rampa de alfa ate
+-- ~x=70 (de 560): e o afunilamento que faz a faixa parecer uma fita, e e o que o rastreador
+-- de missoes do jogo mostra. O recorte antigo comecava em 0.045 (x=25), no MEIO da rampa, e o
+-- resultado era uma parede vertical de alfa 40. Se alguem voltar a recortar, isto cai.
+check("faixa comeca no inicio do atlas", ns.Skin.headerCrop[1], 0)
+check("faixa termina no fim do atlas", ns.Skin.headerCrop[2], 1)
+check("sem recorte vertical (as bordas douradas moram nele)",
+    ns.Skin.headerCrop[3] .. "," .. ns.Skin.headerCrop[4], "0,1")
+
 print("== nome cross-realm ==")
 -- Print de 05/09: as tres linhas mostravam "Magicpanda-Tic...", "Huntwave-Stor...",
 -- "Szarazard-Ticho..." — nome e reino brigando pela mesma largura, reticencias comendo os dois.

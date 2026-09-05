@@ -129,11 +129,27 @@ ns.Skin = {
     -- somado no lugar de uso — token que vira conta perde a função de fonte única de verdade.
     scoreboardAlpha = 0.92,
     headerAtlas = "ui-damagemeters-header-bar",
-    -- Vertical sem recorte: o recorte de 4/60 que eu usava comia justamente as fileiras de
-    -- borda do atlas. No nativo elas aparecem inteiras — dourado fraco de 2px em cima e
-    -- dourado forte de 2px embaixo, com pico RGB(197,169,3). Com o recorte o nosso pico caía
-    -- para 131. As pontas laterais continuam recortadas, que é onde ficam os cantos.
-    headerCrop = { 0.045, 0.965, 0, 1 },
+    -- SEM RECORTE NENHUM — nem vertical nem horizontal.
+    --
+    -- Vertical: o recorte de 4/60 que eu usava comia as fileiras de borda do atlas. No nativo
+    -- elas aparecem inteiras — dourado fraco de 2px em cima e forte de 2px embaixo, pico
+    -- RGB(197,169,3); com o recorte o nosso pico caía para 131.
+    --
+    -- Horizontal: o 0.045..0.965 veio da skin Details_Midnight e eu o mantive sem conferir,
+    -- com a justificativa de que "as pontas são os cantos". Medido no PNG do próprio atlas
+    -- (`Details_Midnight/Textures/ui-damagemeters-header-bar-2x.png`, 560x56), as pontas são
+    -- **a rampa de alfa** — o afunilamento que faz a faixa parecer uma fita:
+    --
+    --     x 0..16    alfa 0        (padding transparente)
+    --     x 17..~70  alfa 0 -> 154 (a rampa: a ponta afunilada)
+    --     x ~70..484 alfa 154      (o corpo)
+    --     x 484..545 alfa 154 -> 0 (a rampa do outro lado)
+    --
+    -- 0.045 de 560 é x=25, ou seja **no meio da rampa**, onde o alfa já vale 40. Cortar ali
+    -- descarta o afunilamento e deixa uma parede vertical de alfa 40 — o corte reto que o
+    -- usuário circulou no print de 05/09 comparando com o rastreador de missões, que mostra
+    -- a mesma arte com a ponta inteira.
+    headerCrop = { 0, 1, 0, 1 },
     gold = { 1, 0.82, 0 },
     cream = { 1, 0.88, 0.62 },
     text = { 0.86, 0.87, 0.90 },
