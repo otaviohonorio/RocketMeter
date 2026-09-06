@@ -1675,9 +1675,34 @@ end
 
 print("== contorno desenhado: simetria e espelhamento ==")
 do
-    -- SIMETRIA. Os dois deslocamentos antigos ({-1,0} e {0,1}) cobriam esquerda e topo, e a
-    -- sombra cobria a base a direita: tres lados de um jeito, um de outro. Era o relato exato --
-    -- "umas colunas parece ta com mais borda a fonte, outras nao". Nao era impressao.
+    -- A COPIA TEM QUE PINTAR PRETO FORA DO CONTORNO QUE O ORIGINAL JA TEM. Este e o teste que
+    -- faltava, e ele existe porque a primeira versao do medio saiu IGUAL AO FINO -- relato
+    -- literal do usuario -- e por construcao: as copias iam deslocadas 1px, que e exatamente
+    -- onde o `OUTLINE` do original ja pinta preto solido. Caiam debaixo do que ja estava la.
+    --
+    -- Em pixels, o alcance do preto de uma copia e `deslocamento + alcance do contorno dela`, e
+    -- ele precisa passar do alcance do contorno do original. Deslocar sozinho nao engrossa nada
+    -- enquanto o deslocamento couber dentro do contorno que ja existe.
+    local ALCANCE = { [""] = 0, ["OUTLINE"] = 1, ["THICKOUTLINE"] = 2 }
+
+    local doOriginal = ALCANCE[ns.OutlineFor("body")]
+    check("o medio manda OUTLINE no original, alcance 1", doOriginal, 1)
+
+    local daCopia = ALCANCE[ns.HALO_FLAGS] or 0
+    local maiorAlcance = 0
+    for _, off in ipairs(ns.HALO_OFFSETS) do
+        local d = math.max(math.abs(off[1]), math.abs(off[2]))   -- distancia de Chebyshev
+        if d + daCopia > maiorAlcance then maiorAlcance = d + daCopia end
+    end
+    check("a copia pinta FORA do contorno do original", maiorAlcance > doOriginal, true)
+
+    -- E NAO PASSA DO GROSSO: o medio tem que caber entre os dois, nao ultrapassar o de cima.
+    check("e nao passa do alcance do grosso", maiorAlcance <= ALCANCE["THICKOUTLINE"], true)
+
+    -- SEM LADO DESCOBERTO. Com deslocamento zero a simetria e consequencia, mas o teste vale
+    -- para qualquer conjunto de deslocamentos: a soma tem que se anular nos dois eixos. Era a
+    -- assimetria de {-1,0}+{0,1} que produzia "umas colunas parece ta com mais borda a fonte,
+    -- outras nao" -- tres lados cobertos pelo halo, o quarto pela sombra.
     local soma = { 0, 0 }
     for _, off in ipairs(ns.HALO_OFFSETS) do
         soma[1] = soma[1] + off[1]
@@ -1685,7 +1710,6 @@ do
     end
     check("os deslocamentos se anulam no eixo x", soma[1], 0)
     check("e no eixo y", soma[2], 0)
-    check("sao quatro, um por lado", #ns.HALO_OFFSETS, 4)
 
     -- ESPELHAMENTO. As copias tem que seguir cada `SetText` do original sem que o codigo que
     -- escreve saiba que elas existem -- sao muitos os pontos que escrevem.
@@ -1695,7 +1719,7 @@ do
     ns.Window.SetRoleSize("body", 16)
     ns.Window.SetRoleOutline("body", "medium")
     ns.ApplyRoleFont(fs, "body", 0)
-    check("o contorno desenhado nasceu", fs.rmHalo and #fs.rmHalo, 4)
+    check("o contorno desenhado nasceu", fs.rmHalo and #fs.rmHalo, #ns.HALO_OFFSETS)
 
     fs:SetText("Magicpanda")
     check("a copia recebeu o mesmo texto", fs.rmHalo[1]:GetText(), "Magicpanda")
@@ -1740,13 +1764,14 @@ do
 
     local tit = pai:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     ns.ApplyRoleFont(tit, "title", 0)
-    check("a copia do titulo existe", tit.rmHalo and #tit.rmHalo, 4)
+    check("a copia do titulo existe", tit.rmHalo and #tit.rmHalo, #ns.HALO_OFFSETS)
     local _, corpoDaCopia = tit.rmHalo[1]:GetFont()
     check("a copia do titulo tem o corpo do titulo, nao o das linhas", corpoDaCopia, 14)
 
-    -- E sem o contorno do motor: repetido nas quatro copias ele engrossaria de novo.
+    -- E COM O CONTORNO GROSSO, que e de onde sai o anel externo do medio. Vazio aqui era o
+    -- defeito: sem anel proprio, a copia nao tinha o que mostrar por fora do original.
     local _, _, flagsDaCopia = tit.rmHalo[1]:GetFont()
-    check("e sem o contorno do motor", flagsDaCopia, "")
+    check("a copia leva o contorno grosso", flagsDaCopia, "THICKOUTLINE")
 
     ns.Window.SetRoleOutline("title", ns.ROLE_DEFAULTS.title.outline)
     ns.Window.SetRoleSize("title", ns.ROLE_DEFAULTS.title.size)

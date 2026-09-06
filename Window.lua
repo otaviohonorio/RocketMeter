@@ -623,15 +623,37 @@ end
 -- dois contornos e pediu o meio-termo — "são bem gritantes as diferenças, senti falta de um
 -- 'meio termo' dos dois". A máquina volta, com as DUAS correções que a desligaram:
 --
---   1. QUATRO deslocamentos, simétricos. Os dois de antes ({-1,0} e {0,1}) cobriam esquerda e
---      topo e deixavam direita e base para a sombra — três lados de um jeito, um de outro. Era
---      isso o "umas colunas parece tá com mais borda a fonte, outras não": não era impressão,
+--   1. Simetria: os dois deslocamentos de antes ({-1,0} e {0,1}) cobriam esquerda e topo e
+--      deixavam direita e base para a sombra — três lados de um jeito, um de outro. Era isso o
+--      "umas colunas parece tá com mais borda a fonte, outras não": não era impressão,
 --      dependia de qual lado do glifo encostava no vizinho.
 --   2. Só entra quando o papel pede ("medium"). Antes ele somava com a sombra em todo texto, e
 --      dois traços no mesmo pixel engrossam duas vezes.
+--
+-- E A PRIMEIRA TENTATIVA DO MÉDIO ESTAVA GEOMETRICAMENTE ERRADA — relato: "o contorno médio tá
+-- igual ao fino". Estava mesmo, e por construção. Ela punha quatro cópias deslocadas **1px**,
+-- que é EXATAMENTE onde o `OUTLINE` do próprio texto já pinta preto sólido. As cópias caíam
+-- debaixo do que já estava lá e não podiam aparecer. Deslocar não engrossa nada enquanto o
+-- deslocamento couber dentro do contorno que já existe.
+--
+-- A CONSTRUÇÃO CERTA NÃO DESLOCA: ela empilha. `OUTLINE` pinta um anel de 1px; `THICKOUTLINE`
+-- pinta um de 2px. O meio-termo é o anel de 2px **em opacidade parcial** por baixo do de 1px
+-- sólido:
+--
+--     cópia  (atrás, alfa α):  THICKOUTLINE  → preto de 0 a 2px
+--     texto  (na frente):      OUTLINE       → preto de 0 a 1px, sólido, + o glifo por cima
+--     visto:                   sólido até 1px, α de 1px a 2px
+--
+-- O corpo preto da cópia fica escondido debaixo do glifo do original, que é do mesmo tamanho,
+-- mesma fonte e mesma posição — sobra só o anel externo, que é o que se queria. E custa **uma**
+-- cópia, não quatro: com deslocamento zero não há lado descoberto, então a simetria deixa de ser
+-- um problema a resolver e passa a ser consequência.
 local HALO_OFFSETS = {
-    { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 },
+    { 0, 0 },
 }
+
+-- O contorno que a cópia usa. É ele que define até onde o anel vai; o alfa define quão escuro.
+local HALO_FLAGS = "THICKOUTLINE"
 
 ---Cria as cópias de contorno para um FontString.
 ---
@@ -670,6 +692,7 @@ end
 ns.CreateHalo = CreateHalo
 ns.SyncHaloFont = SyncHaloFont
 ns.HALO_OFFSETS = HALO_OFFSETS
+ns.HALO_FLAGS = HALO_FLAGS
 
 ---Tira os escapes de cor: as cópias são pretas por `SetTextColor`, e `|cff40d878…|r` dentro da
 ---string sobrescreve isso — o trecho colorido reaparecia verde nas cópias, 1px deslocado, e o
@@ -734,9 +757,10 @@ function ns.ApplyRoleHalo(fontString, role, delta)
     if size < 6 then size = 6 end
 
     for _, echo in ipairs(fontString.rmHalo) do
-        -- Contorno "" de propósito: o traço do motor já está no original, e repeti-lo nas quatro
-        -- cópias somaria 1px por fora de cada uma — voltaria a ficar mais grosso que o grosso.
-        SafeSetFont(echo, ns.FontPath(), size, "")
+        -- `THICKOUTLINE` NA CÓPIA, e é o ponto inteiro da coisa: é o anel de 2px dela, visto em
+        -- `alpha`, que aparece por fora do anel de 1px sólido do original. Com contorno vazio a
+        -- cópia não teria anel nenhum e o médio voltaria a ser igual ao fino — que foi o defeito.
+        SafeSetFont(echo, ns.FontPath(), size, HALO_FLAGS)
         echo:SetShadowColor(0, 0, 0, 0)      -- a sombra é do original; na cópia vira borrão
         echo:SetTextColor(0, 0, 0)
         echo:SetAlpha(alpha)
