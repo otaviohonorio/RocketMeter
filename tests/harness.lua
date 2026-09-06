@@ -308,6 +308,9 @@ Enum = {
         Interrupts = 5, Dispels = 6, DamageTaken = 7, AvoidableDamageTaken = 8,
         Deaths = 9, EnemyDamageTaken = 10,
     },
+    -- O enum que separa aliado de inimigo. Faltava, e o stub por isso nao sabia representar
+    -- ALIADO NPC -- que e exatamente o caso do relato da masmorra de seguidores.
+    DamageMeterSourceDisplayType = { None = 0, Ally = 1, Enemy = 2 },
 }
 
 -- Dados falsos, no formato lido do Details!
@@ -319,15 +322,26 @@ local FAKE_IDENTITY = {
     Thalyra = { class = "MAGE",   spec = 101 },
     Brumm   = { class = "PRIEST", spec = 102 },
     Sarien  = { class = "ROGUE",  spec = 103 },
+    Kaz     = { class = "SHAMAN", spec = 104 },
+    -- ALIADO NPC: e o caso do relato -- masmorra de SEGUIDORES, onde o healer nao e jogador.
+    -- A API preve isso: `sourceDisplayType` vale `Ally`, `sourceCreatureID` existe e a classe vem
+    -- VAZIA (`DamageMeterDocumentation.lua:199-212`). O medidor nativo desenha esse caso com cor
+    -- de aliado em vez de cor de classe (`DamageMeterEntry.lua:365-369`).
+    Elowen  = { class = "", spec = 0, creature = 210001, ally = true },
 }
 
 local function fakeSource(name, total, extra)
     local id = FAKE_IDENTITY[name] or { class = "MAGE", spec = 199 }
     local src = {
-        name = name, sourceGUID = "Player-" .. name, sourceCreatureID = 0,
+        name = name, sourceGUID = "Player-" .. name,
+        sourceCreatureID = id.creature or 0,
         totalAmount = total, amountPerSecond = total / 120,
         classFilename = id.class, specIconID = id.spec, deathRecapID = 0,
-        deathTimeSeconds = 0, classification = "player", isLocalPlayer = name == "Thalyra",
+        deathTimeSeconds = 0,
+        classification = id.ally and "elite" or "player",
+        sourceDisplayType = Enum.DamageMeterSourceDisplayType
+            and Enum.DamageMeterSourceDisplayType.Ally or 1,
+        isLocalPlayer = name == "Thalyra",
     }
     for k, v in pairs(extra or {}) do src[k] = v end
     return src
@@ -360,25 +374,37 @@ C_DamageMeter = {
             }
         end
 
+        -- CADA METRICA TEM SEU PROPRIO ELENCO, e nao so seus proprios numeros.
+        --
+        -- Antes as tres metricas tinham sempre os MESMOS tres atores, e isso escondia o defeito
+        -- que o usuario relatou: "o healer pode dar 0 dano e curar muito, ele tem que aparecer" e
+        -- "pode ter alguem que nao cura e nem da dano, so da interrupt, tem que aparecer". Com
+        -- elenco identico em toda metrica, montar as linhas a partir de UMA metrica dava o mesmo
+        -- resultado que montar a partir da uniao -- e o teste concordava com o defeito.
+        --
+        -- `Elowen` e o caso do relato: masmorra de seguidores, cura muito e nao da dano nenhum.
+        -- `Kaz` e o segundo caso: so interrompe.
         local perAttribute = {
-            [Enum.DamageMeterType.HealingDone] = { 120000, 900000, 50000 },
-            [Enum.DamageMeterType.Interrupts] = { 1, 0, 5 },
-            [Enum.DamageMeterType.Dispels] = { 0, 0, 3 },
-            [Enum.DamageMeterType.Absorbs] = { 0, 0, 0 },
+            [Enum.DamageMeterType.HealingDone] = {
+                Thalyra = 120000, Brumm = 900000, Sarien = 50000, Elowen = 2400000,
+            },
+            [Enum.DamageMeterType.Interrupts] = { Thalyra = 1, Sarien = 5, Kaz = 7 },
+            [Enum.DamageMeterType.Dispels] = { Sarien = 3 },
+            [Enum.DamageMeterType.Absorbs] = {},
         }
         local values = perAttribute[attribute]
         if values then
             -- ATOR COM ZERO NAO APARECE. E assim na API -- foi o que o retrato da corrida real
             -- mostrou: o Delzoka nao tinha a chave `avoidable` porque o dele era 0, e o
-            -- Details escrevia 0 na mesma celula. Com o stub criando os tres sempre, a
-            -- diferenca entre "zero" e "nao sei" nao existia aqui dentro.
-            local names = { "Thalyra", "Brumm", "Sarien" }
+            -- Details escrevia 0 na mesma celula.
+            local names = { "Thalyra", "Brumm", "Sarien", "Elowen", "Kaz" }
             local sources, total, maximum = {}, 0, 0
-            for i = 1, 3 do
-                if values[i] > 0 then
-                    sources[#sources + 1] = fakeSource(names[i], values[i])
-                    total = total + values[i]
-                    if values[i] > maximum then maximum = values[i] end
+            for i = 1, #names do
+                local v = values[names[i]]
+                if v and v > 0 then
+                    sources[#sources + 1] = fakeSource(names[i], v)
+                    total = total + v
+                    if v > maximum then maximum = v end
                 end
             end
             return {
@@ -589,17 +615,68 @@ check("cura total (metrica cruzada)", first[3], 120000)
 check("cps (metrica cruzada, nao pode ser nil)", first[4], 120000 / 120)
 check("interrupcoes (metrica cruzada)", first[5], 1)
 
--- Lider por coluna: Thalyra lidera o dano (linha 1), mas quem cura mais e o Brumm (linha 2)
--- e quem mais interrompe e o Sarien (linha 3). Cada coluna tem seu proprio realce.
+-- A LISTA E A UNIAO DOS ATORES DE TODAS AS METRICAS EXIBIDAS, e nao so da que ordena.
+--
+-- Pedido literal do usuario, em duas frases do mesmo dia: "o healer pode dar 0 dano e curar
+-- muito, ele tem que aparecer no medidor" e "pode ter alguem que nao cura e nem da dano, so da
+-- interrupt, tem que aparecer". Antes a lista saia da metrica ordenada, entao quem nao pontuava
+-- nela nao tinha linha -- nem para mostrar zero.
+--
+-- `Elowen` cura 2,4M e nao da dano nenhum (o healer NPC da masmorra de seguidores). `Kaz` so
+-- interrompe. Ordenando por DANO, os dois tem que aparecer assim mesmo.
+-- E NINGUEM APARECE DUAS VEZES. E o risco que a uniao traz: o mesmo ator existe em varias
+-- metricas, e sem deduplicacao ele ganharia uma linha por metrica -- com os numeros dele
+-- contados varias vezes na frente do jogador, que e pior que faltar uma linha.
+do
+    local todos = ns.Data.GetRows(0, "damage", cols, 99, false)
+    local vistos, repetido = {}, nil
+    for i = 1, #todos do
+        local g = todos[i].source and todos[i].source.sourceGUID
+        if g then
+            if vistos[g] then repetido = g end
+            vistos[g] = true
+        end
+    end
+    check("nenhum ator aparece duas vezes", repetido or false, false)
+end
+
+local nomes = {}
+for i = 1, #rows do nomes[rows[i].source and rows[i].source.name or "?"] = i end
+check("o healer que nao da dano tem linha", nomes["Elowen"] ~= nil, true)
+check("e quem so interrompe tambem", nomes["Kaz"] ~= nil, true)
+
+-- E COM ZERO NA COLUNA ORDENADA, que e o numero certo: ele nao pontuou ali, e nao "nao sei".
+check("o dano do healer e zero, nao vazio", rows[nomes["Elowen"]].values[1], 0)
+
+-- E COM O NUMERO DELE NA COLUNA DELE. Este e o erro silencioso que a uniao quase introduziu: o
+-- laco semeia o cache com a metrica ORDENADA, e para quem entrou pela cura isso poria a CURA na
+-- coluna de DANO. O ator lembra de qual metrica veio.
+check("e a cura dele esta na coluna de cura", rows[nomes["Elowen"]].values[3], 2400000)
+check("e as interrupcoes do Kaz na coluna de interrupcoes", rows[nomes["Kaz"]].values[5], 7)
+
+-- Lider por coluna: Thalyra lidera o dano (linha 1), e agora quem cura mais e o Elowen e quem
+-- mais interrompe e o Kaz -- os dois que so existem por causa da uniao. Cada coluna tem seu
+-- proprio realce, e ele considera o GRUPO todo.
 check("lider do dano e a linha 1", rows[1].best and rows[1].best[1] or false, true)
-check("lider da cura e a linha 2", rows[2].best and rows[2].best[3] or false, true)
+check("lider da cura e o healer sem dano",
+    rows[nomes["Elowen"]].best and rows[nomes["Elowen"]].best[3] or false, true)
+check("lider das interrupcoes e quem so interrompe",
+    rows[nomes["Kaz"]].best and rows[nomes["Kaz"]].best[5] or false, true)
 check("linha 1 nao lidera a cura", rows[1].best and rows[1].best[3] or false, false)
-check("lider das interrupcoes e a linha 3", rows[3].best and rows[3].best[5] or false, true)
+-- (o lider das interrupcoes ja foi conferido acima: e o Kaz, que so interrompe)
+check("e a linha 3 NAO lidera as interrupcoes", rows[3].best and rows[3].best[5] or false, false)
 check("percentual do dano", math.floor(first[6] + 0.5), math.floor(1200000 / 2920000 * 100 + 0.5))
 
 -- ordem invertida: a ultima linha vira a primeira, sem comparar nada
+--
+-- A ASSERCAO MUDOU DE CAMPO na 0.64.0, e a razao vale registrar: ela lia
+-- `source.totalAmount`, que e o total DA METRICA DE ONDE O ATOR VEIO. Enquanto todos vinham da
+-- metrica ordenada isso era o dano; com a uniao, para quem entrou pela cura ou pelas
+-- interrupcoes, `totalAmount` e a cura ou a contagem de interrupcoes. Ler o valor da COLUNA e o
+-- que mede o que a asserção diz medir.
 local asc = ns.Data.GetRows(0, "damage", cols, 5, true)
-check("ordem crescente comeca pelo menor", asc[1].source.totalAmount, 740000)
+check("ordem crescente comeca pelo menor dano", asc[1].values[1], 0)
+check("e o maior dano vai para o fim", asc[#asc].values[1], 1200000)
 
 -- migracao das colunas salvas no formato antigo (ids de Enum)
 local migrated = ns.Data.MigrateColumns({ Enum.DamageMeterType.DamageDone, Enum.DamageMeterType.Hps })

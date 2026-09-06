@@ -441,6 +441,75 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         return tostring(class) .. "/" .. tostring(icon)
     end
 
+    -- A LISTA DE LINHAS É A UNIÃO DOS ATORES DE TODAS AS MÉTRICAS EXIBIDAS.
+    --
+    -- Era a lista de UMA métrica — a que ordena a janela — e isso apagava gente. Duas frases do
+    -- usuário, no mesmo dia, que são a mesma regra vista de dois ângulos:
+    --
+    --   "o healer pode dar 0 dano e curar muito, ele tem que aparecer no medidor"
+    --   "pode ter alguém que não cura e nem dá dano, só dá interrupt, tem que aparecer"
+    --
+    -- Quem não pontua na métrica ordenada não estava na lista dela, e portanto não tinha linha —
+    -- nem para mostrar zero. O medidor mostrava "quem fez dano", não "quem estava lá".
+    --
+    -- CADA ATOR ACRESCENTADO LEMBRA DE QUAL MÉTRICA VEIO (`rowAttr`), e isso é obrigatório: o
+    -- laço de baixo semeia o cache com `cache[sortDef.attr] = source`, o que para um ator vindo
+    -- da cura poria a CURA dele na coluna de dano. O valor da métrica ordenada, para ele, sai da
+    -- busca normal — não acha, é conclusivo, e vira zero. Que é o número certo.
+    --
+    -- DEDUPLICAÇÃO, e o cuidado é o mesmo do resto do arquivo: por GUID quando ele é legível
+    -- (todo conteúdo fora de mítica+), e por classe+spec quando não é. Onde a identidade não
+    -- serve, o ator NÃO entra — duplicar uma linha é pior que faltar uma, porque os números
+    -- passam a ser contados duas vezes na frente do jogador.
+    local rowAttr = {}
+    do
+        local uniao, vistoGuid, vistoIdentidade = {}, {}, {}
+
+        for i = 1, #sources do
+            local source = sources[i]
+            uniao[i] = source
+
+            local guid = source.sourceGUID
+            if guid ~= nil and not issecretvalue(guid) then vistoGuid[guid] = true end
+            local key = IdentityKey(source)
+            if key then vistoIdentidade[key] = true end
+        end
+
+        for c = 1, #columns do
+            local def = Data.GetColumn(columns[c])
+            if def and def.attr ~= sortDef.attr then
+                local outra = SessionFor(def.attr)
+                local lista = outra and outra.combatSources
+                for i = 1, (lista and #lista or 0) do
+                    local source = lista[i]
+                    local guid = source.sourceGUID
+                    local legivel = guid ~= nil and not issecretvalue(guid)
+
+                    local novo = false
+                    if legivel then
+                        if not vistoGuid[guid] then
+                            vistoGuid[guid] = true
+                            novo = true
+                        end
+                    else
+                        local key = IdentityKey(source)
+                        if key and not vistoIdentidade[key] then
+                            vistoIdentidade[key] = true
+                            novo = true
+                        end
+                    end
+
+                    if novo then
+                        uniao[#uniao + 1] = source
+                        rowAttr[source] = def.attr
+                    end
+                end
+            end
+        end
+
+        sources = uniao
+    end
+
     -- Identidades ambíguas na LISTA DE ORIGEM: se duas linhas têm a mesma classe+spec,
     -- nenhuma das duas pode ser casada por identidade.
     local rowIdentityAmbiguous = {}
@@ -559,7 +628,12 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     for position = 1, total do
         local source = sources[ascending and (total - position + 1) or position]
         local values = {}
-        local cache = { [sortDef.attr] = source }
+
+        -- O CACHE É SEMEADO NA MÉTRICA DE ONDE O ATOR VEIO, e não sempre na ordenada. Para quem
+        -- entrou pela união, semear na ordenada poria o número dele (cura, interrupções) na
+        -- coluna errada — e o valor da coluna ordenada sairia certo por acidente nunca.
+        local fromAttr = rowAttr[source] or sortDef.attr
+        local cache = { [fromAttr] = source }
 
         local guid = source.sourceGUID
         local guidReadable = guid ~= nil and not issecretvalue(guid)
