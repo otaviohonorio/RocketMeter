@@ -1480,6 +1480,30 @@ do
     ns.RefreshSkin()
 end
 
+print("== o instrumento de fontes IMPRIME ==")
+-- Instrumento que nao imprime nada e pior que instrumento nenhum: ele passa a impressao de que a
+-- lista esta vazia quando o que esta vazio e o comando. Ja aconteceu aqui -- o `/rm fontes` nasceu
+-- chamando `Data.Available()`, que nao existe, e o unico sinal foi o silencio.
+do
+    local saida = {}
+    local realPrint = print
+    print = function(...)
+        local partes = {}
+        for i = 1, select("#", ...) do partes[i] = tostring((select(i, ...))) end
+        saida[#saida + 1] = table.concat(partes, " ")
+        return realPrint(...)
+    end
+    SlashCmdList["ROCKETMETER"]("fontes")
+    print = realPrint
+
+    local texto = table.concat(saida, " | ")
+    -- Contar linhas nao bastaria: qualquer aviso conta como linha. O que prova que o instrumento
+    -- FUNCIONOU e ele ter listado ator com o campo que a duvida pede -- o tipo de fonte, que e o
+    -- que separa aliado NPC de jogador.
+    check("o /rm fontes lista as metricas", texto:find("damage", 1, true) ~= nil, true)
+    check("e lista ator com o tipo de fonte", texto:find("tipo=", 1, true) ~= nil, true)
+end
+
 print("== grade do configurador: nada vaza da coluna ==")
 -- ESTE E O TESTE QUE FALTAVA. Duas rodadas seguidas de teste in-game caíram em geometria: as
 -- abas se sobrepondo, e depois o checkbox nascendo no meio da janela com o rotulo saindo pela
@@ -1862,7 +1886,8 @@ print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",
                        "move 2 right", "score", "score demo", "score mplus", "score raid",
-                       "atlas", "atlas ChallengeMode-SpikeyStar", "i18n", "config", "reset" }) do
+                       "atlas", "atlas ChallengeMode-SpikeyStar", "i18n", "config", "fontes",
+                       "reset" }) do
     local ok, err = pcall(SlashCmdList.ROCKETMETER, cmd)
     print(ok and ("  ok    /rm " .. cmd) or ("  ERRO  /rm " .. cmd .. ": " .. tostring(err)))
     if not ok then os.exit(1) end

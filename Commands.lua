@@ -205,6 +205,65 @@ end
 -- Instrumentacao, pelo mesmo motivo do `/rm atlas`: `FROM_GAME` depende de globais do cliente,
 -- e global que nao existe nao avisa nada — o rotulo apenas continua em ingles, o que e
 -- indistinguivel de "esta certo assim". Uma linha de saida encerra a duvida.
+-- Instrumentacao de QUEM ENTRA NA LISTA. Relato: numa masmorra de seguidores o healer cura e nao
+-- aparece no medidor. O laco que monta as linhas nao filtra ninguem -- ele lista o que a sessao da
+-- METRICA ORDENADA devolve -- entao ha duas causas possiveis e elas se distinguem lendo:
+--
+--   A. o healer nao esta na sessao de DANO (ele nao causa dano), e a lista sai da metrica pela
+--      qual a janela esta ordenada. Aparecer ordenando por Cura confirma;
+--   B. aliado NPC nao entra em `combatSources` de jeito nenhum -- e num calabouco de seguidores o
+--      healer E um NPC. Nao aparecer em NENHUMA metrica confirma.
+--
+-- A estrutura tem campos que o addon nao usava e que respondem isso de cara: `sourceDisplayType`
+-- (`None`/`Ally`/`Enemy`), `sourceCreatureID` (so NPC tem) e `classification`
+-- (`DamageMeterDocumentation.lua:199-212`). O aliado NPC aparece como `Ally` sem classe -- e assim
+-- que o medidor nativo o desenha, com cor de aliado em vez de cor de classe
+-- (`DamageMeterEntry.lua:365-369`).
+commands["fontes"] = function()
+    if not ns.Data.IsAvailable() then
+        ns.Print("|cffff5555C_DamageMeter nao esta disponivel agora.|r")
+        return
+    end
+
+    local function Texto(v)
+        if v == nil then return "nil" end
+        if issecretvalue(v) then return "|cffff5555secret|r" end
+        return tostring(v)
+    end
+
+    local tipoFonte = {}
+    if Enum and Enum.DamageMeterSourceDisplayType then
+        for nome, valor in pairs(Enum.DamageMeterSourceDisplayType) do
+            tipoFonte[valor] = nome
+        end
+    end
+
+    -- TODAS as metricas, e nao so a que esta na tela: e a comparacao entre elas que responde.
+    for _, coluna in ipairs({ "damage", "healing", "damagetaken", "interrupts", "deaths" }) do
+        local def = ns.Data.GetColumn(coluna)
+        if def then
+            local sessao = ns.Data.GetSession(0, def.attr)
+            local fontes = sessao and sessao.combatSources or {}
+
+            ns.Print(("|cffffd100%s|r: %d ator(es)"):format(coluna, #fontes))
+            for i, fonte in ipairs(fontes) do
+                print(("   %d. %-14s %-10s cria=%-8s tipo=%-6s local=%-5s total=%s"):format(
+                    i,
+                    Texto(fonte.name),
+                    Texto(fonte.classFilename),
+                    Texto(fonte.sourceCreatureID),
+                    tipoFonte[fonte.sourceDisplayType] or Texto(fonte.sourceDisplayType),
+                    Texto(fonte.isLocalPlayer),
+                    Texto(fonte.totalAmount)))
+            end
+        end
+    end
+
+    ns.Print("se o healer aparece em |cffffd100healing|r e nao em |cffffd100damage|r,")
+    print("   a lista da janela sai da metrica ORDENADA -- ordene por Cura para ve-lo.")
+    print("   se nao aparece em NENHUMA, aliado NPC nao entra na API e nao ha o que fazer.")
+end
+
 commands["i18n"] = function()
     local report = ns.CheckGameStrings()
     ns.Print(format(L["locale %s, %d game label(s):"], GetLocale(), #report))
@@ -241,6 +300,7 @@ commands["help"] = function()
     print("  /rm profile char|account|reset  " .. L["account-wide or per-character settings"])
     print("  /rm reset                       " .. L["clears the sessions"])
     print("  /rm config                      " .. L["opens the options"])
+    print("  /rm fontes                      " .. L["lists who the API reports in each metric"])
     print("  /rm debug                       " .. L["prints what the API is returning"])
     print("  /rm log [clear]                 " .. L["records a diagnostic snapshot"])
     print("  " .. L["(click a column header to sort by it)"])
