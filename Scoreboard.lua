@@ -756,6 +756,19 @@ function CellBuilders.value(cell)
     cell.text:SetWordWrap(false)
 end
 
+-- A CÉLULA DE PONTUAÇÃO É UMA CÉLULA DE NÚMERO, e faltava dizer isso ao construtor.
+--
+-- Era o defeito do print de 07/09 20:22: a coluna declara `render = "score"`, existe um
+-- `CellPainters.score` para escrever `2863 (+0)`, e **não existia `CellBuilders.score`**. O
+-- `BuildRow` faz `CellBuilders[kind](cell)`, então na primeira linha ele chamava nil e o desenho
+-- inteiro abortava — com o cabeçalho e os rótulos de coluna já na tela, porque eles são
+-- desenhados antes. O painel abria bonito e **vazio**, que é o sintoma mais enganoso possível:
+-- não parece erro de Lua, parece "não tem dado".
+--
+-- O comentário logo acima já dizia "e de pontuação, que é número com o ganho colado". A intenção
+-- estava escrita; só o roteamento não estava.
+CellBuilders.score = CellBuilders.value
+
 local function BuildRow(index)
     local row = rows[index]
 
@@ -880,6 +893,22 @@ local function DrawTimeline()
     -- Segmentos de combate.
     timeline.segments = timeline.segments or {}
     for _, seg in ipairs(timeline.segments) do seg:Hide() end
+
+    -- O TRECHO QUE O ADDON NAO VIU FICA NEUTRO, nem verde nem vermelho. Numa corrida retomada
+    -- o trilho pintava de vermelho -- "andando" -- os minutos anteriores ao `/reload`, que e a
+    -- mesma mentira do numero de fora-de-combate, so que desenhada.
+    local desde = context.knownFrom or 0
+    if desde > 0 then
+        timeline.unknown = timeline.unknown or timeline:CreateTexture(nil, "ARTWORK")
+        timeline.unknown:SetHeight(RAIL_HEIGHT)
+        timeline.unknown:ClearAllPoints()
+        timeline.unknown:SetPoint("LEFT", timeline.rail, "LEFT", 0, 0)
+        timeline.unknown:SetWidth(math.max(1, X(desde)))
+        timeline.unknown:SetColorTexture(0.45, 0.45, 0.48, 0.55)
+        timeline.unknown:Show()
+    elseif timeline.unknown then
+        timeline.unknown:Hide()
+    end
 
     local marks = (context.combatTimeline or {})
     local used = 0
@@ -1023,6 +1052,17 @@ local function OutOfCombatSeconds()
 
     local marks = context.combatTimeline
     if type(marks) ~= "table" or #marks == 0 then return nil end
+
+    -- REGISTRO INCOMPLETO NAO VIRA NUMERO. `knownFrom > 0` e uma corrida retomada depois de um
+    -- `/reload`: o addon sabe quanto a chave durou (o cronometro do mundo diz), mas so viu o
+    -- combate a partir dali. Somar o resto como "fora de combate" foi o que produziu
+    -- **"Fora de combate: 26:13"** numa chave de 26:13.
+    --
+    -- Some da tela em vez de mostrar um numero qualificado: a faixa de cima tem quatro coisas
+    -- disputando espaco, e "8:12 (parcial)" pede uma explicacao que nao cabe ali. Ausencia se
+    -- entende sozinha; numero errado, nao.
+    local desde = context.knownFrom or 0
+    if desde > 0 then return nil end
 
     local idle = 0
     for i = 1, #marks do
@@ -1553,7 +1593,49 @@ function Scoreboard.DebugLayout()
             return SIDE * 2 + total
         end)(),
         panelHeight = HEADER_HEIGHT + COLHEAD_HEIGHT + 5 * (ROW_HEIGHT + ROW_SPACING) + FOOTER_HEIGHT,
+
+        -- Os TRES conjuntos que precisam fechar entre si: cada `render` declarado numa coluna
+        -- tem que ter um construtor e um pintor. Foi a falta desse fechamento que deixou a
+        -- coluna de pontuacao sem construtor e o painel sem corpo (print de 07/09 20:22).
+        renders = (function()
+            local vistos, out = {}, {}
+            for c = 1, #ALL_COLUMNS do
+                local kind = ALL_COLUMNS[c].render or "value"
+                if not vistos[kind] then
+                    vistos[kind] = true
+                    out[#out + 1] = kind
+                end
+            end
+            return out
+        end)(),
+        builders = (function()
+            local out = {}
+            for kind in pairs(CellBuilders) do out[kind] = true end
+            return out
+        end)(),
+        painters = (function()
+            local out = {}
+            for kind in pairs(CellPainters) do out[kind] = true end
+            return out
+        end)(),
     }
+end
+
+---O que a faixa de cima esta MOSTRANDO. Existe porque a diferenca entre "o numero esta certo" e
+---"o numero nao devia estar ai" so se ve perguntando ao widget.
+function Scoreboard.DebugHeader()
+    if not frame then return {} end
+    return {
+        idleShown = frame.idle and frame.idle:IsShown() and true or false,
+        idleText = frame.idle and frame.idle:GetText() or nil,
+        ilvlShown = frame.ilvl and frame.ilvl:IsShown() and true or false,
+    }
+end
+
+---As celulas desenhadas de uma linha, para o teste poder afirmar que ela existe de verdade.
+function Scoreboard.DebugRow(index)
+    local row = rows and rows[index]
+    return row and row.cells or nil
 end
 
 function Scoreboard.Draw()
@@ -1800,6 +1882,7 @@ function Scoreboard.OnChallengeCompleted()
             and (scoreAfter - scoreBefore) or nil,
         affixes = affixes,
         combatTimeline = ns.Run and ns.Run.GetCombatTimeline(),
+        knownFrom = ns.Run and ns.Run.GetKnownFrom() or 0,
         bosses = ns.Run and ns.Run.GetBosses(),
         deathMarks = ns.Run and ns.Run.GetDeaths(),
         sessionType = 1,   -- geral: a corrida inteira

@@ -275,6 +275,7 @@ C_Texture = {
 }
 C_Timer = { After = function(_, fn) fn() end }
 C_ChallengeMode = {
+    GetActiveChallengeMapID = function() return mundo.challengeMapID end,
     -- Formato do 12.1.0: UMA TABELA. Os campos abaixo sao os que o placar le.
     GetChallengeCompletionInfo = function()
         return {
@@ -312,6 +313,37 @@ Enum = {
     -- ALIADO NPC -- que e exatamente o caso do relato da masmorra de seguidores.
     DamageMeterSourceDisplayType = { None = 0, Ally = 1, Enemy = 2 },
 }
+
+--------------------------------------------------------------------------------
+-- A CHAVE EM ANDAMENTO E O CRONOMETRO DO MUNDO
+--------------------------------------------------------------------------------
+-- Sem estes dois, o caminho da RETOMADA -- o `/reload` no meio da corrida, que e rotina para
+-- quem mexe em addon -- nao existia para o teste. E foi dele que saiu o defeito relatado com
+-- print em 07/09 20:22: "Fora de combate: 26:13" numa chave de 26:13.
+--
+-- `mundo` sao os botoes que o teste gira; o resto do harness nao tinha uma tabela de estado, e
+-- uma so para isto e melhor que duas globais soltas.
+mundo = { challengeMapID = nil, worldElapsed = nil }
+
+Enum.WorldElapsedTimerTypes = { ChallengeMode = 1 }
+
+function GetWorldElapsedTimers()
+    if not mundo.worldElapsed then return {} end
+    return { 1 }
+end
+
+function GetWorldElapsedTime()
+    -- TRES retornos, e o primeiro nao interessa. Conferido no proprio cliente, que le assim em
+    -- cinco lugares: `local _, elapsedTime, type = GetWorldElapsedTime(timerID)`
+    -- (`WorldStateFrame.lua:50`, `Blizzard_ScenarioObjectiveTracker.lua:680`).
+    --
+    -- Eu tinha escrito QUATRO aqui, e o efeito foi o stub acusar de errado um addon que estava
+    -- certo: `Run.ElapsedFromWorldTimer` lia nil, marcava a corrida como parcial, e o teste
+    -- apontava para o codigo do addon. Stub que representa a API errado nao testa nada -- ele
+    -- inventa um defeito.
+    return nil, mundo.worldElapsed, Enum.WorldElapsedTimerTypes.ChallengeMode
+end
+
 
 -- Dados falsos, no formato lido do Details!
 -- Classe e spec DISTINTAS por ator. Nao e enfeite: `classFilename` e `specIconID` sao
@@ -1277,6 +1309,110 @@ do
     for _, ausente in ipairs({ "likes", "like-button" }) do
         check("nao copiamos a coluna de " .. ausente, m.widths[ausente], nil)
     end
+end
+
+print("== placar: toda coluna sabe se desenhar ==")
+-- O DEFEITO DO PRINT DE 07/09 20:22, e ele e do tipo mais enganoso que existe: a coluna de
+-- pontuacao declarava `render = "score"`, tinha `CellPainters.score` e NAO tinha
+-- `CellBuilders.score`. `BuildRow` faz `CellBuilders[kind](cell)`, entao na primeira linha
+-- chamava nil e o desenho abortava -- com o cabecalho e os rotulos de coluna JA na tela, porque
+-- eles sao desenhados antes. O painel abriu bonito e vazio: nao parece erro de Lua, parece
+-- "nao tem dado".
+--
+-- E O HARNESS NAO PEGOU. O unico `Scoreboard.Show` daqui era sem chave, e sem chave as tres
+-- colunas de Mitico+ (pedra, pontuacao, saque) nem entram em `columns`. Testar so o caminho
+-- facil e nao testar.
+do
+    local m = ns.Scoreboard.DebugLayout()
+    check("ha tipos de celula para conferir", #m.renders > 0, true)
+    for _, kind in ipairs(m.renders) do
+        check("a celula `" .. kind .. "` tem construtor", m.builders[kind] == true, true)
+        check("  e tem pintor", m.painters[kind] == true, true)
+    end
+end
+
+print("== placar: a corrida de chave desenha INTEIRA ==")
+-- O teste de ponta a ponta que faltava. A simulacao e uma chave de Mitico+, entao ela e o unico
+-- caminho em que as treze colunas existem ao mesmo tempo.
+--
+-- `Scoreboard.Refresh` engole o erro de proposito -- para um erro no laco nao derrubar o painel
+-- inteiro --, entao quem responde se deu certo NAO e "nao estourou": e `lastError`.
+do
+    ns.Scoreboard.lastError = nil
+    ns.Scoreboard.ShowDemo()
+    check("desenhou sem erro de Lua", ns.Scoreboard.lastError, nil)
+
+    local celulas = ns.Scoreboard.DebugRow(1)
+    check("a primeira linha existe", celulas ~= nil, true)
+    check("com as treze colunas", #celulas, 13)
+
+    -- E cada celula e do tipo que a coluna pediu -- senao um retrato poderia ter sido
+    -- construido onde deveria haver numero, sem erro nenhum e completamente errado.
+    local m = ns.Scoreboard.DebugLayout()
+    for i, key in ipairs(m.order) do
+        local esperado = "value"
+        for _, col in ipairs({ "portrait", "spec", "name", "keystone", "score", "loot" }) do
+            if key == col then esperado = col end
+        end
+        check("celula " .. i .. " (" .. key .. ") e do tipo certo", celulas[i].kind, esperado)
+    end
+end
+
+print("== corrida retomada nao afirma sobre o que nao viu ==")
+-- O SEGUNDO defeito do print de 07/09 20:22: o painel anunciava "Fora de combate: 26:13" numa
+-- chave de 26:13, ou seja a corrida INTEIRA.
+--
+-- A causa e o `/reload` no meio da chave, que e rotina para quem mexe em addon: `Run.Resume`
+-- recupera a duracao do cronometro do mundo, mas o registro de combate recomeca vazio. Somar "o
+-- que nao esta marcado como combate" sobre um registro que so cobre o fim da a corrida toda.
+do
+    ns.Run.Start()
+    check("corrida acompanhada do inicio conhece tudo", ns.Run.GetKnownFrom(), 0)
+
+    -- Uma retomada: o addon carrega com a chave ja em andamento.
+    ns.Run.Stop()
+    mundo.challengeMapID = 500
+    mundo.worldElapsed = 900          -- 15 minutos ja passaram
+    ns.Run.Resume()
+
+    local desde = ns.Run.GetKnownFrom()
+    check("retomada sabe que so viu do minuto 15 em diante", desde, 900)
+    check("e a semente do eixo comeca la, nao no zero",
+        ns.Run.GetCombatTimeline()[1][1], 900)
+
+    -- E o painel NAO mostra o numero de fora-de-combate nesse caso.
+    ns.Scoreboard.lastError = nil
+    ns.Scoreboard.Show({
+        kind = "mplus", title = "Retomada", level = 11,
+        durationSeconds = 1573, timeLimit = 1800, onTime = true,
+        knownFrom = 900,
+        combatTimeline = { { 900, false } },
+        rows = ns.Demo.Run().rows,
+        rowCount = 5,
+    })
+    check("desenhou sem erro", ns.Scoreboard.lastError, nil)
+    check("o tempo fora de combate some quando o registro e parcial",
+        ns.Scoreboard.DebugHeader().idleShown, false)
+
+    -- E aparece de novo quando a corrida foi acompanhada do inicio.
+    ns.Scoreboard.Show({
+        kind = "mplus", title = "Inteira", level = 11,
+        durationSeconds = 1000, timeLimit = 1800, onTime = true,
+        knownFrom = 0,
+        combatTimeline = { { 0, false }, { 100, true }, { 400, false } },
+        rows = ns.Demo.Run().rows,
+        rowCount = 5,
+    })
+    check("com registro inteiro, o numero volta",
+        ns.Scoreboard.DebugHeader().idleShown, true)
+    -- 0..100 e 400..1000 fora de combate = 700
+    -- 0..100 e 400..1000 fora de combate = 700 s = 11:40. O rotulo vem junto porque o teste
+    -- pergunta o que esta ESCRITO na tela, nao o que a funcao calculou.
+    check("e ele conta so os trechos fora de combate",
+        ns.Scoreboard.DebugHeader().idleText:find("11:40") ~= nil, true)
+
+    ns.Run.Stop()
+    mundo.challengeMapID = nil
 end
 
 print("== placar: nomes de atlas ==")

@@ -28,6 +28,21 @@ ns.Run = Run
 local active = false
 local startedAt
 local partial = false        -- corrida cujo comeco nao foi gravado (entrou depois do inicio)
+
+-- A PARTIR DE QUANDO O REGISTRO VALE, em segundos de corrida. `nil` (ou 0) significa "desde o
+-- primeiro instante"; qualquer outro numero e uma corrida RETOMADA, e o trecho antes dele o
+-- addon nao viu.
+--
+-- Isto existe por causa de um defeito relatado com print (07/09 20:22): o painel anunciava
+-- **"Fora de combate: 26:13"** numa chave de 26:13 -- ou seja, a corrida inteira. A causa era o
+-- `/reload` no meio da chave, que e rotina para quem mexe em addon: `Run.Resume` recupera o
+-- tempo total do cronometro do mundo, mas o registro de combate recomeca vazio. Somar "o que nao
+-- esta marcado como combate" sobre um registro que so cobre o fim da corrida da o tempo todo.
+--
+-- O proprio arquivo ja tinha a regra escrita, para os offsets: *"um rodape ausente e honesto, um
+-- rodape com os bosses todos deslocados e mentira -- e mentira com aparencia de dado e o pior
+-- resultado possivel"*. Faltava valer para o CONTEUDO tambem.
+local knownFrom = 0
 local combatTimeline = {}
 local bosses = {}
 local deaths = {}
@@ -46,6 +61,7 @@ end
 function Run.Start()
     active = true
     partial = false
+    knownFrom = 0
     startedAt = GetTime()
     combatTimeline = {}
     bosses = {}
@@ -91,7 +107,11 @@ function Run.Resume()
     local elapsed = Run.ElapsedFromWorldTimer()
     if elapsed then
         startedAt = GetTime() - elapsed
-        combatTimeline[1] = { 0, false }
+        -- O REGISTRO SO VALE DAQUI PARA A FRENTE. A semente entra no instante da retomada, nao
+        -- no zero: marcar o zero como "fora de combate" seria afirmar sobre os 20 minutos que o
+        -- addon nao acompanhou.
+        knownFrom = elapsed
+        combatTimeline[1] = { elapsed, InCombatLockdown() and true or false }
     else
         partial = true
     end
@@ -122,6 +142,15 @@ end
 
 function Run.IsPartial()
     return partial
+end
+
+---A partir de que segundo da corrida o registro pode ser lido como verdade.
+---
+---0 numa corrida acompanhada do inicio; o instante da retomada quando houve `/reload` no meio.
+---Quem desenha usa isto para nao afirmar sobre o trecho que ninguem viu.
+function Run.GetKnownFrom()
+    if partial then return nil end
+    return knownFrom
 end
 
 function Run.IsActive()
