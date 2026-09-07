@@ -32,21 +32,57 @@ ns.Scoreboard = Scoreboard
 --------------------------------------------------------------------------------
 -- Geometria
 --------------------------------------------------------------------------------
--- A linha do placar é mais alta que a da janela (25px) de propósito: lá são seis colunas
--- disputando espaço num overlay que fica sobre o jogo; aqui a corrida acabou e a tela é para
--- ler. O corpo da fonte é **próprio** (`ns.Skin.scoreboardFontSize`, hoje 12): este painel foi
--- visto e aprovado nesse tamanho, e a janela de combate subiu para 13 depois — herdar dela
--- desfaria uma aprovação que já existe. Os valores continuam saindo todos de `ns.Skin`.
-local ROW_HEIGHT = 34
-local ROW_SPACING = 2
-local ICON_SIZE = 26
-local ROLE_SIZE = 13
-local NAME_WIDTH = 176
-local SIDE = 14
-local HEADER_HEIGHT = 64
-local COLHEAD_HEIGHT = 16
-local FOOTER_HEIGHT = 66
+-- TODO NÚMERO DESTE BLOCO FOI MEDIDO NO **Details! Mythic+ Scoreboard**, não estimado.
+--
+-- Pedido do usuário: *"pode copiar e deixa exatamente igual ao do Details! mythic scoreboard?
+-- É para copiar tudo mesmo, deixar literalmente tudo igual"*. Então a fonte da verdade deixa de
+-- ser o gosto e passa a ser o arquivo dele, instalado em
+-- `Interface/AddOns/Details_MythicPlus/`. A referência de cada linha vai no comentário, porque
+-- número copiado sem procedência é número que a próxima rodada "arruma" no olho.
+--
+-- O que **não** foi copiado, e por quê, está no cabeçalho de `ALL_COLUMNS`.
+local ROW_HEIGHT = 46            -- `lineHeight`                 (scoreboard.lua:130)
+local ROW_SPACING = 1            -- `-((index-1)*(lineHeight+1))` (:821)
+local LINE_INSET = 2             -- `lineOffset`                 (:129)
+local SIDE = 5                   -- `mainFramePaddingHorizontal` (:119)
+local HEADER_HEIGHT = 65         -- `headerY = -65`              (:125)
+local COLHEAD_HEIGHT = 20        -- `header_height`     (DF/header.lua:747)
+local COL_PADDING = 2            -- `padding`                    (:733)
+-- O RODAPÉ FECHA A CONTA DOS 452 do Details (`mainFrameHeight`, scoreboard.lua:117):
+--   65 (cabeçalho) + 20 (colunas) + 5 × 47 (linhas) + 132 = 452.
+-- Ele é grande porque o eixo de tempo do Details não vem colado nas linhas: as linhas terminam
+-- em −321 e o eixo só começa em −385 (`activityFrameY`, :136). Aqueles 64px de respiro são o
+-- que separa a tabela do gráfico — sem eles o eixo lê como mais uma linha da tabela.
+local FOOTER_HEIGHT = 132
 local MAX_ROWS = 20
+
+-- Retrato, ícone de função e nível de item dentro da coluna de retrato (scoreboard_layout.lua:291-315)
+local PORTRAIT_INSET = 2         -- `lineHeight-2`
+local ROLE_SIZE = 18             -- `RoleIcon:SetSize(18, 18)`
+local ROLE_X, ROLE_Y = -9, -2    -- ancorado em `bottomright` do retrato
+local ILVL_FONT = 11
+local ILVL_BG_HEIGHT = 14
+local ILVL_BG_INSET = 7
+local SPEC_ICON = 20             -- `specIcon:SetSize(20, 20)`   (:363)
+local KEYSTONE_ICON = 45         -- `keystoneTextureSize`  (scoreboard_layout.lua:13)
+local KEYSTONE_FONT = 12
+local LOOT_ICON = 32             -- `frame.LootIcon:SetSize(32, 32)` (:695)
+
+-- Fundo alternado das linhas (:131-133). Branco a 5% e a 10% SOBRE o fundo do painel — não é
+-- preto sobre preto: a diferença entre as duas linhas é clara mesmo com a arte da masmorra
+-- aparecendo por trás, que é o caso real.
+local ROW_TINT_ODD = { 1, 1, 1, 0.10 }
+local ROW_TINT_EVEN = { 1, 1, 1, 0.05 }
+
+-- Cabeçalho de coluna (DF/header.lua:742-747): célula com fundo próprio, texto branco a 10.
+local COLHEAD_TINT = { 0, 0, 0, 0.5 }
+local COLHEAD_TINT_SORTED = { 0.3, 0.3, 0.3, 0.5 }
+
+local TITLE_Y = -12              -- `dungeonNameY`   (scoreboard.lua:123)
+local TITLE_SIZE = 20            -- (:355)
+local TITLE_GAP = -8             -- (:360)
+local CLOCK_SIZE = 16            -- (:361)
+local IDLE_SIZE = 11             -- (:453)
 
 -- Estrela do nível da chave: 100x100 centrada em ("center", frame, "top", 0, 27). Os números
 -- foram medidos pelo autor do Details contra o painel oficial — copiados, não recalibrados.
@@ -62,13 +98,11 @@ local RAIL_HEIGHT = 4
 local BOSS_ICON = 18
 local DEATH_ICON = 11
 local CHEST_ICON = 26            -- nativo 257x226 escalado; aqui só a altura importa
--- A barra de classe é fundo, não bloco: ver o comentário em `DrawRows`.
--- A faixa fina no rodapé da linha, na cor da classe. Mesma linguagem da janela de combate
--- (`PROGRESS_HEIGHT` lá), que é o formato do medidor nativo: a linha NÃO é preenchida de cor.
-local BAR_STRIP_HEIGHT = 3
--- Cheia: a faixa é fina agora, e a 0.45 ela sumia. O que precisava ser lavado era o
--- preenchimento da linha inteira, que deixou de existir.
-local BAR_ALPHA = 1.0
+-- A FAIXA DE CLASSE NO RODAPÉ DA LINHA SAIU (era `BAR_STRIP_HEIGHT`/`BAR_ALPHA`). Ela era nossa
+-- e não existe no Details, e o pedido foi copiar. A escala de dano que ela desenhava também não
+-- existe lá: num placar de fim de corrida a comparação se faz lendo a coluna, não medindo
+-- barras — e a identidade da classe continua em três lugares na mesma linha (retrato, ícone de
+-- especialização e cor do nome).
 
 -- Todo atlas usado pelo painel, num lugar só, para `/rm atlas` conferir a lista inteira de uma
 -- vez em vez de descobrir um nome quebrado por rodada de teste.
@@ -89,23 +123,54 @@ ns.SCOREBOARD_ATLASES = {
     -- Cadeado destravado do cabecalho da janela (0.55.0). Entra aqui porque `/rm atlas` e o
     -- unico jeito de saber se ele existe: `SetAtlas` com nome invalido falha em silencio.
     "common-icon-move",
+    -- O placar copiado do Details! Mythic+ Scoreboard (0.66.0). Todos conferidos na fonte do
+    -- 12.1.0 antes de entrar; ficam aqui porque `/rm atlas` e o unico jeito de descobrir que um
+    -- deles deixou de existir num patch -- `SetAtlas` com nome morto nao avisa nada.
+    "auctionhouse-icon-clock",                    -- tempo fora de combate
+    "bags-icon-equipment",                        -- nivel de item medio
+    "UI-LFG-RoleIcon-Tank-Micro-GroupFinder",     -- TextureUtil.lua:187-189
+    "UI-LFG-RoleIcon-Healer-Micro-GroupFinder",
+    "UI-LFG-RoleIcon-DPS-Micro-GroupFinder",
+    "loottoast-itemborder-white",                 -- ColorConstants.lua:63-70
+    "loottoast-itemborder-green",
+    "loottoast-itemborder-blue",
+    "loottoast-itemborder-purple",
+    "loottoast-itemborder-orange",
 }
 
 --------------------------------------------------------------------------------
 -- Colunas
 --------------------------------------------------------------------------------
--- `key` de coluna de medidor é a mesma chave do catálogo de `Data.lua` — o rótulo curto e o
--- formato do número vêm de lá, sem cópia. `custom = true` marca as que o `C_DamageMeter` não
--- conhece e o placar preenche por conta própria.
+-- AS COLUNAS, NA ORDEM E NA LARGURA DO DETAILS (`scoreboard_layout.lua`, uma linha
+-- `ScoreboardColumn:Create` por coluna):
+--
+--   player-portrait 60 · spec-icon 25 · player-name 110 · keystone 60 · mythic-score 90 ·
+--   loot 80 · deaths 80 · avoidable-damage-taken 80 · damage-taken 100 · dps 100 · hps 100 ·
+--   interrupts 100 · dispels 80
+--
+-- ⚠️ **DUAS COLUNAS DELE NÃO ENTRARAM, e não é preguiça:** `player-likes` (34) e
+-- `player-like-button` (50). Elas são a rede social do plugin — o "gg" viaja pelo canal de
+-- addon do Details entre quem roda o plugin, e ninguém fora dele responde. Um RocketMeter com
+-- essa coluna mostraria **0 LIKES** para sempre, em todas as linhas, para todo mundo: uma
+-- coluna que só sabe mentir ocupa 84px e ensina o jogador a desconfiar do resto da tela.
+--
+-- `render` marca a coluna que desenha algo que não é número; sem ele, é célula numérica e o
+-- rótulo curto e o formato saem do catálogo de `Data.lua`, sem cópia. `custom` marca as que o
+-- `C_DamageMeter` não conhece e o placar preenche por conta própria.
 local ALL_COLUMNS = {
-    { key = "score",      width = 82, custom = true, label = L["Score"] },
-    { key = "deaths",     width = 54 },
-    { key = "taken",      width = 68 },
-    { key = "avoidable",  width = 68 },
-    { key = "dps",        width = 66 },
-    { key = "hps",        width = 66 },
-    { key = "interrupts", width = 54 },
-    { key = "dispels",    width = 54 },
+    { key = "portrait",   width = 60,  render = "portrait", custom = true, label = "" },
+    { key = "spec",       width = 25,  render = "spec",     custom = true, label = "" },
+    { key = "name",       width = 110, render = "name",     custom = true, label = "" },
+    { key = "keystone",   width = 60,  render = "keystone", custom = true, label = L["Keystone"] },
+    { key = "score",      width = 90,  render = "score",    custom = true, label = L["Score"] },
+    { key = "loot",       width = 80,  render = "loot",     custom = true, label = L["Loot"] },
+    { key = "deaths",     width = 80 },
+    { key = "avoidable",  width = 80 },
+    { key = "taken",      width = 100 },
+    { key = "dps",        width = 100 },
+    { key = "hps",        width = 100 },
+    { key = "interrupts", width = 100 },
+    { key = "dispels",    width = 80 },
 }
 
 local DEFAULT_SORT = "dps"
@@ -127,13 +192,19 @@ local function IsKeystone()
     return context ~= nil and context.level ~= nil
 end
 
----Recalcula quais colunas aparecem. Só a de pontuação de M+ é condicional hoje.
+---Recalcula quais colunas aparecem.
+---
+---Fora de uma chave saem as três que só existem em Mítico+ — pedra, pontuação e saque. As
+---outras `custom` (retrato, especialização, nome) valem em qualquer placar e ficam: um placar
+---de raide sem a coluna de nome seria uma tabela de números sem dono.
+local KEYSTONE_ONLY = { keystone = true, score = true, loot = true }
+
 local function ComputeColumns()
     if IsKeystone() then return ALL_COLUMNS end
 
     local out = {}
     for c = 1, #ALL_COLUMNS do
-        if not ALL_COLUMNS[c].custom then out[#out + 1] = ALL_COLUMNS[c] end
+        if not KEYSTONE_ONLY[ALL_COLUMNS[c].key] then out[#out + 1] = ALL_COLUMNS[c] end
     end
     return out
 end
@@ -150,18 +221,26 @@ local function ColumnLabel(column)
     return ns.Data.GetShortLabel(column.key)
 end
 
+---A borda ESQUERDA de cada coluna, e a largura total.
+---
+---Da esquerda para a direita, e este é o giro de 180° que a cópia obrigou: o placar antigo
+---empilhava as colunas a partir da BORDA DIREITA, com um bloco fixo de nome à esquerda. O
+---Details não faz isso — cada coluna começa onde a anterior terminou, mais `padding`
+---(`DF/header.lua:363` e `:531`), e o conteúdo da célula se alinha à esquerda dela
+---(`AlignWithHeader(headerFrame, "left")`, `scoreboard.lua:836`). Nome e retrato deixam de ser
+---exceção e viram duas colunas como as outras.
 local function ColumnOffsets()
-    local offsets, running = {}, 0
-    for c = #columns, 1, -1 do
-        offsets[c] = running
-        running = running + columns[c].width
+    local offsets, x = {}, 0
+    for c = 1, #columns do
+        offsets[c] = x
+        x = x + columns[c].width + COL_PADDING
     end
-    return offsets, running
+    return offsets, x
 end
 
 local function PanelWidth()
     local _, columnsWidth = ColumnOffsets()
-    return SIDE * 2 + NAME_WIDTH + columnsWidth
+    return SIDE * 2 + columnsWidth
 end
 
 local function PanelHeight(rowCount)
@@ -343,6 +422,16 @@ function Scoreboard.Snapshot(base)
         local isLocal = source.isLocalPlayer
         isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
 
+        -- O QUE O MEDIDOR NÃO SABE viaja no retrato junto com o resto: nível de item, pedra e
+        -- saque. Tem que ser AQUI, no instante da captura — uma corrida reaberta na semana que
+        -- vem não tem mais grupo para inspecionar nem evento de saque para ouvir.
+        local ilevel, keystoneLevel, keystoneMapID, gotLoot
+        if ns.Party then
+            ilevel = ns.Party.ItemLevel(source.name)
+            keystoneLevel, keystoneMapID = ns.Party.Keystone(source.name)
+            gotLoot = ns.Party.Loot(source.name)
+        end
+
         rows[i] = {
             name = name or (UNKNOWN or "?"),
             classFilename = classFilename,
@@ -350,6 +439,10 @@ function Scoreboard.Snapshot(base)
             role = RoleFor(source.name),
             isLocalPlayer = isLocal,
             scoreGain = isLocal and base.scoreGain or nil,
+            ilevel = ilevel,
+            keystoneLevel = keystoneLevel,
+            keystoneMapID = keystoneMapID,
+            loot = gotLoot,
             values = values,
         }
     end
@@ -467,16 +560,21 @@ end
 --------------------------------------------------------------------------------
 -- Cabeçalho de colunas
 --------------------------------------------------------------------------------
+---O cabeçalho de colunas, no formato do Details: cada coluna é uma CÉLULA com fundo próprio,
+---20px de altura, texto branco pequeno encostado à esquerda.
+---
+---A régua dourada que havia aqui saiu. Ela era invenção nossa; o Details separa cabeçalho de
+---linhas pelo próprio fundo das células (`header_backdrop_color = {0, 0, 0, 0.5}`,
+---`DF/header.lua:743`), que é mais escuro que o das linhas — e por isso a divisão aparece sem
+---precisar de um risco.
+---
+---O clique para ordenar FICA. Ele não é do Details, mas também não muda nada do que se vê:
+---a coluna ordenada troca o tom do fundo pelo `header_backdrop_color_selected` que o próprio
+---framework dele já define (`:744`), então até o realce é número dele.
 local function BuildColumnHeader()
     if not headerRow then
         headerRow = CreateFrame("Frame", nil, frame)
         headerRow.labels = {}
-
-        headerRow.rule = headerRow:CreateTexture(nil, "ARTWORK")
-        headerRow.rule:SetPoint("BOTTOMLEFT", 0, 0)
-        headerRow.rule:SetPoint("BOTTOMRIGHT", 0, 0)
-        headerRow.rule:SetHeight(1)
-        headerRow.rule:SetColorTexture(1, 0.82, 0, 0.20)
     end
 
     headerRow:ClearAllPoints()
@@ -489,13 +587,20 @@ local function BuildColumnHeader()
     for c = 1, #columns do
         local button = headerRow.labels[c]
         if not button then
-            button = CreateFrame("Button", nil, headerRow)
+            button = CreateFrame("Button", nil, headerRow, "BackdropTemplate")
             button:SetHeight(COLHEAD_HEIGHT)
-            button.text = button:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-            button.text:SetPoint("RIGHT", -4, 0)
-            button.text:SetJustifyH("RIGHT")
+            button:SetBackdrop({
+                bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                tileSize = 64, tile = true,
+            })
+            button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            button.text:SetPoint("LEFT", COL_PADDING, 0)
+            button.text:SetJustifyH("LEFT")
+            button.text:SetWordWrap(false)
             button:SetScript("OnClick", function(self)
-                local key = columns[self.columnIndex].key
+                local column = columns[self.columnIndex]
+                if column.render and column.render ~= "score" then return end
+                local key = column.key
                 if sortBy == key then sortDesc = not sortDesc else sortBy, sortDesc = key, true end
                 -- Pela função pública, não por `Draw()` cru: `SafeDraw` é local e declarado
                 -- mais abaixo, então aqui ele nem seria visível — e um erro de desenho
@@ -505,10 +610,14 @@ local function BuildColumnHeader()
             end)
             button:SetScript("OnEnter", function(self)
                 local column = columns[self.columnIndex]
+                local label = ColumnLabel(column)
+                if label == "" then return end
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:SetText(column.custom and ColumnLabel(column)
+                GameTooltip:SetText(column.custom and label
                     or ns.Data.GetAttributeLabel(column.key), 1, 1, 1)
-                GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
+                if not column.render or column.render == "score" then
+                    GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
+                end
                 GameTooltip:Show()
             end)
             button:SetScript("OnLeave", GameTooltip_Hide)
@@ -518,34 +627,142 @@ local function BuildColumnHeader()
         button.columnIndex = c
         button:SetWidth(columns[c].width)
         button:ClearAllPoints()
-        button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
+        button:SetPoint("TOPLEFT", headerRow, "TOPLEFT", offsets[c], 0)
 
-        -- O mesmo corpo do cabeçalho de colunas da janela, lido de `ns.Skin` em vez de
-        -- redigitado: é absoluto, não delta, e não deve crescer junto se a linha mudar.
-        ns.ApplyScoreboardFont(button.text, ns.Skin.colheadFontSize - ns.Skin.scoreboardFontSize, "")
-        -- Só a cor marca a coluna ordenada; seta ao lado repetiria a informação.
-        local label = ColumnLabel(columns[c])
-        if columns[c].key == sortBy then
-            button.text:SetText("|cffffd100" .. label .. "|r")
-        else
-            button.text:SetText("|cffb8ac8a" .. label .. "|r")
-        end
+        local sorted = columns[c].key == sortBy
+        button:SetBackdropColor(unpack(sorted and COLHEAD_TINT_SORTED or COLHEAD_TINT))
+
+        -- Corpo 10, que é o `text_size` do framework dele (`DF/header.lua:730`), lido pela
+        -- escada do addon para o seletor de fonte continuar valendo.
+        ns.ApplyScoreboardFont(button.text, 10 - ns.Skin.scoreboardFontSize, "")
+        button.text:SetText(ColumnLabel(columns[c]))
+        button.text:SetTextColor(1, 1, 1, 1)
         button:Show()
+    end
+
+    for c = #columns + 1, #headerRow.labels do
+        headerRow.labels[c]:Hide()
     end
 end
 
 --------------------------------------------------------------------------------
 -- Linhas
 --------------------------------------------------------------------------------
+---As peças de uma célula, por tipo de coluna. Cada construtor devolve o objeto que o desenho
+---vai preencher, e todos vivem dentro de um frame de célula com a largura da coluna — assim
+---quem muda a largura de uma coluna não precisa saber o que tem dentro dela.
+local CellBuilders = {}
+
+---Retrato redondo + ícone de função + nível de item (`scoreboard_layout.lua:291-315`).
+function CellBuilders.portrait(cell)
+    local size = ROW_HEIGHT - PORTRAIT_INSET * 2
+
+    cell.portrait = cell:CreateTexture(nil, "ARTWORK")
+    cell.portrait:SetSize(size, size)
+    cell.portrait:SetPoint("LEFT", COL_PADDING, 0)
+
+    cell.role = cell:CreateTexture(nil, "OVERLAY", nil, 6)
+    cell.role:SetSize(ROLE_SIZE, ROLE_SIZE)
+    cell.role:SetPoint("BOTTOMLEFT", cell.portrait, "BOTTOMRIGHT", ROLE_X, ROLE_Y)
+
+    -- A placa escura atrás do nível de item. `LoC-ShadowBG` é a mesma textura do Details
+    -- (`:311`) e é do próprio jogo — não é arte do addon dele.
+    cell.ilvlBg = cell:CreateTexture(nil, "OVERLAY", nil, 5)
+    cell.ilvlBg:SetTexture("Interface\\Cooldown\\LoC-ShadowBG")
+    cell.ilvlBg:SetPoint("BOTTOMLEFT", cell.portrait, "BOTTOMLEFT", -ILVL_BG_INSET, -1)
+    cell.ilvlBg:SetPoint("BOTTOMRIGHT", cell.portrait, "BOTTOMRIGHT", ILVL_BG_INSET, -1)
+    cell.ilvlBg:SetHeight(ILVL_BG_HEIGHT)
+
+    cell.ilvl = cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cell.ilvl:SetPoint("BOTTOM", cell.portrait, "BOTTOM", 0, 0)
+end
+
+function CellBuilders.spec(cell)
+    cell.icon = cell:CreateTexture(nil, "OVERLAY")
+    cell.icon:SetSize(SPEC_ICON, SPEC_ICON)
+    cell.icon:SetPoint("LEFT", COL_PADDING, 0)
+
+    -- Segunda textura porque especialização é id de ícone e classe é recorte de atlas, e
+    -- `SetMask` não convive com `SetTexCoord`. O placar antigo aplicava máscara aqui e o ícone
+    -- de classe sumia — é o defeito que aquela reescrita corrigiu, e ele não pode voltar.
+    cell.iconClass = cell:CreateTexture(nil, "OVERLAY")
+    cell.iconClass:SetSize(SPEC_ICON, SPEC_ICON)
+    cell.iconClass:SetPoint("LEFT", COL_PADDING, 0)
+    cell.iconClass:Hide()
+end
+
+function CellBuilders.name(cell)
+    cell.text = cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cell.text:SetPoint("LEFT", COL_PADDING, 0)
+    cell.text:SetPoint("RIGHT", -COL_PADDING, 0)
+    cell.text:SetJustifyH("LEFT")
+    cell.text:SetWordWrap(false)
+end
+
+---Ícone da masmorra da pedra + nível (`scoreboard_layout.lua:515-560`).
+function CellBuilders.keystone(cell)
+    cell.icon = cell:CreateTexture(nil, "ARTWORK")
+    cell.icon:SetSize(KEYSTONE_ICON, KEYSTONE_ICON)
+    cell.icon:SetPoint("LEFT", COL_PADDING, 0)
+    -- O recorte tira a moldura da arte da masmorra e deixa só a cena.
+    cell.icon:SetTexCoord(36 / 512, 375 / 512, 50 / 512, 290 / 512)
+    cell.icon:SetAlpha(0.932)
+    if cell.icon.SetMask then
+        pcall(cell.icon.SetMask, cell.icon, "Interface\\FrameGeneral\\UIFrameIconMask")
+    end
+
+    cell.levelBg = cell:CreateTexture(nil, "ARTWORK", nil, 6)
+    cell.levelBg:SetTexture("Interface\\Cooldown\\LoC-ShadowBG")
+    cell.levelBg:SetPoint("BOTTOMLEFT", cell.icon, "BOTTOMLEFT", -5, -1)
+    cell.levelBg:SetPoint("BOTTOMRIGHT", cell.icon, "BOTTOMRIGHT", 5, -1)
+    cell.levelBg:SetHeight(ILVL_BG_HEIGHT)
+
+    cell.level = cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cell.level:SetPoint("BOTTOM", cell.icon, "BOTTOM", 0, -1)
+end
+
+---Quadrado de saque: ícone 32 com borda na cor da qualidade e o nível do item por cima
+---(`scoreboard_layout.lua:674-699`).
+function CellBuilders.loot(cell)
+    cell.icon = cell:CreateTexture(nil, "ARTWORK")
+    cell.icon:SetSize(LOOT_ICON, LOOT_ICON)
+    cell.icon:SetPoint("LEFT", COL_PADDING, 0)
+
+    cell.border = cell:CreateTexture(nil, "OVERLAY")
+    cell.border:SetSize(LOOT_ICON, LOOT_ICON)
+    cell.border:SetPoint("CENTER", cell.icon, "CENTER", 0, 0)
+    -- A borda nasce escondida: quem escolhe o atlas e a QUALIDADE do item, no desenho.
+    cell.border:Hide()
+
+    cell.ilvlBg = cell:CreateTexture(nil, "OVERLAY", nil, 5)
+    cell.ilvlBg:SetTexture("Interface\\Cooldown\\LoC-ShadowBG")
+    cell.ilvlBg:SetPoint("BOTTOMLEFT", cell.icon, "BOTTOMLEFT", -3, -1)
+    cell.ilvlBg:SetPoint("BOTTOMRIGHT", cell.icon, "BOTTOMRIGHT", 3, -1)
+    cell.ilvlBg:SetHeight(ILVL_BG_HEIGHT)
+
+    cell.ilvl = cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cell.ilvl:SetPoint("BOTTOM", cell.icon, "BOTTOM", 0, 0)
+end
+
+---Célula de número — e de pontuação, que é número com o ganho colado.
+function CellBuilders.value(cell)
+    cell.text = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cell.text:SetPoint("LEFT", COL_PADDING, 0)
+    cell.text:SetPoint("RIGHT", -COL_PADDING, 0)
+    -- À ESQUERDA, e é a mudança que mais se vê. O placar antigo alinhava número à direita, que
+    -- é o certo para comparar grandezas empilhadas; o Details alinha tudo à esquerda, colado ao
+    -- rótulo da coluna (`AlignWithHeader(headerFrame, "left")`). Copiar é copiar isso também.
+    cell.text:SetJustifyH("LEFT")
+    cell.text:SetWordWrap(false)
+end
+
 local function BuildRow(index)
     local row = rows[index]
 
     if not row then
         -- Frame, não Button: a linha do placar não faz nada ao ser clicada. Como Button ela
         -- capturava o mouse e o painel deixava de ser arrastável em cima das linhas — que é
-        -- justamente onde a pessoa agarra. E a textura de HIGHLIGHT que existia aqui nunca
-        -- chegou a desenhar: ela estava num Frame filho sem mouse, e HIGHLIGHT só é pintada
-        -- pelo próprio botão que recebe o hover.
+        -- justamente onde a pessoa agarra.
         row = CreateFrame("Frame", nil, frame)
         row:SetHeight(ROW_HEIGHT)
         row:EnableMouse(false)
@@ -553,95 +770,51 @@ local function BuildRow(index)
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
 
-        -- FAIXA FINA NO RODAPÉ, não preenchimento da linha.
-        --
-        -- A barra preenchia a linha inteira na cor da classe, e o usuário reprovou: "a cor de
-        -- fundo de cada classe fica ruim para ver os números da tabela, tem que tirar". Estava
-        -- certo, e a alternativa não é apagar a informação — é a mesma faixa fina que a janela
-        -- de combate já usa e que ele já aprovou lá. A escala continua visível, o número passa
-        -- a ser lido sobre fundo neutro, e as duas telas ficam com a mesma linguagem.
-        row.bar = CreateFrame("StatusBar", nil, row)
-        row.bar:SetPoint("BOTTOMLEFT", 0, 0)
-        row.bar:SetPoint("BOTTOMRIGHT", 0, 0)
-        row.bar:SetHeight(BAR_STRIP_HEIGHT)
-        row.bar:SetStatusBarTexture(ns.BarTexture())
-        row.bar:SetMinMaxValues(0, 1)
-        row.bar:SetValue(0)
-        row.bar:SetFrameLevel(row:GetFrameLevel() + 1)
-
-        -- Frame filho desenha ACIMA de qualquer FontString do pai: sem esta camada o texto
-        -- some atrás da barra. Está documentado no `Window.lua` e custou uma rodada lá.
-        row.text = CreateFrame("Frame", nil, row)
-        row.text:SetAllPoints()
-        row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
-
-        row.role = row.text:CreateTexture(nil, "OVERLAY")
-        row.role:SetSize(ROLE_SIZE, ROLE_SIZE)
-        row.role:SetPoint("LEFT", 6, 0)
-
-        -- Duas texturas de ícone porque especialização é id inteiro e classe é recorte de
-        -- atlas, e `SetMask` não convive com `SetTexCoord` ("Cannot set tex coords when
-        -- texture has mask"). O placar antigo aplicava máscara aqui e o ícone de classe
-        -- sumia — é o bug que esta reescrita corrige.
-        -- A âncora dos dois ícones é decidida no desenho: ela depende de haver ou não ícone
-        -- de função nesta linha (ver `DrawRows`).
-        row.icon = row.text:CreateTexture(nil, "OVERLAY")
-        row.icon:SetSize(ICON_SIZE, ICON_SIZE)
-
-        row.iconClass = row.text:CreateTexture(nil, "OVERLAY")
-        row.iconClass:SetSize(ICON_SIZE, ICON_SIZE)
-        row.iconClass:Hide()
-
-        row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        row.name:SetPoint("LEFT", row.icon, "RIGHT", 7, 0)
-        row.name:SetJustifyH("LEFT")
-        row.name:SetWordWrap(false)
-        row.nameHalo = ns.CreateHalo(row.text, row.name)
-
-        -- Nome e reino em dois corpos, exatamente como na janela: quem reparte a largura e
-        -- `ns.DrawName`, que vive no Window.lua para as duas telas nao divergirem.
-        row.realm = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        row.realm:SetPoint("LEFT", row.name, "RIGHT", 0, 0)
-        row.realm:SetJustifyH("LEFT")
-        row.realm:SetWordWrap(false)
-        row.realmHalo = ns.CreateHalo(row.text, row.realm)
-
         row.cells = {}
-        row.cellHalos = {}
         rows[index] = row
     end
 
     row:ClearAllPoints()
-    local offsetY = -(HEADER_HEIGHT + COLHEAD_HEIGHT + (index - 1) * (ROW_HEIGHT + ROW_SPACING))
-    row:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE, offsetY)
-    row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE, offsetY)
-
-    ns.ApplyScoreboardFont(row.name, 0, "")
-    ns.SyncHaloFont(row.name, row.nameHalo,
-        ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
-    ns.ApplyScoreboardFont(row.realm, ns.REALM_FONT_DELTA, "")
-    ns.SyncHaloFont(row.realm, row.realmHalo,
-        ns.REALM_FONT_DELTA + ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
+    local offsetY = -(HEADER_HEIGHT + COLHEAD_HEIGHT
+        + (index - 1) * (ROW_HEIGHT + ROW_SPACING) + 1)
+    row:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDE + LINE_INSET, offsetY)
+    row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE - LINE_INSET, offsetY)
 
     local offsets = ColumnOffsets()
 
     for c = 1, #columns do
         local cell = row.cells[c]
+        local kind = columns[c].render or "value"
+
+        -- A célula guarda o TIPO com que foi construída. As colunas mudam entre uma corrida de
+        -- chave e um placar de raide, e uma célula reaproveitada com o construtor errado
+        -- desenharia um retrato onde deveria haver um número — sem erro nenhum, só errado.
+        if cell and cell.kind ~= kind then
+            cell:Hide()
+            cell = nil
+            row.cells[c] = nil
+        end
+
         if not cell then
-            cell = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            cell:SetJustifyH("RIGHT")
+            cell = CreateFrame("Frame", nil, row)
+            cell.kind = kind
+            cell:SetHeight(ROW_HEIGHT)
+            CellBuilders[kind](cell)
             row.cells[c] = cell
-            row.cellHalos[c] = ns.CreateHalo(row.text, cell)
         end
-        cell:SetWidth(columns[c].width - 8)
+
+        cell:SetWidth(columns[c].width)
         cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row, "RIGHT", -offsets[c] - 4, 0)
-        for _, echo in ipairs(row.cellHalos[c]) do
-            echo:SetWidth(columns[c].width - 8)
-        end
-        ns.ApplyScoreboardFont(cell, 0, "")
-        ns.SyncHaloFont(cell, row.cellHalos[c], ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
+        cell:SetPoint("TOPLEFT", row, "TOPLEFT", offsets[c], 0)
+
+        if cell.text then ns.ApplyScoreboardFont(cell.text, 0, "") end
+        if cell.ilvl then ns.ApplyScoreboardFont(cell.ilvl, ILVL_FONT - ns.Skin.scoreboardFontSize, "") end
+        if cell.level then ns.ApplyScoreboardFont(cell.level, KEYSTONE_FONT - ns.Skin.scoreboardFontSize, "") end
         cell:Show()
+    end
+
+    for c = #columns + 1, #row.cells do
+        if row.cells[c] then row.cells[c]:Hide() end
     end
 
     return row
@@ -838,6 +1011,49 @@ local function DrawTimeline()
 end
 
 --------------------------------------------------------------------------------
+-- Números do cabeçalho
+--------------------------------------------------------------------------------
+---Quanto tempo da corrida foi passado FORA de combate.
+---
+---Sai do mesmo eixo que desenha o trilho verde e vermelho, então os dois nunca podem discordar:
+---o número no cabeçalho é a soma do que está pintado de vermelho embaixo.
+local function OutOfCombatSeconds()
+    local total = context and context.durationSeconds
+    if not total or issecretvalue(total) or total <= 0 then return nil end
+
+    local marks = context.combatTimeline
+    if type(marks) ~= "table" or #marks == 0 then return nil end
+
+    local idle = 0
+    for i = 1, #marks do
+        local startAt, inCombat = marks[i][1], marks[i][2]
+        local stopAt = marks[i + 1] and marks[i + 1][1] or total
+        if not inCombat and stopAt > startAt then idle = idle + (stopAt - startAt) end
+    end
+    return idle
+end
+
+---Nível de item médio do grupo, pelos que o retrato conseguiu saber.
+---
+---Média só do que se sabe, e nil quando não se sabe de ninguém. Contar quem não foi
+---inspecionado como zero puxaria a média para baixo e daria um número errado com cara de certo.
+local function AverageItemLevel()
+    local rows = context and context.rows
+    if type(rows) ~= "table" then return nil end
+
+    local sum, count = 0, 0
+    for i = 1, #rows do
+        local level = rows[i].ilevel
+        if level and level > 0 then
+            sum = sum + level
+            count = count + 1
+        end
+    end
+    if count == 0 then return nil end
+    return sum / count
+end
+
+--------------------------------------------------------------------------------
 -- Construção do painel
 --------------------------------------------------------------------------------
 local function CreateHeaderArt()
@@ -873,8 +1089,10 @@ end
 
 local function CreateTimeline()
     timeline = CreateFrame("Frame", nil, frame)
-    timeline:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", SIDE, 40)
-    timeline:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SIDE, 40)
+    -- 63 do fundo: o eixo do Details fica em −385 num painel de 452 e tem 4px de altura
+    -- (`activityFrameY` e `activityFrame:SetHeight(4)`, scoreboard.lua:136 e :851).
+    timeline:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", SIDE + LINE_INSET * 2, 63)
+    timeline:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SIDE - LINE_INSET * 2 - 1, 63)
     timeline:SetHeight(RAIL_HEIGHT)
 
     -- Os dois gradientes são o que faz o eixo parecer arte em vez de um risco: escuro
@@ -935,28 +1153,73 @@ local function CreatePanel()
 
     CreateHeaderArt()
 
+    -- Título a -12 e corpo 20; tempo logo abaixo a -8 e corpo 16. São as quatro medidas do
+    -- cabeçalho do Details (`scoreboard.lua:123`, `:355`, `:360`, `:361`).
     frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    frame.title:SetPoint("TOP", frame, "TOP", 0, -13)
+    frame.title:SetPoint("TOP", frame, "TOP", 0, TITLE_Y)
     frame.title:SetTextColor(1, 0.82, 0)
 
     frame.clock = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    frame.clock:SetPoint("TOP", frame.title, "BOTTOM", 0, -4)
+    frame.clock:SetPoint("TOP", frame.title, "BOTTOM", 0, TITLE_GAP)
 
     frame.result = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     frame.result:SetPoint("TOP", frame.clock, "BOTTOM", 0, -3)
 
-    -- Afixos à esquerda do cabeçalho, pequenos: são contexto, não manchete.
+    -- CANTO SUPERIOR ESQUERDO: o relógio de tempo FORA de combate e o nível de item médio do
+    -- grupo (`scoreboard.lua:443-470`). São as duas linhas de contexto da corrida que o Details
+    -- põe ali, e as duas respondem perguntas que o resto do painel não responde: quanto tempo se
+    -- gastou andando, e com que equipamento o grupo entrou.
+    frame.idleIcon = frame:CreateTexture(nil, "ARTWORK")
+    frame.idleIcon:SetSize(24, 24)
+    frame.idleIcon:SetPoint("TOPLEFT", SIDE, -5)
+    -- `auctionhouse-icon-clock` nao e um relogio escolhido no olho: e o que a Blizzard usa em
+    -- tres lugares (`Blizzard_AuctionHouseUtil.lua:8`, `CovenantMissionTemplates.xml:588`,
+    -- `Blizzard_ProfessionsTemplates.lua:114`), conferido na fonte do 12.1.0.
+    if not Atlas(frame.idleIcon, "auctionhouse-icon-clock") then
+        frame.idleIcon:SetTexture("Interface\\Icons\\INV_Misc_PocketWatch_01")
+    end
+    frame.idleIcon:SetVertexColor(0.75, 0.75, 0.78)
+
+    frame.idle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.idle:SetPoint("LEFT", frame.idleIcon, "RIGHT", 6, -3)
+    frame.idle:SetJustifyH("LEFT")
+    frame.idle:SetTextColor(0.75, 0.75, 0.78)
+
+    frame.ilvlIcon = frame:CreateTexture(nil, "ARTWORK")
+    frame.ilvlIcon:SetSize(20, 20)
+    frame.ilvlIcon:SetPoint("LEFT", frame.idleIcon, "RIGHT", 260, 0)
+    -- `bags-icon-equipment` (`ContainerFrame.lua:219`). O Details usa um PNG proprio aqui; a
+    -- arte equivalente que o jogo tem e o icone de equipamento das bolsas.
+    if not Atlas(frame.ilvlIcon, "bags-icon-equipment") then
+        frame.ilvlIcon:SetTexture("Interface\\Icons\\INV_Chest_Cloth_17")
+    end
+    frame.ilvlIcon:SetVertexColor(0.9, 0.9, 0.9)
+    frame.ilvlIcon:SetAlpha(0.834)
+
+    frame.ilvl = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.ilvl:SetPoint("LEFT", frame.ilvlIcon, "RIGHT", 6, 0)
+    frame.ilvl:SetJustifyH("LEFT")
+
+    -- Afixos: logo abaixo do relógio, pequenos. O Details não os mostra — mas ele também não
+    -- mostra o resultado da chave em texto, e nós mostramos: são as duas coisas que o painel
+    -- ganhou antes desta cópia e que tirar seria PERDER informação, não copiar.
     frame.affixes = {}
     for i = 1, 4 do
         local icon = frame:CreateTexture(nil, "OVERLAY")
         icon:SetSize(18, 18)
-        icon:SetPoint("TOPLEFT", SIDE + (i - 1) * 21, -12)
+        icon:SetPoint("TOPLEFT", SIDE + (i - 1) * 21, -34)
         icon:Hide()
         frame.affixes[i] = icon
     end
 
+    -- A CONTAGEM DE MORTES SOBREVIVEU À CÓPIA, e vale dizer por quê: o número de mortes virou
+    -- coluna (como no Details), mas o **tempo perdido com elas** — o `(-00:10)` — não existe no
+    -- painel dele, e é o dado que responde "as mortes custaram a chave?". Copiar não é apagar o
+    -- que a nossa tela já respondia melhor.
+    --
+    -- Ela vai para a direita do nível de item, que é o espaço livre da faixa de cima.
     frame.deaths = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    frame.deaths:SetPoint("TOPLEFT", SIDE, -36)
+    frame.deaths:SetPoint("LEFT", frame.ilvl, "RIGHT", 24, 0)
     frame.deaths:SetJustifyH("LEFT")
 
     -- Glifo chapado, não botão com moldura: a família de ícones do addon é plana.
@@ -987,6 +1250,14 @@ end
 -- Desenho
 --------------------------------------------------------------------------------
 local function DrawHeader()
+    -- Os corpos do Details, aplicados pela escada do addon para o seletor de fonte continuar
+    -- valendo: título 20, tempo 16, relógio de ocioso 11.
+    ns.ApplyScoreboardFont(frame.title, TITLE_SIZE - ns.Skin.scoreboardFontSize, "")
+    ns.ApplyScoreboardFont(frame.clock, CLOCK_SIZE - ns.Skin.scoreboardFontSize, "")
+    ns.ApplyScoreboardFont(frame.idle, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
+    ns.ApplyScoreboardFont(frame.ilvl, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
+    ns.ApplyScoreboardFont(frame.deaths, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
+
     frame.title:SetText(context.title or L["Dungeon"])
 
     -- A estrela é o selo de "que conteúdo é este". Em Mítico+ carrega o nível da pedra; em
@@ -1023,6 +1294,22 @@ local function DrawHeader()
         frame.result:SetText("|cffe06060" .. L["over time"] .. "|r")
     end
 
+    -- TEMPO FORA DE COMBATE: soma dos trechos vermelhos do eixo. É o número que o Details
+    -- mostra como *"Not in combat"*, e ele responde a pergunta que a duração sozinha não
+    -- responde — quanto da corrida foi andando.
+    local idle = OutOfCombatSeconds()
+    frame.idle:SetShown(idle ~= nil)
+    if idle then
+        frame.idle:SetText(format(L["Not in combat: %s"], SecondsToClock(idle)))
+    end
+
+    -- NÍVEL DE ITEM MÉDIO do grupo, do próprio retrato. Sem nenhum conhecido, some: um "0" ali
+    -- seria lido como um grupo pelado em vez de "não deu para inspecionar".
+    local average = AverageItemLevel()
+    frame.ilvlIcon:SetShown(average ~= nil)
+    frame.ilvl:SetShown(average ~= nil)
+    frame.ilvl:SetText(average and tostring(math.floor(average + 0.5)) or "")
+
     local deaths = context.deaths
     if deaths and not issecretvalue(deaths) then
         local text = format(L["%d deaths"], deaths)
@@ -1053,40 +1340,158 @@ local function DrawHeader()
     ApplyBackdropArt(frame.art, context.mapID)
 end
 
+--------------------------------------------------------------------------------
+-- Desenho de uma célula, por tipo
+--------------------------------------------------------------------------------
+-- `GetMicroIconForRole` (`Blizzard_SharedXMLBase/TextureUtil.lua:193`) é a global que o próprio
+-- Details usa aqui, e ela **levanta erro** para função desconhecida — daí a tabela ao lado dela
+-- em vez de uma chamada direta com o que vier do retrato.
+local ROLE_MICRO_ATLAS = {
+    TANK = "UI-LFG-RoleIcon-Tank-Micro-GroupFinder",
+    HEALER = "UI-LFG-RoleIcon-Healer-Micro-GroupFinder",
+    DAMAGER = "UI-LFG-RoleIcon-DPS-Micro-GroupFinder",
+}
+
+local CellPainters = {}
+
+---Retrato: o rosto real de quem ainda está no grupo; o círculo da classe para o resto.
+---
+---É a mesma degradação do Details (`scoreboard_layout.lua:320-336`), e ela importa porque o
+---placar guardado é aberto dias depois — quando `SetPortraitTexture` não tem mais unidade para
+---consultar e a única identidade que sobrou é a classe.
+function CellPainters.portrait(cell, entry)
+    local row = entry.row or {}
+    local class = row.classFilename
+
+    local drew = false
+    local name = row.name
+    if name and not issecretvalue(name) and UnitExists and UnitExists(name) and SetPortraitTexture then
+        drew = pcall(SetPortraitTexture, cell.portrait, name)
+        if drew then cell.portrait:SetTexCoord(0, 1, 0, 1) end
+    end
+
+    if not drew or not cell.portrait:GetTexture() then
+        local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
+        if coords then
+            cell.portrait:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+            cell.portrait:SetTexCoord(unpack(coords))
+        else
+            cell.portrait:SetTexture("Interface\\ICONS\\INV_Misc_QuestionMark")
+            cell.portrait:SetTexCoord(0, 1, 0, 1)
+        end
+    end
+
+    local role = row.role
+    if role and ROLE_MICRO_ATLAS[role] and Atlas(cell.role, ROLE_MICRO_ATLAS[role]) then
+        cell.role:Show()
+    else
+        cell.role:Hide()
+    end
+
+    -- Nível de item na cor da classe, como no Details (`:344`). Sem o número, um traço: a
+    -- placa escura fica, porque o buraco na coluna é pior que o traço.
+    local ilevel = row.ilevel
+    local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+    cell.ilvl:SetTextColor(color and color.r or 1, color and color.g or 1, color and color.b or 1)
+    cell.ilvl:SetText(ilevel and ilevel > 0 and tostring(math.floor(ilevel + 0.5)) or "-")
+end
+
+function CellPainters.spec(cell, entry)
+    ns.ApplyRowIcon(cell.icon, cell.iconClass, entry.source)
+end
+
+function CellPainters.name(cell, entry)
+    local row = entry.row or {}
+    -- COR DE CLASSE NO NOME, que é o oposto da regra da janela de combate — lá a classe colore
+    -- a BARRA e o texto fica branco, porque texto na cor da classe SOME dentro de uma barra da
+    -- mesma cor. Aqui não há barra: o Details pinta o nome (`scoreboard_layout.lua:384`) e o
+    -- fundo é neutro, então a colisão que motivou aquela regra não existe.
+    local color = row.classFilename and RAID_CLASS_COLORS and RAID_CLASS_COLORS[row.classFilename]
+    cell.text:SetTextColor(color and color.r or 1, color and color.g or 1, color and color.b or 1)
+    cell.text:SetText(ns.SplitName(row.name) or row.name or "?")
+end
+
+function CellPainters.keystone(cell, entry)
+    local row = entry.row or {}
+    local level = row.keystoneLevel
+    local mapID = row.keystoneMapID
+
+    local drew = false
+    if mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+        local ok, _, _, _, texture = pcall(C_ChallengeMode.GetMapUIInfo, mapID)
+        if ok and texture then
+            cell.icon:SetTexture(texture)
+            drew = true
+        end
+    end
+
+    -- SEM PEDRA, A CÉLULA FICA VAZIA — e não com um ícone genérico apagado, que é o que o
+    -- Details faz. O motivo é que aqui a ausência tem duas causas diferentes e indistinguíveis
+    -- na tela: o jogador pode não ter pedra, ou o RocketMeter pode não ter como saber
+    -- (ver `KeystoneFor`). Desenhar um ícone nos dois casos afirmaria a primeira.
+    cell.icon:SetShown(drew)
+    cell.levelBg:SetShown(drew and level ~= nil and level > 0)
+    if drew and level and level > 0 then
+        cell.level:SetText("+" .. level)
+        cell.level:Show()
+    else
+        cell.level:Hide()
+    end
+end
+
+function CellPainters.score(cell, entry, index)
+    cell.text:SetText(ScoreText(entry, index))
+    cell.text:SetTextColor(1, 1, 1)
+end
+
+function CellPainters.loot(cell, entry)
+    local link = entry.row and entry.row.loot
+    if not link or link == "" or not Item or not Item.CreateFromItemLink then
+        cell.icon:Hide(); cell.border:Hide(); cell.ilvlBg:Hide(); cell.ilvl:Hide()
+        return
+    end
+
+    -- `ContinueOnItemLoad` PORQUE O ITEM PODE NÃO ESTAR EM CACHE. Ler ícone e qualidade na hora
+    -- devolve nil para item que o cliente ainda não baixou, e o resultado é um quadrado vazio
+    -- que só se conserta reabrindo o painel — que é como este defeito apareceria.
+    local ok, item = pcall(Item.CreateFromItemLink, Item, link)
+    if not ok or not item then
+        cell.icon:Hide(); cell.border:Hide(); cell.ilvlBg:Hide(); cell.ilvl:Hide()
+        return
+    end
+
+    item:ContinueOnItemLoad(function()
+        local quality = item:GetItemQuality()
+        cell.icon:SetTexture(item:GetItemIcon())
+        cell.icon:Show()
+        cell.ilvl:SetText(item:GetCurrentItemLevel() or "")
+        cell.ilvl:Show()
+        cell.ilvlBg:Show()
+
+        local atlas = LOOT_BORDER_BY_QUALITY and LOOT_BORDER_BY_QUALITY[quality]
+        if atlas and Atlas(cell.border, atlas) then
+            cell.border:Show()
+        else
+            cell.border:Hide()
+        end
+    end)
+end
+
+function CellPainters.value(cell, entry, index)
+    ns.SetCellText(cell.text, entry.values[index], columns[index].key)
+
+    local best = entry.best and entry.best[index]
+    -- `standout_color` do Details (`start.lua:60`): {230, 204, 128}/255. É creme, não dourado —
+    -- e a skill do workspace explica por que isso importa: creme não colide com cor de classe
+    -- nenhuma, então ele destaca sem ser lido como "este é ladino".
+    if best and ns.db.highlightBest ~= false then
+        cell.text:SetTextColor(230 / 255, 204 / 255, 128 / 255)
+    else
+        cell.text:SetTextColor(1, 1, 1)
+    end
+end
+
 local function DrawRows(list, rowCount)
-    local sortIndex = 1
-    for c = 1, #columns do
-        if columns[c].key == sortBy then sortIndex = c end
-    end
-
-    -- A régua da barra é o maior valor DA COLUNA ORDENADA, não o `maxAmount` da sessão: a
-    -- sessão só conhece a métrica que ordenou a consulta, e aqui o usuário pode estar
-    -- ordenando por mortes ou por interrupções, onde aquele máximo não significa nada.
-    --
-    -- ...MAS não da coluna ordenada quando ela é a de pontuação: todo mundo tem ~2800 de
-    -- pontuação, e uma régua de 0 a 2910 deixaria as cinco barras visualmente iguais. Nesse
-    -- caso a barra volta a medir a métrica padrão, que é o que dá forma à linha.
-    local barIndex = sortIndex
-    if columns[barIndex] and columns[barIndex].custom then
-        for c = 1, #columns do
-            if columns[c].key == DEFAULT_SORT then barIndex = c end
-        end
-    end
-
-    -- `issecretvalue` ANTES de `type`: para um valor opaco `type()` devolve o tipo REAL
-    -- ("number"), então testar só o tipo deixa o secret passar — e aí `v > scale` levanta
-    -- "attempt to compare a secret value" e o desenho inteiro aborta. Em combate (o placar
-    -- pode ser reaberto no meio de outra luta) isso é o caminho normal, não a exceção.
-    local scale
-    for i = 1, #list do
-        local v = list[i].values[barIndex]
-        if v ~= nil and not issecretvalue(v) and type(v) == "number" then   -- luacheck: ignore
-            if scale == nil or v > scale then scale = v end
-        end
-    end
-    -- `not scale` também é teste booleano: comparar com nil explicitamente evita tocar secret.
-    if scale == nil or scale <= 0 then scale = 1 end
-
     for i = 1, rowCount do
         local row = BuildRow(i)
         local entry = list[i]
@@ -1094,59 +1499,15 @@ local function DrawRows(list, rowCount)
         if not entry then
             row:Hide()
         else
-            local source = entry.source
-            row.classFilename = source.classFilename    -- `ns.StyleCell` lê daqui
-
-            local value = entry.values[barIndex]
-            row.bar:SetStatusBarTexture(ns.BarTexture())
-            row.bar:SetMinMaxValues(0, scale)
-            row.bar:SetValue(type(value) == "number" and value or 0)
-            row.bar:SetStatusBarColor(ns.BarColor(source.classFilename))
-            -- Tinta, não bloco. A barra preenche a linha inteira, e a 0.85 ela virava um
-            -- retângulo sólido na cor da classe — o que quebra a regra que a janela já
-            -- aprendeu: o realce do líder é a cor da classe CLAREADA, e cor da classe sobre
-            -- cor da classe some. Em 0.45 a linha ainda se identifica de relance e o texto
-            -- (com halo) continua legível por cima.
-            row.bar:SetAlpha(BAR_ALPHA)
-
-            row.bg:SetColorTexture(0, 0, 0, i % 2 == 0 and 0.16 or 0.28)
-
-            -- A função foi resolvida na captura e viajou junto no retrato: uma corrida
-            -- guardada não pode depender de o grupo ainda existir para saber quem tankava.
-            local role = entry.row and entry.row.role
-            if role and ROLE_ATLAS[role] and Atlas(row.role, ROLE_ATLAS[role]) then
-                row.role:Show()
-                -- `ClearAllPoints` antes: `SetPoint` ACRESCENTA âncora, não substitui, e sem
-                -- isso a textura ficaria presa às duas posições ao alternar entre os ramos.
-                row.icon:ClearAllPoints()
-                row.icon:SetPoint("LEFT", row.role, "RIGHT", 5, 0)
-                row.iconClass:ClearAllPoints()
-                row.iconClass:SetPoint("LEFT", row.role, "RIGHT", 5, 0)
-                row.nameArea = NAME_WIDTH - ROLE_SIZE - ICON_SIZE - 30
-            else
-                -- Sem função conhecida o ícone some E o espaço dele é devolvido: 19px de vão
-                -- fixo à esquerda de toda linha é o tipo de buraco que faz o painel parecer
-                -- desalinhado sem que se saiba dizer o motivo.
-                row.role:Hide()
-                row.icon:ClearAllPoints()
-                row.icon:SetPoint("LEFT", row, "LEFT", 6, 0)
-                row.iconClass:ClearAllPoints()
-                row.iconClass:SetPoint("LEFT", row, "LEFT", 6, 0)
-                row.nameArea = NAME_WIDTH - ICON_SIZE - 17
-            end
-
-            ns.ApplyRowIcon(row.icon, row.iconClass, source)
-            ns.DrawName(row, source.name)
-            row.name:SetTextColor(unpack(ns.Skin.text))
+            -- Fundo alternado, e só ele. A faixa de classe no rodapé da linha saiu: ela era
+            -- nossa, o Details não a tem, e o pedido foi copiar. A identidade da classe
+            -- continua em três lugares na mesma linha — retrato, ícone e cor do nome.
+            row.bg:SetColorTexture(unpack(i % 2 == 1 and ROW_TINT_ODD or ROW_TINT_EVEN))
 
             for c = 1, #columns do
-                if columns[c].custom then
-                    ns.SetHaloText(row.cells[c], row.cellHalos[c], ScoreText(entry, c))
-                else
-                    ns.SetCellText(row.cells[c], entry.values[c], columns[c].key, row.cellHalos[c])
-                end
-                ns.StyleCell(row, c, entry.best and entry.best[c],
-                    ns.Skin.scoreboardFontSize - ns.Skin.fontSize)
+                local cell = row.cells[c]
+                local painter = CellPainters[cell.kind]
+                if painter then painter(cell, entry, c) end
             end
 
             row:Show()
@@ -1156,6 +1517,43 @@ local function DrawRows(list, rowCount)
     for i = rowCount + 1, #rows do
         rows[i]:Hide()
     end
+end
+
+---As medidas do placar, para o teste poder conferir a cópia contra a fonte.
+---
+---O que se trava com isto NÃO é "ficou bonito" — é que os números continuam sendo os do
+---Details. Uma refatoração que mexa em qualquer um deles passa a reprovar, e é para isso que
+---esta porta existe: o pedido foi copiar, e cópia sem conferência vira lembrança.
+function Scoreboard.DebugLayout()
+    local widths = {}
+    for c = 1, #ALL_COLUMNS do
+        widths[ALL_COLUMNS[c].key] = ALL_COLUMNS[c].width
+    end
+    return {
+        rowHeight = ROW_HEIGHT,
+        rowSpacing = ROW_SPACING,
+        lineInset = LINE_INSET,
+        side = SIDE,
+        headerHeight = HEADER_HEIGHT,
+        colheadHeight = COLHEAD_HEIGHT,
+        colPadding = COL_PADDING,
+        footerHeight = FOOTER_HEIGHT,
+        titleY = TITLE_Y,
+        titleSize = TITLE_SIZE,
+        clockSize = CLOCK_SIZE,
+        widths = widths,
+        order = (function()
+            local out = {}
+            for c = 1, #ALL_COLUMNS do out[c] = ALL_COLUMNS[c].key end
+            return out
+        end)(),
+        panelWidth = (function()
+            local total = 0
+            for c = 1, #ALL_COLUMNS do total = total + ALL_COLUMNS[c].width + COL_PADDING end
+            return SIDE * 2 + total
+        end)(),
+        panelHeight = HEADER_HEIGHT + COLHEAD_HEIGHT + 5 * (ROW_HEIGHT + ROW_SPACING) + FOOTER_HEIGHT,
+    }
 end
 
 function Scoreboard.Draw()

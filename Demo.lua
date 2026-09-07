@@ -34,30 +34,31 @@ local MEMBERS = {
         dps = 103000, hps = 99000, taken = 215e6, avoidable = 1.9e6,
         deaths = 1, interrupts = 6, dispels = 0,
         score = 2847, scoreGain = 16, ilevel = 691, isLocalPlayer = true,
+        keystoneLevel = 15, loot = "item:19019",
     },
     {
         name = "Drakaris", class = "EVOKER", role = "HEALER", specIconID = 4622448,
         dps = 49000, hps = 150000, taken = 44e6, avoidable = 1.3e6,
         deaths = 2, interrupts = 3, dispels = 15,
-        score = 2795, scoreGain = 71, ilevel = 688,
+        score = 2795, scoreGain = 71, ilevel = 688, keystoneLevel = 13,
     },
     {
         name = "Kaelvorn", class = "MAGE", role = "DAMAGER", specIconID = 135810,
         dps = 299000, hps = 18000, taken = 60e6, avoidable = 134000,
         deaths = 0, interrupts = 8, dispels = 2,
-        score = 2910, scoreGain = 13, ilevel = 693,
+        score = 2910, scoreGain = 13, ilevel = 693, keystoneLevel = 16, loot = "item:19019",
     },
     {
         name = "Sargath", class = "WARLOCK", role = "DAMAGER", specIconID = 136150,
         dps = 280000, hps = 12000, taken = 51e6, avoidable = 256000,
         deaths = 1, interrupts = 4, dispels = 0,
-        score = 2862, scoreGain = 67, ilevel = 690,
+        score = 2862, scoreGain = 67, ilevel = 690, keystoneLevel = 14,
     },
     {
         name = "Lilianvoss", class = "ROGUE", role = "DAMAGER", specIconID = 132320,
         dps = 268000, hps = 21000, taken = 49e6, avoidable = 767000,
         deaths = 0, interrupts = 11, dispels = 5,
-        score = 2888, scoreGain = 17, ilevel = 689,
+        score = 2888, scoreGain = 17, ilevel = 689, keystoneLevel = 12,
     },
 }
 
@@ -80,6 +81,16 @@ local function BuildRows()
             role = member.role,
             isLocalPlayer = member.isLocalPlayer == true,
             scoreGain = member.scoreGain,
+            -- As tres colunas que vieram com a copia do placar do Details (0.66.0). A
+            -- simulacao TEM que preenche-las: ela e o unico jeito de ver o painel sem gastar
+            -- 30 minutos numa chave, e uma simulacao que deixa tres colunas vazias esconde
+            -- exatamente as tres que sao novas.
+            ilevel = member.ilevel,
+            keystoneLevel = member.keystoneLevel,
+            -- `keystoneMapID` fica nil pelo mesmo motivo do `mapID` da corrida: id inventado
+            -- nao resolve arte nenhuma, e id real amarraria a simulacao a uma temporada.
+            keystoneMapID = nil,
+            loot = member.loot,
             values = {
                 score = member.score,
                 deaths = member.deaths,

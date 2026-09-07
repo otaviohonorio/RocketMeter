@@ -228,3 +228,8 @@ L["Appearance"] = "Aparência"
 L["Row text"] = "Texto das linhas"
 L["Title"] = "Título"
 L["Column header"] = "Cabeçalho das colunas"
+
+-- O placar copiado do Details! Mythic+ Scoreboard (0.66.0)
+L["Keystone"] = "Pedra"
+L["Loot"] = "Saque"
+L["Not in combat: %s"] = "Fora de combate: %s"

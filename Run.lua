@@ -55,6 +55,15 @@ function Run.Start()
     -- Semente: a corrida começa fora de combate. Sem esta entrada o primeiro trecho do
     -- trilho ficaria sem cor até o primeiro `PLAYER_REGEN_DISABLED`.
     combatTimeline[1] = { 0, InCombatLockdown() and true or false }
+
+    -- O QUE O PLACAR COPIADO PRECISA E O MEDIDOR NÃO SABE (0.66.0): o saque é da corrida que
+    -- começa agora, e o nível de item de cada um se pede AQUI, no início — a inspeção é
+    -- espaçada de propósito e leva alguns segundos, e no fim da chave o grupo já está se
+    -- desfazendo.
+    if ns.Party then
+        ns.Party.ResetLoot()
+        ns.Party.RefreshItemLevels()
+    end
 end
 
 function Run.Stop()

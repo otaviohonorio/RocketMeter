@@ -1213,6 +1213,72 @@ check("texto sem escape passa igual", copias[1].text, "sem cor nenhuma")
 ns.SetHaloText(original, nil, "halo ausente nao estoura")
 check("halo nil e aceito", original.text, "halo ausente nao estoura")
 
+print("== placar: a copia do Details! Mythic+ Scoreboard ==")
+-- Pedido do usuario: *"pode copiar e deixa exatamente igual ao do Details! mythic scoreboard?
+-- E para copiar tudo mesmo, deixar literalmente tudo igual"*.
+--
+-- ENTAO A TABELA ABAIXO E UM CONTRATO, nao um retrato do que o codigo faz hoje. Cada numero foi
+-- lido em `Interface/AddOns/Details_MythicPlus/`, com o arquivo e a linha ao lado. Quem mexer
+-- num deles reprova aqui -- e a mensagem diz de onde o numero veio, que e a unica forma de a
+-- proxima pessoa saber se esta corrigindo um erro ou desfazendo a copia.
+do
+    local m = ns.Scoreboard.DebugLayout()
+
+    -- Geometria do quadro (scoreboard.lua:119-136)
+    check("altura da linha",            m.rowHeight,     46)   -- `lineHeight`            :130
+    check("vao entre linhas",           m.rowSpacing,     1)   -- `(lineHeight+1)`        :821
+    check("recuo das linhas",           m.lineInset,      2)   -- `lineOffset`            :129
+    check("margem lateral do painel",   m.side,           5)   -- `mainFramePadding...`   :119
+    check("onde comeca o cabecalho",    m.headerHeight,  65)   -- `headerY = -65`         :125
+    check("altura do cabecalho",        m.colheadHeight, 20)   -- `header_height`  DF/header:747
+    check("respiro entre colunas",      m.colPadding,     2)   -- `padding`        DF/header:733
+    check("titulo",                     m.titleY,       -12)   -- `dungeonNameY`          :123
+    check("corpo do titulo",            m.titleSize,     20)   -- (:355)
+    check("corpo do tempo",             m.clockSize,     16)   -- (:361)
+
+    -- A CONTA FECHA NOS 452 DELE (`mainFrameHeight`, :117). E o unico check aqui que nao copia
+    -- um numero: ele deriva a altura de cinco linhas dos outros seis e compara com o total.
+    -- Se um dos seis for mexido sem que o rodape acompanhe, e aqui que aparece.
+    check("altura do painel com cinco linhas", m.panelHeight, 452)
+
+    -- As colunas: ordem e largura, uma linha `ScoreboardColumn:Create` cada
+    -- (`scoreboard_layout.lua:291,361,378,515,650,674,701,717,780,844,904,964,1037`).
+    local ESPERADO = {
+        { "portrait",   60 },
+        { "spec",       25 },
+        { "name",      110 },
+        { "keystone",   60 },
+        { "score",      90 },
+        { "loot",       80 },
+        { "deaths",     80 },
+        { "avoidable",  80 },
+        { "taken",     100 },
+        { "dps",       100 },
+        { "hps",       100 },
+        { "interrupts",100 },
+        { "dispels",    80 },
+    }
+
+    check("quantas colunas", #m.order, #ESPERADO)
+    for i, esperado in ipairs(ESPERADO) do
+        check("coluna " .. i .. " e " .. esperado[1], m.order[i], esperado[1])
+        check("  e mede " .. esperado[2], m.widths[esperado[1]], esperado[2])
+    end
+
+    -- A largura do painel e consequencia das colunas, nao um numero solto.
+    local soma = 0
+    for _, esperado in ipairs(ESPERADO) do soma = soma + esperado[2] + m.colPadding end
+    check("largura do painel = colunas + margens", m.panelWidth, soma + m.side * 2)
+
+    -- AS DUAS COLUNAS QUE FICARAM DE FORA, e o teste diz por que. Sem esta trava, a proxima
+    -- leitura da tabela do Details acha que faltou copiar e acrescenta duas colunas que so
+    -- sabem mostrar zero: `player-likes` e `player-like-button` sao a rede social DELE -- o
+    -- "gg" viaja pelo canal de addon entre quem roda o plugin, e ninguem fora dele responde.
+    for _, ausente in ipairs({ "likes", "like-button" }) do
+        check("nao copiamos a coluna de " .. ausente, m.widths[ausente], nil)
+    end
+end
+
 print("== placar: nomes de atlas ==")
 -- SetAtlas com nome errado falha em SILENCIO. Dois nomes aqui sao armadilha conhecida:
 -- a Blizzard escreve "Fillagree" com dois L, e "Filigree" (a grafia correta do ingles) some
