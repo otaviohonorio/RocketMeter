@@ -524,6 +524,27 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         end
     end
 
+---Esta entrada da métrica de mortes é uma morte de verdade?
+---
+---**É `deathRecapID` que decide, e não a presença na lista.** O medidor da própria Blizzard trata
+---a entrada como óbito só quando `deathRecapID ~= 0`, e faz essa mesma pergunta em QUATRO lugares
+---antes de desenhar — no nome, no valor, e nos dois limites da barra
+---(`DamageMeterEntry.lua:563,572,580,594`). Entrada com recapião zero ele desenha como linha
+---comum; nós contávamos como morte.
+---
+---O relato que expôs isso: um caçador apareceu com **19 mortes** numa mítica+ sem ter morrido —
+---ele usou "Fingir-se de Morto" muitas vezes. **Não está confirmado** que é o fingir que produz
+---as entradas extras; o que está confirmado é que existem entradas na lista que o jogo NÃO conta
+---como morte, e que nós contávamos. `/rm fontes` mostra o `recap` de cada entrada.
+---
+---`deathRecapID` é **`NeverSecret`** (`DamageMeterDocumentation.lua:207`), então comparar é
+---seguro mesmo em combate e durante a chave inteira — que é justamente quando isso aparece.
+local function IsRealDeath(source)
+    local recap = source.deathRecapID
+    if recap == nil or issecretvalue(recap) then return false end
+    return recap ~= 0
+end
+
     -- Índice por métrica: ator por GUID, ator por identidade, e CONTAGEM por ambos.
     --
     -- A contagem existe por causa da métrica de mortes, onde cada entrada é um óbito e não um
@@ -536,15 +557,29 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
             local other = SessionFor(attr)
             local list = other and other.combatSources
             if list then
+                -- SÓ A MÉTRICA DE MORTES filtra por `deathRecapID`, e a limitação é
+                -- DEFENSIVA, não load-bearing: hoje os mapas de contagem só são lidos pela
+                -- coluna de mortes, então filtrar em todas daria no mesmo. O teste confirma
+                -- isso — sabotar esta linha não reprova nada.
+                --
+                -- Fica assim mesmo porque nas outras métricas `deathRecapID` vale 0 para todo
+                -- mundo: no dia em que existir uma segunda métrica de contagem, filtrar sem
+                -- escopo zeraria a coluna dela em silêncio.
+                local somenteMortes = Enum and Enum.DamageMeterType
+                    and attr == Enum.DamageMeterType.Deaths
+
                 index = { byGuid = {}, byIdentity = {}, countByGuid = {}, countByIdentity = {} }
                 local identitySeen = {}
                 for i = 1, #list do
                     local candidate = list[i]
+                    local conta = not somenteMortes or IsRealDeath(candidate)
 
                     local guid = candidate.sourceGUID
                     if guid ~= nil and not issecretvalue(guid) then
                         index.byGuid[guid] = index.byGuid[guid] or candidate
-                        index.countByGuid[guid] = (index.countByGuid[guid] or 0) + 1
+                        if conta then
+                            index.countByGuid[guid] = (index.countByGuid[guid] or 0) + 1
+                        end
                     end
 
                     local key = IdentityKey(candidate)
@@ -557,7 +592,9 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
                             index.byIdentity[key] = candidate
                         end
                         identitySeen[key] = true
-                        index.countByIdentity[key] = (index.countByIdentity[key] or 0) + 1
+                        if conta then
+                            index.countByIdentity[key] = (index.countByIdentity[key] or 0) + 1
+                        end
                     end
                 end
             end

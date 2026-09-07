@@ -369,8 +369,22 @@ C_DamageMeter = {
                     fakeSource("Brumm",  0, { deathRecapID = 11, deathTimeSeconds = 42 }),
                     fakeSource("Sarien", 0, { deathRecapID = 12, deathTimeSeconds = 88 }),
                     fakeSource("Brumm",  0, { deathRecapID = 13, deathTimeSeconds = 130 }),
+                    -- ENTRADAS COM `deathRecapID = 0`. E a forma do relato de 06/09: um cacador
+                    -- apareceu com 19 mortes numa mitica+ sem ter morrido, depois de usar
+                    -- "Fingir-se de Morto" muitas vezes.
+                    --
+                    -- O stub nao sabia produzir esta forma -- todas as entradas dele tinham recap
+                    -- valido -- entao a diferenca entre "esta na lista" e "e uma morte" nao
+                    -- existia aqui dentro, e o addon podia contar tudo sem nada acusar.
+                    --
+                    -- Que o jogo NAO conta essas entradas como morte esta na fonte dele: o
+                    -- medidor nativo pergunta `deathRecapID ~= 0` em quatro lugares antes de
+                    -- desenhar (`DamageMeterEntry.lua:563,572,580,594`).
+                    fakeSource("Kaz", 0, { deathRecapID = 0, deathTimeSeconds = 0 }),
+                    fakeSource("Kaz", 0, { deathRecapID = 0, deathTimeSeconds = 0 }),
+                    fakeSource("Kaz", 0, { deathRecapID = 0, deathTimeSeconds = 0 }),
                 },
-                combatSourcesCount = 3, totalAmount = 0, maxAmount = 0, durationSeconds = 134,
+                combatSourcesCount = 6, totalAmount = 0, maxAmount = 0, durationSeconds = 134,
             }
         end
 
@@ -696,6 +710,24 @@ do
     check("quem nao morreu tem 0, nao vazio", r[1].values[2], 0)
     check("duas mortes do mesmo jogador contam 2", r[2].values[2], 2)
     check("uma morte conta 1", r[3].values[2], 1)
+
+    -- ESTAR NA LISTA NAO E TER MORRIDO. Relato de 06/09: um cacador apareceu com 19 mortes numa
+    -- mitica+ sem ter morrido, depois de usar "Fingir-se de Morto" muitas vezes.
+    --
+    -- Quem decide e o `deathRecapID`: o medidor da propria Blizzard trata a entrada como obito so
+    -- quando ele e diferente de zero, e faz essa pergunta em QUATRO lugares antes de desenhar
+    -- (`DamageMeterEntry.lua:563,572,580,594`). Nos contavamos toda entrada da lista.
+    --
+    -- O `Kaz` tem TRES entradas com recap zero e nenhuma morte de verdade.
+    local todos = ns.Data.GetRows(0, "damage", cols, 99, false)
+    local porNome = {}
+    for i = 1, #todos do porNome[todos[i].source and todos[i].source.name or "?"] = todos[i] end
+
+    check("entrada sem recap NAO conta como morte", porNome["Kaz"].values[2], 0)
+
+    -- E as mortes de verdade continuam contando: o filtro nao pode zerar a coluna inteira, que
+    -- seria trocar um numero errado por outro.
+    check("e as mortes de verdade seguem contando", porNome["Brumm"].values[2], 2)
 end
 
 print("== ausente numa metrica e ZERO, nao desconhecido ==")

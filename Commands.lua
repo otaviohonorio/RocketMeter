@@ -247,12 +247,15 @@ commands["fontes"] = function()
 
             ns.Print(("|cffffd100%s|r: %d ator(es)"):format(coluna, #fontes))
             for i, fonte in ipairs(fontes) do
-                print(("   %d. %-14s %-10s cria=%-8s tipo=%-6s local=%-5s total=%s"):format(
+                -- `recap` entra aqui por causa do relato das 19 mortes: na metrica de mortes e
+                -- ele que separa obito de entrada qualquer, e `recap=0` e o que NAO conta.
+                print(("   %d. %-14s %-10s cria=%-8s tipo=%-6s recap=%-6s local=%-5s total=%s"):format(
                     i,
                     Texto(fonte.name),
                     Texto(fonte.classFilename),
                     Texto(fonte.sourceCreatureID),
                     tipoFonte[fonte.sourceDisplayType] or Texto(fonte.sourceDisplayType),
+                    Texto(fonte.deathRecapID),
                     Texto(fonte.isLocalPlayer),
                     Texto(fonte.totalAmount)))
             end
