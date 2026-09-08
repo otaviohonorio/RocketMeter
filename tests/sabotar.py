@@ -32,48 +32,33 @@ if not os.path.exists(LUA):
 
 # (nome, arquivo, de, para, label do check que TEM que reprovar)
 SABOTAGENS = [
-    ("o nome volta a descontar as colunas que sumiram", "Window.lua",
-     u"    row.nameArea = WindowWidth() - PADDING * 2 - iconSize - 10 - reserva",
-     u"    row.nameArea = WindowWidth() - PADDING * 2 - 406 - iconSize - 10",
-     "o nome tem largura de verdade"),
+    # O DESENHO ESCOLHIDO (opcao B): uma linha por pessoa, uma barra por coluna, numero dentro.
+    ("as colunas voltam a compartilhar uma regua so", "Window.lua",
+     u"                local escala = scales[c]",
+     u"                local escala = maxAmount",
+     "as colunas nao compartilham regua"),
 
-    # A declaracao volta para DEPOIS de quem a le -- que e literalmente o defeito da 0.67.2.
-    ("CurrentHeight volta a ler um global nil", "Window.lua",
-     u"    return alturaDesenhada or WindowHeight(ns.db.rows)",
-     u"    return alturaQueSoExisteDepois or WindowHeight(ns.db.rows)",
-     "CurrentHeight le a altura desenhada, nao um global nil"),
+    ("a coluna perde a barra e vira so numero", "Window.lua",
+     u"                cell.bar:SetMinMaxValues(0, escala)",
+     u"                cell.bar:SetMinMaxValues(0, 1)",
+     "as colunas nao compartilham regua"),
 
-    ("a alca volta a medir o layout de colunas", "Window.lua",
-     u"    local usable = height - HEADER_HEIGHT - PADDING - n * SECTION_HEADER_HEIGHT\n"
-     u"    local linhas = math.floor(usable / (n * RowStep()))",
-     u"    local usable = height - HEADER_HEIGHT - ColumnHeaderHeight() - PADDING\n"
-     u"    local linhas = math.floor(usable / RowStep())",
-     "tres secoes: a inversa tambem fecha"),
+    ("o cabecalho de colunas some", "Window.lua",
+     u"    BuildColumnHeader()\n\n    for i = 1, ns.db.rows do",
+     u"    HideColumnHeader()\n\n    for i = 1, ns.db.rows do",
+     "o cabecalho de colunas esta na tela"),
 
-    ("os dois layouts desenhados um sobre o outro", "Window.lua",
-     u"    HideColumnHeader()",
-     u"    BuildColumnHeader()",
-     "o cabecalho de colunas antigo sumiu"),
+    # A regua deixa de chegar a coluna: todas caem no fallback 1, e a barra de cada uma passa a
+    # dizer "esta pessoa e 100% desta metrica" -- todas cheias, nenhuma informacao.
+    ("a regua nao chega na coluna", "Data.lua",
+     u"            scales[c] = porAttr[def.attr] or nil",
+     u"            scales[c] = nil",
+     "as colunas nao compartilham regua"),
 
-    ("as variantes da barra nao mudam nada", "Window.lua",
-     u"    row.valuePlate:SetShown(style.plate)",
-     u"    row.valuePlate:SetShown(false)",
-     "`nativo` mostra a placa"),
 
-    ("o fundo tingido volta a ser transparente", "Window.lua",
-     u"                if style.tint > 0 then",
-     u"                if false then",
-     "`nativo` tinge o fundo da linha"),
 
-    ("secoes viram uma lista so", "Data.lua",
-     u"        if def and not seen[def.attr] then",
-     u"        if def then",
-     "tres metricas viram tres secoes"),
 
-    ("a secao perde a propria regua", "Window.lua",
-     u"        local top = secao.session and secao.session.maxAmount",
-     u"        local top = 1",
-     "as secoes nao compartilham regua"),
+
 
     ("coluna sem construtor de celula", "Scoreboard.lua",
      u"CellBuilders.score = CellBuilders.value",

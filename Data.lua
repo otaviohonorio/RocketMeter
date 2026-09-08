@@ -851,6 +851,42 @@ function Data.GetSections(sessionType, columns, rowsPerSection)
     return secoes
 end
 
+---A REGUA DE CADA COLUNA: o maior valor da metrica a que ela pertence.
+---
+---POR QUE ISTO EXISTE, e e o que faz o desenho em colunas funcionar em combate. O pedido foi ver
+---**quem esta melhor em Dano, Cura e Interrupcoes ao mesmo tempo**, e em combate o addon nao
+---consegue descobrir quem e o maior: os valores sao secret e comparar levanta erro.
+---
+---A saida e nao precisar descobrir. Se cada coluna e desenhada como uma BARRA escalada pelo maior
+---valor DAQUELA metrica, entao o lider da coluna e a unica barra cheia dela -- a geometria
+---responde o que o Lua nao pode calcular. Tres colunas, tres lideres, de relance.
+---
+---A regua vem de `session.maxAmount`, que o jogo entrega pronto por metrica. Nem ela nem o valor
+---sao lidos aqui: os dois vao direto para o widget.
+---
+---⚠️ COLUNA DE TAXA USA A REGUA DO TOTAL, e isso e de proposito -- e o que o medidor nativo faz.
+---`DamageMeterSessionWindow.lua:638` atribui o `maxAmount` da sessao a cada ator e desenha a barra
+---com ele **mesmo quando mostra o valor por segundo**. A barra e "quanto desta metrica foi seu"; o
+---numero e o que voce pediu para ver. Nao ha `maxAmount` de taxa na API para fazer diferente.
+---
+---@return table por posicao de coluna: a regua daquela coluna
+function Data.GetColumnScales(sessionType, columns)
+    local scales, porAttr = {}, {}
+
+    for c = 1, #columns do
+        local def = Data.GetColumn(columns[c])
+        if def then
+            if porAttr[def.attr] == nil then
+                local session = Data.GetSession(sessionType, def.attr)
+                porAttr[def.attr] = session and session.maxAmount or false
+            end
+            scales[c] = porAttr[def.attr] or nil
+        end
+    end
+
+    return scales
+end
+
 function Data.MarkColumnLeaders(rows, columns)
     if #rows < 2 then return end
 

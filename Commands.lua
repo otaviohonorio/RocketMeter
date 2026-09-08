@@ -152,35 +152,6 @@ commands["log"] = function(rest)
     print("  WTF\\Account\\<account>\\SavedVariables\\RocketMeter.lua")
 end
 
----Alterna o tratamento da barra. Existe porque contraste e legibilidade so o JOGO responde --
----o harness nao desenha --, e comparar quatro variantes num `/reload` custa uma rodada de teste
----em vez de quatro.
-commands["barra"] = function(rest)
-    local styles = ns.BAR_STYLES
-    local atual = ns.db.barStyle
-
-    if rest and rest ~= "" then
-        for i = 1, #styles do
-            if styles[i].value == rest then
-                ns.db.barStyle = rest
-                ns.Window.Refresh(true)
-                ns.Print(format(L["bar style: %s"], rest))
-                return
-            end
-        end
-        ns.Print(format(L["unknown bar style: %s"], rest))
-    end
-
-    -- Sem argumento, gira para a proxima: e mais rapido de comparar do que digitar o nome.
-    local proxima = 1
-    for i = 1, #styles do
-        if styles[i].value == atual then proxima = (i % #styles) + 1 end
-    end
-    ns.db.barStyle = styles[proxima].value
-    ns.Window.Refresh(true)
-    ns.Print(format(L["bar style: %s"], ns.db.barStyle))
-end
-
 commands["debug"] = function()
     ns.Print("--- diagnostics ---")
     print("  C_DamageMeter available:", tostring(ns.Data.IsAvailable()))

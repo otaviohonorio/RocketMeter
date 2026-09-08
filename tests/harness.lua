@@ -1304,97 +1304,50 @@ do
     end
 end
 
-print("== a janela desenha uma secao por metrica ==")
--- Trava a propriedade que responde ao pedido: cada metrica vira uma lista propria, e o lider de
--- cada uma e a PRIMEIRA LINHA dela. Nao ha realce calculado envolvido -- nao poderia haver, em
--- combate comparar valor secret levanta erro.
+print("== cada coluna e uma barra com escala propria ==")
+-- O DESENHO ESCOLHIDO PELO USUARIO (opcao B): uma linha por pessoa, uma barra por coluna, o
+-- numero dentro dela.
+--
+-- A propriedade que o faz funcionar -- e que o faz funcionar EM COMBATE, onde comparar valor
+-- secret levanta erro -- e que cada coluna e escalada pela regua da PROPRIA metrica. Assim o
+-- lider daquela coluna e a unica barra CHEIA dela: a geometria responde quem e o maior sem o Lua
+-- precisar descobrir.
 do
-    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+    ns.db.columns = { "damage", "healing", "interrupts" }
     ns.db.rows = 5
     ns.Window.Show(false)
     ns.Window.Draw()
 
-    local secoes, linhas, altura, reguas = ns.Window.DebugSections()
-    check("desenhou tres secoes", #secoes, 3)
+    -- O CABECALHO DE COLUNAS TEM QUE ESTAR NA TELA: este desenho TEM colunas, e sem o rotulo as
+    -- barras sao tres retangulos coloridos sem assunto.
+    check("o cabecalho de colunas esta na tela", ns.Window.DebugColumnHeaderShown(), true)
 
-    -- O CABECALHO DE COLUNAS DO DESENHO ANTIGO NAO PODE ESTAR NA TELA. Ele era construido e
-    -- mostrado em `-HEADER_HEIGHT`, que e exatamente onde o cabecalho da PRIMEIRA SECAO vai --
-    -- a janela desenhava os dois layouts um sobre o outro, e foi o que o usuario viu.
-    check("o cabecalho de colunas antigo sumiu", ns.Window.DebugColumnHeaderShown(), false)
+    local celulas = ns.Window.DebugCells(1)
+    check("a primeira linha tem uma celula por coluna", #celulas, 3)
 
-    -- A ALTURA GUARDADA TEM QUE SER A DAS SECOES, nao a formula do layout antigo. Na 0.67.2 a
-    -- variavel `alturaDesenhada` foi declarada DEPOIS da funcao que a le: em Lua 5.1 isso resolve
-    -- como global nil, entao `CurrentHeight()` devolvia sempre o fallback e a correcao que eu
-    -- tinha acabado de enviar era **inerte**. Setima vez nesta sessao.
-    check("CurrentHeight le a altura desenhada, nao um global nil",
-        ns.Window.__CurrentHeight() == altura, true)
+    -- CADA COLUNA COM A SUA REGUA. Sem isso a barra de cura seria medida contra o maior dano e
+    -- ficaria num fiapo em toda luta -- e a coluna deixaria de responder quem cura mais.
+    local reguas = {}
+    for _, c in ipairs(celulas) do reguas[c.scale] = true end
+    local distintas = 0
+    for _ in pairs(reguas) do distintas = distintas + 1 end
+    check("as colunas nao compartilham regua", distintas > 1, true)
+    check("e nenhuma caiu no 1 de fallback", reguas[1], nil)
 
-    -- E O NOME TEM ESPACO. Ele descontava a largura das 7 colunas do layout antigo (7 x 58 =
-    -- 406px) numa janela de 508: sobravam 57px, e "Lilianvoss" virava "Lilianvo…" numa barra de
-    -- 500px com ~317px de vao morto. Era a diferenca mais visivel entre o desenho prometido e o
-    -- que foi para a tela.
-    check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 150, true)
-    check("a primeira e Dano", secoes[1].label, ns.L["Damage"])
-    check("a segunda e Cura", secoes[2].label, ns.L["Healing"])
-    check("a terceira e Interrupcoes", secoes[3].label, ns.L["Interrupts"])
-    check("com linhas desenhadas", linhas > 0, true)
-    check("e a altura saiu do conteudo, nao de um numero fixo", altura ~= nil and altura > 0, true)
-
-    -- CADA SECAO TEM A SUA PROPRIA REGUA, e sem isso a barra de cura seria medida contra o maior
-    -- DANO -- ficaria num fiapo em toda luta, e o "quem esta curando mais" que a secao existe
-    -- para responder deixaria de se ver. A regua e perguntada ao widget, nao a uma anotacao.
-    local distintas = {}
-    for _, top in ipairs(reguas) do distintas[top] = true end
-    local quantasReguas = 0
-    for _ in pairs(distintas) do quantasReguas = quantasReguas + 1 end
-    check("as secoes nao compartilham regua", quantasReguas > 1, true)
-    check("e nenhuma delas e o 1 de fallback", distintas[1] == nil, true)
-
-    -- SO DANO: a janela encolhe: uma secao, e nada de vao vazio esperando cura que nao veio.
-    ns.db.columns = { "damage" }
-    ns.Window.Draw()
-    local so, _, altura1 = ns.Window.DebugSections()
-    check("uma metrica, uma secao", #so, 1)
-    check("e a janela encolheu", altura1 < altura, true)
-
-    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
-end
-
-print("== as quatro variantes da barra ==")
--- Elas existem porque contraste e legibilidade sao RENDERIZACAO, e o harness nao desenha. O que
--- ele PODE travar e que as quatro existem, que trocar de uma para outra nao estoura, e que cada
--- uma muda de fato o que vai para os widgets -- se as quatro produzissem a mesma tela, o comando
--- seria teatro.
-do
-    check("ha quatro variantes", #ns.BAR_STYLES, 4)
-    check("a recomendada e a primeira", ns.BAR_STYLES[1].value, "nativo")
-    check("e ela soma os dois sinais", ns.BAR_STYLES[1].tint > 0 and ns.BAR_STYLES[1].plate, true)
-
-    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
-    ns.Window.Show(false)
-
-    local vistos, tingido = {}, {}
-    for _, style in ipairs(ns.BAR_STYLES) do
-        ns.db.barStyle = style.value
-        local ok, err = pcall(ns.Window.Draw)
-        check("desenha com `" .. style.value .. "`", ok or tostring(err), true)
-
-        -- O que mudou de verdade: a placa atras do numero aparece ou nao.
-        local linha = ns.Window.DebugFirstRow()
-        vistos[style.value] = linha and linha.plate
-        tingido[style.value] = linha and linha.bgAlpha
+    -- E O LIDER E A BARRA CHEIA. Em cada coluna, alguem tem valor igual a regua.
+    local scales = ns.Data.GetColumnScales(0, ns.db.columns)
+    for c = 1, #ns.db.columns do
+        local cheia
+        for linha = 1, ns.db.rows do
+            local cell = ns.Window.DebugCells(linha)[c]
+            if cell and cell.value == scales[c] then cheia = linha end
+        end
+        check("a coluna " .. ns.db.columns[c] .. " tem uma barra cheia", cheia ~= nil, true)
     end
 
-    check("`nativo` mostra a placa", vistos["nativo"], true)
-    check("`solido` nao mostra", vistos["solido"], false)
-    check("e as duas variantes diferem de fato", vistos["nativo"] ~= vistos["solido"], true)
-
-    -- O CHAO DA PARTE VAZIA. `nativo` tinge o fundo da linha com a cor da classe; `solido`
-    -- deixa transparente, e e ai que o numero encostado a direita cai sobre o cenario.
-    check("`nativo` tinge o fundo da linha", (tingido["nativo"] or 0) > 0, true)
-    check("`solido` deixa transparente", tingido["solido"], 0)
-
-    ns.db.barStyle = "nativo"
+    -- O NOME NAO PODE FICAR ESPREMIDO. Com tres colunas de 58 numa janela de 340, sobra espaco de
+    -- verdade; foi com SETE colunas que ele caiu para 57px e o nome virou reticencias.
+    check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 60, true)
 end
 
 print("== placar: a copia do Details! Mythic+ Scoreboard ==")
@@ -1756,44 +1709,31 @@ print("== redimensionar nao pode cortar a linha de um jogador ==")
 -- Agora o par e `HeightForSections(n, linhas)` x `RowsThatFit(altura, n)`, que sao as duas contas
 -- que a janela realmente faz -- e sao inversas uma da outra por construcao.
 do
-    local altura = ns.Window.__HeightForSections
+    local altura = ns.Window.__WindowHeight
     local cabem = ns.Window.__RowsThatFit
     check("os dois auxiliares estao expostos", altura ~= nil and cabem ~= nil, true)
 
     if altura and cabem then
-        -- UMA SECAO, o caso simples: a inversa tem que fechar exatamente.
+        -- A INVERSA TEM QUE FECHAR. A alca chama `RowsThatFit`, o desenho chama `WindowHeight`,
+        -- e se as duas discordarem o arraste nao converge: a janela cresce, o desenho cresce
+        -- mais, e a alca pede mais ainda. Foi o que aconteceu enquanto uma media secoes e a outra
+        -- media colunas.
         local falhou
         for n = 1, 12 do
-            local exata = altura(1, n)
-            if cabem(exata, 1) ~= n then falhou = n end
+            if cabem(altura(n)) ~= n then falhou = n end
         end
-        check("uma secao: a inversa fecha de 1 a 12 linhas", falhou, nil)
+        check("a inversa fecha de 1 a 12 linhas", falhou, nil)
 
-        -- TRES SECOES, que e o caso do pedido (Dano, Cura, Interrupcoes). E aqui a formula antiga
-        -- errava por um fator de tres: `ns.db.rows` deixou de ser o total da janela e virou
-        -- linhas POR SECAO, entao a alca pedia um numero que o desenho triplicava -- arrastar
-        -- crescia a janela, o desenho crescia mais, e nunca convergia.
+        -- MEIA LINHA A MAIS NAO PROMOVE: "para nao cortar a linha de um jogador".
         falhou = nil
-        for n = 1, 8 do
-            local exata = altura(3, n)
-            if cabem(exata, 3) ~= n then falhou = n end
-        end
-        check("tres secoes: a inversa tambem fecha", falhou, nil)
-
-        -- MEIA LINHA A MAIS NAO PROMOVE. Pedido literal do usuario: "para nao cortar a linha de
-        -- um jogador".
-        falhou = nil
-        for n = 1, 8 do
-            local sobrando = altura(3, n) + math.floor(ns.Window.__RowStep() / 2)
-            if cabem(sobrando, 3) ~= n then falhou = n end
+        for n = 1, 12 do
+            local sobrando = altura(n) + math.floor(ns.Window.__RowStep() / 2)
+            if cabem(sobrando) ~= n then falhou = n end
         end
         check("meia linha sobrando nao vira uma linha", falhou, nil)
 
-        -- Faltando um pixel para a ultima linha de cada secao: devolve n-1.
-        check("faltando 1px, a ultima linha nao entra", cabem(altura(3, 6) - 1, 3), 5)
-
-        -- Piso: nunca abaixo de uma linha, por menor que seja a altura.
-        check("altura absurda nao vai a zero linhas", cabem(10, 3), 1)
+        check("faltando 1px, a ultima linha nao entra", cabem(altura(6) - 1), 5)
+        check("altura absurda nao vai a zero linhas", cabem(10), 1)
     end
 end
 
