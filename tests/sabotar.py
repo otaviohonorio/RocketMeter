@@ -33,6 +33,23 @@ if not os.path.exists(LUA):
 # (nome, arquivo, de, para, label do check que TEM que reprovar)
 SABOTAGENS = [
     # O DESENHO ESCOLHIDO (opcao B): uma linha por pessoa, uma barra por coluna, numero dentro.
+    # O defeito de 08/09: `MinWidth` deixa de contar as colunas e quatro delas caem fora da janela.
+    ("MinWidth para de contar as colunas", "Window.lua",
+     u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH + columnsWidth",
+     u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH",
+     "o nome tem largura de verdade"),
+
+    # A calha some de UMA das duas contas: e a divergencia que permitiu o defeito original.
+    ("a calha some da largura minima", "Window.lua",
+     u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH + columnsWidth",
+     u"    return PADDING * 2 + RowHeight() + NAME_MIN_WIDTH + columnsWidth",
+     "no minimo, o nome ainda tem o piso exato"),
+
+    ("a largura padrao nasce colada no minimo", "Window.lua",
+     u"local DEFAULT_SLACK = 48",
+     u"local DEFAULT_SLACK = 0",
+     "  e a largura padrao tem folga sobre o minimo"),
+
     ("as colunas voltam a compartilhar uma regua so", "Window.lua",
      u"                local escala = scales[c]",
      u"                local escala = maxAmount",
@@ -154,39 +171,81 @@ def rodar(tmp):
     return r.stdout.decode("utf-8", "replace")
 
 
+# ⚑ CADA COPIA E APAGADA NO FIM, e isto ja foi defeito: sem a limpeza, cada rodada deixava uma
+# copia inteira do addon no temp do sistema. Depois de 845 copias acumuladas nesta sessao, a suite
+# passou a REPROVAR SABOTAGENS DIFERENTES A CADA RODADA -- e uma suite instavel nao vale nada:
+# ela nao distingue "o teste nao pega" de "deu azar agora".
+#
+# O sintoma enganava: parecia que os testes e que estavam fracos.
+# ⚑ UMA COPIA POR SUITE, e nao uma por sabotagem -- isto ja foi defeito duas vezes.
+#
+# A versao antiga fazia `copytree` do addon inteiro a cada sabotagem, e nunca apagava: depois de
+# 845 copias acumuladas no temp do sistema, a suite passou a REPROVAR SABOTAGENS DIFERENTES A CADA
+# RODADA. E uma suite instavel nao vale nada -- ela deixa de distinguir "o teste nao pega" de "deu
+# azar agora", e o sintoma enganava: parecia que os testes e que estavam fracos.
+#
+# Agora e uma copia so, feita uma vez; cada sabotagem escreve o arquivo, roda, e RESTAURA o
+# original a partir do texto guardado em memoria. Vinte copytree viram um.
+def preparar():
+    base = tempfile.mkdtemp(prefix="sab_")
+    destino = os.path.join(base, "a")
+    shutil.copytree(SRC, destino)
+    return base, destino
+
+
+def ler(destino, arquivo):
+    return io.open(os.path.join(destino, arquivo), encoding="utf-8").read().replace("\r\n", "\n")
+
+
+def escrever(destino, arquivo, texto):
+    io.open(os.path.join(destino, arquivo), "w", encoding="utf-8", newline="\n").write(texto)
+
+
+base, destino = preparar()
+originais = {}
+
 falhas = []
-for nome, arquivo, de, para, label in SABOTAGENS:
-    tmp = tempfile.mkdtemp(prefix="sab_")
-    shutil.copytree(SRC, os.path.join(tmp, "a"), dirs_exist_ok=True)
-    tmp = os.path.join(tmp, "a")
+try:
+    for entrada in SABOTAGENS:
+        nome, arquivo, de, para, label = entrada
 
-    alvo = os.path.join(tmp, arquivo)
-    txt = io.open(alvo, encoding="utf-8").read().replace("\r\n", "\n")
-    if txt.count(de) != 1:
-        print("  ?     %-42s ANCORA NAO BATE (%d)" % (nome, txt.count(de)))
-        falhas.append(nome)
-        continue
-    io.open(alvo, "w", encoding="utf-8", newline="\n").write(txt.replace(de, para, 1))
+        if arquivo not in originais:
+            originais[arquivo] = ler(destino, arquivo)
+        txt = originais[arquivo]
 
-    saida = rodar(tmp)
-    chegou_ao_fim = FIM in saida
-
-    if label is None:
-        # Sem label: basta que o harness tenha PARADO. Ele reprova com mensagem propria.
-        if chegou_ao_fim:
-            print("  FALHA %-42s o harness passou inteiro com o defeito" % nome)
+        if txt.count(de) != 1:
+            print("  ?     %-42s ANCORA NAO BATE (%d)" % (nome, txt.count(de)))
             falhas.append(nome)
-        else:
-            print("  ok    %-42s parou o harness" % nome)
-        continue
+            continue
+        txt = txt.replace(de, para, 1)
 
-    esperado = "  ERRO  " + label
-    if esperado in saida:
-        print("  ok    %-42s reprovou em: %s" % (nome, label))
-    else:
-        outro = [l for l in saida.splitlines() if l.startswith("  ERRO")]
-        print("  FALHA %-42s esperava reprovar em %r; veio %r" % (nome, label, outro[:1]))
-        falhas.append(nome)
+        escrever(destino, arquivo, txt)
+        try:
+            saida = rodar(destino)
+        finally:
+            # O ORIGINAL VOLTA SEMPRE, inclusive se a rodada estourar: uma sabotagem que vaza para
+            # a proxima faria a suite acusar defeitos que nao existem.
+            escrever(destino, arquivo, originais[arquivo])
+
+        chegou_ao_fim = FIM in saida
+
+        if label is None:
+            if chegou_ao_fim:
+                print("  FALHA %-42s o harness passou inteiro com o defeito" % nome)
+                falhas.append(nome)
+            else:
+                print("  ok    %-42s parou o harness" % nome)
+            continue
+
+        esperado = "  ERRO  " + label
+        if esperado in saida:
+            print("  ok    %-42s reprovou em: %s" % (nome, label))
+        else:
+            outro = [l for l in saida.splitlines() if l.startswith("  ERRO")]
+            print("  FALHA %-42s esperava reprovar em %r; veio %r" % (nome, label, outro[:1]))
+            falhas.append(nome)
+finally:
+    shutil.rmtree(base, ignore_errors=True)
 
 print()
 print("sabotagens que NAO foram pegas: %d" % len(falhas))

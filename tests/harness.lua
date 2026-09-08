@@ -1393,6 +1393,60 @@ do
     check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 60, true)
 end
 
+print("== a janela cabe o que ela desenha, em qualquer conjunto de colunas ==")
+-- DEFEITO DE 08/09, achado por tres lentes independentes de um estudo de aparencia.
+--
+-- `MinWidth` deixou de somar as colunas quando o desenho em SECOES as tirou da tela -- e eu
+-- escrevi no comentario que "as colunas nao sao mais desenhadas". Depois as colunas voltaram e a
+-- soma nao voltou junto: a premissa venceu e o comentario ficou afirmando um fato morto.
+--
+-- Com o conjunto padrao de Mitico+ (7 colunas x 58 = 406) numa janela de 340, a area do nome dava
+-- **-111**; o clamp a punha em 40px e a primeira celula era ancorada em x = -70 -- INTEIRA fora da
+-- janela, desenhando por cima do icone, do nome e do cenario. Nada recorta.
+--
+-- ⚑ O TESTE TRAVA A INVARIANTE, NAO OS NUMEROS. Foi um numero solto (o `10` da calha, digitado em
+-- dois lugares) que permitiu as duas contas divergirem; travar "largura = 537" so amarraria o
+-- proximo valor errado. O que nao pode quebrar e: **a janela cabe o que ela desenha**.
+do
+    ns.db.rows = 5
+    for _, conjunto in ipairs({
+        { "damage" },
+        { "damage", "healing", "interrupts" },
+        { "damage", "dps", "healing", "hps", "interrupts", "dispels", "deaths" },
+    }) do
+        ns.db.columns = conjunto
+        ns.db.width = nil                 -- como numa instalacao limpa
+        ns.Window.Show(false)
+        ns.Window.Rebuild()
+        ns.Window.Draw()
+
+        local g = ns.Window.DebugGeometry()
+        local quantas = #conjunto
+
+        check("com " .. quantas .. " coluna(s), o nome tem o piso",
+            g.nameArea ~= nil and g.nameArea >= g.nameFloor, true)
+
+        local foraDaJanela
+        for c = 1, quantas do
+            if g.cellLeft[c] < 0 then foraDaJanela = c end
+        end
+        check("  e nenhuma coluna desenha fora da janela", foraDaJanela, nil)
+
+        check("  e a largura padrao tem folga sobre o minimo", g.width > g.minWidth, true)
+    end
+
+    -- E NO MINIMO A CONTA AINDA FECHA: arrastar ate o piso nao pode espremer o nome abaixo dele.
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts", "dispels", "deaths" }
+    ns.db.width = ns.Window.DebugGeometry().minWidth
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+    local g = ns.Window.DebugGeometry()
+    check("no minimo, o nome ainda tem o piso exato", g.nameArea, g.nameFloor)
+
+    ns.db.width = nil
+    ns.db.columns = { "damage", "healing", "interrupts" }
+end
+
 print("== a ordenacao pelas colunas continua funcionando ==")
 -- Pergunta do usuario depois da mudanca de layout: *"a ordenacao pelas colunas ainda funciona?"*.
 --

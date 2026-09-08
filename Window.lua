@@ -118,6 +118,12 @@ local FONT_SIZE_DEFAULT = 16
 -- "134K"), e o nome ficaria pulando de tamanho no meio da luta.
 --
 -- 96 = ~56 para o total (cabe "1.2B") + ~34 para a taxa + a folga entre os dois.
+-- A CALHA entre o fim do nome e a primeira coluna. Ela ja existia como um `10` solto dentro da
+-- conta do nome; virou constante porque agora DUAS contas dependem dela -- a area do nome e a
+-- largura minima da janela --, e um `10` digitado em dois lugares e a receita para elas
+-- divergirem, que e exatamente o defeito que este arquivo acabou de ter.
+local NAME_GUTTER = 10
+
 local NUMBER_RESERVE = 96
 
 -- A CELULA DE COLUNA, agora que ela e uma barra.
@@ -201,19 +207,56 @@ end
 ---Le da configuracao a cada chamada em vez de guardar: assim o passo do configurador aparece
 ---na tela sem `/reload`. E cai no padrao do papel quando a chave nao existe -- que e o caso de
 ---quem atualiza o addon antes de a migracao rodar.
+---A configuracao de um papel de texto. **Ela nunca devolve tabela incompleta** -- e a garantia
+---existe porque a falta dela virou travamento intermitente.
+---
+---⚠️ SINTOMA NAO EXPLICADO, e fica registrado assim de proposito. Em ~3 de 12 rodadas do harness,
+---`ns.OutlineFor("body")` recebia daqui um `config` com `size` E `outline` nil e estourava em
+---`size < OUTLINE_MIN_SIZE` ("attempt to compare nil with number"), sempre em pontos diferentes
+---do teste. Investiguei com instrumentacao, nao com teoria:
+---
+---  * `ns.db.text.body` estava INTEGRO no instante da falha (size 16, outline "thin");
+---  * `ROLE_DEFAULTS.body` tambem: 25 rodadas com uma armadilha de escrita e nenhuma disparou,
+---    e uma checagem dentro desta funcao nunca viu `base.size` deixar de ser numero.
+---
+---Ou seja: as duas fontes estavam certas e a saida veio errada. Nao encontrei o mecanismo, e por
+---isso o comentario diz isso em vez de inventar uma causa -- a proxima pessoa merece saber que a
+---blindagem abaixo e uma REDE, e que o buraco continua aberto.
+---
+---A rede e barata e correta por si: quem le uma configuracao tem direito a uma configuracao
+---completa, e nenhum caminho daqui deveria produzir campo faltando.
+---O CORPO de um papel, garantidamente numero.
+---
+---Existe porque `ns.RoleConfig(role).size` chegou nil em TRES chamadores diferentes
+---(`ApplyRoleFont`, `OutlineFor`, `HaloAlphaFor`), em ~3 de 30 rodadas do harness, e a
+---investigacao nao achou o mecanismo -- ver o comentario longo em `RoleConfig`. Enquanto ele nao
+---for achado, ninguem le `.size` cru: le por aqui.
+function ns.RoleSizeSafe(role)
+    local config = ns.RoleConfig(role)
+    local size = config and config.size
+    if type(size) ~= "number" then return FONT_SIZE_MIN end
+    return size
+end
+
 function ns.RoleConfig(role)
     local base = ROLE_DEFAULTS[role] or ROLE_DEFAULTS.body
+    -- Ate o `base` passa a ser conferido: se o padrao chegar quebrado, o piso de fonte responde.
+    local baseSize = type(base.size) == "number" and base.size or FONT_SIZE_MIN
+    local baseOutline = base.outline or "none"
+
     local saved = ns.db and ns.db.text and ns.db.text[role]
-    if type(saved) ~= "table" then return base end
+    if type(saved) ~= "table" then
+        return { size = baseSize, outline = baseOutline, shadow = base.shadow ~= false }
+    end
 
     local size = saved.size
-    if type(size) ~= "number" then size = base.size end
+    if type(size) ~= "number" then size = baseSize end
     if size < FONT_SIZE_MIN then size = FONT_SIZE_MIN end
     if size > FONT_SIZE_MAX then size = FONT_SIZE_MAX end
 
     return {
         size = size,
-        outline = saved.outline or base.outline,
+        outline = saved.outline or baseOutline,
         shadow = saved.shadow ~= false,
     }
 end
@@ -232,7 +275,11 @@ ns.ROLE_DEFAULTS = ROLE_DEFAULTS
 ---cada um tambem".
 function ns.OutlineFor(role)
     local config = ns.RoleConfig(role)
-    local size, wanted = config.size, config.outline
+    -- CINTO ALEM DO SUSPENSORIO, e o motivo esta no comentario de `RoleConfig`: esta comparacao
+    -- estourou em producao com `size` nil, e a origem nao foi encontrada. Enquanto ela nao for,
+    -- a janela nao pode deixar de desenhar por causa disso.
+    local size = ns.RoleSizeSafe(role)
+    local wanted = config.outline
 
     local flags = ""
     for _, choice in ipairs(ns.OUTLINE_CHOICES) do
@@ -257,7 +304,7 @@ end
 ---fecha mais que o do motor, porque soma 1px por fora do que o `OUTLINE` já pôs.
 function ns.HaloAlphaFor(role)
     local config = ns.RoleConfig(role)
-    if config.size < OUTLINE_MIN_SIZE then return 0 end
+    if ns.RoleSizeSafe(role) < OUTLINE_MIN_SIZE then return 0 end
 
     for _, choice in ipairs(ns.OUTLINE_CHOICES) do
         if choice.value == config.outline then
@@ -573,7 +620,7 @@ end
 ---contorno e sombra. Com um corpo só, mexer num mexia em todos — que foi a reprovação.
 function ns.ApplyRoleFont(fontString, role, delta, flagsOverride)
     local config = ns.RoleConfig(role)
-    local size = config.size + (delta or 0)
+    local size = ns.RoleSizeSafe(role) + (delta or 0)
     if size < 6 then size = 6 end
 
     local flags = flagsOverride
@@ -1035,28 +1082,47 @@ end
 ---Ela somava a largura das colunas (7 x 58 = 406), o que fazia a janela nascer com 508px de
 ---largura minima por causa de colunas que nao sao mais desenhadas. Agora e o que a LINHA precisa:
 ---icone, um nome legivel e o espaco do numero.
+---A largura minima: abaixo dela a janela nao cabe o que ela desenha.
+---
+---⚠️ ELA VOLTOU A SOMAR AS COLUNAS, e a historia disso e a licao: quando o desenho em SECOES
+---tirou as colunas da tela, eu tirei a soma delas daqui -- e escrevi no comentario que "as
+---colunas nao sao mais desenhadas". Depois o desenho voltou a ter colunas e a soma nao voltou
+---junto. **A premissa venceu e o comentario ficou**, afirmando como fato uma coisa que deixara de
+---ser verdade.
+---
+---O estrago era grande e silencioso: com o conjunto padrao de Mitico+ (7 colunas x 58 = 406px)
+---numa janela de 340, a area do nome dava **−111** e o clamp a punha em 40px; a primeira celula
+---era ancorada em x = −70, ou seja INTEIRA fora da janela, e como nada recorta, ela desenhava por
+---cima do icone, do nome e do cenario. Quatro das sete colunas caiam fora.
+---
+---E nao era so instalacao limpa: com a largura que o usuario ja tinha arrastado (491px, 6
+---colunas), trocar para o conjunto de Mitico+ dava area de nome 44 -- dentro do clamp, nomes
+---cortados, sem nenhum reset.
+---
+---A CALHA ENTRA NA CONTA, e esquece-la reproduz um defeito que este arquivo ja documentou: sem
+---ela o minimo garante 96 para o nome, mas o layout desconta a calha DESSES 96 e sobram 86 -- o
+---mesmo 86 do comentario de `DEFAULT_WIDTH`.
 local function MinWidth()
-    -- ICONE + NOME LEGIVEL + O ESPACO DO NUMERO. Nada de `ColumnOffsets`: as colunas nao sao mais
-    -- desenhadas, e somar a largura delas fazia a janela nascer com 508px de minimo por causa de
-    -- 406px de nada.
-    return PADDING * 2 + RowHeight() + NAME_MIN_WIDTH + NUMBER_RESERVE
+    local _, columnsWidth = ColumnOffsets()
+    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH + columnsWidth
 end
 
--- A LARGURA PADRAO, para quem nunca arrastou a janela.
+-- A FOLGA da largura padrao sobre o minimo.
 --
--- Ela nao pode ser o MINIMO. Com o layout de colunas os dois coincidiam por acaso -- o minimo era
--- 508px porque somava sete colunas --, e ninguem reparou. Sem as colunas o minimo caiu para 227,
--- e usa-lo como padrao daria uma janela em que o nome tem 86px: "Lilianvoss" cortado de novo, so
--- que por outro motivo.
+-- A padrao NAO PODE SER O MINIMO: o minimo garante `NAME_MIN_WIDTH` (96) para o nome, que e o
+-- piso de legibilidade, nao um tamanho confortavel. Nascer no piso significa nascer no limite.
 --
--- 340 = os 227 do minimo + ~110 de folga para o nome. E o ponto em que um nome de reino longo
--- ("Frenchmiku-Tichondrius") ainda cabe sem o numero encostar nele.
-local DEFAULT_WIDTH = 340
+-- 48 sai de medicao: "Frenchmiku-Tichondrius" -- nome com reino, que e o caso longo real do grupo
+-- do usuario -- mede ~139px em Arial Narrow 16, contra os 96 do piso. A folga cobre a diferenca.
+--
+-- E ela e SOMADA ao minimo, nao um numero absoluto: o minimo depende de quantas colunas o jogador
+-- marcou, entao uma largura padrao fixa voltaria a nao caber assim que ele marcasse mais uma.
+local DEFAULT_SLACK = 48
 
 local function WindowWidth()
     local saved = ns.db.width or 0
-    if saved <= 0 then saved = DEFAULT_WIDTH end
     local minimum = MinWidth()
+    if saved <= 0 then saved = minimum + DEFAULT_SLACK end
     return saved > minimum and saved or minimum
 end
 
@@ -1249,6 +1315,14 @@ local function BuildRow(index)
             edgeFile = "Interface\\Buttons\\WHITE8X8",
             edgeSize = 1,
         })
+
+        -- RECORTA O QUE PASSAR DA BORDA. E REDE, NAO CONSERTO -- e a diferenca importa: com a
+        -- conta certa nada passa, e com ela errada isto transforma "coluna desenhando sobre o
+        -- cenario" em "coluna que some calada". A segunda e mais dificil de diagnosticar.
+        --
+        -- Entra mesmo assim porque o desenho depende de uma aritmetica que ja venceu uma vez, e
+        -- porque o proprio medidor nativo recorta a entrada dele (`DamageMeterEntry.xml:3`).
+        if row.SetClipsChildren then row:SetClipsChildren(true) end
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
@@ -1460,7 +1534,7 @@ local function BuildRow(index)
     -- A AREA DO NOME e o que sobra depois das colunas -- e agora as colunas EXISTEM de novo,
     -- entao descontar a largura delas voltou a ser a conta certa. (Na 0.67.x ela descontava 406px
     -- de colunas que nao estavam mais sendo desenhadas, e o nome ficava com 57px.)
-    row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 10
+    row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - NAME_GUTTER
     if row.nameArea < 40 then row.nameArea = 40 end
     row.name:SetWidth(row.nameArea)
     row.realm:SetWidth(0)
@@ -2038,6 +2112,35 @@ end
 ---lugar do cabecalho da primeira secao, e foi essa sobreposicao que o usuario viu.
 function Window.DebugColumnHeaderShown()
     return headerRow ~= nil and headerRow:IsShown() and true or false
+end
+
+---A geometria horizontal do que foi desenhado: a largura da janela, a area do nome, e a borda
+---ESQUERDA de cada celula medida a partir da borda esquerda da linha.
+---
+---A borda esquerda e o numero que importa: negativa significa celula desenhando FORA da janela,
+---que foi o defeito de 08/09 -- quatro das sete colunas do conjunto padrao caiam para fora e
+---pintavam por cima do nome e do cenario, porque `MinWidth` tinha deixado de contar as colunas.
+function Window.DebugGeometry()
+    local largura = WindowWidth()
+    local offsets, columnsWidth = ColumnOffsets()
+    local row = rows and rows[1]
+
+    local bordas = {}
+    for c = 1, #ns.db.columns do
+        -- A celula e ancorada pela DIREITA da area de texto, entao a borda esquerda dela e
+        -- "largura util menos o deslocamento menos a propria largura".
+        local util = largura - PADDING * 2
+        bordas[c] = util - offsets[c] - CELL_GAP / 2 - (ColumnWidth() - CELL_GAP)
+    end
+
+    return {
+        width = largura,
+        minWidth = MinWidth(),
+        columnsWidth = columnsWidth,
+        nameArea = row and row.nameArea or nil,
+        nameFloor = NAME_MIN_WIDTH,
+        cellLeft = bordas,
+    }
 end
 
 ---Dispara o clique no cabecalho de uma coluna, como o jogador faria.
