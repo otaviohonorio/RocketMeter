@@ -351,6 +351,46 @@ local BAR_GRADIENT_MAX = 0.84
 -- sustenta a leitura é a sombra do texto, e a separação entre linhas vem da faixa de progresso.
 local ROW_BG_ALPHA = 0
 local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
+
+-- OS QUATRO TRATAMENTOS DA BARRA, e por que eles existem como escolha.
+--
+-- Com o numero DENTRO da barra (0.67.0), ele fica encostado a direita -- ou seja, na parte VAZIA
+-- dela para todo mundo menos o lider. E `ROW_BG_ALPHA` e 0 de proposito: o fundo da linha e
+-- transparente, entao essa parte vazia e o cenario do jogo. O numero cai sobre labareda, pedra,
+-- o que estiver atras.
+--
+-- A skill do workspace ja tinha a resposta medida -- *"tingir o fundo da linha com a mesma cor a
+-- ~18%, para a parte vazia nao virar buraco"* -- e a constante `ROW_BG_TINT` existia sem uso.
+--
+-- Mas espessura, contraste e "da para ler?" sao RENDERIZACAO, e este projeto ja gastou rodadas
+-- de teste chutando isso (o contorno medio, o corpo da fonte, a opacidade do fundo). Entao em
+-- vez de um palpite por rodada, as quatro respostas plausiveis viram variantes e o usuario
+-- compara as quatro num `/reload` so.
+--
+--   `tint`  quanto da cor da classe entra no fundo da linha (0 = transparente)
+--   `plate` placa escura atras do numero (`LoC-ShadowBG`, a textura que a Blizzard usa para
+--           por numero sobre arte qualquer -- o placar ja a usa no nivel de item)
+--   `strip` a barra e a faixa fina de 3px no rodape, nao o preenchimento da linha
+ns.BAR_STYLES = {
+    -- O RECOMENDADO: chao para a parte vazia + garantia para o numero. Os dois sinais que a
+    -- referencia usa, somados.
+    { value = "nativo",  tint = ROW_BG_TINT, plate = true,  strip = false },
+    -- So a placa: mantem a janela mais leve, aposta tudo no contraste local do numero.
+    { value = "placa",   tint = 0,           plate = true,  strip = false },
+    -- Como saiu na 0.67.0, sem nenhum dos dois. Esta aqui para ser o ponto de comparacao.
+    { value = "solido",  tint = 0,           plate = false, strip = false },
+    -- A faixa de 3px de antes da 0.67.0, agora dentro das secoes: quem achar que a barra cheia
+    -- atrapalha mesmo depois de tratada tem de volta o desenho que ja tinha aprovado.
+    { value = "faixa",   tint = 0,           plate = false, strip = true },
+}
+
+function ns.BarStyle()
+    local wanted = ns.db and ns.db.barStyle
+    for i = 1, #ns.BAR_STYLES do
+        if ns.BAR_STYLES[i].value == wanted then return ns.BAR_STYLES[i] end
+    end
+    return ns.BAR_STYLES[1]
+end
 -- Fundo invisível: é a variante "No Background" da skin (`wallpaperAlpha = 0.0`).
 -- Quem sustenta a leitura é a sombra do texto; a separação vem da faixa de progresso.
 local WINDOW_ALPHA = 0
@@ -1325,6 +1365,13 @@ local function BuildRow(index, offsetY)
         --
         -- Sao DOIS textos porque a metrica tem dois numeros ("34M" e "141K/s"), e um corpo so
         -- para os dois faria a taxa competir com o total. O secundario e menor e cinza.
+        -- A PLACA ATRAS DO NUMERO. `LoC-ShadowBG` e do proprio jogo e existe para isto: por
+        -- numero legivel sobre arte que voce nao controla. Ela e ancorada ao TEXTO, entao
+        -- acompanha o tamanho dele sem ninguem calcular largura.
+        row.valuePlate = row.text:CreateTexture(nil, "ARTWORK")
+        row.valuePlate:SetTexture("Interface\\Cooldown\\LoC-ShadowBG")
+        row.valuePlate:Hide()
+
         row.value = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.value:SetPoint("RIGHT", -4, TEXT_LIFT)
         row.value:SetJustifyH("RIGHT")
@@ -1372,10 +1419,32 @@ local function BuildRow(index, offsetY)
     -- O que torna isso legivel esta medido na skill: preenchimento **escurecido** (~0.65 da cor
     -- da classe), fundo de linha tingido para a parte vazia nao virar buraco, e sombra no texto.
     -- Sem as tres, e a reprovacao de antes de novo.
+    local style = ns.BarStyle()
     row.bar:ClearAllPoints()
-    row.bar:SetPoint("TOPLEFT", 1, -1)
-    row.bar:SetPoint("BOTTOMRIGHT", -1, 1)
-    row.barTrack:Hide()
+    if style.strip then
+        -- A faixa fina de antes da 0.67.0: a barra volta para o rodape e o numero passa a ser
+        -- lido sobre o fundo da janela, nao sobre cor de classe.
+        row.bar:SetPoint("BOTTOMLEFT", 2, 1)
+        row.bar:SetPoint("BOTTOMRIGHT", -2, 1)
+        row.bar:SetHeight(PROGRESS_HEIGHT)
+        row.barTrack:ClearAllPoints()
+        row.barTrack:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 0)
+        row.barTrack:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -1, 0)
+        row.barTrack:SetHeight(PROGRESS_HEIGHT + 2)
+        row.barTrack:Show()
+    else
+        row.bar:SetPoint("TOPLEFT", 1, -1)
+        row.bar:SetPoint("BOTTOMRIGHT", -1, 1)
+        row.barTrack:Hide()
+    end
+
+    -- A placa acompanha o numero, com uma folga de cada lado para a sombra nao encostar no
+    -- corte da textura.
+    row.valuePlate:ClearAllPoints()
+    row.valuePlate:SetPoint("LEFT", row.value, "LEFT", -6, 0)
+    row.valuePlate:SetPoint("RIGHT", row.value, "RIGHT", 6, 0)
+    row.valuePlate:SetHeight(RowHeight() - 4)
+    row.valuePlate:SetShown(style.plate)
     ns.ApplyRoleFont(row.name, "body", 0)
     SyncHaloFont(row.name, row.nameHalo, 0)
     -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
@@ -1945,7 +2014,16 @@ function Window.Draw()
                 row.bar:SetMinMaxValues(0, top)
                 row.bar:SetValue(value)
                 ns.ApplyBarColor(row.bar, source.classFilename)
-                row.bg:SetColorTexture(ns.RowBackdropColor())
+
+                -- CHAO PARA A PARTE VAZIA. Sem isto o numero encostado a direita cai sobre o
+                -- cenario do jogo, porque o fundo da linha e transparente de proposito.
+                local style = ns.BarStyle()
+                if style.tint > 0 then
+                    local r, g, b = ns.ClassColor(source.classFilename)
+                    row.bg:SetColorTexture(r * 0.5, g * 0.5, b * 0.5, style.tint)
+                else
+                    row.bg:SetColorTexture(ns.RowBackdropColor())
+                end
 
                 ns.ApplyRowIcon(row.icon, row.iconClass, source)
                 ns.DrawName(row, source.name)
@@ -1997,6 +2075,22 @@ function Window.Draw()
         ns.Breakdown.Refresh()
     end
 
+end
+
+---A primeira linha desenhada, para o teste poder perguntar o que a variante da barra fez com
+---ela. Sem isto, "trocar de variante nao estoura" seria tudo o que daria para afirmar -- e uma
+---variante que nao muda nada tambem nao estoura.
+function Window.DebugFirstRow()
+    local row = rows and rows[1]
+    if not row or not row:IsShown() then return nil end
+    local cor = row.bg.GetColorTexture and row.bg:GetColorTexture()
+    return {
+        plate = row.valuePlate:IsShown(),
+        track = row.barTrack:IsShown(),
+        -- A opacidade do fundo da linha: 0 e transparente (o numero cai sobre o cenario),
+        -- maior que 0 e o chao que o tingimento devolve.
+        bgAlpha = cor and cor[4] or nil,
+    }
 end
 
 ---O que a janela DESENHOU: uma entrada por secao, com o rotulo, quantas linhas e quem ficou em

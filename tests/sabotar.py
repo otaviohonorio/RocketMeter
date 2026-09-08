@@ -32,6 +32,16 @@ if not os.path.exists(LUA):
 
 # (nome, arquivo, de, para, label do check que TEM que reprovar)
 SABOTAGENS = [
+    ("as variantes da barra nao mudam nada", "Window.lua",
+     u"    row.valuePlate:SetShown(style.plate)",
+     u"    row.valuePlate:SetShown(false)",
+     "`nativo` mostra a placa"),
+
+    ("o fundo tingido volta a ser transparente", "Window.lua",
+     u"                if style.tint > 0 then",
+     u"                if false then",
+     "`nativo` tinge o fundo da linha"),
+
     ("secoes viram uma lista so", "Data.lua",
      u"        if def and not seen[def.attr] then",
      u"        if def then",

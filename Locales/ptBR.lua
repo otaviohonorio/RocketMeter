@@ -233,3 +233,7 @@ L["Column header"] = "Cabeçalho das colunas"
 L["Keystone"] = "Pedra"
 L["Loot"] = "Saque"
 L["Not in combat: %s"] = "Fora de combate: %s"
+
+-- As variantes da barra, trocaveis por `/rm barra` (0.67.1)
+L["bar style: %s"] = "estilo da barra: %s"
+L["unknown bar style: %s"] = "estilo de barra desconhecido: %s"

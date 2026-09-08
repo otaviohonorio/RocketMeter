@@ -22,6 +22,10 @@ ns.defaults = {
     -- `nil` aqui de proposito: `Profile.EnsureRuntimeDefaults` monta a tabela, herdando as
     -- chaves antigas de quem ja tinha configuracao salva.
     text = nil,
+    -- COMO A BARRA DA LINHA SE TRATA. Ver `ns.BAR_STYLES` em `Window.lua`: e questao de
+    -- RENDERIZACAO, e renderizacao so o jogo responde -- por isso sao variantes trocaveis por
+    -- `/rm barra` em vez de um valor decidido no escuro.
+    barStyle = "nativo",
     rowHeight = 20,          -- altura da barra na referência
     columnWidth = 58,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas

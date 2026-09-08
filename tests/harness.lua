@@ -67,6 +67,11 @@ local function widget(kind)
     -- `SetMinMaxValues` com um no-op, e a regua de cada secao -- que e o que impede a barra de
     -- cura de ser medida contra o maior dano -- ficava invisivel ao teste: sabotar `top = 1` nao
     -- reprovava nada.
+    -- A COR CHAPADA, guardada pelo mesmo motivo: o fundo tingido da linha e o que da chao ao
+    -- numero encostado a direita, e sem registrar isso sabotar o tingimento nao reprovava nada.
+    function self.SetColorTexture(_, r, g, b, a) self.__color = { r, g, b, a } end
+    function self.GetColorTexture() return self.__color end
+
     function self.SetMinMaxValues(_, lo, hi) self.__min, self.__max = lo, hi end
     function self.GetMinMaxValues() return self.__min, self.__max end
     function self.SetValue(_, v) self.__value = v end
@@ -1335,6 +1340,43 @@ do
     check("e a janela encolheu", altura1 < altura, true)
 
     ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+end
+
+print("== as quatro variantes da barra ==")
+-- Elas existem porque contraste e legibilidade sao RENDERIZACAO, e o harness nao desenha. O que
+-- ele PODE travar e que as quatro existem, que trocar de uma para outra nao estoura, e que cada
+-- uma muda de fato o que vai para os widgets -- se as quatro produzissem a mesma tela, o comando
+-- seria teatro.
+do
+    check("ha quatro variantes", #ns.BAR_STYLES, 4)
+    check("a recomendada e a primeira", ns.BAR_STYLES[1].value, "nativo")
+    check("e ela soma os dois sinais", ns.BAR_STYLES[1].tint > 0 and ns.BAR_STYLES[1].plate, true)
+
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+    ns.Window.Show(false)
+
+    local vistos, tingido = {}, {}
+    for _, style in ipairs(ns.BAR_STYLES) do
+        ns.db.barStyle = style.value
+        local ok, err = pcall(ns.Window.Draw)
+        check("desenha com `" .. style.value .. "`", ok or tostring(err), true)
+
+        -- O que mudou de verdade: a placa atras do numero aparece ou nao.
+        local linha = ns.Window.DebugFirstRow()
+        vistos[style.value] = linha and linha.plate
+        tingido[style.value] = linha and linha.bgAlpha
+    end
+
+    check("`nativo` mostra a placa", vistos["nativo"], true)
+    check("`solido` nao mostra", vistos["solido"], false)
+    check("e as duas variantes diferem de fato", vistos["nativo"] ~= vistos["solido"], true)
+
+    -- O CHAO DA PARTE VAZIA. `nativo` tinge o fundo da linha com a cor da classe; `solido`
+    -- deixa transparente, e e ai que o numero encostado a direita cai sobre o cenario.
+    check("`nativo` tinge o fundo da linha", (tingido["nativo"] or 0) > 0, true)
+    check("`solido` deixa transparente", tingido["solido"], 0)
+
+    ns.db.barStyle = "nativo"
 end
 
 print("== placar: a copia do Details! Mythic+ Scoreboard ==")
