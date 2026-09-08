@@ -32,6 +32,16 @@ if not os.path.exists(LUA):
 
 # (nome, arquivo, de, para, label do check que TEM que reprovar)
 SABOTAGENS = [
+    ("secoes viram uma lista so", "Data.lua",
+     u"        if def and not seen[def.attr] then",
+     u"        if def then",
+     "tres metricas viram tres secoes"),
+
+    ("a secao perde a propria regua", "Window.lua",
+     u"        local top = secao.session and secao.session.maxAmount",
+     u"        local top = 1",
+     "as secoes nao compartilham regua"),
+
     ("coluna sem construtor de celula", "Scoreboard.lua",
      u"CellBuilders.score = CellBuilders.value",
      u"-- sabotado",

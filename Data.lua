@@ -61,6 +61,24 @@ local function BuildColumns()
         { key = "enemies",    attr = E.EnemyDamageTaken,     field = "total",     short = L["Enemies"],label = L["Damage on enemies"] },
     }
 
+    -- O NOME DA FAMILIA, para o cabecalho de secao. "Dano", nao "Dano total": o cabecalho nomeia
+    -- a METRICA, e o total dela ja aparece do lado. Todas estas chaves ja existiam no arquivo de
+    -- idioma -- nenhuma foi inventada para isto.
+    local FAMILY = {
+        [E.DamageDone]           = L["Damage"],
+        [E.HealingDone]          = L["Healing"],
+        [E.Absorbs]              = L["Absorbs"],
+        [E.DamageTaken]          = L["Damage taken"],
+        [E.AvoidableDamageTaken] = L["Avoidable damage"],
+        [E.Interrupts]           = L["Interrupts"],
+        [E.Dispels]              = L["Dispels"],
+        [E.Deaths]               = L["Deaths"],
+        [E.EnemyDamageTaken]     = L["Damage on enemies"],
+    }
+    for i = 1, #list do
+        list[i].family = FAMILY[list[i].attr] or list[i].short
+    end
+
     local byKey = {}
     for i, def in ipairs(list) do
         def.order = i
@@ -94,6 +112,12 @@ end
 function Data.GetAttributeLabel(key)
     local def = Data.GetColumn(key)
     return def and def.label or "?"
+end
+
+---O nome da familia de uma coluna ("Dano"), para o cabecalho de secao.
+function Data.GetFamilyLabel(key)
+    local def = Data.GetColumn(key)
+    return def and def.family or "?"
 end
 
 function Data.IsRateColumn(key)
@@ -750,6 +774,83 @@ end
 ---
 ---Isso exige comparar valores, o que é **proibido com secret values**. Em combate, portanto,
 ---o realce simplesmente não aparece; ao sair do combate ele volta. Preferível a errar o líder.
+---As METRICAS em que a janela mostra uma classificacao, cada uma com a sua propria lista.
+---
+---POR QUE ISTO EXISTE. Pedido: *"qual seria a melhor forma de em uma janela ver uma ordenacao
+---onde eu consiga ver quem esta sendo o melhor em Dano/DPS, Cura/CPS e Interrupts"*. Sao **tres
+---classificacoes ao mesmo tempo** sobre as mesmas cinco pessoas, e uma tabela ordenada por uma
+---coluna so responde a primeira -- nas outras duas o lider fica perdido no meio.
+---
+---⚑ E A RESTRICAO DO MIDNIGHT DECIDE O DESENHO. Em combate os valores sao secret: comparar
+---levanta erro, entao **o addon nao consegue descobrir quem e o maior**. O realce de lider por
+---coluna que existia so funcionava fora de combate, e ninguem tinha percebido porque fora de
+---combate e onde a gente olha quando esta ajustando.
+---
+---O que funciona e perguntar. `C_DamageMeter.GetCombatSessionFromType` **devolve a lista ja
+---ordenada** pela metrica pedida -- conferido no proprio medidor da Blizzard, que nao ordena
+---nada em Lua: ele percorre `combatSources` na ordem e usa `index = i` como posicao
+---(`DamageMeterSessionWindow.lua:621-641`). Uma consulta por metrica = uma classificacao pronta,
+---de graca, valida dentro e fora de combate.
+---
+---Entao: **posicao na lista e o unico ranking confiavel**, e uma secao por metrica e a forma de
+---ter tres deles. O lider e sempre a primeira linha de cada secao.
+---
+---AS SECOES SAEM DAS COLUNAS QUE O JOGADOR JA ESCOLHEU, agrupadas por metrica (`attr`): marcar
+---"Dano total" e "Dano por segundo" nao da duas secoes, da uma secao de Dano que mostra os dois
+---numeros. Assim a tela de configuracao continua valendo, e passa a significar algo melhor.
+---
+---@param sessionType number
+---@param columns string[] as colunas marcadas, na ordem
+---@param rowsPerSection number quantas linhas por secao
+---@return table[] secoes `{ key, attr, label, columns, rows, session }`
+function Data.GetSections(sessionType, columns, rowsPerSection)
+    local out, seen = {}, {}
+
+    for c = 1, #columns do
+        local def = Data.GetColumn(columns[c])
+        if def and not seen[def.attr] then
+            seen[def.attr] = { key = def.key, attr = def.attr, columns = {} }
+            out[#out + 1] = seen[def.attr]
+        end
+        if def then
+            local grupo = seen[def.attr]
+            grupo.columns[#grupo.columns + 1] = def.key
+
+            -- A COLUNA QUE ORDENA A SECAO e a de TOTAL, nao a primeira marcada. Quem marca so
+            -- "Dano por segundo" ainda quer a secao ordenada por dano -- e a taxa e derivada do
+            -- total, entao as duas ordens sao a mesma; mas quem marca as duas espera ver o total
+            -- primeiro, porque e o numero que o medidor nativo poe em destaque.
+            if def.field == "total" or def.field == "count" then
+                grupo.key = grupo.key or def.key
+                if def.field == "total" then grupo.key = def.key end
+            end
+        end
+    end
+
+    local secoes = {}
+    for i = 1, #out do
+        local grupo = out[i]
+        local rows, session = Data.GetRows(sessionType, grupo.key, grupo.columns,
+            rowsPerSection, false)
+
+        -- SECAO SEM NINGUEM NAO APARECE. Ninguem interrompeu ainda -> a secao de interrupcoes
+        -- nao existe, em vez de existir vazia. E a regra da skill do workspace: *espaco vazio
+        -- reservado para gente que nao esta la e o que mais faz uma janela parecer quebrada*.
+        if rows and #rows > 0 then
+            secoes[#secoes + 1] = {
+                key = grupo.key,
+                attr = grupo.attr,
+                label = Data.GetFamilyLabel(grupo.key),
+                columns = grupo.columns,
+                rows = rows,
+                session = session,
+            }
+        end
+    end
+
+    return secoes
+end
+
 function Data.MarkColumnLeaders(rows, columns)
     if #rows < 2 then return end
 

@@ -113,6 +113,15 @@ local FONT_SIZE_DEFAULT = 16
 -- própria função do addon se perde.
 -- Geometria da linha. Sobe para ca porque `ns.RowHeightFor` a usa, e `local` declarado depois
 -- de uma funcao resolve como GLOBAL dentro dela -- ou seja, nil.
+-- CABECALHO DE SECAO: o nome da metrica a esquerda, o total dela a direita.
+--
+-- 16px, e nao os 45 do cabecalho de secao da Blizzard: aquele numero e de TELA DE OPCOES, que se
+-- le uma vez sentado. Esta janela fica no canto do jogo e se le de relance no meio de uma luta --
+-- gastar 45px por metrica custaria 135px de altura so em rotulo. 16 e a altura do cabecalho de
+-- coluna que ele substitui, entao a janela nao ficou mais alta por causa do rotulo: ficou mais
+-- alta por causa das linhas, que e o que se pediu.
+local SECTION_HEADER_HEIGHT = 16
+
 local ROW_HEIGHT_FIXED = 25   -- medido no nativo: linha de y=68 a y=92
 local COLUMN_WIDTH_FIXED = 58
 local ROW_BAR_HEIGHT = 3      -- a faixa de progresso no rodape da linha (= PROGRESS_HEIGHT)
@@ -1027,6 +1036,21 @@ end
 ---A janela **mantém o tamanho que o usuário deu**, como no Details: as barras preenchem de cima
 ---para baixo e o resto fica de fundo. Encolher para o conteúdo, como eu tinha feito, tornava a
 ---alça inútil — com um jogador só, arrastar não mudava nada e parecia travado.
+---Altura de uma janela com `n` secoes e `linhas` linhas em cada uma.
+---
+---A conta e a soma das secoes, nao `linhas * altura`: cada secao carrega o proprio cabecalho, e
+---uma secao vazia nao entra na soma porque ela nem chega aqui (`Data.GetSections` ja a descarta).
+local function HeightForSections(sectionCount, rowsEach)
+    local rowH = RowHeight() + 1
+    return HEADER_HEIGHT
+        + sectionCount * (SECTION_HEADER_HEIGHT + rowsEach * rowH)
+        + PADDING
+end
+
+Window.__HeightForSections = HeightForSections
+
+local alturaDesenhada
+
 local function WindowHeight(rowCount)
     if rowCount < 1 then rowCount = 1 end
     return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
@@ -1142,7 +1166,42 @@ end
 --------------------------------------------------------------------------------
 -- Linhas: cada uma é uma barra
 --------------------------------------------------------------------------------
-local function BuildRow(index)
+---O cabecalho de uma secao: o nome da metrica e o total do grupo nela.
+---
+---Ele e o que transforma tres listas soltas em tres CLASSIFICACOES: sem o rotulo, a segunda lista
+---parece a continuacao da primeira, e a pessoa no topo dela parece o sexto lugar em dano.
+local sectionHeaders = {}
+
+local function BuildSectionHeader(index)
+    local head = sectionHeaders[index]
+    if not head then
+        head = CreateFrame("Frame", nil, frame)
+        head:SetHeight(SECTION_HEADER_HEIGHT)
+
+        head.rule = head:CreateTexture(nil, "ARTWORK")
+        head.rule:SetPoint("BOTTOMLEFT", 0, 0)
+        head.rule:SetPoint("BOTTOMRIGHT", 0, 0)
+        head.rule:SetHeight(1)
+        head.rule:SetColorTexture(1, 0.82, 0, 0.18)
+
+        head.label = head:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        head.label:SetPoint("LEFT", 2, 1)
+        head.label:SetJustifyH("LEFT")
+
+        head.total = head:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        head.total:SetPoint("RIGHT", -2, 1)
+        head.total:SetJustifyH("RIGHT")
+
+        sectionHeaders[index] = head
+    end
+
+    ns.ApplyRoleFont(head.label, "header", 0)
+    ns.ApplyRoleFont(head.total, "header", 0)
+    return head
+end
+
+---@param offsetY number|nil onde a linha comeca, contado do topo da janela (negativo)
+local function BuildRow(index, offsetY)
     local row = rows[index]
     if not row then
         row = CreateFrame("Button", nil, frame, "BackdropTemplate")
@@ -1260,6 +1319,24 @@ local function BuildRow(index)
             echo:SetWordWrap(false)
         end
 
+        -- O VALOR VAI DENTRO DA BARRA, encostado a direita. Pedido do usuario: *"o texto hoje
+        -- das colunas pode ficar dentro das barras para maximizar o uso de espaco"* -- e e o que
+        -- o medidor nativo faz, nome de um lado e numero do outro, os dois sobre a barra.
+        --
+        -- Sao DOIS textos porque a metrica tem dois numeros ("34M" e "141K/s"), e um corpo so
+        -- para os dois faria a taxa competir com o total. O secundario e menor e cinza.
+        row.value = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.value:SetPoint("RIGHT", -4, TEXT_LIFT)
+        row.value:SetJustifyH("RIGHT")
+        row.value:SetWordWrap(false)
+        row.valueHalo = CreateHalo(row.text, row.value)
+
+        row.rate = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.rate:SetPoint("RIGHT", row.value, "LEFT", -6, 0)
+        row.rate:SetJustifyH("RIGHT")
+        row.rate:SetWordWrap(false)
+        row.rateHalo = CreateHalo(row.text, row.rate)
+
         row.cells = {}
         rows[index] = row
     end
@@ -1267,7 +1344,10 @@ local function BuildRow(index)
     local height = RowHeight()
     row:SetHeight(height)
     row:ClearAllPoints()
-    local offsetY = -(HEADER_HEIGHT + ColumnHeaderHeight() + (index - 1) * (height + 1))
+    -- A POSICAO VEM DE FORA. Antes ela era derivada do indice, o que so funciona com uma lista
+    -- unica; com secoes, a terceira linha da segunda secao nao esta na terceira posicao da
+    -- janela. Quem sabe onde cada linha cai e o laco que desenha as secoes.
+    offsetY = offsetY or -(HEADER_HEIGHT + (index - 1) * (height + 1))
     row:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, offsetY)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
 
@@ -1281,7 +1361,21 @@ local function BuildRow(index)
     local iconSize = height          -- preenche a linha inteira, como no Details
     row.icon:SetSize(iconSize, iconSize)
     row.iconClass:SetSize(iconSize, iconSize)
-    row.bar:SetHeight(PROGRESS_HEIGHT)
+
+    -- BARRA CHEIA, e vale explicar por que ela voltou.
+    --
+    -- Ela ja tinha sido reprovada: *"a cor de fundo de cada classe fica ruim para ver os numeros
+    -- da tabela, tem que tirar"* -- e estava certo, NAQUELE contexto: uma tabela com seis colunas
+    -- de numero em cima de cor de classe saturada. Aqui a linha tem um nome e dois numeros, que e
+    -- o desenho do medidor nativo, e o pedido foi justamente por o numero dentro da barra.
+    --
+    -- O que torna isso legivel esta medido na skill: preenchimento **escurecido** (~0.65 da cor
+    -- da classe), fundo de linha tingido para a parte vazia nao virar buraco, e sombra no texto.
+    -- Sem as tres, e a reprovacao de antes de novo.
+    row.bar:ClearAllPoints()
+    row.bar:SetPoint("TOPLEFT", 1, -1)
+    row.bar:SetPoint("BOTTOMRIGHT", -1, 1)
+    row.barTrack:Hide()
     ns.ApplyRoleFont(row.name, "body", 0)
     SyncHaloFont(row.name, row.nameHalo, 0)
     -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
@@ -1803,47 +1897,99 @@ function Window.Draw()
         frame.header.clock:SetText("")
     end
 
-    local shown = 0
-    for i = 1, ns.db.rows do
-        local row = rows[i]
-        local entry = data and data[i]
+    -- AS SECOES. Uma consulta por metrica, cada uma ja ordenada pela API -- que e a unica forma
+    -- de ter classificacao em combate, onde comparar valor secret levanta erro.
+    local secoes = ns.Data.GetSections(ns.db.sessionType, ns.db.columns, ns.db.rows) or {}
 
-        if not entry then
-            row:Hide()
-        else
-            local source = entry.source
-            shown = i
+    local rowH = RowHeight() + 1
+    local y = HEADER_HEIGHT
+    local usadas, cabecalhos = 0, 0
 
-            local top = maxAmount
-            if top == nil then top = 1 end
-            local value = source.totalAmount
-            if value == nil then value = 0 end
-            row.bar:SetMinMaxValues(0, top)
-            row.bar:SetValue(value)
-            -- Depois do SetValue: o degradê vive na textura de preenchimento.
-            ns.ApplyBarColor(row.bar, source.classFilename)
-            row.bg:SetColorTexture(ns.RowBackdropColor())
+    for si = 1, #secoes do
+        local secao = secoes[si]
 
-            ns.ApplyRowIcon(row.icon, row.iconClass, source)
-            -- Pelo halo, não por `SetText` direto: `row.nameHalo` é criado em `BuildRow` e tem
-            -- a fonte sincronizada, mas nunca recebia texto — as cópias pretas ficavam vazias
-            -- e o nome saía sem contorno nenhum. Com a janela transparente é justamente o nome
-            -- que precisa dele: no print de 05/09 a primeira linha cai sobre uma labareda e o
-            -- branco sobre laranja claro não se lê. Os números já tinham o contorno; o nome,
-            -- que é o texto mais importante da linha, era o único sem.
-            ns.DrawName(row, source.name)
-            row.classFilename = source.classFilename
-            row.source = source
+        cabecalhos = cabecalhos + 1
+        local head = BuildSectionHeader(cabecalhos)
+        head:ClearAllPoints()
+        head:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -y)
+        head:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -y)
+        head.label:SetText(secao.label)
+        head.label:SetTextColor(1, 0.82, 0)
 
-            for c = 1, #ns.db.columns do
-                local key = ns.db.columns[c]
-                ns.SetCellText(row.cells[c], entry.values[c], key,
-                    row.cellHalos and row.cellHalos[c])
-                ns.StyleCell(row, c, entry.best and entry.best[c])
+        -- O TOTAL DO GRUPO na metrica, a direita do rotulo. E o numero que da escala ao resto:
+        -- sem ele, "299K" nao diz se e muito ou pouco.
+        local totalAmount = secao.session and secao.session.totalAmount
+        ns.SetCellText(head.total, totalAmount, secao.key)
+        head.total:SetTextColor(0.62, 0.62, 0.66)
+        head:Show()
+        y = y + SECTION_HEADER_HEIGHT
+
+        local top = secao.session and secao.session.maxAmount
+        if top == nil then top = 1 end
+
+        for i = 1, ns.db.rows do
+            local entry = secao.rows[i]
+            if entry then
+                usadas = usadas + 1
+                local row = BuildRow(usadas, -y)
+
+                local source = entry.source
+
+                -- A REGUA E A DA SECAO. Medir a cura contra o maior dano deixaria toda barra de
+                -- cura num fiapo -- e as duas coisas nao se comparam mesmo.
+                --
+                -- Nem o valor nem a regua sao LIDOS aqui: os dois vao direto para o widget, que e
+                -- o que faz isto funcionar em combate, onde o Lua nao pode tocar num secret.
+                local value = entry.values[1]
+                if value == nil then value = 0 end
+                row.bar:SetMinMaxValues(0, top)
+                row.bar:SetValue(value)
+                ns.ApplyBarColor(row.bar, source.classFilename)
+                row.bg:SetColorTexture(ns.RowBackdropColor())
+
+                ns.ApplyRowIcon(row.icon, row.iconClass, source)
+                ns.DrawName(row, source.name)
+                row.classFilename = source.classFilename
+                row.source = source
+
+                -- O NUMERO PRINCIPAL e o da coluna que ordena a secao; o secundario, quando o
+                -- jogador marcou a taxa, vem menor e cinza ao lado.
+                ns.SetHaloText(row.value, row.valueHalo,
+                    ns.Data.FormatAmount(value) or ns.Data.FormatSecretAmount(value) or value)
+                row.value:SetTextColor(unpack(ns.Skin.text))
+
+                local taxa = #secao.columns > 1 and entry.values[2] or nil
+                if taxa ~= nil then
+                    ns.SetCellText(row.rate, taxa, secao.columns[2], row.rateHalo)
+                    row.rate:SetTextColor(0.62, 0.62, 0.66)
+                    row.rate:Show()
+                else
+                    ns.SetHaloText(row.rate, row.rateHalo, "")
+                    row.rate:Hide()
+                end
+
+                row:Show()
+                y = y + rowH
             end
-
-            row:Show()
         end
+    end
+
+    for i = usadas + 1, #rows do rows[i]:Hide() end
+    for i = cabecalhos + 1, #sectionHeaders do sectionHeaders[i]:Hide() end
+
+    -- A JANELA ENCOLHE PARA O CONTEUDO, que e a regra da skill do workspace. Tres secoes cheias
+    -- ocupam o que ocupam; uma luta em que so houve dano ocupa um terco disso, sem vao vazio
+    -- esperando cura que nao veio.
+    local altura = HEADER_HEIGHT + PADDING
+    for si = 1, #secoes do
+        local n = math.min(#secoes[si].rows, ns.db.rows)
+        altura = altura + SECTION_HEADER_HEIGHT + n * rowH
+    end
+    -- `alturaDesenhada`, nao `visibleRows`: o que se guarda aqui e ALTURA, e reusar a variavel
+    -- de contagem de linhas para isso e o tipo de economia que vira defeito na proxima leitura.
+    if altura ~= alturaDesenhada then
+        alturaDesenhada = altura
+        frame:SetHeight(altura)
     end
 
     -- Altura fixa, definida pela alça: as linhas vazias mostram o fundo, como no Details.
@@ -1851,10 +1997,32 @@ function Window.Draw()
         ns.Breakdown.Refresh()
     end
 
-    if visibleRows ~= ns.db.rows then
-        visibleRows = ns.db.rows
-        frame:SetHeight(WindowHeight(ns.db.rows))
+end
+
+---O que a janela DESENHOU: uma entrada por secao, com o rotulo, quantas linhas e quem ficou em
+---primeiro. Existe porque a propriedade que importa -- *o lider e a primeira linha de cada
+---secao* -- so se afirma olhando o que foi para a tela, nao o que a API devolveu.
+function Window.DebugSections()
+    local out = {}
+    for i = 1, #sectionHeaders do
+        local head = sectionHeaders[i]
+        if head:IsShown() then
+            out[#out + 1] = { label = head.label:GetText(), rows = 0, first = nil }
+        end
     end
+
+    local contadas, reguas = 0, {}
+    for i = 1, #rows do
+        if rows[i]:IsShown() then
+            contadas = contadas + 1
+            -- A REGUA QUE A BARRA RECEBEU, perguntada ao widget e nao a uma anotacao nossa: e o
+            -- que separa "passamos o numero certo" de "o numero certo chegou la".
+            local _, top = rows[i].bar:GetMinMaxValues()
+            reguas[#reguas + 1] = top
+        end
+    end
+
+    return out, contadas, alturaDesenhada, reguas
 end
 
 --------------------------------------------------------------------------------

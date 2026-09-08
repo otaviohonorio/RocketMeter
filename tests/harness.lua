@@ -62,6 +62,15 @@ local function widget(kind)
     function self.Show() self.__shown = true end
     function self.Hide() self.__shown = false end
     function self.SetShown(_, v) self.__shown = v and true or false end
+
+    -- A REGUA E O VALOR DA BARRA, guardados. Sem isto o `__index` generico respondia
+    -- `SetMinMaxValues` com um no-op, e a regua de cada secao -- que e o que impede a barra de
+    -- cura de ser medida contra o maior dano -- ficava invisivel ao teste: sabotar `top = 1` nao
+    -- reprovava nada.
+    function self.SetMinMaxValues(_, lo, hi) self.__min, self.__max = lo, hi end
+    function self.GetMinMaxValues() return self.__min, self.__max end
+    function self.SetValue(_, v) self.__value = v end
+    function self.GetValue() return self.__value end
     function self.IsShown() return self.__shown end
     function self.IsVisible() return self.__shown end
     function self.IsMouseEnabled() return true end
@@ -1244,6 +1253,89 @@ ns.SetHaloText(original, copias, "sem cor nenhuma")
 check("texto sem escape passa igual", copias[1].text, "sem cor nenhuma")
 ns.SetHaloText(original, nil, "halo ausente nao estoura")
 check("halo nil e aceito", original.text, "halo ausente nao estoura")
+
+print("== uma secao por metrica: tres classificacoes numa janela ==")
+-- Pedido: *"qual seria a melhor forma de em uma janela ver uma ordenacao onde eu consiga ver quem
+-- esta sendo o melhor em Dano/DPS, Cura/CPS e Interrupts"*.
+--
+-- A resposta e POSICAO, nao realce. Em combate os valores sao secret e o addon NAO consegue
+-- descobrir quem e o maior -- comparar levanta erro. Mas a API devolve a lista ja ordenada pela
+-- metrica pedida (o medidor da Blizzard nao ordena nada em Lua, so percorre e usa `index = i`),
+-- entao uma consulta por metrica da uma classificacao pronta. O lider e a primeira linha.
+do
+    local secoes = ns.Data.GetSections(0, { "damage", "dps", "healing", "hps", "interrupts" }, 5)
+
+    -- "Dano total" e "Dano por segundo" sao a MESMA metrica: dao UMA secao com dois numeros, nao
+    -- duas secoes. E o que faz a tela de configuracao continuar valendo sem redesenho.
+    check("tres metricas viram tres secoes", #secoes, 3)
+    check("a primeira e Dano", secoes[1].key, "damage")
+    check("  com as duas colunas dela", #secoes[1].columns, 2)
+    check("a segunda e Cura", secoes[2].key, "healing")
+    check("  tambem com duas", #secoes[2].columns, 2)
+    check("a terceira e Interrupcoes", secoes[3].key, "interrupts")
+    check("  com uma so", #secoes[3].columns, 1)
+
+    -- O CABECALHO NOMEIA A FAMILIA, nao a coluna: "Dano", nao "Dano total".
+    check("o cabecalho da secao e o nome da familia", secoes[1].label, ns.L["Damage"])
+
+    -- CADA SECAO TEM A SUA PROPRIA REGUA. Sem isso a barra de cura seria medida contra o maior
+    -- dano e ficaria sempre num fiapo.
+    check("cada secao traz a propria sessao", secoes[1].session ~= secoes[2].session, true)
+    check("e a propria regua", secoes[1].session.maxAmount ~= nil, true)
+
+    -- E A ORDEM VEM DA API. O teste nao ordena nada: ele afirma que a lista que chegou ja esta
+    -- ordenada, que e a propriedade da qual todo o desenho depende.
+    local primeiro = secoes[1].rows[1].values[1]
+    local segundo = secoes[1].rows[2] and secoes[1].rows[2].values[1]
+    check("a secao ja vem ordenada pela API",
+        segundo == nil or primeiro >= segundo, true)
+end
+
+do
+    -- SECAO SEM NINGUEM NAO APARECE. Ninguem dissipou nada nesta sessao de teste.
+    local secoes = ns.Data.GetSections(0, { "damage", "dispels" }, 5)
+    for _, secao in ipairs(secoes) do
+        check("secao vazia nao entrou (" .. secao.key .. ")", #secao.rows > 0, true)
+    end
+end
+
+print("== a janela desenha uma secao por metrica ==")
+-- Trava a propriedade que responde ao pedido: cada metrica vira uma lista propria, e o lider de
+-- cada uma e a PRIMEIRA LINHA dela. Nao ha realce calculado envolvido -- nao poderia haver, em
+-- combate comparar valor secret levanta erro.
+do
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+    ns.db.rows = 5
+    ns.Window.Show(false)
+    ns.Window.Draw()
+
+    local secoes, linhas, altura, reguas = ns.Window.DebugSections()
+    check("desenhou tres secoes", #secoes, 3)
+    check("a primeira e Dano", secoes[1].label, ns.L["Damage"])
+    check("a segunda e Cura", secoes[2].label, ns.L["Healing"])
+    check("a terceira e Interrupcoes", secoes[3].label, ns.L["Interrupts"])
+    check("com linhas desenhadas", linhas > 0, true)
+    check("e a altura saiu do conteudo, nao de um numero fixo", altura ~= nil and altura > 0, true)
+
+    -- CADA SECAO TEM A SUA PROPRIA REGUA, e sem isso a barra de cura seria medida contra o maior
+    -- DANO -- ficaria num fiapo em toda luta, e o "quem esta curando mais" que a secao existe
+    -- para responder deixaria de se ver. A regua e perguntada ao widget, nao a uma anotacao.
+    local distintas = {}
+    for _, top in ipairs(reguas) do distintas[top] = true end
+    local quantasReguas = 0
+    for _ in pairs(distintas) do quantasReguas = quantasReguas + 1 end
+    check("as secoes nao compartilham regua", quantasReguas > 1, true)
+    check("e nenhuma delas e o 1 de fallback", distintas[1] == nil, true)
+
+    -- SO DANO: a janela encolhe: uma secao, e nada de vao vazio esperando cura que nao veio.
+    ns.db.columns = { "damage" }
+    ns.Window.Draw()
+    local so, _, altura1 = ns.Window.DebugSections()
+    check("uma metrica, uma secao", #so, 1)
+    check("e a janela encolheu", altura1 < altura, true)
+
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+end
 
 print("== placar: a copia do Details! Mythic+ Scoreboard ==")
 -- Pedido do usuario: *"pode copiar e deixa exatamente igual ao do Details! mythic scoreboard?
