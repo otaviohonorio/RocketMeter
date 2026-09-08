@@ -190,7 +190,7 @@ end
 
 ---As opções de contorno, montadas a partir de `ns.OUTLINE_CHOICES`.
 ---
----A lista era escrita à mão aqui, e por isso não seguiu quando `Window.lua` ganhou o "medium":
+---A lista era escrita à mão aqui, e por isso não seguiu quando `Window.lua` ganhou um nível:
 ---duas fontes de verdade para a mesma lista divergem na primeira mudança. Agora a ordem e o
 ---conjunto vêm de lá; aqui fica só o rótulo, que é a única parte que precisa de tradução.
 ---
@@ -201,7 +201,6 @@ local function OutlineEntries()
     local label = {
         none   = L["None"],
         thin   = L["Thin"],
-        medium = L["Medium"],
         thick  = L["Thick"],
     }
 

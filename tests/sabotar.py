@@ -362,6 +362,33 @@ SABOTAGENS = [
      u"    local list = ns.Data.GetColumns()",
      None),
 
+    # ------------------------------------------------------------------ o contorno medio
+    # Ele saiu em 08/09 a pedido ("sempre fica igual ao fino"), com a maquinaria de contorno
+    # desenhado junto. O que nao pode acontecer e a opcao voltar sem ela -- ai o contorno nao
+    # engrossa, ele SOME, porque `OutlineFor` nao acha a escolha e devolve "".
+
+    ("o medio volta para a lista de escolhas", "Window.lua",
+     u'    { value = "thick", flags = "THICKOUTLINE" },',
+     u'    { value = "medium", flags = "OUTLINE", halo = true },\n'
+     u'    { value = "thick", flags = "THICKOUTLINE" },',
+     "sobraram os tres niveis que o motor tem"),
+
+    # ⚑ A MIGRACAO E O QUE IMPEDE O CONTORNO DE SUMIR SOZINHO no proximo login de quem tinha
+    # "medium" salvo -- e era o caso do proprio usuario (`text.header.outline = "medium"`).
+    ("a migracao do medio salvo some", "Profile.lua",
+     u'            if type(papel) == "table" and papel.outline == "medium" then',
+     u'            if false then',
+     "o medio salvo vira fino"),
+
+    # E ela nao pode voltar para dentro do bloco do formato antigo: quem escolheu "medium" ja
+    # tinha `active.text`, por definicao, entao la ela nunca rodaria para quem importa.
+    ("a migracao volta para dentro do formato antigo", "Profile.lua",
+     u'    if type(active.text) == "table" then\n'
+     u'        for _, papel in pairs(active.text) do',
+     u'    if false and type(active.text) == "table" then\n'
+     u'        for _, papel in pairs(active.text) do',
+     "o medio salvo vira fino"),
+
     ("coluna sem construtor de celula", "Scoreboard.lua",
      u"CellBuilders.score = CellBuilders.value",
      u"-- sabotado",

@@ -46,32 +46,10 @@ ns.FONT_CHOICES = {
 -- Contorno: os três níveis que o WoW tem, com os nomes que o jogador entende. Mesma escala do
 -- Chattynator (nenhum / fino / grosso), que é a referência que ele pediu.
 -- A ESPESSURA DO MEIO-TERMO, e ela e continua: as copias ficam a 1px do glifo, entao o envelope
--- do "medium" e o mesmo do `THICKOUTLINE` (2px), so que a camada de fora vem em `HALO_ALPHA` em
--- vez de preto cheio. Meio caminho pede meia opacidade.
---
--- O numero e o unico ponto desta funcionalidade que NAO tem medicao por tras -- espessura
--- aparente e renderizacao, e renderizacao so o jogo responde. E deliberadamente um valor so:
--- se ficar pesado ou fraco, muda-se este numero e nada mais.
-local HALO_ALPHA = 0.5
--- (Declarada AQUI, e nao junto das outras constantes de aparencia mais abaixo: `HaloAlphaFor` a
--- le, e local declarada depois de quem a usa resolve como global nil dentro da funcao. E a
--- terceira vez que esta armadilha aparece neste arquivo.)
-
--- O MOTOR DO JOGO TEM DOIS NIVEIS DE CONTORNO, e ponto: `outline="NORMAL"` e `outline="THICK"`
--- sao os unicos valores que aparecem em toda a fonte do 12.1.0, e a lista do Details -- a
--- referencia mais completa instalada -- confirma o mesmo conjunto (`Libs/DF/fw.lua:1865-1874`:
--- None, Slug, Monochrome, Outline, Thick Outline e as combinacoes). `SLUG` e um rasterizador
--- vetorial, atributo separado de `outline` (`Fonts.xml:774-790`), nao uma espessura.
---
--- Entre "fino" e "grosso" o salto e de 1px para 2px de traco, e o usuario descreveu isso como
--- "bem gritantes as diferencas". O MEIO-TERMO NAO EXISTE NA API -- ele e **desenhado**, com o
--- halo que este arquivo ja tinha pronto e desligado (ver `HALO_OFFSETS`). Por isso "medium"
--- usa as MESMAS flags de "thin": a espessura extra vem do halo, nao do motor.
 ns.OUTLINE_CHOICES = {
-    { value = "none",         flags = "" },
-    { value = "thin",         flags = "OUTLINE" },
-    { value = "medium",       flags = "OUTLINE", halo = true },
-    { value = "thick",        flags = "THICKOUTLINE" },
+    { value = "none",  flags = "" },
+    { value = "thin",  flags = "OUTLINE" },
+    { value = "thick", flags = "THICKOUTLINE" },
 }
 -- Medido no print oficial lado a lado: os dígitos do medidor nativo têm 11px de altura de
 -- caixa alta; os nossos, com corpo 13, tinham 9px. FRIZQT rende ~0,69px de caixa por ponto,
@@ -259,7 +237,7 @@ end
 ---O CORPO de um papel, garantidamente numero.
 ---
 ---Existe porque `ns.RoleConfig(role).size` chegou nil em TRES chamadores diferentes
----(`ApplyRoleFont`, `OutlineFor`, `HaloAlphaFor`), em ~3 de 30 rodadas do harness, e a
+---(`ApplyRoleFont` e `OutlineFor`), em ~3 de 30 rodadas do harness, e a
 ---investigacao nao achou o mecanismo -- ver o comentario longo em `RoleConfig`. Enquanto ele nao
 ---for achado, ninguem le `.size` cru: le por aqui.
 function ns.RoleSizeSafe(role)
@@ -326,23 +304,6 @@ function ns.OutlineFor(role)
         return ""
     end
     return flags
-end
-
----A opacidade do contorno DESENHADO de um papel: > 0 só no "medium".
----
----Abaixo do limiar ele zera junto com o contorno do motor — é a mesma regra, aplicada à mesma
----razão: num corpo pequeno o traço fecha os vazados do "a", do "e" e do "8", e o desenhado
----fecha mais que o do motor, porque soma 1px por fora do que o `OUTLINE` já pôs.
-function ns.HaloAlphaFor(role)
-    local config = ns.RoleConfig(role)
-    if ns.RoleSizeSafe(role) < OUTLINE_MIN_SIZE then return 0 end
-
-    for _, choice in ipairs(ns.OUTLINE_CHOICES) do
-        if choice.value == config.outline then
-            return choice.halo and HALO_ALPHA or 0
-        end
-    end
-    return 0
 end
 
 ---A sombra de um papel: alfa 0.8 quando ligada, 0 quando nao.
@@ -683,14 +644,6 @@ function ns.ApplyRoleFont(fontString, role, delta, flagsOverride)
     fontString:SetShadowOffset(1, -1)
     fontString:SetShadowColor(0, 0, 0, config.shadow and 0.8 or 0)
 
-    -- O CONTORNO DESENHADO entra por aqui e por mais lugar nenhum. `ApplyRoleFont` é o funil de
-    -- todo texto que tem papel — sete pontos de chamada — e pendurar o halo no funil é o que faz
-    -- o "medium" valer para os três papéis sem tocar em nenhum dos sete.
-    --
-    -- Chamada por `ns.`, e não pela local: `ApplyRoleHalo` é declarada mais abaixo neste arquivo,
-    -- e local declarada depois resolve como global nil aqui dentro. Já custou duas rodadas neste
-    -- projeto (`ROW_HEIGHT_FIXED` e os deltas de fonte).
-    ns.ApplyRoleHalo(fontString, role, delta)
 end
 
 ---O corpo das linhas, para quem tem corpo próprio e só precisa herdar contorno e sombra: o
@@ -723,7 +676,7 @@ end
 --------------------------------------------------------------------------------
 -- O WoW só tem três níveis de contorno (nenhum, `OUTLINE`, `THICKOUTLINE`) — nada entre eles.
 -- Para um meio-termo, o contorno é **desenhado**: cópias pretas do texto deslocadas 1px atrás
--- do original, com `HALO_ALPHA` dando a espessura contínua que faltava.
+
 --
 -- ESTÁ DESLIGADO (lista vazia), e o motivo é medido, não de gosto.
 --
@@ -766,149 +719,6 @@ end
 -- mesma fonte e mesma posição — sobra só o anel externo, que é o que se queria. E custa **uma**
 -- cópia, não quatro: com deslocamento zero não há lado descoberto, então a simetria deixa de ser
 -- um problema a resolver e passa a ser consequência.
-local HALO_OFFSETS = {
-    { 0, 0 },
-}
-
--- O contorno que a cópia usa. É ele que define até onde o anel vai; o alfa define quão escuro.
-local HALO_FLAGS = "THICKOUTLINE"
-
----Cria as cópias de contorno para um FontString.
----
----`alpha` ausente ou zero devolve uma tabela VAZIA, e não `nil`: os chamadores percorrem o
----resultado com `ipairs` sem guarda, e vazio faz cada laço virar no-op sem custo de widget.
----É por isso que o placar, que passa dois argumentos, continua exatamente como estava.
-local function CreateHalo(parent, source, alpha)
-    local halo = {}
-    if not alpha or alpha <= 0 then return halo end
-
-    for i, offset in ipairs(HALO_OFFSETS) do
-        local echo = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        echo:SetPoint("CENTER", source, "CENTER", offset[1], offset[2])
-        echo:SetJustifyH(source:GetJustifyH() or "LEFT")
-        echo:SetTextColor(0, 0, 0)
-        echo:SetAlpha(alpha)
-        halo[i] = echo
-    end
-    return halo
-end
-
----Mantém as cópias com a mesma fonte e largura do original.
-local function SyncHaloFont(source, halo, delta, alpha)
-    if not halo then return end
-    for _, echo in ipairs(halo) do
-        ns.ApplyFont(echo, delta, "")
-        echo:SetAlpha(alpha or HALO_ALPHA)
-        if source.GetWidth then echo:SetWidth(source:GetWidth()) end
-    end
-end
-
--- As duas continuam `local` de propósito: `BuildRow` chama ambas sem prefixo em quatro pontos
--- deste arquivo, e trocar a declaração por `function ns.X` transformaria essas chamadas em
--- global nil na primeira linha construída. O alias dá o mesmo acesso aos outros painéis sem
--- tocar em nada aqui dentro.
-ns.CreateHalo = CreateHalo
-ns.SyncHaloFont = SyncHaloFont
-ns.HALO_OFFSETS = HALO_OFFSETS
-ns.HALO_FLAGS = HALO_FLAGS
-
----Tira os escapes de cor: as cópias são pretas por `SetTextColor`, e `|cff40d878…|r` dentro da
----string sobrescreve isso — o trecho colorido reaparecia verde nas cópias, 1px deslocado, e o
----que devia ser contorno virava fantasma colorido.
----
----`issecretvalue` vem ANTES do `type`: para um valor opaco `type()` responde o tipo real
----("string"), então testar só o tipo deixaria o `gsub` receber um secret — e aí estoura.
-local function PlainText(text)
-    if text == nil or issecretvalue(text) or type(text) ~= "string" then return text end
-    return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
-end
-
----Liga (ou atualiza) o contorno desenhado de um FontString que tem papel.
----
----O TEXTO SE ESPELHA SOZINHO. As cópias precisam acompanhar cada `SetText` do original, e são
----muitos os pontos que escrevem — cabeçalho, nome, reino, seis células por linha, relógio. Em vez
----de trocar todos por uma função nossa, o gancho fica no próprio widget: `hooksecurefunc(fs,
----"SetText", …)` é o padrão que os addons instalados usam sobre widget e sobre FontString
----(`hooksecurefunc(tab, "SetText")`, `hooksecurefunc(header.Text, "Show")`).
----
----Só cria quando o papel de fato pede. Quem nunca escolher "medium" não paga um widget sequer.
-function ns.ApplyRoleHalo(fontString, role, delta)
-    local alpha = ns.HaloAlphaFor(role)
-
-    if not fontString.rmHalo then
-        if alpha <= 0 then return end
-
-        local parent = fontString.GetParent and fontString:GetParent()
-        if not parent or not parent.CreateFontString then return end
-
-        fontString.rmHalo = CreateHalo(parent, fontString, alpha)
-        hooksecurefunc(fontString, "SetText", function(self, text)
-            if not self.rmHalo then return end
-            local plain = PlainText(text)
-            for _, echo in ipairs(self.rmHalo) do
-                echo:SetText(plain)
-            end
-        end)
-
-        -- O texto que já está escrito não passaria pelo gancho: ele só pega as escritas dali em
-        -- diante. Sem isto, o contorno só aparece na primeira atualização depois de trocar a
-        -- opção — o jogador mexe no combo e nada muda.
-        if fontString.GetText then
-            local atual = PlainText(fontString:GetText())
-            for _, echo in ipairs(fontString.rmHalo) do
-                echo:SetText(atual)
-            end
-        end
-    end
-
-    -- SINCRONIZA PELO PAPEL, e não por `SyncHaloFont`. Aquela usa `ns.ApplyFont`, que sempre lê o
-    -- corpo do papel **body** — no placar isso é certo, porque lá tudo tem o corpo do placar; aqui
-    -- seria errado, e do jeito silencioso: o halo do título sairia com o corpo das linhas e ficaria
-    -- deslocado do glifo que ele deveria contornar.
-    --
-    -- As cópias vão com contorno "" de propósito: o traço do motor já está no original, e repeti-lo
-    -- nas quatro cópias somaria 1px por fora de cada uma — voltaria a ser mais grosso que o grosso.
-    -- `SafeSetFont` direto, e NÃO `ApplyRoleFont`: aquela chama esta função de volta, e a cópia
-    -- ganharia a própria cópia — recursão infinita na primeira linha desenhada. (Encontrado aqui,
-    -- não in-game: o harness travou.)
-    local size = ns.RoleConfig(role).size + (delta or 0)
-    if size < 6 then size = 6 end
-
-    for _, echo in ipairs(fontString.rmHalo) do
-        -- `THICKOUTLINE` NA CÓPIA, e é o ponto inteiro da coisa: é o anel de 2px dela, visto em
-        -- `alpha`, que aparece por fora do anel de 1px sólido do original. Com contorno vazio a
-        -- cópia não teria anel nenhum e o médio voltaria a ser igual ao fino — que foi o defeito.
-        SafeSetFont(echo, ns.FontPath(), size, HALO_FLAGS)
-        echo:SetShadowColor(0, 0, 0, 0)      -- a sombra é do original; na cópia vira borrão
-        echo:SetTextColor(0, 0, 0)
-        echo:SetAlpha(alpha)
-        if fontString.GetWidth then echo:SetWidth(fontString:GetWidth()) end
-    end
-end
-
----Escreve no original e nas cópias de uma vez.
----
----As cópias levam o texto **sem os escapes de cor**. Elas são pretas por `SetTextColor`, mas
----`|cff40d878...|r` dentro da string SOBRESCREVE isso — o trecho colorido reaparecia verde nas
----duas cópias, deslocado 1px, e o que devia ser contorno virava fantasma colorido. Aparece em
----qualquer célula com cor embutida (o `(+16)` da pontuação no placar é o caso atual).
----
----`issecretvalue` vem ANTES do `type`: para um valor opaco `type()` responde o tipo real
----("string"), então testar só o tipo deixaria o `gsub` receber um secret — e aí estoura.
-function ns.SetHaloText(source, halo, text)
-    source:SetText(text)
-    if not halo then return end
-
-    local plain = text
-    if not issecretvalue(text) and type(text) == "string" then
-        plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-    end
-
-    for _, echo in ipairs(halo) do
-        echo:SetText(plain)
-    end
-end
-
 ---Separa `"Nome-Reino"` em nome e reino.
 ---
 ---O reino **não some**. A primeira tentativa foi apagá-lo com `Ambiguate`, e estava errada: o
@@ -942,7 +752,7 @@ end
 ---
 ---Quem tem os dois campos é `row` porque a janela e o placar montam a linha do mesmo jeito;
 ---a função vive aqui para as duas telas não divergirem.
----@param row table linha com `name`, `nameHalo`, `realm`, `realmHalo` e `nameArea`
+---@param row table linha com `name`, `realm` e `nameArea`
 ---Escreve o nome (e, se o jogador quiser, o reino) dentro da área da linha.
 ---
 ---**A largura do halo tem que ser mexida junto com a do texto, nos DOIS ramos.** Só o ramo
@@ -952,12 +762,12 @@ end
 ---jogador, que é quem costuma estar no mesmo reino e portanto não tem sufixo.
 local function SetNameWidth(row, width)
     row.name:SetWidth(width)
-    for _, echo in ipairs(row.nameHalo) do echo:SetWidth(width) end
+
 end
 
 local function SetRealmWidth(row, width)
     row.realm:SetWidth(width)
-    for _, echo in ipairs(row.realmHalo) do echo:SetWidth(width) end
+
 end
 
 function ns.DrawName(row, full)
@@ -970,11 +780,11 @@ function ns.DrawName(row, full)
 
     local area = row.nameArea or 0
     SetNameWidth(row, area)
-    ns.SetHaloText(row.name, row.nameHalo, name)
+    row.name:SetText(name)
     row.name:SetTextColor(1, 1, 1)
 
     if not realm or area <= 0 then
-        ns.SetHaloText(row.realm, row.realmHalo, "")
+        row.realm:SetText("")
         SetRealmWidth(row, 0)
         return
     end
@@ -989,13 +799,13 @@ function ns.DrawName(row, full)
     if left < 12 then
         -- Nome sozinho já toma a área: o reino não cabe e some. Melhor sumir inteiro do que
         -- aparecer como um hífen solto seguido de reticências.
-        ns.SetHaloText(row.realm, row.realmHalo, "")
+        row.realm:SetText("")
         SetRealmWidth(row, 0)
         return
     end
 
     SetRealmWidth(row, left)
-    ns.SetHaloText(row.realm, row.realmHalo, "-" .. realm)
+    row.realm:SetText("-" .. realm)
     row.realm:SetTextColor(unpack(ns.Skin.dim))
 end
 
@@ -1658,11 +1468,6 @@ local function BuildRow(index)
         -- Nome comprido corta em vez de quebrar linha ou invadir a coluna de números.
         row.name:SetWordWrap(false)
 
-        row.nameHalo = CreateHalo(row.text, row.name)
-        for _, echo in ipairs(row.nameHalo) do
-            echo:SetWordWrap(false)
-        end
-
         -- O reino é uma SEGUNDA FontString, não parte da primeira: o corpo menor é o que o
         -- separa do nome, e uma FontString só tem um corpo. Ela é colada ao fim do texto do
         -- nome, não à caixa dele — por isso a largura do nome é ajustada ao conteúdo no
@@ -1671,11 +1476,6 @@ local function BuildRow(index)
         row.realm:SetPoint("LEFT", row.name, "RIGHT", 0, TEXT_LIFT)
         row.realm:SetJustifyH("LEFT")
         row.realm:SetWordWrap(false)
-
-        row.realmHalo = CreateHalo(row.text, row.realm)
-        for _, echo in ipairs(row.realmHalo) do
-            echo:SetWordWrap(false)
-        end
 
         -- O VALOR VAI DENTRO DA BARRA, encostado a direita. Pedido do usuario: *"o texto hoje
         -- das colunas pode ficar dentro das barras para maximizar o uso de espaco"* -- e e o que
@@ -1736,12 +1536,10 @@ local function BuildRow(index)
     if row.nameArea < 40 then row.nameArea = 40 end
 
     ns.ApplyRoleFont(row.name, "body", 0)
-    SyncHaloFont(row.name, row.nameHalo, 0)
     -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
     -- em 12, o reino fica em 11. E delta, nao valor fixo — se o corpo da linha mudar de novo,
     -- a diferenca de um ponto acompanha sozinha.
     ns.ApplyRoleFont(row.realm, "body", REALM_FONT_DELTA)
-    SyncHaloFont(row.realm, row.realmHalo, REALM_FONT_DELTA)
 
     -- CADA COLUNA E UMA BARRA COM O NUMERO DENTRO.
     --
@@ -1811,9 +1609,9 @@ local function BuildRow(index)
 
             -- ⚑ OS NUMEROS SAO INDEXADOS POR POSICAO DENTRO DO GRUPO, nao pela posicao da coluna
             -- na lista. A vaga (grupo 1, numero 2) pertence a esta faixa para sempre; um indice
-            -- global mudaria de faixa quando o jogador desmarcasse uma coluna, e o contorno
-            -- desenhado (`fontString.rmHalo`) fica preso ao pai que a FontString tinha quando
-            -- nasceu -- ele nao acompanharia a mudanca de pai e a sombra ficaria para tras.
+            -- global mudaria de faixa quando o jogador desmarcasse uma coluna, e widget que troca
+            -- de pai no meio do caminho e como se ganham defeitos que so aparecem ao mexer nas
+            -- colunas -- os mais caros de reproduzir.
             faixa.texts = {}
             row.groups[gi] = faixa
         end
@@ -2297,9 +2095,9 @@ end
 ---Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
 ---FontString (o motor renderiza secret values que o Lua não pode ler).
 ---@param halo table|nil cópias de contorno da célula, quando houver
-function ns.SetCellText(fontString, value, columnKey, halo)
+function ns.SetCellText(fontString, value, columnKey)
     local function write(text)
-        ns.SetHaloText(fontString, halo, text)
+        fontString:SetText(text)
     end
 
     if value == nil then

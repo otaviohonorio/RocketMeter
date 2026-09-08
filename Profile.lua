@@ -79,6 +79,7 @@ function Profile.EnsureRuntimeDefaults()
     if not active.text then
         local size = type(active.fontSize) == "number" and active.fontSize or 16
         local outline = active.fontOutline or "thin"
+
         local shadow = active.fontShadow ~= false
 
         active.text = {
@@ -87,6 +88,30 @@ function Profile.EnsureRuntimeDefaults()
             header = { size = size - 4, outline = outline, shadow = shadow },
         }
         active.fontSize, active.fontOutline, active.fontShadow = nil, nil, nil
+    end
+
+    -- ⚑ O "MEDIUM" SALVO VIRA "THIN", e esta e a migracao que importa.
+    --
+    -- A opcao saiu em 08/09 (*"tira o contorno medio das opcoes, claramente tu nao conseguiu
+    -- fazer ele funcionar, sempre fica igual ao fino"*). Sem esta passagem, `ns.OutlineFor` nao
+    -- acharia "medium" na lista de escolhas e devolveria `""` -- o contorno sumiria sozinho no
+    -- proximo login, sem ninguem pedir, e num papel so (o que estivesse em medio).
+    --
+    -- ⚑ E ELA FICA AQUI, FORA do `if not active.text`. A primeira versao desta migracao entrou
+    -- dentro daquele bloco, que so roda quando o perfil ainda esta no formato de fonte UNICA --
+    -- e quem escolheu "medium" ja passou daquele formato havia muito, por definicao. Foi o
+    -- SavedVariables do proprio usuario que mostrou: `text.header.outline = "medium"`, com
+    -- `active.text` existindo. A migracao teria passado ao largo exatamente de quem ela existe
+    -- para atender.
+    --
+    -- Vira "thin", e nao "thick", pela razao que ele mesmo deu: era o fino que ele estava vendo o
+    -- tempo todo. A migracao entrega o que ja estava na tela, nao outra coisa.
+    if type(active.text) == "table" then
+        for _, papel in pairs(active.text) do
+            if type(papel) == "table" and papel.outline == "medium" then
+                papel.outline = "thin"
+            end
+        end
     end
 end
 
