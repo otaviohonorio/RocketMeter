@@ -144,6 +144,14 @@ local function widget(kind)
         self.__points = { { point = "ALL", relative = self.__anchoredTo, x = 0, y = 0 } }
     end
 
+    -- ⚑ A JUSTIFICACAO E GUARDADA, como no jogo. Ela e a afirmacao central do desenho em
+    -- PONTAS: "o dano encosta na esquerda, o DPS na direita, e quem esta sozinho fica no meio".
+    -- Sem isto, `GetJustifyH` caia no `__index` generico e devolvia uma TABELA -- que nunca e
+    -- igual a "LEFT" nem a nil, entao qualquer verificacao sobre posicao passaria a esmo.
+    self.__justifyH = "LEFT"
+    function self.SetJustifyH(_, v) self.__justifyH = v end
+    function self.GetJustifyH() return self.__justifyH end
+
     self.__points = {}
     function self.SetPoint(_, point, rel, relPoint, x, y)
         -- Forma curta do WoW: SetPoint("RIGHT", x, y) -- o segundo argumento vem numero.
@@ -1629,17 +1637,31 @@ do
     check("a de interrupcoes cobre uma so",
         vaos[3].width, ns.Window.DebugColumnWidth("interrupts"))
 
-    -- E CADA NUMERO OCUPA A FATIA DA COLUNA DELE dentro da faixa. Sem isso os dois se empilham na
-    -- mesma ponta da barra e um cobre o outro -- os dois textos existiriam, e so um se leria.
-    check("a largura do texto do dano bate com a coluna dele",
-        celulas[1].width, larguraDano - 6)
-    check("e a largura do texto do DPS bate com a coluna dele",
-        celulas[2].width, larguraDps - 6)
+    -- ⚑ CADA NUMERO NUMA PONTA DA BARRA. Pedido do usuario, 08/09: *"se cada um ficasse alinhado
+    -- em cada canto, ou seja, dano a esquerda, dps a direita"*.
+    --
+    -- O que mudou foi o PRINCIPIO que une os dois. Antes eles eram alinhados a direita, cada um
+    -- na caixa da coluna dele, e o vao entre eles era o RESIDUO da largura da taxa: media 35,8px
+    -- e variava 11px por linha, enquanto o vao entre familias DIFERENTES era 33 -- dois numeros
+    -- da mesma familia mais longe entre si que dois de familias diferentes. Agora eles vao para
+    -- as pontas e quem os une e a REGIAO COMUM: as duas extremidades de um recipiente pertencem
+    -- ao recipiente. So funciona porque a barra ganhou pista tingida na 0.73.0.
+    check("o dano encosta na ponta esquerda", celulas[1].align, "LEFT")
+    check("e o DPS na direita", celulas[2].align, "RIGHT")
 
-    -- ⚑ A ANCORA E LIDA DO WIDGET. Largura igual nao prova posicao: dois textos da largura certa
-    -- empilhados na mesma ponta passariam nas duas verificacoes acima e um cobriria o outro.
-    check("o numero da taxa fica na ponta direita da faixa", celulas[2].anchorX, -3)
-    check("e o do total, uma coluna a esquerda", celulas[1].anchorX, -larguraDps - 3)
+    -- E A CAIXA DE CADA UM NAO PASSA DA METADE. Com dois textos ancorados em pontas opostas,
+    -- caixas generosas demais se sobrepoem no meio -- e sobreposicao de texto nao levanta erro,
+    -- so fica ilegivel.
+    local larguraFaixa = larguraDano + larguraDps - ns.Skin.groupGap
+    check("nenhum dos dois passa da metade da barra",
+        celulas[1].width + celulas[2].width <= larguraFaixa, true)
+
+    -- ⚑ E O CABECALHO VAI JUNTO. O rotulo tem que ficar em cima do numero que ele nomeia -- e o
+    -- botao em cima da fatia que ele ordena. Sem isso, "Dano" apareceria colado em "DPS" enquanto
+    -- os numeros ficam nas pontas, e clicar no lugar errado ordenaria pela metrica errada.
+    local cab = ns.Window.DebugHeaders()
+    check("o rotulo do dano encosta na mesma ponta", cab[1].align, "LEFT")
+    check("e o do DPS na dele", cab[2].align, "RIGHT")
 
     -- E A BARRA COMECA ONDE A COLUNA DELA COMECA, medido no widget pelo mesmo motivo.
     -- ⚑ A FOLGA SAI DA ESQUERDA DO GRUPO, entao a borda DIREITA da faixa continua colada na
@@ -1648,6 +1670,16 @@ do
     check("a barra da cura e ancorada no vao dela", vaos[2].anchorX, -vaos[2].offset)
     check("  e a do dano no vao dela", vaos[1].anchorX, -vaos[1].offset)
     check("  que sao vaos diferentes", vaos[1].offset ~= vaos[2].offset, true)
+
+    -- ⚑ E QUEM ESTA SOZINHO FICA NO CENTRO. Pedido do usuario, na mesma mensagem: *"quando a
+    -- coluna tiver apenas um valor, fica centralizado"*.
+    --
+    -- E o que impede a janela de ficar com DUAS gramaticas -- uma para quem tem par e outra para
+    -- quem nao tem. Interrupcoes, mortes e absorvido nao tem companheiro, e encostar o numero
+    -- numa ponta arbitraria seria escolher um canto sem razao. Centrado, a regra e a mesma dos
+    -- pares: o recipiente posiciona o que ele contem.
+    check("interrupcoes, sozinha, fica centralizada", celulas[5].align, "CENTER")
+    check("  e o rotulo dela tambem", ns.Window.DebugHeaders()[5].align, "CENTER")
 
     -- A BARRA MEDE O TOTAL, e a razao e que **so o total tem regua**.
     --
@@ -1904,8 +1936,16 @@ do
     check("um cabecalho por coluna", #cabecalhos, 5)
     check("o primeiro e o do dano", cabecalhos[1].text, ns.Data.GetShortLabel("damage"))
     check("o segundo e o do DPS, separado", cabecalhos[2].text, ns.Data.GetShortLabel("dps"))
-    check("e a largura e a da coluna dele",
-        cabecalhos[1].width, ns.Window.DebugColumnWidth("damage"))
+    -- A LARGURA DO BOTAO E A FATIA DELE DENTRO DA BARRA, e nao mais a largura declarada da
+    -- coluna: os 10px de folga entre familias saem da faixa, entao as fatias somam a largura da
+    -- BARRA. O que a largura declarada continua governando e a PROPORCAO entre elas -- o total,
+    -- que pede mais espaco, tambem fica com o alvo de clique maior.
+    local fatias = cabecalhos[1].width + cabecalhos[2].width
+    check("as duas fatias somam a barra do par",
+        fatias, ns.Window.DebugColumnWidth("damage") + ns.Window.DebugColumnWidth("dps")
+            - ns.Skin.groupGap)
+    check("  e a do total e a maior das duas",
+        cabecalhos[1].width > cabecalhos[2].width, true)
 
     -- CLICAR EM "DPS" ORDENA POR DPS. Na versao mesclada os dois rotulos eram um cabecalho so e
     -- clicar ali ordenava sempre pelo total; com dois cabecalhos, cada um responde por si.
@@ -2991,10 +3031,13 @@ do
     -- quatro pontos menor que a linha e cai abaixo do limiar, onde `OutlineFor` zera o contorno
     -- de proposito -- num corpo pequeno o traco fecha os vazados do "a", do "e" e do "8". Medir
     -- ali confundiria "a migracao funcionou" com "o limiar agiu".
+    -- ⚑ GUARDA E DEVOLVE O CORPO. Cravar 13 na volta deixava o corpo alterado para todo teste
+    -- seguinte -- e a largura das colunas ESCALA com ele, entao a janela inteira media outra
+    -- coisa dali para a frente. Estado global que um teste muda e nao devolve e defeito de teste.
+    local corpoAntes = ns.RoleSizeSafe("body")
     ns.Window.SetRoleSize("body", 16)
     check("  e o contorno volta a existir", ns.OutlineFor("body"), "OUTLINE")
-
-    ns.Window.SetRoleSize("body", 13)
+    ns.Window.SetRoleSize("body", corpoAntes)
 end
 
 print("== fonte, contorno e sombra configuraveis ==")

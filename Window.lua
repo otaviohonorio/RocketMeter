@@ -408,6 +408,10 @@ local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto bra
 -- pico de uma manchinha; agora o degrade se estica pelo preenchimento inteiro, e o mesmo 0,55
 -- lavaria a barra do lider de branco. 0,35 mantem a ponta nitidamente mais clara que o meio sem
 -- apagar a cor da classe embaixo -- que e o que a barra tem para dizer quem e quem.
+-- O respiro entre o numero e a borda da barra. 3px e o mesmo recuo que o texto ja tinha
+-- quando era alinhado a direita -- o que mudou foi a ponta, nao a margem.
+local TEXT_INSET = 3
+
 local TRACK_ALPHA = 0.15
 local SPARK_ALPHA = 0.35
 
@@ -1108,6 +1112,65 @@ end
 ---
 ---Cada coluna tem a largura DELA agora, entao o deslocamento acumulado nao e mais
 ---`indice * largura`: e a soma das larguras das colunas a direita dela.
+---ONDE CADA NUMERO DE UM GRUPO FICA DENTRO DA BARRA DELE.
+---
+---Ideia do usuario, 08/09: *"se cada um ficasse alinhado em cada canto, ou seja, dano a esquerda,
+---dps a direita"*, e logo depois *"quando a coluna tiver apenas um valor, fica centralizado"*.
+---
+---⚑ O QUE MUDA E O PRINCIPIO QUE UNE OS DOIS NUMEROS. Antes eles eram alinhados a direita, cada
+---um na caixa da coluna dele, e o que os juntava seria a PROXIMIDADE -- so que nao juntava: o vao
+---entre eles era o RESIDUO da largura da taxa, media 35,8px e variava 11px por linha, enquanto o
+---vao entre familias diferentes era 33. Dois numeros da mesma familia ficavam mais longe entre si
+---que dois de familias diferentes -- razao 0,92, invertida.
+---
+---Agora eles vao para as PONTAS, e quem os une e a REGIAO COMUM: duas coisas nas duas
+---extremidades de um recipiente pertencem ao recipiente. So funciona porque a barra ganhou pista
+---tingida na 0.73.0 -- sem recipiente visivel, seriam dois numeros soltos no escuro.
+---
+---E a regra se estende sozinha, o que e o teste de que ela e uma regra e nao um caso:
+---
+---    1 membro   -> centro                 (interrupcoes, mortes, absorvido)
+---    2 membros  -> esquerda, direita      (dano + DPS)
+---    3 membros  -> esquerda, centro, direita  (dano + DPS + dano%, que vem em duas predefinicoes)
+---
+---Sem isso a janela ficaria com duas gramaticas -- uma para quem tem par e outra para quem nao
+---tem --, que costuma sair pior que o problema original.
+---
+---@return string justificacao "LEFT", "CENTER" ou "RIGHT"
+local function MemberAlign(indice, total)
+    if total <= 1 then return "CENTER" end
+    if indice == 1 then return "LEFT" end
+    if indice == total then return "RIGHT" end
+    return "CENTER"
+end
+
+---A FATIA de um membro dentro da barra do grupo: onde ela comeca (da direita) e quanto ocupa.
+---
+---Serve ao CABECALHO, e por isso existe. O rotulo tem que ficar em cima do numero que ele nomeia
+---e o botao em cima da fatia que ele ordena -- senao clicar em "DPS" ordenaria por dano, que e
+---exatamente o defeito que ja voltou uma vez por aqui.
+---
+---A fatia e proporcional a largura declarada da coluna (`COLUMN_WIDTH_BY_FIELD`), e nao um terco
+---cego: assim o total, que pede mais espaco, tambem ganha o alvo de clique maior -- e ele e o
+---primario da familia.
+---
+---@return number offset a partir da direita da faixa, number largura
+local function MemberSlice(grupo, indice, larguraFaixa)
+    local soma = 0
+    for _, key in ipairs(grupo.keys) do soma = soma + ColumnWidthFor(key) end
+    if soma <= 0 then return 0, larguraFaixa end
+
+    local depois = 0
+    for i = #grupo.keys, indice + 1, -1 do
+        depois = depois + ColumnWidthFor(grupo.keys[i])
+    end
+
+    local escala = larguraFaixa / soma
+    local offset = math.floor(depois * escala + 0.5)
+    local largura = math.floor(ColumnWidthFor(grupo.keys[indice]) * escala + 0.5)
+    return offset, largura
+end
+
 ---O deslocamento de cada COLUNA a partir da direita, e a largura total.
 ---
 ---E por coluna outra vez: o cabecalho e o numero voltaram a ser um por coluna. O que anda por
@@ -1309,6 +1372,22 @@ local function BuildColumnHeader()
 
     local offsets = ColumnOffsets()
 
+    -- ONDE CADA COLUNA MORA DENTRO DO GRUPO DELA. O cabecalho deixou de poder ser posicionado
+    -- pelo acumulado das colunas: os numeros agora vao para as PONTAS da barra, e o rotulo tem
+    -- que ir junto.
+    local ondeFica = {}
+    for _, vao in ipairs(GroupSpans()) do
+        local larguraFaixa = vao.width - GROUP_GAP
+        for i, key in ipairs(vao.grupo.keys) do
+            local off, larg = MemberSlice(vao.grupo, i, larguraFaixa)
+            ondeFica[key] = {
+                offset = vao.offset + GROUP_GAP / 2 + off,
+                largura = larg,
+                lado = MemberAlign(i, #vao.grupo.keys),
+            }
+        end
+    end
+
     for c = 1, #ns.db.columns do
         local button = headerRow.labels[c]
         if not button then
@@ -1359,9 +1438,24 @@ local function BuildColumnHeader()
         -- para isso existe `GroupIndexFor`.
         button.columnIndex = c
         button.sortKey = key
-        button:SetWidth(ColumnWidthFor(key))
+        local onde = ondeFica[key] or { offset = offsets[c],
+            largura = ColumnWidthFor(key), lado = "RIGHT" }
+        button:SetWidth(onde.largura)
         button:ClearAllPoints()
-        button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
+        button:SetPoint("RIGHT", headerRow, "RIGHT", -onde.offset, 0)
+
+        -- O ROTULO ENCOSTA NA MESMA PONTA QUE O NUMERO. Sem isto o botao estaria no lugar certo
+        -- e o texto dele nao -- "Dano" apareceria a direita da fatia do dano, colado no "DPS", e
+        -- os dois rotulos voltariam a se juntar no meio enquanto os numeros ficam nas pontas.
+        button.text:ClearAllPoints()
+        button.text:SetJustifyH(onde.lado)
+        if onde.lado == "LEFT" then
+            button.text:SetPoint("LEFT", button, "LEFT", TEXT_INSET, 0)
+        elseif onde.lado == "RIGHT" then
+            button.text:SetPoint("RIGHT", button, "RIGHT", -TEXT_INSET, 0)
+        else
+            button.text:SetPoint("CENTER", button, "CENTER", 0, 0)
+        end
         ns.ApplyRoleFont(button.text, "header", 0)
 
         local label = ns.Data.GetShortLabel(key)
@@ -1659,28 +1753,43 @@ local function BuildRow(index)
         -- teste, que le o widget, contaria um numero que ninguem escreveu.
         for _, fs in ipairs(faixa.texts) do fs:Hide() end
 
-        -- Cada numero na fatia da coluna DELE, medida da direita da faixa para a esquerda.
-        local dentro = 0
-        for i = #vao.grupo.keys, 1, -1 do
-            local largura = ColumnWidthFor(vao.grupo.keys[i])
+        -- CADA NUMERO NUMA PONTA DA BARRA (ver `MemberAlign`). A caixa de cada um e a fatia
+        -- proporcional a largura declarada da coluna dele -- assim `COLUMN_WIDTH_BY_FIELD`
+        -- continua governando quanto espaco cada metrica pede, mesmo que a POSICAO agora venha
+        -- da ponta e nao do acumulado.
+        local quantos = #vao.grupo.keys
+        local larguraFaixa = vao.width - GROUP_GAP
+
+        for i = 1, quantos do
             local fs = faixa.texts[i]
             if not fs then
                 fs = faixa.top:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                fs:SetJustifyH("RIGHT")
                 fs:SetWordWrap(false)
                 faixa.texts[i] = fs
             end
 
             -- Corpo unico na linha inteira: numeros de tamanhos diferentes lado a lado
-            -- desalinham a leitura vertical. `ApplyRoleFont` tambem pendura o contorno
-            -- desenhado, que se ancora no CENTRO desta FontString e a acompanha sozinho.
+            -- desalinham a leitura vertical.
             ns.ApplyRoleFont(fs, "body", 0)
-            fs:ClearAllPoints()
-            fs:SetPoint("RIGHT", faixa, "RIGHT", -dentro - 3, 0)
-            fs:SetWidth(largura - 6)
-            fs:Show()
 
-            dentro = dentro + largura
+            local lado = MemberAlign(i, quantos)
+            fs:SetJustifyH(lado)
+            fs:ClearAllPoints()
+
+            -- A CAIXA NUNCA PASSA DA METADE (ou do terco) da faixa: com dois textos ancorados em
+            -- pontas opostas, caixas generosas demais se sobrepoem no meio -- e sobreposicao de
+            -- texto nao levanta erro, so fica ilegivel.
+            local fatia = math.floor((larguraFaixa - 6) / quantos)
+            fs:SetWidth(fatia)
+
+            if lado == "LEFT" then
+                fs:SetPoint("LEFT", faixa, "LEFT", TEXT_INSET, 0)
+            elseif lado == "RIGHT" then
+                fs:SetPoint("RIGHT", faixa, "RIGHT", -TEXT_INSET, 0)
+            else
+                fs:SetPoint("CENTER", faixa, "CENTER", 0, 0)
+            end
+            fs:Show()
         end
 
         for i = #vao.grupo.keys + 1, #faixa.texts do faixa.texts[i]:SetText("") end
@@ -2403,6 +2512,8 @@ function Window.DebugHeaders()
             out[c] = {
                 text = button.text:GetText(),
                 width = button:GetWidth(),
+                -- O rotulo encosta na mesma ponta que o numero que ele nomeia.
+                align = button.text:GetJustifyH(),
                 -- O dourado (1, 0.82, 0) e o unico sinal da coluna ordenada.
                 sorted = (r == 1 and g == 0.82 and b == 0),
             }
@@ -2467,8 +2578,10 @@ function Window.DebugCells(index)
                         text = fs:GetText(),
                         color = { r, g, b },
                         width = fs:GetWidth(),
-                        -- Deslocamento a partir da DIREITA da faixa: e o que poe cada numero na
-                        -- fatia da coluna dele em vez de os dois na mesma ponta.
+                        -- A PONTA em que o numero encosta, que e o que a proposta dos cantos
+                        -- decide. Medir so a largura nao distinguiria "os dois nas pontas" de
+                        -- "os dois na mesma ponta com caixas menores".
+                        align = fs:GetJustifyH(),
                         anchorX = ancora,
                         -- Da barra do grupo, iguais para as colunas irmas:
                         scale = escala,

@@ -168,13 +168,36 @@ SABOTAGENS = [
 
     # Cada numero mora na fatia da coluna dele. Sem acumular `dentro`, os dois se empilham na
     # mesma ponta da faixa e um cobre o outro.
-    ("os numeros do grupo se empilham na mesma ponta", "Window.lua",
-     u"            dentro = dentro + largura",
-     u"            dentro = dentro + 0",
-     "e o do total, uma coluna a esquerda"),
-
     # ------------------------------------------------------------------ a ordem travada
     # PEDIDO: "vamos bloquear para que a coluna de Dano sempre venha primeiro que a DPS".
+
+    # ⚑ OS DOIS NUMEROS NAS PONTAS OPOSTAS. Pedido do usuario: "dano a esquerda, dps a
+    # direita". Empilhar os dois na mesma ponta nao levanta erro -- um so cobre o outro, e a
+    # linha fica com um numero a menos sem nada avisar.
+    ("os dois numeros voltam para a mesma ponta", "Window.lua",
+     u'            local lado = MemberAlign(i, quantos)',
+     u'            local lado = "RIGHT"',
+     "o dano encosta na ponta esquerda"),
+
+    # E QUEM ESTA SOZINHO FICA NO CENTRO -- e o que impede a janela de ter duas gramaticas.
+    ("a coluna sozinha encosta numa ponta", "Window.lua",
+     u'    if total <= 1 then return "CENTER" end',
+     u'    if total <= 1 then return "RIGHT" end',
+     "interrupcoes, sozinha, fica centralizada"),
+
+    # O ROTULO TEM QUE IR JUNTO COM O NUMERO. Sem isto o botao fica no lugar certo e o texto
+    # dele nao: "Dano" apareceria colado em "DPS" enquanto os numeros ficam nas pontas.
+    ("o rotulo nao acompanha a ponta do numero", "Window.lua",
+     u'        button.text:SetJustifyH(onde.lado)',
+     u'        button.text:SetJustifyH("RIGHT")',
+     "o rotulo do dano encosta na mesma ponta"),
+
+    # E O BOTAO TEM QUE COBRIR A FATIA DELE, senao clicar em "DPS" ordena por dano -- defeito
+    # que ja voltou uma vez por aqui, quando o cabecalho deixou de ser por grupo.
+    ("o botao do cabecalho volta a largura declarada", "Window.lua",
+     u'        button:SetWidth(onde.largura)',
+     u'        button:SetWidth(ColumnWidthFor(key))',
+     "as duas fatias somam a barra do par"),
 
     ("a ordem dentro da familia deixa de ser travada", "Data.lua",
      u"            if pa ~= pb then return pa < pb end",
@@ -276,11 +299,6 @@ SABOTAGENS = [
      u"        local label = ns.Data.GetShortLabel(key)",
      u"        local label = ns.Data.GetAttributeLabel(key)",
      "o primeiro e o do dano"),
-
-    ("o cabecalho do par ocupa a largura das duas", "Window.lua",
-     u"        button:SetWidth(ColumnWidthFor(key))",
-     u"        button:SetWidth(ColumnWidthFor(key) * 2)",
-     "e a largura e a da coluna dele"),
 
     ("o cabecalho de colunas some", "Window.lua",
      u"    BuildColumnHeader()\n\n    local vaosDesenho",
