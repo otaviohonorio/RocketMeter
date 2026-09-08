@@ -89,7 +89,17 @@ local function widget(kind)
     function self.IsVisible() return self.__shown end
     function self.IsMouseEnabled() return true end
     function self.IsForbidden() return false end
-    function self.GetStatusBarTexture() return widget("Texture") end
+    -- ⚑ A MESMA TEXTURA EM TODA CHAMADA, como no jogo. Devolver uma NOVA a cada chamada
+    -- destruiria a unica coisa que a faisca depende: a IDENTIDADE do objeto. Ela e ancorada a
+    -- textura de preenchimento e acompanha a ponta porque o motor redimensiona aquele objeto --
+    -- se cada consulta devolvesse outro, nenhum teste conseguiria afirmar que a ancora e a certa,
+    -- e o defeito "ancorei na moldura em vez de no preenchimento" passaria batido.
+    --
+    -- E o mesmo cuidado que `GetNormalTexture` ja tinha aqui, pelo mesmo motivo.
+    function self.GetStatusBarTexture()
+        if not self.__barTexture then self.__barTexture = widget("Texture") end
+        return self.__barTexture
+    end
     function self.GetEffectiveScale() return 1 end
     function self.GetCenter() return 400, 300 end
     function self.GetID() return 1 end
@@ -1507,12 +1517,77 @@ do
     -- pintadas por `ns.ApplyBarColor`. O que saiu foi o SEGUNDO lugar onde ela aparecia.
     check("a barra da primeira coluna tem cor", primeira.barColored, true)
 
-    -- E O FUNDO PRETO DAS CELULAS SAIU: *"tira o fundo preto com algum percentual de opacidade"*.
-    check("nenhuma celula tem trilho preto atras", primeira.cellTracks, 0)
+    -- E O FUNDO PRETO NAO VOLTA. O usuario reprovou o preto DUAS vezes -- *"tira o fundo preto
+    -- com algum percentual de opacidade"* e *"o fundo preto e feio"* -- e depois pediu uma pista
+    -- TINGIDA, que e outra coisa: mesma familia de cor da barra, nao um bloco escuro.
+    --
+    -- ⚑ ESTE CHECK ERA VAZIO ate 08/09: ele contava o CAMPO `faixa.track`, que nunca era criado.
+    -- Passava com qualquer trilho de outro nome. Agora mede a TINTA.
+    check("nenhuma pista e preta", primeira.cellTracksBlack, 0)
 
     -- O NOME NAO PODE FICAR ESPREMIDO. Com tres colunas de 58 numa janela de 340, sobra espaco de
     -- verdade; foi com SETE colunas que ele caiu para 57px e o nome virou reticencias.
     check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 60, true)
+end
+
+print("== a pista e a faisca: so onde ha caminho ==")
+-- PEDIDO DO USUARIO, 08/09: *"eu quero Faisca na ponta e Pista tingida. Sem fundo preto, mas com
+-- a condicao que se tiver zerado fica sem a pista tingida, somente quando tiver algum valor"*.
+--
+-- ⚑ E ISSO PARECE IMPOSSIVEL EM COMBATE, mas nao e. Quando o jogador esta AUSENTE de uma metrica,
+-- quem escreve o zero e o proprio addon (Data.lua: "Ausente numa lista que sabemos ler = o jogador
+-- nao pontuou ali. E zero.") -- numero comum, legivel sempre. So o valor PRESENTE vem secret, e
+-- esse por definicao nao e o caso de "zerado".
+do
+    ns.db.columns = { "damage", "healing" }
+    ns.db.sortBy = "damage"
+    ns.db.rows = 5
+    ns.Window.Show(false)
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+
+    -- A primeira linha e de quem lidera o dano. Ela tem dano; pode nao ter cura.
+    local linhas = ns.Data.GetRows(0, "damage", ns.db.columns, ns.db.rows)
+    local primeira = ns.Window.DebugFirstRow()
+
+    check("quem tem dano tem pista no dano", primeira.cellTracks[1] ~= false, true)
+    check("  e a pista e da cor da classe, nao preta",
+        primeira.cellTracks[1][1] ~= 0 or primeira.cellTracks[1][2] ~= 0, true)
+    check("  com o alfa apagado da referencia", primeira.cellTracks[1][4], 0.15)
+    check("e a faisca aparece junto", primeira.cellSparks[1], true)
+
+    -- ⚑ E ELA ESTA PRESA NA TEXTURA DE PREENCHIMENTO, nao na moldura. E a afirmacao central:
+    -- ancorada ali, ela acompanha a ponta porque quem redimensiona aquele objeto e o MOTOR --
+    -- o Lua nunca le o valor, que em combate e opaco. Presa na moldura, ficaria parada na borda
+    -- direita e nao diria nada sobre progresso, sem que nada estourasse.
+    --
+    -- A fonte do 12.1.0 faz assim em seis lugares (linha do tempo de encontro, gerenciador de
+    -- recargas, barra de honra, barras de widget), um deles movido por valor secret.
+    check("a faisca esta presa no preenchimento", primeira.cellSparkOnFill[1], true)
+    check("  em todos os grupos", primeira.cellSparkOnFill[2], true)
+
+    -- E ONDE NAO HA VALOR, NADA. "Sem valor" sao DOIS casos, e os dois tem que esconder a pista:
+    --
+    --   `0`   -- o addon SABE que o jogador nao pontuou ali (ele mesmo escreveu o zero);
+    --   `nil` -- o addon nao conseguiu cruzar a identidade e nao sabe.
+    --
+    -- Pista embaixo de um traco anuncia um caminho que ninguem comecou; pista embaixo de "nao
+    -- sei" e pior, porque inventa um caminho. Os dois somem.
+    -- O caso e o do curandeiro que nao causou dano -- e o zero dele foi escrito pelo ADDON, nao
+    -- pela API. E o que torna a regra possivel em combate.
+    local semDano
+    for i = 1, #linhas do
+        local v = linhas[i].values[1]
+        if v == nil or v == 0 then semDano = i break end
+    end
+    check("ha alguem sem dano nenhum na lista", semDano ~= nil, true)
+    check("  e o valor dele e zero, nao desconhecido", linhas[semDano].values[1], 0)
+
+    local zerada = ns.Window.DebugRow(semDano)
+    check("quem nao causou dano nao ganha pista de dano", zerada.cellTracks[1], false)
+    check("  nem faisca", zerada.cellSparks[1], false)
+    check("  mas continua com a pista da cura, que ele tem", zerada.cellTracks[2] ~= false, true)
+    check("  e com a faisca dela", zerada.cellSparks[2], true)
 end
 
 print("== o total e a taxa dividem UMA barra ==")
@@ -1556,7 +1631,8 @@ do
     local larguraDps = ns.Window.DebugColumnWidth("dps")
     check("a barra do dano cobre as duas colunas",
         vaos[1].width, larguraDano + larguraDps)
-    check("  e o widget tem essa largura mesmo", vaos[1].barWidth, larguraDano + larguraDps - 4)
+    check("  e o widget tem essa largura mesmo",
+        vaos[1].barWidth, larguraDano + larguraDps - ns.Skin.groupGap)
     check("a de interrupcoes cobre uma so",
         vaos[3].width, ns.Window.DebugColumnWidth("interrupts"))
 
@@ -1573,9 +1649,11 @@ do
     check("e o do total, uma coluna a esquerda", celulas[1].anchorX, -larguraDps - 3)
 
     -- E A BARRA COMECA ONDE A COLUNA DELA COMECA, medido no widget pelo mesmo motivo.
-    check("a barra da cura e ancorada no vao dela",
-        vaos[2].anchorX, -vaos[2].offset - 2)
-    check("  e a do dano no vao dela", vaos[1].anchorX, -vaos[1].offset - 2)
+    -- ⚑ A FOLGA SAI DA ESQUERDA DO GRUPO, entao a borda DIREITA da faixa continua colada na
+    -- borda direita da coluna -- e e isso que mantem o cabecalho em cima do numero que ele nomeia.
+    -- Tirando dos dois lados, os dois se afastariam e a coluna deixaria de ter uma borda so.
+    check("a barra da cura e ancorada no vao dela", vaos[2].anchorX, -vaos[2].offset)
+    check("  e a do dano no vao dela", vaos[1].anchorX, -vaos[1].offset)
     check("  que sao vaos diferentes", vaos[1].offset ~= vaos[2].offset, true)
 
     -- A BARRA MEDE O TOTAL, e a razao e que **so o total tem regua**.

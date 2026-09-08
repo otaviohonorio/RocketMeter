@@ -145,6 +145,23 @@ local NUMBER_RESERVE = 96
 -- janela ja faz no nome e no relogio (`ROW_BG_ALPHA = 0`, `WINDOW_ALPHA = 0`) e que o usuario ja
 -- aprovou la; se o numero ficar ruim sobre cenario claro, o conserto e o contorno/sombra DELE, e
 -- nao trazer a caixa de volta -- foi ela que ele mandou tirar.
+-- A FOLGA ENTRE FAMILIAS. Queixa do usuario: *"me incomodou a divisao das colunas, ta muito em
+-- cima da anterior o comando da proxima, mais ainda o interrupt, comeca em cima do CPS"*.
+--
+-- Ele esta descrevendo a lei da proximidade quebrada. Dano+DPS sao UMA barra e Cura+CPS sao
+-- outra, mas o espaco entre as duas familias era o mesmo 4px que separava qualquer coisa: sem
+-- diferenca de vao, o olho nao tem como saber onde uma metrica acaba e a outra comeca.
+--
+-- 10 nao e numero novo: e o `NAME_GUTTER`, que ja e a calha entre o NOME e as metricas -- ou
+-- seja, o vao que este addon ja usa para dizer "aqui muda de assunto". Uma familia e outro
+-- assunto pelo mesmo motivo. Um vocabulario de vao so, em vez de dois.
+--
+-- ⚑ E ELE SAI DA ESQUERDA DO GRUPO, nao dos dois lados. Tirando dos dois, a borda direita da
+-- barra se afastaria da borda direita da coluna e o CABECALHO (que e ancorado na coluna, nao no
+-- grupo) deixaria de ficar em cima do numero que ele nomeia. Saindo so da esquerda, o vao aparece
+-- exatamente onde ele precisa aparecer -- entre uma familia e a anterior -- e o alinhamento de
+-- cabecalho com numero fica intacto.
+local GROUP_GAP = 10
 local CELL_GAP = 4
 local CELL_INSET = 2
 
@@ -418,6 +435,18 @@ local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto bra
 -- A faixa fina do nativo **não é chapada**. Medida ao longo dela, sobre a mesma cor de classe
 -- que a nossa usa (163,164,255): 52% na ponta esquerda, 67% no meio, 84% na direita. A nossa
 -- estava chapada em 100% — era exatamente essa a diferença de "o nosso tá mais claro".
+-- A PISTA e a FAISCA.
+--
+-- `TRACK_ALPHA` = 0,15: a referencia deste projeto tinge o fundo da linha com a cor da classe a
+-- ~18%, e 15 e o mesmo gesto um ponto mais discreto -- aqui a pista divide espaco com os numeros,
+-- que la ficam sobre a barra cheia.
+--
+-- `SPARK_WIDTH` = 10 e o rastro; mais que isso vira mancha numa faixa de 25px de altura.
+-- `SPARK_ALPHA` = 0,55 e o pico do degrade, no lado da ponta.
+local TRACK_ALPHA = 0.15
+local SPARK_WIDTH = 10
+local SPARK_ALPHA = 0.55
+
 local BAR_GRADIENT_MIN = 0.52
 local BAR_GRADIENT_MAX = 0.84
 -- Fundo da linha totalmente transparente: com a janela sem fundo, um preto parcial atrás de
@@ -455,6 +484,9 @@ ns.Skin = {
     -- Exposta porque é dela que sai o teto do corpo: o texto mais longo de uma célula tem que
     -- caber aqui, e é isso que o harness confere.
     columnWidth = COLUMN_WIDTH_FIXED,
+    -- A folga entre familias de metrica. Exposta porque o teste afirma sobre ela, e travar
+    -- o numero no teste faria a proxima mudanca de folga reprovar por design.
+    groupGap = GROUP_GAP,
     scoreboardFontSize = SCOREBOARD_FONT_SIZE,
     barTexture = BAR_TEXTURE,
     barBrightness = BAR_BRIGHTNESS,
@@ -1013,6 +1045,52 @@ function ns.ApplyBarColor(bar, classFilename)
     -- Cliente sem degradê: a média das duas pontas é o tom que o olho lê no conjunto.
     local k = (BAR_GRADIENT_MIN + BAR_GRADIENT_MAX) / 2
     bar:SetStatusBarColor(r * k, g * k, b * k)
+end
+
+---A PISTA de uma barra: o caminho todo, na cor da classe, bem apagado.
+---
+---⚠️ NÃO É O FUNDO PRETO. O usuário reprovou aquele duas vezes (*"tira o fundo preto com algum
+---percentual de opacidade"*, *"o fundo preto é feio"*) e pediu esta (*"eu quero ... Pista
+---tingida. Sem fundo preto"*). A diferença não é de opacidade, é de cor: preto empilha um bloco
+---escuro por linha e some com a transparência da janela; a cor da classe apagada lê como o
+---**resto do caminho** da própria barra.
+---
+---`mostrar = false` deixa a pista invisível — é o caso "zerado", em que não há caminho nenhum.
+function ns.ApplyTrackColor(texture, classFilename, mostrar)
+    if not mostrar then
+        texture:SetColorTexture(0, 0, 0, 0)
+        return
+    end
+    local r, g, b = ns.ClassColor(classFilename)
+    texture:SetColorTexture(r, g, b, TRACK_ALPHA)
+end
+
+---A FAÍSCA: um rastro que se acende até a ponta do preenchimento.
+---
+---Ela é branca e aditiva, com o alfa subindo da esquerda para a direita — o brilho mora no
+---**fim**, que é onde a barra chegou. Não é cor de classe: cor de classe é vocabulário reservado
+---neste projeto (dourado lê como "ladino", não como "líder"), e branco aditivo sobre a própria
+---barra clareia a cor que já está lá em vez de introduzir outra.
+---
+---A amplitude sai da escada medida no cliente: a Blizzard usa alfa até **0,15** para "disponível,
+---discreto" (talento selecionável) e **0,45→0,55 em 14s** para ambiente, contra 0,75→0,20 em meio
+---segundo para vida baixa. Um destaque que aparece em vinte linhas ao mesmo tempo pertence ao
+---primeiro grupo, não ao terceiro.
+function ns.ApplySparkColor(texture, classFilename, mostrar)
+    if not mostrar then
+        texture:Hide()
+        return
+    end
+
+    texture:SetColorTexture(1, 1, 1, 1)
+    if texture.SetGradient and CreateColor then
+        texture:SetGradient("HORIZONTAL",
+            CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, SPARK_ALPHA))
+    else
+        -- Cliente sem degradê: o rastro vira um brilho chapado, mais fraco para compensar.
+        texture:SetColorTexture(1, 1, 1, SPARK_ALPHA * 0.5)
+    end
+    texture:Show()
 end
 
 ---Fundo da linha: a mesma cor, bem apagada, para a parte vazia não ser um buraco preto.
@@ -1667,11 +1745,34 @@ local function BuildRow(index)
         if not faixa then
             faixa = CreateFrame("Frame", nil, row.text)
 
+            -- A PISTA: o resto do caminho, na PROPRIA cor da classe, bem apagada.
+            --
+            -- Pedido do usuario, em duas etapas: primeiro *"tira o fundo preto com algum
+            -- percentual de opacidade"*, depois *"o fundo preto e feio"* e *"eu quero ... Pista
+            -- tingida. Sem fundo preto"*. Ele nao rejeitou a ideia de pista -- rejeitou o PRETO.
+            --
+            -- Tingir com a cor da classe resolve as duas coisas: a parte vazia deixa de ser um
+            -- buraco e vira "o resto do caminho", na mesma familia de cor da barra. E e o que a
+            -- referencia deste projeto faz -- a skin do medidor tinge o fundo da linha com a cor
+            -- a ~18%, em vez de empilhar retangulo preto.
+            faixa.track = faixa:CreateTexture(nil, "BACKGROUND")
+            faixa.track:SetAllPoints()
+
             faixa.bar = CreateFrame("StatusBar", nil, faixa)
             faixa.bar:SetAllPoints()
             faixa.bar:SetStatusBarTexture(ns.BarTexture())
             faixa.bar:SetMinMaxValues(0, 1)
             faixa.bar:SetValue(0)
+
+            -- A FAISCA, na camada mais alta da barra: um rastro que se acende ate a ponta.
+            --
+            -- Sem atlas de proposito. O degrade de alfa numa textura branca em `ADD` da o brilho
+            -- sem depender de arte que pode nao existir neste cliente -- e atlas que nao existe
+            -- falha em SILENCIO, o que ja custou um cabecalho azul neste projeto.
+            faixa.spark = faixa:CreateTexture(nil, "OVERLAY")
+            faixa.spark:SetTexture("Interface\\Buttons\\WHITE8X8")
+            faixa.spark:SetBlendMode("ADD")
+            faixa.spark:SetWidth(SPARK_WIDTH)
 
             faixa.top = CreateFrame("Frame", nil, faixa)
             faixa.top:SetAllPoints()
@@ -1686,10 +1787,24 @@ local function BuildRow(index)
             row.groups[gi] = faixa
         end
 
-        faixa:SetSize(vao.width - CELL_GAP, height - CELL_INSET * 2)
+        faixa:SetSize(vao.width - GROUP_GAP, height - CELL_INSET * 2)
         faixa:ClearAllPoints()
-        faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset - CELL_GAP / 2, 0)
+        faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset, 0)
         faixa.bar:SetStatusBarTexture(ns.BarTexture())
+
+        -- A FAISCA E REANCORADA A CADA RECONSTRUCAO, e nao so no nascimento.
+        --
+        -- Ela se prende a TEXTURA DE PREENCHIMENTO, e e isso que a faz acompanhar a ponta sozinha:
+        -- quem redimensiona a textura e o motor, entao a faisca anda sem o Lua ler valor nenhum.
+        -- E o unico destaque que sobrevive a valor secret, e a fonte do 12.1.0 prova em seis
+        -- lugares (linha do tempo de encontro, gerenciador de recargas, barra de honra, barras de
+        -- widget) -- num deles movido por valor secret.
+        --
+        -- Reancorar aqui e barato (uma vez por linha por reconstrucao) e nos poupa de depender de
+        -- a textura sobreviver a `SetStatusBarTexture` logo acima.
+        faixa.spark:ClearAllPoints()
+        faixa.spark:SetPoint("RIGHT", faixa.bar:GetStatusBarTexture(), "RIGHT", 1, 0)
+        faixa.spark:SetHeight(height - CELL_INSET * 2)
 
         -- TODO NUMERO SE ESCONDE ANTES, e so os deste desenho voltam.
         --
@@ -2304,8 +2419,28 @@ function Window.Draw()
                 local escala = at and escalas[at]
                 if escala == nil then escala = 1 end
                 faixa.bar:SetMinMaxValues(0, escala)
-                faixa.bar:SetValue(at and entry.values[at] or 0)
+                local valor = at and entry.values[at] or 0
+                faixa.bar:SetValue(valor)
                 ns.ApplyBarColor(faixa.bar, source.classFilename)
+
+                -- A PISTA SO APARECE QUANDO HA VALOR. Pedido do usuario: *"se tiver zerado fica
+                -- sem a pista tingida, somente quando tiver algum valor"*. Ele esta certo: pista
+                -- vazia embaixo de um traco anuncia um caminho que ninguem comecou.
+                --
+                -- ⚑ E DA PARA SABER ISSO EM COMBATE, o que parece impossivel a primeira vista.
+                -- Quando o jogador esta AUSENTE de uma metrica, quem escreve o zero e o proprio
+                -- addon (`Data.lua`: *"Ausente numa lista que sabemos ler = o jogador nao pontuou
+                -- ali. E zero."*) -- numero comum de Lua, legivel sempre. So o valor PRESENTE vem
+                -- secret, e esse por definicao nao e o caso de "zerado".
+                --
+                -- A guarda e escrita ao contrario de proposito: esconde so quando da para PROVAR
+                -- que nao ha valor. Com valor opaco a pista FICA -- errar mostrando e melhor que
+                -- sumir com a referencia justamente em combate, que e quando ela serve.
+                local vazio = valor == nil
+                    or (not issecretvalue(valor) and valor == 0)
+
+                ns.ApplyTrackColor(faixa.track, source.classFilename, not vazio)
+                ns.ApplySparkColor(faixa.spark, source.classFilename, not vazio)
 
                 -- E UM NUMERO POR COLUNA, cada um formatado pela regra da metrica dele.
                 --
@@ -2536,11 +2671,14 @@ function Window.DebugSpans()
     return out
 end
 
----A primeira linha desenhada, para o teste poder perguntar o que a variante da barra fez com
----ela. Sem isto, "trocar de variante nao estoura" seria tudo o que daria para afirmar -- e uma
----variante que nao muda nada tambem nao estoura.
-function Window.DebugFirstRow()
-    local row = rows and rows[1]
+---A primeira linha desenhada. Sem isto, "trocar de variante nao estoura" seria tudo o que daria
+---para afirmar -- e uma variante que nao muda nada tambem nao estoura.
+---A linha `index` desenhada. `DebugFirstRow()` e o caso 1, que e o mais pedido.
+---
+---Passou a aceitar indice porque a pista condicional so se testa numa linha que NAO tem valor
+---naquela metrica -- e essa nunca e a primeira, que por construcao lidera a coluna ordenada.
+function Window.DebugRow(index)
+    local row = rows and rows[index or 1]
     if not row or not row:IsShown() then return nil end
     local cor = row.bg.GetColorTexture and row.bg:GetColorTexture()
     return {
@@ -2571,15 +2709,63 @@ function Window.DebugFirstRow()
             end
             return out
         end)(),
-        -- Quantas faixas ainda tem trilho preto atras. Tem que ser ZERO.
-        cellTracks = (function()
+        -- ⚑ MEDE A TINTA, NAO O NOME DO CAMPO. Ate 08/09 esta porta contava `faixa.track`, um
+        -- campo que nunca era criado -- o check passava com qualquer trilho de outro nome, e uma
+        -- revisao adversarial o encontrou vazio. Agora que a pista EXISTE (tingida com a cor da
+        -- classe, a pedido), o que nao pode voltar e o PRETO.
+        cellTracksBlack = (function()
             local n = 0
             for _, faixa in pairs(row.groups) do
-                if faixa.track then n = n + 1 end
+                local c = faixa.track and faixa.track.GetColorTexture
+                    and faixa.track:GetColorTexture()
+                if c and (c[4] or 0) > 0 and c[1] == 0 and c[2] == 0 and c[3] == 0 then
+                    n = n + 1
+                end
             end
             return n
         end)(),
+        -- A pista de cada grupo, na ordem da tela: `nil` quando invisivel.
+        cellTracks = (function()
+            local out = {}
+            for gi, vao in ipairs(GroupSpans()) do
+                local faixa = row.groups[gi]
+                local c = faixa and faixa.track and faixa.track:GetColorTexture()
+                out[gi] = (c and (c[4] or 0) > 0) and { c[1], c[2], c[3], c[4] } or nil
+                out[gi] = out[gi] or false
+                if vao then end
+            end
+            return out
+        end)(),
+        -- A FAISCA ESTA PRESA NO PREENCHIMENTO? E a afirmacao central da proposta: ancorada na
+        -- moldura, ela ficaria parada na borda direita e nao diria nada sobre progresso.
+        cellSparkOnFill = (function()
+            local out = {}
+            for gi in ipairs(GroupSpans()) do
+                local faixa = row.groups[gi]
+                if faixa and faixa.spark then
+                    local _, rel = faixa.spark:GetPoint(1)
+                    out[gi] = rel == faixa.bar:GetStatusBarTexture()
+                else
+                    out[gi] = false
+                end
+            end
+            return out
+        end)(),
+        -- E a faisca: visivel ou nao, por grupo.
+        cellSparks = (function()
+            local out = {}
+            for gi in ipairs(GroupSpans()) do
+                local faixa = row.groups[gi]
+                out[gi] = faixa ~= nil and faixa.spark ~= nil and faixa.spark:IsShown() and true
+                    or false
+            end
+            return out
+        end)(),
     }
+end
+
+function Window.DebugFirstRow()
+    return Window.DebugRow(1)
 end
 
 --------------------------------------------------------------------------------

@@ -69,27 +69,59 @@ SABOTAGENS = [
      u"    local escala = 1",
      "e a caixa cresce junto com o corpo"),
 
-    ("o fundo preto das celulas volta", "Window.lua",
-     u'            faixa.bar = CreateFrame("StatusBar", nil, faixa)',
-     u'            faixa.track = faixa:CreateTexture(nil, "BACKGROUND")\n'
-     u'            faixa.track:SetAllPoints()\n'
-     u'            faixa.bar = CreateFrame("StatusBar", nil, faixa)',
-     "nenhuma celula tem trilho preto atras"),
+    # A PISTA existe agora, tingida com a cor da classe a pedido. O que nao pode voltar e o
+    # PRETO -- o usuario o reprovou duas vezes ("tira o fundo preto", "o fundo preto e feio").
+    ("a pista volta a ser preta", "Window.lua",
+     u"    local r, g, b = ns.ClassColor(classFilename)\n"
+     u"    texture:SetColorTexture(r, g, b, TRACK_ALPHA)",
+     u"    texture:SetColorTexture(0, 0, 0, 0.4)",
+     "nenhuma pista e preta"),
+
+    # E ela nao pode aparecer onde nao ha caminho: "se tiver zerado fica sem a pista tingida".
+    ("a pista aparece mesmo com valor zerado", "Window.lua",
+     u"                ns.ApplyTrackColor(faixa.track, source.classFilename, not vazio)",
+     u"                ns.ApplyTrackColor(faixa.track, source.classFilename, true)",
+     "quem nao causou dano nao ganha pista de dano"),
+
+    ("a faisca aparece mesmo com valor zerado", "Window.lua",
+     u"                ns.ApplySparkColor(faixa.spark, source.classFilename, not vazio)",
+     u"                ns.ApplySparkColor(faixa.spark, source.classFilename, true)",
+     "  nem faisca"),
+
+    # ⚑ E A GUARDA NAO PODE LER VALOR SECRET. Escrita ao contrario -- "esconde so quando da para
+    # ⚑ FALTA UMA SABOTAGEM AQUI, e o motivo e do simulador, nao do codigo.
+    #
+    # A guarda do zero e escrita ao contrario de proposito ("esconde so quando da para PROVAR que
+    # nao ha valor") justamente para nunca comparar um valor opaco. Tirar o `issecretvalue` seria
+    # o defeito -- e NO JOGO ele levanta erro, porque comparar valor secret levanta.
+    #
+    # Aqui nao levanta: o marcador de secret do simulador e uma TABELA, e em Lua 5.1 `tabela == 0`
+    # e simplesmente falso, sem metametodo (`__eq` so e chamado entre operandos do mesmo tipo).
+    # As duas versoes dao a MESMA resposta no simulador. Representar isso exigiria um userdata, e
+    # inventar uma sabotagem que "passa" seria pior que nao ter nenhuma: a unica coisa honesta e
+    # registrar que esta linha so o jogo confere.
+
+    # A FAISCA presa na moldura fica parada na borda direita: nao diz nada sobre progresso, e
+    # nada estoura. So a ancora denuncia.
+    ("a faisca e ancorada na moldura, nao no preenchimento", "Window.lua",
+     u'        faixa.spark:SetPoint("RIGHT", faixa.bar:GetStatusBarTexture(), "RIGHT", 1, 0)',
+     u'        faixa.spark:SetPoint("RIGHT", faixa, "RIGHT", 1, 0)',
+     "a faisca esta presa no preenchimento"),
 
     # ------------------------------------------------------------------ a barra que atravessa
     # IDEIA DO USUARIO, 08/09: "a barra que progride conforme quem ta melhor, ela vai desde a
     # coluna de dano ate o DPS, como se fosse apenas uma barra".
 
     ("a barra volta a ser uma por coluna", "Window.lua",
-     u"        faixa:SetSize(vao.width - CELL_GAP, height - CELL_INSET * 2)",
-     u"        faixa:SetSize(ColumnWidthFor(vao.grupo.key) - CELL_GAP, height - CELL_INSET * 2)",
+     u"        faixa:SetSize(vao.width - GROUP_GAP, height - CELL_INSET * 2)",
+     u"        faixa:SetSize(ColumnWidthFor(vao.grupo.key) - GROUP_GAP, height - CELL_INSET * 2)",
      "  e o widget tem essa largura mesmo"),
 
     # A faixa e ancorada pela DIREITA no vao do grupo. Ancorar pela coluna que ordena poe a barra
     # do dano em cima da coluna do DPS -- ela some por baixo do numero vizinho.
     ("a faixa e ancorada na coluna errada", "Window.lua",
-     u'        faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset - CELL_GAP / 2, 0)',
-     u'        faixa:SetPoint("RIGHT", row.text, "RIGHT", -CELL_GAP / 2, 0)',
+     u'        faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset, 0)',
+     u'        faixa:SetPoint("RIGHT", row.text, "RIGHT", 0, 0)',
      "a barra da cura e ancorada no vao dela"),
 
     ("as familias voltam a compartilhar uma regua so", "Window.lua",
