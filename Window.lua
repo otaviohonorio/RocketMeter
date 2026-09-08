@@ -1087,14 +1087,26 @@ local function HeightForSections(sectionCount, rowsEach)
         + PADDING
 end
 
-Window.__HeightForSections = HeightForSections
-
-local alturaDesenhada
-
 local function WindowHeight(rowCount)
     if rowCount < 1 then rowCount = 1 end
     return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
 end
+
+---A altura que a janela deve ter AGORA, pelo que esta desenhado.
+---
+---Existe porque quatro caminhos diferentes (soltar a alca, mudar as colunas, mudar o corpo da
+---fonte, arrastar) chamavam `WindowHeight(ns.db.rows)`, que e a formula do layout ANTIGO --
+---cabecalho de coluna mais N linhas de uma lista so. Cada um deles devolvia a janela para uma
+---altura que nao tem relacao com as secoes desenhadas, e o conteudo ficava cortado ou boiando.
+---
+---Um lugar so decide altura, e ele pergunta ao desenho.
+local function CurrentHeight()
+    return alturaDesenhada or WindowHeight(ns.db.rows)
+end
+
+Window.__HeightForSections = HeightForSections
+
+local alturaDesenhada
 
 ---Quanto uma linha ocupa de altura, com a separação.
 local function RowStep()
@@ -1123,6 +1135,15 @@ Window.__RowStep = RowStep
 --------------------------------------------------------------------------------
 -- Cabeçalho das colunas
 --------------------------------------------------------------------------------
+---Esconde o cabecalho de colunas do desenho antigo, se ele chegou a existir.
+---
+---A funcao que o CONSTROI continua no arquivo de proposito: ela e a unica descricao de como o
+---layout de colunas era, e apagar isso agora tornaria impossivel comparar os dois se o desenho
+---em secoes for reprovado. Ela so nao e mais chamada.
+local function HideColumnHeader()
+    if headerRow then headerRow:Hide() end
+end
+
 local function BuildColumnHeader()
     if not headerRow then
         headerRow = CreateFrame("Frame", nil, frame)
@@ -1683,7 +1704,7 @@ function Window.Create()
         frame.sizing = false
         ns.db.width = frame:GetWidth()
         Window.SetRows(RowsThatFit(frame:GetHeight()))
-        frame:SetHeight(WindowHeight(ns.db.rows))
+        frame:SetHeight(CurrentHeight())
     end)
 
     -- ENCAIXE AO VIVO. Antes o ajuste só acontecia ao SOLTAR o mouse, então a linha ficava
@@ -1735,11 +1756,21 @@ function Window.Rebuild()
     ns.ApplyRoleFont(frame.header.segment.text, "title", 0)
     ns.ApplyRoleFont(frame.header.clock, "title", CLOCK_DELTA)
 
-    BuildColumnHeader()
-    for i = 1, ns.db.rows do
-        BuildRow(i)
-    end
-    for i = ns.db.rows + 1, #rows do
+    -- O CABECALHO DE COLUNAS NAO EXISTE MAIS, e este era o defeito que o usuario viu: *"nao
+    -- ficou como aquele desenho que tu mostrou que estava os itens separados e cada um com sua
+    -- ordenacao"*.
+    --
+    -- Com secoes nao ha colunas -- os numeros vao dentro da barra --, mas o `headerRow` continuou
+    -- sendo construido e mostrado em `-HEADER_HEIGHT`, que e EXATAMENTE onde o cabecalho da
+    -- primeira secao e colocado. A janela desenhava os dois layouts um sobre o outro: os rotulos
+    -- "Dano | DPS | Cura | CPS" da tabela antiga por cima do "DANO" da secao.
+    --
+    -- Trocar de layout nao e so escrever o novo: e apagar o velho. Eu escrevi o novo.
+    HideColumnHeader()
+
+    -- As linhas sao criadas pelo laco de secoes, que sabe quantas cabem em cada uma. Criar
+    -- `ns.db.rows` aqui e do desenho antigo, em que a janela tinha UMA lista desse tamanho.
+    for i = 1, #rows do
         rows[i]:Hide()
     end
 
@@ -2077,6 +2108,12 @@ function Window.Draw()
 
 end
 
+---O cabecalho de COLUNAS do desenho antigo ainda esta na tela? Tem que ser `false`: ele ocupa o
+---lugar do cabecalho da primeira secao, e foi essa sobreposicao que o usuario viu.
+function Window.DebugColumnHeaderShown()
+    return headerRow ~= nil and headerRow:IsShown() and true or false
+end
+
 ---A primeira linha desenhada, para o teste poder perguntar o que a variante da barra fez com
 ---ela. Sem isto, "trocar de variante nao estoura" seria tudo o que daria para afirmar -- e uma
 ---variante que nao muda nada tambem nao estoura.
@@ -2258,7 +2295,7 @@ local function SetRoleField(role, field, value)
     ns.RefreshSkin()
     Window.Rebuild()
     if frame then
-        frame:SetHeight(WindowHeight(ns.db.rows))
+        frame:SetHeight(CurrentHeight())
         if frame.SetResizeBounds then
             frame:SetResizeBounds(MinWidth(), WindowHeight(MIN_ROWS), 1400, WindowHeight(MAX_ROWS))
         end
@@ -2312,7 +2349,7 @@ local function ApplyAppearance()
     ns.RefreshSkin()
     Window.Rebuild()
     if frame then
-        frame:SetHeight(WindowHeight(ns.db.rows))
+        frame:SetHeight(CurrentHeight())
         if frame.SetResizeBounds then
             frame:SetResizeBounds(MinWidth(), WindowHeight(MIN_ROWS), 1400, WindowHeight(MAX_ROWS))
         end
@@ -2338,7 +2375,7 @@ function Window.SetRows(count)
         -- Durante o arraste quem manda na altura é o mouse: cravar a altura aqui brigaria com
         -- o `StartSizing` e a janela pularia embaixo do cursor. O encaixe final é feito ao
         -- soltar, no `OnMouseUp` da alça.
-        frame:SetHeight(WindowHeight(count))
+        frame:SetHeight(CurrentHeight())
     end
 end
 

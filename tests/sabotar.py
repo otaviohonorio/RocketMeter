@@ -32,6 +32,11 @@ if not os.path.exists(LUA):
 
 # (nome, arquivo, de, para, label do check que TEM que reprovar)
 SABOTAGENS = [
+    ("os dois layouts desenhados um sobre o outro", "Window.lua",
+     u"    HideColumnHeader()",
+     u"    BuildColumnHeader()",
+     "o cabecalho de colunas antigo sumiu"),
+
     ("as variantes da barra nao mudam nada", "Window.lua",
      u"    row.valuePlate:SetShown(style.plate)",
      u"    row.valuePlate:SetShown(false)",

@@ -1316,6 +1316,11 @@ do
 
     local secoes, linhas, altura, reguas = ns.Window.DebugSections()
     check("desenhou tres secoes", #secoes, 3)
+
+    -- O CABECALHO DE COLUNAS DO DESENHO ANTIGO NAO PODE ESTAR NA TELA. Ele era construido e
+    -- mostrado em `-HEADER_HEIGHT`, que e exatamente onde o cabecalho da PRIMEIRA SECAO vai --
+    -- a janela desenhava os dois layouts um sobre o outro, e foi o que o usuario viu.
+    check("o cabecalho de colunas antigo sumiu", ns.Window.DebugColumnHeaderShown(), false)
     check("a primeira e Dano", secoes[1].label, ns.L["Damage"])
     check("a segunda e Cura", secoes[2].label, ns.L["Healing"])
     check("a terceira e Interrupcoes", secoes[3].label, ns.L["Interrupts"])
