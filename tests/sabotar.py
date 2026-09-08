@@ -32,7 +32,8 @@ if not os.path.exists(LUA):
 
 # (nome, arquivo, de, para, label do check que TEM que reprovar)
 SABOTAGENS = [
-    # O DESENHO ESCOLHIDO (opcao B): uma linha por pessoa, uma barra por coluna, numero dentro.
+    # ------------------------------------------------------------------ geometria da janela
+    # O DESENHO ESCOLHIDO (opcao B): uma linha por pessoa, o numero dentro da barra.
     # O defeito de 08/09: `MinWidth` deixa de contar as colunas e quatro delas caem fora da janela.
     ("MinWidth para de contar as colunas", "Window.lua",
      u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH + columnsWidth",
@@ -63,111 +64,190 @@ SABOTAGENS = [
      u"        list[i].counts = nil",
      "dano (total) e mais largo que interrupcoes (contagem)"),
 
+    ("a largura da coluna para de seguir o corpo da fonte", "Window.lua",
+     u'    local escala = ns.RoleSizeSafe("body") / 16',
+     u"    local escala = 1",
+     "e a caixa cresce junto com o corpo"),
+
     ("a faixa de classe volta a cruzar a linha toda", "Window.lua",
      u"    row.bar:SetWidth(math.max(1, nomeAteX - 2))",
      u"    row.bar:SetWidth(WindowWidth())",
      "a faixa de classe para antes das colunas"),
 
     ("o fundo preto das celulas volta", "Window.lua",
-     u'            cell.bar = CreateFrame("StatusBar", nil, cell)',
-     u'            cell.track = cell:CreateTexture(nil, "BACKGROUND")\n'
-     u'            cell.track:SetAllPoints()\n'
-     u'            cell.bar = CreateFrame("StatusBar", nil, cell)',
+     u'            faixa.bar = CreateFrame("StatusBar", nil, faixa)',
+     u'            faixa.track = faixa:CreateTexture(nil, "BACKGROUND")\n'
+     u'            faixa.track:SetAllPoints()\n'
+     u'            faixa.bar = CreateFrame("StatusBar", nil, faixa)',
      "nenhuma celula tem trilho preto atras"),
 
-    ("as colunas voltam a compartilhar uma regua so", "Window.lua",
-     u"                local escala = scales[c]",
+    # ------------------------------------------------------------------ a barra que atravessa
+    # IDEIA DO USUARIO, 08/09: "a barra que progride conforme quem ta melhor, ela vai desde a
+    # coluna de dano ate o DPS, como se fosse apenas uma barra".
+
+    ("a barra volta a ser uma por coluna", "Window.lua",
+     u"        faixa:SetSize(vao.width - CELL_GAP, height - CELL_INSET * 2)",
+     u"        faixa:SetSize(ColumnWidthFor(vao.grupo.key) - CELL_GAP, height - CELL_INSET * 2)",
+     "  e o widget tem essa largura mesmo"),
+
+    # A faixa e ancorada pela DIREITA no vao do grupo. Ancorar pela coluna que ordena poe a barra
+    # do dano em cima da coluna do DPS -- ela some por baixo do numero vizinho.
+    ("a faixa e ancorada na coluna errada", "Window.lua",
+     u'        faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset - CELL_GAP / 2, 0)',
+     u'        faixa:SetPoint("RIGHT", row.text, "RIGHT", -CELL_GAP / 2, 0)',
+     "a barra da cura e ancorada no vao dela"),
+
+    ("as familias voltam a compartilhar uma regua so", "Window.lua",
+     u"                local escala = at and escalas[at]",
      u"                local escala = maxAmount",
-     "as colunas nao compartilham regua"),
+     "familias diferentes nao compartilham regua"),
 
-    ("a coluna perde a barra e vira so numero", "Window.lua",
-     u"                cell.bar:SetMinMaxValues(0, escala)",
-     u"                cell.bar:SetMinMaxValues(0, 1)",
-     "as colunas nao compartilham regua"),
+    ("a barra perde a regua e vira retangulo cheio", "Window.lua",
+     u"                faixa.bar:SetMinMaxValues(0, escala)",
+     u"                faixa.bar:SetMinMaxValues(0, 1)",
+     "familias diferentes nao compartilham regua"),
 
-    ("a cor de classe volta para o numero", "Window.lua",
-     u"                cell.text:SetTextColor(unpack(ns.Skin.text))",
-     u"                if entry.best and entry.best[c] then\n"
-     u"                    cell.text:SetTextColor(LeaderColor(source.classFilename))\n"
-     u"                else\n"
-     u"                    cell.text:SetTextColor(unpack(ns.Skin.text))\n"
-     u"                end",
-     "todo numero tem a mesma cor, inclusive o do lider"),
+    # A REGUA que existe e a do TOTAL. Encher a barra com a taxa sobre ela da um fiapo em toda
+    # linha -- foi o defeito que a barra unica corrigiu, e ele volta com uma linha.
+    ("a barra passa a medir a taxa", "Window.lua",
+     u"        encheCom[g] = posicaoDe[vaosDesenho[g].grupo.key]",
+     u"        encheCom[g] = posicaoDe[vaosDesenho[g].grupo.keys[#vaosDesenho[g].grupo.keys]]",
+     "a barra mede o total do grupo"),
 
+    ("a regua nao chega na coluna", "Data.lua",
+     u"            scales[c] = porAttr[def.attr] or nil",
+     u"            scales[c] = nil",
+     "familias diferentes nao compartilham regua"),
+
+    # ------------------------------------------------------------------ os dois numeros
+    # "Volta como estava": cada coluna escreve o numero DELA. A versao mesclada juntava os dois
+    # numa string, e o usuario mandou desfazer.
+
+    ("os dois numeros voltam a ser um so", "Window.lua",
+     u"            fs:Show()",
+     u"            if i == 1 then fs:Show() end",
+     "cinco colunas marcadas, cinco numeros"),
+
+    # Cada numero mora na fatia da coluna dele. Sem acumular `dentro`, os dois se empilham na
+    # mesma ponta da faixa e um cobre o outro.
+    ("os numeros do grupo se empilham na mesma ponta", "Window.lua",
+     u"            dentro = dentro + largura",
+     u"            dentro = dentro + 0",
+     "e o do total, uma coluna a esquerda"),
+
+    # ------------------------------------------------------------------ a ordem travada
+    # PEDIDO: "vamos bloquear para que a coluna de Dano sempre venha primeiro que a DPS".
+
+    ("a ordem dentro da familia deixa de ser travada", "Data.lua",
+     u"            if pa ~= pb then return pa < pb end",
+     u"            if pa ~= pb then return pa > pb end",
+     "migracao converte id em chave"),
+
+    ("a normalizacao deixa de agrupar por familia", "Data.lua",
+     u"    local familias, porAttr = {}, {}",
+     u"    if true then return columns, false end\n"
+     u"    local familias, porAttr = {}, {}",
+     "  e completa o par do dano"),
+
+    ("a normalizacao reordena as familias entre si", "Data.lua",
+     u"            familias[#familias + 1] = porAttr[def.attr]",
+     u"            table.insert(familias, 1, porAttr[def.attr])",
+     "migracao converte id em chave"),
+
+    ("o par deixa de ser completado", "Data.lua",
+     u"                for _, irma in ipairs(item.keys) do",
+     u"                for _, irma in ipairs({ key }) do",
+     "  e completa o par do dano"),
+
+    ("marcar uma coluna deixa de normalizar a lista", "Window.lua",
+     u"    ns.db.columns = ns.Data.NormalizeColumns(novo)\n"
+     u"\n"
+     u"    -- A ordenacao pode ter ido embora junto com o item.",
+     u"    ns.db.columns = novo\n"
+     u"\n"
+     u"    -- A ordenacao pode ter ido embora junto com o item.",
+     "ligar o par reordena a familia inteira"),
+
+    ("mover deixa de normalizar de volta", "Window.lua",
+     u"    ns.db.columns = ns.Data.NormalizeColumns(novo)\n"
+     u"\n"
+     u"    Window.Rebuild()",
+     u"    ns.db.columns = novo\n"
+     u"\n"
+     u"    Window.Rebuild()",
+     "mover devolve a lista agrupada mesmo se ela chegou intercalada"),
+
+    ("a lista salva escapa da normalizacao", "Data.lua",
+     u"    local normal = Data.NormalizeColumns(out)\n"
+     u"    return normal, changed",
+     u"    return out, changed",
+     "  e completa o par do dano"),
+
+    # E O CONTRARIO TAMBEM: reagrupar nao pode contar como migracao de FORMATO. O perfil usa esse
+    # valor para APAGAR a ordenacao escolhida e anunciar "colunas migradas" no chat -- a cada
+    # login, por causa de uma reordenacao que o jogador nao pediu nem percebeu.
+    ("reagrupar volta a contar como migracao de formato", "Data.lua",
+     u"    local normal = Data.NormalizeColumns(out)\n"
+     u"    return normal, changed",
+     u"    local normal, reordenou = Data.NormalizeColumns(out)\n"
+     u"    return normal, changed or reordenou",
+     "  mas nao conta como migracao de formato"),
+
+    # ------------------------------------------------------------------ o item unico
+    # PEDIDO: "o dano e dps e cura e cps tem que ser um so item".
+
+    ("o par volta a ser dois itens na configuracao", "Data.lua",
+     u"        local par = def.field == \"total\" and taxaDe[def.attr]",
+     u"        local par = false",
+     "  e completa o par do dano"),
+
+    ("a taxa aparece DUAS vezes na lista de itens", "Data.lua",
+     u"        elseif def.field ~= \"perSecond\" or not totalDe[def.attr] then",
+     u"        else",
+     "  a familia da cura vem depois"),
+
+    ("ligar o item liga so uma das duas colunas", "Window.lua",
+     u"    local chaves = item and item.keys or { key }",
+     u"    local chaves = { key }",
+     "e desligar pelo dano leva o DPS junto"),
+
+    # Com item de duas colunas, "sobra uma" deixou de ser a conta certa: desligar o ultimo item
+    # leva as DUAS de uma vez e a janela fica sem coluna nenhuma.
+    ("a guarda de coluna minima volta a contar uma so", "Window.lua",
+     u"        if #novo == 0 then",
+     u"        if #novo == -1 then",
+     "desligar o ultimo item nao esvazia a janela"),
+
+    # ------------------------------------------------------------------ cabecalho e ordenacao
     ("o clique no cabecalho deixa de reordenar", "Window.lua",
      u"                    ns.db.sortBy = key\n"
      u"                    ns.db.sortDesc = true\n"
      u"                    Window.Refresh(true)",
      u"                    ns.db.sortBy = key\n"
      u"                    ns.db.sortDesc = true",
-     "e o dourado esta no grupo que ordena"),
+     "o dourado esta no DPS"),
 
     ("clicar de novo troca de coluna em vez de inverter", "Window.lua",
-     u"                elseif self.groupHasSort then",
+     u"                elseif ns.db.sortBy == key then",
      u"                elseif false then",
-     "clicar no grupo que ja ordena inverte a ordem"),
+     "clicar de novo inverte a ordem"),
+
+    # O cabecalho voltou a ser um por coluna: clicar em "DPS" ordena por DPS. Ler a chave pelo
+    # indice de GRUPO foi o defeito que a mescla criou, e a volta desfaz a causa.
+    ("o cabecalho volta a nomear a familia em vez da coluna", "Window.lua",
+     u"        local label = ns.Data.GetShortLabel(key)",
+     u"        local label = ns.Data.GetAttributeLabel(key)",
+     "o primeiro e o do dano"),
+
+    ("o cabecalho do par ocupa a largura das duas", "Window.lua",
+     u"        button:SetWidth(ColumnWidthFor(key))",
+     u"        button:SetWidth(ColumnWidthFor(key) * 2)",
+     "e a largura e a da coluna dele"),
 
     ("o cabecalho de colunas some", "Window.lua",
-     u"    BuildColumnHeader()\n\n    local posicaoDe",
-     u"    HideColumnHeader()\n\n    local posicaoDe",
+     u"    BuildColumnHeader()\n\n    local vaosDesenho",
+     u"    HideColumnHeader()\n\n    local vaosDesenho",
      "o cabecalho de colunas esta na tela"),
-
-    # A regua deixa de chegar a coluna: todas caem no fallback 1, e a barra de cada uma passa a
-    # dizer "esta pessoa e 100% desta metrica" -- todas cheias, nenhuma informacao.
-    ("a regua nao chega na coluna", "Data.lua",
-     u"            scales[c] = porAttr[def.attr] or nil",
-     u"            scales[c] = nil",
-     "as colunas nao compartilham regua"),
-
-
-
-
-
-
-
-    # ------------------------------------------------------------------ a mescla de colunas
-    # IDEIA DO USUARIO, 08/09: "Dano - DPS" num cabecalho so, "65.1M - 48K" numa celula so. Cada
-    # linha abaixo e uma forma de a mescla se desfazer sem estourar nada.
-
-    ("o cabecalho volta a nomear uma metrica so", "Window.lua",
-     u'    return table.concat(partes, " - ")\nend\n\nlocal function ColumnWidthFor',
-     u'    return partes[1]\nend\n\nlocal function ColumnWidthFor',
-     "o primeiro junta os dois nomes"),
-
-    ("a celula escreve so o primeiro numero", "Window.lua",
-     u'    return table.concat(partes, " - "), false',
-     u'    return partes[1], false',
-     "a celula do grupo traz total E taxa"),
-
-    # Ordenar por DPS e por dano da a MESMA lista, entao trocar isto nao muda ordem nenhuma: o
-    # que quebra e o dourado, que passa a prometer "DPS" e a coluna clicavel a responder "dano".
-    ("o grupo passa a ser ordenado pela taxa", "Data.lua",
-     u'            grupo.keys[#grupo.keys + 1] = def.key',
-     u'            grupo.keys[#grupo.keys + 1] = def.key\n'
-     u'            grupo.key = def.key',
-     "o grupo e ordenado pelo total"),
-
-    # O DEFEITO QUE A MESCLA CRIOU: `columnIndex` virou indice de GRUPO, e o handler continuava
-    # lendo `ns.db.columns` com ele. Com {dano, DPS, cura, CPS, interr} o terceiro cabecalho e
-    # "Interr" e a terceira coluna e "cura" -- clicar em um ordenava pelo outro.
-    ("o clique volta a ler a coluna pelo indice do grupo", "Window.lua",
-     u"                local key = self.sortKey",
-     u"                local key = ns.db.columns[self.columnIndex]",
-     "e ordena pela metrica DELE"),
-
-    ("mover separa o total da taxa", "Window.lua",
-     u"    lista[index], lista[target] = lista[target], lista[index]",
-     u"    ns.db.columns[index], ns.db.columns[target] =\n"
-     u"        ns.db.columns[target], ns.db.columns[index]",
-     "mover trocou os dois primeiros grupos"),
-
-    # O CACHE DE GRUPOS NAO PODE ENVELHECER. Ele existe para os quatro consumidores de um mesmo
-    # desenho verem a mesma lista; se o desenho o LE em vez de refaze-lo, a tela fica com os
-    # grupos do desenho anterior sobre os dados do atual.
-    ("o desenho le o cache velho de grupos", "Window.lua",
-     u"    local gruposDesenho = RefreshGroups()",
-     u"    local gruposDesenho = Groups()",
-     "a primeira linha tem uma celula por coluna"),
 
     # O dourado e o UNICO sinal de qual coluna ordena. Pintado so na reconstrucao, ele ficava na
     # coluna anterior depois de um clique -- a janela mentindo sobre o que estava mostrando.
@@ -178,48 +258,71 @@ SABOTAGENS = [
      u"    if jaMontado then return end\n"
      u"    jaMontado = true\n"
      u"    if not headerRow then",
-     "e o dourado esta no grupo que ordena"),
+     "o dourado esta no DPS"),
 
-    # A barra mede o TOTAL. As duas metricas dariam a mesma proporcao, mas so o total e o numero
-    # que o cabecalho dourado promete estar ordenando.
-    # ⚑ A MAIS IMPORTANTE DA MESCLA, e esta sabotagem corrigiu o comentario que eu tinha
-    # escrito: sem a guarda NADA estoura. `FormatCell` recusa valor secret e devolve traco, entao
-    # a celula mesclada mostra "- - -" em combate -- o numero some, em silencio, na hora em que o
-    # medidor serve para alguma coisa. Defeito silencioso e pior que erro de Lua: erro tem log.
-    ("a celula junta valor secret", "Window.lua",
-     u"        if valor ~= nil and issecretvalue(valor) then return valor, true end",
-     u"        -- sabotado",
-     "a celula do grupo opaco nao junta numeros"),
+    # O CACHE DE GRUPOS NAO PODE ENVELHECER. Se o desenho o LE em vez de refaze-lo, a tela fica
+    # com os grupos do desenho anterior sobre os dados do atual.
+    ("o desenho le o cache velho de grupos", "Window.lua",
+     u"    RefreshGroups()\n\n    -- O CABECALHO E PINTADO NO DESENHO",
+     u"    Groups()\n\n    -- O CABECALHO E PINTADO NO DESENHO",
+     "a primeira linha tem um numero por coluna"),
 
-    # O dourado tem que seguir o GRUPO. Com `sortBy = "dps"` nenhum grupo tem `key == sortBy`,
-    # e a janela ordenava sem dizer por qual coluna.
-    ("o dourado volta a exigir a coluna exata", "Window.lua",
-     u"        if GroupHas(grupo, ns.db.sortBy) then",
-     u"        if grupo.key == ns.db.sortBy then",
-     "ordenado por DPS, o grupo do dano fica dourado"),
+    # E o MESMO cache, do outro lado: `MoveColumn` le os grupos ANTES de reescrever a lista, e
+    # `ns.db.columns` pode ter mudado sem passar por um desenho (SavedVariables entram assim).
+    ("mover le o cache velho de grupos", "Window.lua",
+     u"    local lista = RefreshGroups()",
+     u"    local lista = Groups()",
+     "mover devolve a lista agrupada mesmo se ela chegou intercalada"),
 
-    ("clicar no grupo que ordena pela taxa troca em vez de inverter", "Window.lua",
-     u"                elseif self.groupHasSort then",
-     u"                elseif ns.db.sortBy == key then",
-     "clicar no grupo que ja ordena inverte a ordem"),
+    ("a cor de classe volta para o numero", "Window.lua",
+     u"                    fs:SetTextColor(unpack(ns.Skin.text))",
+     u"                    if entry.best and entry.best[i] then\n"
+     u"                        fs:SetTextColor(LeaderColor(source.classFilename))\n"
+     u"                    else\n"
+     u"                        fs:SetTextColor(unpack(ns.Skin.text))\n"
+     u"                    end",
+     "todo numero tem a mesma cor, inclusive o do lider"),
 
-    # A largura do grupo TEM que acompanhar o corpo da fonte: congelada, ela cabe o texto no
-    # corpo padrao e o estoura em qualquer corpo maior -- e o corpo e ajustavel pelo jogador.
-    ("a largura da coluna para de seguir o corpo da fonte", "Window.lua",
-     u'    local escala = ns.RoleSizeSafe("body") / 16',
-     u"    local escala = 1",
-     "  e o texto mesclado cabe nela"),
+    # ------------------------------------------------------------------ o Picker
+    # A tela passava a posicao em `ns.db.columns` onde `MoveColumn` esperava indice de GRUPO: a
+    # seta do "DPS" movia a familia da CURA. Nada aparecia errado -- so mexia na coisa errada.
+    ("as setas do configurador voltam a passar indice de coluna", "Picker.lua",
+     u"    local grupos = ns.Data.GroupColumns(ns.db.columns)",
+     u"    for i, id in ipairs(ns.db.columns) do\n"
+     u"        if id == item.key then return i, #ns.db.columns end\n"
+     u"    end\n"
+     u"    local grupos = ns.Data.GroupColumns(ns.db.columns)",
+     "a seta move a familia da linha clicada"),
 
-    # E a fatia do segundo numero nao pode encolher a ponto de o texto nao caber.
-    ("o segundo numero ganha uma fatia pequena demais", "Window.lua",
-     u"        largura = largura + math.floor(ColumnWidthFor(grupo.keys[i]) * 0.62 + 0.5)",
-     u"        largura = largura + math.floor(ColumnWidthFor(grupo.keys[i]) * 0.10 + 0.5)",
-     "  e o texto mesclado cabe nela"),
+    # ⚑ O MESMO DEFEITO PELO CABECALHO, e foi assim que ele voltou: consertado na tela de
+    # configuracao, reintroduzido no cabecalho quando ele deixou de ser por grupo. Dos dez cliques
+    # possiveis com {dano, DPS, cura, CPS, interr}, um acertava, um ESTOURAVA a janela e oito
+    # moviam a familia errada ou morriam calados.
+    ("o cabecalho volta a passar indice de coluna para mover", "Window.lua",
+     u"                    local g = GroupIndexFor(key)\n"
+     u"                    if g then Window.MoveColumn(g, -1) end",
+     u"                    Window.MoveColumn(self.columnIndex, -1)",
+     "e move a familia da CURA para a esquerda"),
 
-    ("a barra passa a medir a taxa", "Window.lua",
-     u"                local principal = entry.values[indices[c][1]]",
-     u"                local principal = entry.values[indices[c][#indices[c]]]",
-     "a barra usa o valor do total"),
+    ("mover volta a nao validar a origem", "Window.lua",
+     u"    if index < 1 or index > #lista then return end\n"
+     u"    if target < 1 or target > #lista then return end",
+     u"    if target < 1 or target > #lista then return end",
+     # ESTOURA, e e o defeito: a troca deixa um BURACO no meio da lista de grupos (o slot de
+     # origem vira nil), `#lista` muda de valor e o achatamento indexa nil. `label = None` e o
+     # modo da suite para "isto tem que parar o harness" -- reprovar num check seria menos grave
+     # do que o que realmente acontece.
+     None),
+
+    ("o configurador volta a listar colunas em vez de itens", "Picker.lua",
+     u"    local items = ns.Data.GetColumnItems()",
+     u"    local items = ns.Data.GetColumns()",
+     None),
+
+    ("o chat e a tela discordam do numero da coluna", "Commands.lua",
+     u"    local list = ns.Data.GetColumnItems()",
+     u"    local list = ns.Data.GetColumns()",
+     None),
 
     ("coluna sem construtor de celula", "Scoreboard.lua",
      u"CellBuilders.score = CellBuilders.value",
@@ -360,10 +463,21 @@ try:
         esperado = "  ERRO  " + label
         if esperado in saida:
             print("  ok    %-42s reprovou em: %s" % (nome, label))
+            continue
+
+        outro = [l for l in saida.splitlines() if l.startswith("  ERRO")]
+
+        # ⚑ ESTOURAR NAO E O MESMO QUE REPROVAR, e a suite dizia "nao foi pega" nos dois casos.
+        # Um erro de Lua interrompe o harness ANTES do check nomeado, entao a invariante que a
+        # linha diz proteger nunca chegou a rodar -- o defeito foi pego por acidente. A mensagem
+        # tem que separar as duas coisas, senao o proximo leitor procura um teste que nao existe.
+        if not outro and not chegou_ao_fim:
+            print("  FALHA %-42s estourou o harness antes de chegar em %r" % (nome, label))
+        elif not outro:
+            print("  FALHA %-42s o harness passou inteiro com o defeito" % nome)
         else:
-            outro = [l for l in saida.splitlines() if l.startswith("  ERRO")]
             print("  FALHA %-42s esperava reprovar em %r; veio %r" % (nome, label, outro[:1]))
-            falhas.append(nome)
+        falhas.append(nome)
 finally:
     shutil.rmtree(base, ignore_errors=True)
 

@@ -93,7 +93,9 @@ commands["preset"] = function(rest)
 end
 
 commands["col"] = function(rest)
-    local list = ns.Data.GetColumns()
+    -- ITENS, a mesma lista da tela de configuracao. Numerar aqui pelo catalogo e la pelos itens
+    -- daria dois "numero 4" diferentes para a mesma pessoa.
+    local list = ns.Data.GetColumnItems()
     local index = tonumber(rest)
     if index and list[index] then
         ns.Window.ToggleColumn(list[index].key)
@@ -102,12 +104,14 @@ commands["col"] = function(rest)
     end
 
     ns.Print(L["columns (type the number to toggle):"])
-    for i, attr in ipairs(list) do
+    for i, item in ipairs(list) do
         local isOn = false
         for _, id in ipairs(ns.db.columns) do
-            if id == attr.key then isOn = true break end
+            for _, key in ipairs(item.keys) do
+                if id == key then isOn = true end
+            end
         end
-        print(("  %d - %s%s|r"):format(i, isOn and "|cff33ff99" or "|cff808080", attr.label))
+        print(("  %d - %s%s|r"):format(i, isOn and "|cff33ff99" or "|cff808080", item.label))
     end
 end
 

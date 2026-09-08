@@ -36,7 +36,7 @@ ns.Data = Data
 --------------------------------------------------------------------------------
 -- Catálogo de colunas
 --------------------------------------------------------------------------------
-local columnList, columnByKey
+local columnList, columnByKey, columnItems, itemByColumn
 
 local function BuildColumns()
     local E = Enum.DamageMeterType
@@ -97,12 +97,50 @@ local function BuildColumns()
         def.order = i
         byKey[def.key] = def
     end
-    return list, byKey
+
+    -- OS ITENS: o que o jogador liga e desliga, que nao e a mesma coisa que uma coluna.
+    --
+    -- Pedido do usuario: *"onde escolhe as colunas na configuracao o dano e dps e cura e cps tem
+    -- que ser um so item"*. Total e taxa sao a mesma medida em duas unidades -- oferecer as duas
+    -- como escolhas independentes pedia ao jogador uma decisao que ele nao tem por que tomar.
+    --
+    -- A regra e por FORMA, nao por lista de nomes: toda familia que tem um total E uma taxa vira
+    -- um item. Isso pega os dois pares que ele citou (dano/DPS, cura/CPS) e tambem dano
+    -- recebido/RPS, que tem exatamente o mesmo formato -- tratar o terceiro de outro jeito seria
+    -- arbitrario. Porcentagem NAO entra: "quanto do total do grupo" e outra pergunta, e ele nao
+    -- pediu para ela vir junto.
+    local totalDe, taxaDe = {}, {}
+    for _, def in ipairs(list) do
+        if def.field == "total" then totalDe[def.attr] = def end
+        if def.field == "perSecond" then taxaDe[def.attr] = def end
+    end
+
+    local items, itemDe = {}, {}
+    for _, def in ipairs(list) do
+        local par = def.field == "total" and taxaDe[def.attr]
+        if par then
+            -- O rotulo se compoe das duas metades ja traduzidas ("Dano total / DPS"): tres
+            -- chaves novas de traducao para dizer o que duas existentes ja dizem seria uma
+            -- terceira coisa a manter em dia em dois idiomas.
+            local item = { key = def.key, keys = { def.key, par.key },
+                label = def.label .. " / " .. par.short, attr = def.attr }
+            items[#items + 1] = item
+            itemDe[def.key], itemDe[par.key] = item, item
+        elseif def.field ~= "perSecond" or not totalDe[def.attr] then
+            -- Taxa sem total marcado no catalogo continua sendo item proprio; e o `elseif` que
+            -- impede a taxa de aparecer DUAS vezes na lista.
+            local item = { key = def.key, keys = { def.key }, label = def.label, attr = def.attr }
+            items[#items + 1] = item
+            itemDe[def.key] = item
+        end
+    end
+
+    return list, byKey, items, itemDe
 end
 
 local function EnsureColumns()
     if not columnList then
-        columnList, columnByKey = BuildColumns()
+        columnList, columnByKey, columnItems, itemByColumn = BuildColumns()
     end
     return columnList, columnByKey
 end
@@ -189,12 +227,117 @@ function Data.MigrateColumns(saved)
     end
 
     if #out == 0 then return nil end
-    return out, changed
+
+    -- E A ORDEM TRAVADA VALE PARA A LISTA SALVA. Uma lista de antes desta versao pode ter cura
+    -- entre dano e DPS, ou o total sem a taxa -- e as duas coisas quebram a barra que atravessa o
+    -- par.
+    --
+    -- ⚑ MAS ISSO NAO E "MIGRACAO DE FORMATO", e a diferenca importa. O segundo retorno faz o
+    -- perfil APAGAR a ordenacao escolhida (`active.sortBy = nil`) e escrever no chat que as
+    -- colunas foram migradas -- correto quando havia id numerico de Enum salvo, falso quando a
+    -- lista so foi reagrupada. Juntar os dois fazia o addon, a cada login, jogar fora a coluna
+    -- que o jogador escolheu para ordenar e anunciar uma migracao que nao houve.
+    --
+    -- Por isso o segundo valor volta a significar SO "havia formato antigo". A lista
+    -- normalizada e devolvida sempre, e o perfil a adota sem cerimonia.
+    local normal = Data.NormalizeColumns(out)
+    return normal, changed
 end
 
 --------------------------------------------------------------------------------
 -- Conjuntos prontos
 --------------------------------------------------------------------------------
+---Os ITENS que o jogador liga e desliga em `/rm columns`, na ordem do catalogo.
+---
+---Um item pode valer por DUAS colunas (o par total+taxa). Quem quiser a lista de colunas crua
+---continua com `Data.GetColumns`.
+function Data.GetColumnItems()
+    EnsureColumns()
+    return columnItems
+end
+
+---O item a que uma coluna pertence -- para uma tecla qualquer achar o par dela.
+function Data.GetItemFor(key)
+    EnsureColumns()
+    return itemByColumn[key]
+end
+
+---A ORDEM TRAVADA da lista de colunas, e o par completo.
+---
+---Pedido do usuario: *"vamos bloquear para que a coluna de Dano sempre venha primeiro que a DPS
+---e assim com a cura sempre na frente do CPS"*.
+---
+---Ele pediu isso porque as duas passaram a dividir UMA barra: a barra atravessa da coluna do
+---total ate a da taxa, e uma lista que puser cura entre as duas faz a barra do dano atravessar
+---por baixo de um numero de cura. Nao e preferencia de arrumacao -- e o que mantem o desenho
+---possivel.
+---
+---Tres coisas acontecem aqui, nesta ordem:
+---
+---1. **agrupa por familia**, preservando a ordem em que cada familia apareceu pela primeira vez
+---   (quem pos cura na frente de dano continua com cura na frente);
+---2. **completa o par**: familia com o total marcado e a taxa nao ganha a taxa, porque item que
+---   o jogador ve como um so tem que estar inteiro na tela;
+---3. **ordena dentro da familia**: total, depois taxa, depois porcentagem.
+---
+---@return table lista normalizada, boolean mudou
+function Data.NormalizeColumns(columns)
+    EnsureColumns()
+    local PESO = { total = 1, count = 1, perSecond = 2, percent = 3 }
+
+    local familias, porAttr = {}, {}
+    for _, key in ipairs(columns) do
+        local def = Data.GetColumn(key)
+        if def and not porAttr[def.attr] then
+            porAttr[def.attr] = { attr = def.attr, keys = {} }
+            familias[#familias + 1] = porAttr[def.attr]
+        end
+        -- Chave repetida na lista salva entra uma vez so.
+        if def and not porAttr[def.attr][key] then
+            porAttr[def.attr][key] = true
+            local f = porAttr[def.attr]
+            f.keys[#f.keys + 1] = key
+        end
+    end
+
+    for _, familia in ipairs(familias) do
+        -- COMPLETA O PAR. Uma lista salva de antes desta versao pode ter so o total.
+        for _, key in ipairs({ unpack(familia.keys) }) do
+            local item = itemByColumn[key]
+            if item then
+                for _, irma in ipairs(item.keys) do
+                    if not familia[irma] then
+                        familia[irma] = true
+                        familia.keys[#familia.keys + 1] = irma
+                    end
+                end
+            end
+        end
+
+        -- E ORDENA DENTRO DELA. `table.sort` nao e estavel, entao o desempate usa a posicao no
+        -- catalogo -- duas colunas de mesmo peso (nao ha hoje) nunca trocariam de lugar sozinhas.
+        table.sort(familia.keys, function(a, b)
+            local da, db = Data.GetColumn(a), Data.GetColumn(b)
+            local pa, pb = PESO[da.field] or 9, PESO[db.field] or 9
+            if pa ~= pb then return pa < pb end
+            return da.order < db.order
+        end)
+    end
+
+    local out = {}
+    for _, familia in ipairs(familias) do
+        for _, key in ipairs(familia.keys) do out[#out + 1] = key end
+    end
+
+    local mudou = #out ~= #columns
+    if not mudou then
+        for i = 1, #out do
+            if out[i] ~= columns[i] then mudou = true break end
+        end
+    end
+    return out, mudou
+end
+
 function Data.GetPresets()
     return {
         mplus = {
@@ -902,19 +1045,6 @@ function Data.GroupColumns(columns)
     end
 
     return grupos
-end
-
----O TEXTO ja formatado de um valor, sem widget no meio.
----
----`ns.SetCellText` escreve direto num FontString, o que serve para uma coluna por celula. Com
----grupos a celula junta DOIS numeros, e para juntar e preciso ter os dois como texto antes.
----Formatar num lugar so mantem a celula e o cabecalho concordando sobre o que e "339M".
-function Data.FormatCell(value, key)
-    if value == nil then return "|cff4a4a4a-|r" end
-    if Data.IsPercentColumn(key) then
-        return Data.FormatPercent(value) or "|cff4a4a4a-|r"
-    end
-    return Data.FormatAmount(value) or "|cff4a4a4a-|r"
 end
 
 ---A REGUA DE CADA COLUNA: o maior valor da metrica a que ela pertence.

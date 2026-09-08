@@ -142,18 +142,50 @@ local function Probe(name, widget, x, width, y, height, column, isSection)
     }
 end
 
-local function IsEnabled(key)
-    for _, id in ipairs(ns.db.columns) do
+---Este grupo desenhado contem esta coluna?
+local function GroupHasKey(grupo, key)
+    for _, id in ipairs(grupo.keys) do
         if id == key then return true end
     end
     return false
 end
 
-local function IndexOf(key)
-    for i, id in ipairs(ns.db.columns) do
-        if id == key then return i end
+---O item esta ligado? Basta UMA das colunas dele estar na lista.
+---
+---"Basta uma" e de proposito: uma lista salva de antes desta versao pode ter so o total. A caixa
+---mostra ligado, e desligar leva as duas -- que e o que "um so item" quer dizer. A lista se
+---completa sozinha na proxima normalizacao.
+local function IsEnabled(item)
+    for _, id in ipairs(ns.db.columns) do
+        for _, key in ipairs(item.keys) do
+            if id == key then return true end
+        end
     end
-    return nil
+    return false
+end
+
+---A posicao do item entre os GRUPOS DESENHADOS -- que e o indice que `Window.MoveColumn` espera.
+---
+---⚑ ESTE ERA O DEFEITO. A tela devolvia a posicao em `ns.db.columns` e `MoveColumn` indexava a
+---lista de grupos: com {dano, DPS, cura, CPS, interr} (5 colunas, 3 grupos), a seta da linha
+---"DPS" movia o grupo da CURA e a de "CPS" nao fazia nada, por estourar a lista. Nada de errado
+---aparecia na tela -- a seta simplesmente mexia na coluna errada.
+local function IndexOf(item)
+    local grupos = ns.Data.GroupColumns(ns.db.columns)
+    for i, grupo in ipairs(grupos) do
+        -- CASA PELAS CHAVES DO ITEM, nao pelo `attr` dele.
+        --
+        -- Hoje os dois dao o mesmo resultado, e vale dizer por que em vez de deixar parecendo
+        -- correcao de defeito: os grupos desenhados sao POR FAMILIA, entao a "Fatia do dano" cai
+        -- no mesmo grupo do par "Dano total / DPS" de qualquer maneira. O que muda e a
+        -- dependencia -- casar por chave pergunta "este grupo contem alguma coluna DESTE item?",
+        -- que continua certo se um dia um grupo deixar de ser uma familia inteira. Casar por
+        -- `attr` so funciona enquanto grupo e familia forem sinonimos.
+        for _, key in ipairs(item.keys) do
+            if GroupHasKey(grupo, key) then return i, #grupos end
+        end
+    end
+    return nil, #grupos
 end
 
 ---As opções de contorno, montadas a partir de `ns.OUTLINE_CHOICES`.
@@ -355,7 +387,7 @@ end
 --------------------------------------------------------------------------------
 -- Linha da lista de colunas
 --------------------------------------------------------------------------------
-local function BuildRow(index, column, col, y)
+local function BuildRow(index, item, col, y)
     local row = rows[index]
     if not row then
         row = CreateFrame("Frame", nil, col)
@@ -379,7 +411,7 @@ local function BuildRow(index, column, col, y)
         row.down:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
         row.down:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
         row.down:SetScript("OnClick", function(self)
-            local at = IndexOf(self.columnKey)
+            local at = IndexOf(self.item)
             if at then
                 ns.Window.MoveColumn(at, 1)
                 Picker.Refresh()
@@ -392,7 +424,7 @@ local function BuildRow(index, column, col, y)
         row.up:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
         row.up:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
         row.up:SetScript("OnClick", function(self)
-            local at = IndexOf(self.columnKey)
+            local at = IndexOf(self.item)
             if at then
                 ns.Window.MoveColumn(at, -1)
                 Picker.Refresh()
@@ -413,16 +445,18 @@ local function BuildRow(index, column, col, y)
         rows[index] = row
     end
 
-    row.check.columnKey = column.key
-    row.up.columnKey = column.key
-    row.down.columnKey = column.key
+    -- A LINHA FALA DE UM ITEM. `columnKey` continua sendo uma chave -- `ToggleColumn` liga o
+    -- item inteiro a partir de qualquer uma delas -- e `item` e o que as setas usam para achar o
+    -- grupo correspondente na janela.
+    row.check.columnKey = item.key
+    row.up.item, row.down.item = item, item
 
-    local enabled = IsEnabled(column.key)
+    local enabled = IsEnabled(item)
     row.check:SetChecked(enabled)
-    row.label:SetText(column.label)
+    row.label:SetText(item.label)
 
     if enabled then
-        local position = IndexOf(column.key)
+        local position, quantos = IndexOf(item)
         row.label:SetTextColor(1, 1, 1)
         -- "1." e não "1º": o ordinal masculino só existe em algumas línguas latinas, e em
         -- inglês, alemão ou coreano vira lixo. O ponto é o que o próprio medidor nativo usa
@@ -432,7 +466,7 @@ local function BuildRow(index, column, col, y)
         row.up:Show()
         row.down:Show()
         row.up:SetEnabled(position > 1)
-        row.down:SetEnabled(position < #ns.db.columns)
+        row.down:SetEnabled(position < quantos)
     else
         row.label:SetTextColor(0.5, 0.5, 0.5)
         row.order:Hide()
@@ -447,7 +481,7 @@ end
 function Picker.Create()
     if frame then return frame end
 
-    local columns = ns.Data.GetColumns()
+    local columns = ns.Data.GetColumnItems()
     rows, probes = {}, {}
 
     -- ALTURA: soma de cada coluna, e a janela fica com a maior. Contar aqui, com as MESMAS
@@ -618,6 +652,36 @@ end
 
 ---Cada controle e onde ele fica DENTRO da coluna. É com isso que o harness confere que nada
 ---vaza pela borda.
+---O que a LISTA DE COLUNAS oferece, na ordem da tela.
+---
+---Ela deixou de listar o catalogo e passou a listar ITENS -- dano+DPS numa linha so. A porta
+---devolve o que a tela desenha, nao o que `Data` calcula: e a diferenca entre afirmar que a lista
+---de itens existe e afirmar que a tela usa ela.
+function Picker.__items()
+    local out = {}
+    for i, row in ipairs(rows) do
+        if row:IsShown() then
+            out[i] = { key = row.check.columnKey, label = row.label:GetText() }
+        end
+    end
+    return out
+end
+
+---O indice que a SETA de uma linha passa para `Window.MoveColumn`.
+---
+---⚑ ISTO EXISTE POR CAUSA DE UM DEFEITO REAL: a tela devolvia a posicao em `ns.db.columns` e
+---`MoveColumn` indexava a lista de GRUPOS. Com {dano, DPS, cura, CPS, interr} a seta da linha
+---"dano/DPS" chegava certa por coincidencia e a da cura movia outra familia. Nada aparecia
+---errado -- a seta so mexia na coisa errada.
+function Picker.__arrowTarget(key)
+    for _, row in ipairs(rows) do
+        if row.check.columnKey == key and row.up.item then
+            return IndexOf(row.up.item)
+        end
+    end
+    return nil
+end
+
 function Picker.__probe()
     return probes
 end
@@ -650,11 +714,16 @@ function Picker.Refresh()
         if b then b:SetEnabled(ns.Scoreboard.HasRun(b.hasRun)) end
     end
 
-    local columns = ns.Data.GetColumns()
-    for i = 1, #columns do
-        BuildRow(i, columns[i], frame.leftColumn,
+    -- ITENS, nao colunas: dano+DPS e cura+CPS ocupam UMA linha cada.
+    local items = ns.Data.GetColumnItems()
+    for i = 1, #items do
+        BuildRow(i, items[i], frame.leftColumn,
             frame.columnsTop + (i - 1) * H_COLUMN_ROW)
     end
+
+    -- Linha que sobrou de uma lista maior nao pode ficar na tela: `rows` e cache por indice, e o
+    -- catalogo encolheu de 14 entradas para 11 itens.
+    for i = #items + 1, #rows do rows[i]:Hide() end
 end
 
 function Picker.Toggle(anchorTo)

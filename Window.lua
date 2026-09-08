@@ -1126,38 +1126,11 @@ ns.WindowGroups = Groups
 ---faixas K/M/B), e o resultado e juntado com o mesmo separador do cabecalho -- e o que faz o
 ---jogador ler "Dano - DPS" em cima e "65.1M - 48K" embaixo como a mesma dupla.
 ---
----⚠️ EM COMBATE A MESCLA NAO ACONTECE, e a razao nao e a que parece.
----
----O palpite obvio -- "`..` sobre valor secret levanta erro" -- esta errado, e foi a sabotagem que
----mostrou: `Data.FormatCell` ja recusa valor secret (`FormatAmount` testa `issecretvalue` e
----devolve nil), entao o que chegaria ao `table.concat` seriam DOIS TRACOS. Nenhuma concatenacao
----toca o valor opaco; nada estoura.
----
----O que se perde e pior que um erro, porque e silencioso: **o numero some justamente em combate**,
----que e quando o medidor serve para alguma coisa. A linha continuaria la, com "- - -" no lugar do
----dano.
----
----Por isso a guarda vem ANTES de formatar: com um valor secret no grupo, a celula devolve o
----primeiro CRU e deixa o motor desenhar -- que e a unica coisa que o Lua pode fazer com ele.
----Perde-se a taxa durante a luta; ganha-se o numero.
-local function GroupCellText(grupo, values, indices)
-    local partes = {}
-    for i = 1, #grupo.keys do
-        local valor = values[indices[i]]
-        if valor ~= nil and issecretvalue(valor) then return valor, true end
-
-        local texto = ns.Data.FormatCell(valor, grupo.keys[i])
-        partes[#partes + 1] = texto
-    end
-    return table.concat(partes, " - "), false
-end
-
 ---O grupo contem esta coluna?
 ---
----⚑ `ns.db.sortBy` PODE SER UMA TAXA. Ele e guardado entre sessoes e vem tambem de
----`ApplyPreset` (que usa a primeira coluna da predefinicao) -- entao "dps" chega aqui de duas
----formas. Comparar so com `grupo.key`, que e sempre o total, deixava a janela ordenada por DPS
----**sem nenhum cabecalho dourado**: a lista trocava de ordem e nada dizia por que.
+---Serve a barra unica: ela precisa saber se a metrica que ORDENA a janela e uma das dela, para
+---desenhar a proporcao daquela -- e nao a do total, que daria a barra mais longa a quem nao esta
+---no topo da lista.
 local function GroupHas(grupo, key)
     for i = 1, #grupo.keys do
         if grupo.keys[i] == key then return true end
@@ -1165,13 +1138,20 @@ local function GroupHas(grupo, key)
     return false
 end
 
----O rotulo do cabecalho de um grupo: "Dano - DPS".
-local function GroupLabel(grupo)
-    local partes = {}
-    for i = 1, #grupo.keys do
-        partes[i] = ns.Data.GetShortLabel(grupo.keys[i])
+---O indice do GRUPO a que uma coluna pertence.
+---
+---⚑ EXISTE PORQUE O CABECALHO E MOVER FALAM LINGUAS DIFERENTES. `button.columnIndex` e posicao
+---em `ns.db.columns`; `Window.MoveColumn` indexa a lista de GRUPOS. Com um par total+taxa ligado
+---as duas listas tem tamanhos diferentes -- sempre -- e o clique passava o indice errado.
+---
+---O mesmo defeito ja tinha sido corrigido na tela de configuracao (`Picker.IndexOf`) e voltou
+---pelo cabecalho quando ele deixou de ser por grupo. A traducao mora aqui agora, num lugar so.
+local function GroupIndexFor(key)
+    local lista = ns.Data.GroupColumns(ns.db.columns)
+    for i = 1, #lista do
+        if GroupHas(lista[i], key) then return i end
     end
-    return table.concat(partes, " - ")
+    return nil
 end
 
 local function ColumnWidthFor(key)
@@ -1196,17 +1176,15 @@ local function ColumnWidthFor(key)
     return largura
 end
 
----A largura de um GRUPO. Duas metricas juntas escrevem "65.1M - 48K", que e mais que cada uma
----sozinha e MENOS que as duas em colunas separadas -- e essa diferenca e o espaco que a mescla
----devolve para a barra, que era o pedido anterior ("aumentar a largura das colunas").
+---A largura de um GRUPO: a SOMA das colunas dele.
+---
+---Cada coluna volta a ter o proprio numero (a versao que juntava os dois numa string so foi
+---desfeita a pedido), entao o grupo ocupa exatamente o espaco das colunas dele. O que ele ganha e
+---outra coisa: **uma barra so**, que atravessa da coluna do total ate a da taxa.
 local function GroupWidth(grupo)
-    if #grupo.keys <= 1 then return ColumnWidthFor(grupo.keys[1] or grupo.key) end
-
-    -- O separador " - " e o segundo numero, sobre a largura do primeiro. Nao e a soma das duas
-    -- colunas: o rotulo repetido e as duas margens desaparecem na mescla.
-    local largura = ColumnWidthFor(grupo.key)
-    for i = 2, #grupo.keys do
-        largura = largura + math.floor(ColumnWidthFor(grupo.keys[i]) * 0.62 + 0.5)
+    local largura = 0
+    for i = 1, #grupo.keys do
+        largura = largura + ColumnWidthFor(grupo.keys[i])
     end
     return largura
 end
@@ -1215,15 +1193,55 @@ end
 ---
 ---Cada coluna tem a largura DELA agora, entao o deslocamento acumulado nao e mais
 ---`indice * largura`: e a soma das larguras das colunas a direita dela.
----O deslocamento de cada GRUPO a partir da direita, e a largura total.
+---O deslocamento de cada COLUNA a partir da direita, e a largura total.
+---
+---E por coluna outra vez: o cabecalho e o numero voltaram a ser um por coluna. O que anda por
+---grupo e so a barra, e o vao dela sai de `GroupSpans`, que le estes mesmos offsets -- as duas
+---contas nao podem divergir porque so existe uma.
 local function ColumnOffsets()
-    local lista = Groups()
+    local columns = ns.db.columns
     local offsets, running = {}, 0
-    for c = #lista, 1, -1 do
+    for c = #columns, 1, -1 do
         offsets[c] = running
-        running = running + GroupWidth(lista[c])
+        running = running + ColumnWidthFor(columns[c])
     end
     return offsets, running
+end
+
+---O VAO DE CADA GRUPO: onde a barra unica comeca e quanto ela atravessa.
+---
+---Ideia do usuario: *"a barra que progride conforme quem ta melhor, ela vai desde a coluna de
+---dano ate o DPS, e mesma coisa pra Cura e CPS, como se fosse apenas uma barra"*.
+---
+---⚑ ISTO SO FECHA PORQUE A ORDEM E TRAVADA. As colunas de uma familia sao contiguas em
+---`ns.db.columns` (`Data.NormalizeColumns` garante), entao um grupo e uma FAIXA CONTINUA -- da
+---borda direita da ultima coluna dele ate a borda esquerda da primeira. Com a lista intercalada
+---que a versao anterior permitia ({dano, cura, DPS}), a barra do dano teria que atravessar por
+---baixo de um numero de cura, e "uma barra so" deixaria de querer dizer alguma coisa.
+---
+---@return table vaos `{ grupo, offset (da direita), width }`, na ordem da tela
+local function GroupSpans()
+    local offsets = ColumnOffsets()
+    local columns = ns.db.columns
+
+    local posicaoDe = {}
+    for i = 1, #columns do posicaoDe[columns[i]] = i end
+
+    local vaos = {}
+    for _, grupo in ipairs(Groups()) do
+        local largura, ultima = 0, nil
+        for _, key in ipairs(grupo.keys) do
+            local at = posicaoDe[key]
+            if at then
+                largura = largura + ColumnWidthFor(key)
+                if ultima == nil or at > ultima then ultima = at end
+            end
+        end
+        if ultima then
+            vaos[#vaos + 1] = { grupo = grupo, offset = offsets[ultima], width = largura }
+        end
+    end
+    return vaos
 end
 
 ---A largura minima da janela.
@@ -1365,9 +1383,7 @@ local function BuildColumnHeader()
 
     local offsets = ColumnOffsets()
 
-    local lista = Groups()
-    for c = 1, #lista do
-        local grupo = lista[c]
+    for c = 1, #ns.db.columns do
         local button = headerRow.labels[c]
         if not button then
             button = CreateFrame("Button", nil, headerRow)
@@ -1376,18 +1392,20 @@ local function BuildColumnHeader()
             button.text:SetPoint("RIGHT", -4, 0)
 
             button:SetScript("OnClick", function(self)
-                -- ⚑ `columnIndex` E INDICE DE GRUPO, nao de `ns.db.columns`. Depois da mescla as
-                -- duas listas tem tamanhos diferentes: com {dano, DPS, cura, CPS, interr}, o
-                -- terceiro cabecalho e "Interr" e `ns.db.columns[3]` e "cura". Ler a coluna aqui
-                -- ordenava por uma metrica e dourava outra.
+                -- `columnIndex` e `sortKey` voltaram a falar da mesma coluna: ha um cabecalho
+                -- por coluna outra vez. O `sortKey` fica porque e ele que separa "qual posicao na
+                -- tela" de "qual metrica" -- ler `ns.db.columns[indice]` aqui dentro foi o que
+                -- quebrou quando o indice passou a ser de grupo.
                 local key = self.sortKey
                 if IsShiftKeyDown() then
-                    Window.MoveColumn(self.columnIndex, -1)
+                    -- O GRUPO da coluna clicada, nao a posicao dela na lista: total e taxa andam
+                    -- juntos, entao mover e sempre operacao de familia.
+                    local g = GroupIndexFor(key)
+                    if g then Window.MoveColumn(g, -1) end
                 elseif IsControlKeyDown() then
-                    Window.MoveColumn(self.columnIndex, 1)
-                elseif self.groupHasSort then
-                    -- Clicar no grupo que JA ordena inverte, mesmo que a ordenacao guardada
-                    -- seja pela taxa dele: para o jogador e o mesmo cabecalho.
+                    local g = GroupIndexFor(key)
+                    if g then Window.MoveColumn(g, 1) end
+                elseif ns.db.sortBy == key then
                     ns.db.sortDesc = not ns.db.sortDesc
                     Window.Refresh(true)
                 else
@@ -1410,18 +1428,18 @@ local function BuildColumnHeader()
             headerRow.labels[c] = button
         end
 
-        local key = grupo.key
+        local key = ns.db.columns[c]
+        -- Posicao na TELA (uma por coluna), que e o que o teste clica. Nao serve para mover:
+        -- para isso existe `GroupIndexFor`.
         button.columnIndex = c
         button.sortKey = key
-        button.groupHasSort = GroupHas(grupo, ns.db.sortBy)
-        button:SetWidth(GroupWidth(grupo))
+        button:SetWidth(ColumnWidthFor(key))
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
         ns.ApplyRoleFont(button.text, "header", 0)
 
-        -- O ROTULO DO GRUPO: "Dano - DPS", nao dois cabecalhos separados.
-        local label = GroupLabel(grupo)
-        if GroupHas(grupo, ns.db.sortBy) then
+        local label = ns.Data.GetShortLabel(key)
+        if key == ns.db.sortBy then
             -- Só a cor marca a coluna ordenada: o dourado já diz tudo, e uma seta aqui
             -- repetia a informação ocupando espaço.
             button.text:SetText(label)
@@ -1567,9 +1585,11 @@ local function BuildRow(index)
         -- das colunas pode ficar dentro das barras para maximizar o uso de espaco"* -- e e o que
         -- o medidor nativo faz, nome de um lado e numero do outro, os dois sobre a barra.
         --
-        -- Sao DOIS textos porque a metrica tem dois numeros ("34M" e "141K/s"), e um corpo so
-        -- para os dois faria a taxa competir com o total. O secundario e menor e cinza.
-        row.cells = {}
+        -- Uma faixa por GRUPO (a barra que atravessa), cada uma com os numeros das colunas dela.
+        -- Total e taxa sao DOIS numeros com o mesmo corpo: eles dividem a barra, nao a hierarquia
+        -- -- fazer a taxa menor e cinza a rebaixaria a nota de rodape, e ela e a segunda metade da
+        -- mesma leitura.
+        row.groups = {}
         rows[index] = row
     end
 
@@ -1655,57 +1675,88 @@ local function BuildRow(index)
     -- A barra e um frame filho da celula e o numero fica ACIMA dela, na camada de texto: frame
     -- filho desenha por cima de FontString do pai, e foi assim que a 0.11.0 saiu com barras
     -- vazias.
-    -- So os deslocamentos: a largura total ja foi lida acima, para a area do nome.
-    local offsets = ColumnOffsets()
+    -- UMA BARRA POR GRUPO, ATRAVESSANDO AS COLUNAS DELE.
+    --
+    -- Ideia do usuario: *"a barra que progride conforme quem ta melhor, ela vai desde a coluna de
+    -- dano ate o DPS, e mesma coisa pra Cura e CPS, como se fosse apenas uma barra"*.
+    --
+    -- A estrutura que isso pede tem tres niveis, e nao dois: a FAIXA (o frame do grupo, que e o
+    -- vao inteiro), a BARRA dentro dela (`SetAllPoints`, entao atravessa o vao) e um NUMERO por
+    -- coluna por cima. Antes eram dois niveis porque celula e coluna eram a mesma coisa.
+    --
+    -- ⚑ O TEXTO E FILHO DA CAMADA DE CIMA, NUNCA DA FAIXA. StatusBar e frame filho e desenha
+    -- acima de qualquer FontString do proprio pai -- e o bug 0.11.0 (linhas como barras vazias)
+    -- registrado logo acima. `faixa.top` existe so para vencer a barra em nivel de frame.
+    local vaos = GroupSpans()
 
-    for _, cell in pairs(row.cells) do
-        cell:Hide()
+    for _, faixa in pairs(row.groups) do
+        faixa:Hide()
     end
 
-    local lista = Groups()
-    for c = 1, #lista do
-        local cell = row.cells[c]
-        if not cell then
-            cell = CreateFrame("Frame", nil, row.text)
+    for gi = 1, #vaos do
+        local vao = vaos[gi]
+        local faixa = row.groups[gi]
+        if not faixa then
+            faixa = CreateFrame("Frame", nil, row.text)
 
+            faixa.bar = CreateFrame("StatusBar", nil, faixa)
+            faixa.bar:SetAllPoints()
+            faixa.bar:SetStatusBarTexture(ns.BarTexture())
+            faixa.bar:SetMinMaxValues(0, 1)
+            faixa.bar:SetValue(0)
 
-            cell.bar = CreateFrame("StatusBar", nil, cell)
-            cell.bar:SetAllPoints()
-            cell.bar:SetStatusBarTexture(ns.BarTexture())
-            cell.bar:SetMinMaxValues(0, 1)
-            cell.bar:SetValue(0)
+            faixa.top = CreateFrame("Frame", nil, faixa)
+            faixa.top:SetAllPoints()
+            faixa.top:SetFrameLevel(faixa.bar:GetFrameLevel() + 2)
 
-            -- A camada do texto, acima da barra da PROPRIA celula.
-            cell.top = CreateFrame("Frame", nil, cell)
-            cell.top:SetAllPoints()
-            cell.top:SetFrameLevel(cell.bar:GetFrameLevel() + 2)
-
-            cell.text = cell.top:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            cell.text:SetPoint("RIGHT", -3, 0)
-            cell.text:SetJustifyH("RIGHT")
-            cell.text:SetWordWrap(false)
-
-            row.cells[c] = cell
-            row.cellHalos = row.cellHalos or {}
-            row.cellHalos[c] = CreateHalo(cell.top, cell.text)
+            -- ⚑ OS NUMEROS SAO INDEXADOS POR POSICAO DENTRO DO GRUPO, nao pela posicao da coluna
+            -- na lista. A vaga (grupo 1, numero 2) pertence a esta faixa para sempre; um indice
+            -- global mudaria de faixa quando o jogador desmarcasse uma coluna, e o contorno
+            -- desenhado (`fontString.rmHalo`) fica preso ao pai que a FontString tinha quando
+            -- nasceu -- ele nao acompanharia a mudanca de pai e a sombra ficaria para tras.
+            faixa.texts = {}
+            row.groups[gi] = faixa
         end
 
-        local largura = GroupWidth(lista[c]) - CELL_GAP
-        cell:SetSize(largura, height - CELL_INSET * 2)
-        cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - CELL_GAP / 2, 0)
+        faixa:SetSize(vao.width - CELL_GAP, height - CELL_INSET * 2)
+        faixa:ClearAllPoints()
+        faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset - CELL_GAP / 2, 0)
+        faixa.bar:SetStatusBarTexture(ns.BarTexture())
 
-        cell.bar:SetStatusBarTexture(ns.BarTexture())
+        -- TODO NUMERO SE ESCONDE ANTES, e so os deste desenho voltam.
+        --
+        -- `faixa.texts` sobrevive entre desenhos (e o cache das vagas). Sem esconder tudo, uma
+        -- vaga que o desenho atual nao toca fica na tela com o texto do desenho anterior -- e o
+        -- teste, que le o widget, contaria um numero que ninguem escreveu.
+        for _, fs in ipairs(faixa.texts) do fs:Hide() end
 
-        -- Corpo unico na linha inteira: numeros de tamanhos diferentes lado a lado desalinham a
-        -- leitura vertical.
-        ns.ApplyRoleFont(cell.text, "body", 0)
-        SyncHaloFont(cell.text, row.cellHalos and row.cellHalos[c], 0)
-        cell.text:SetWidth(largura - 6)
-        if row.cellHalos and row.cellHalos[c] then
-            for _, echo in ipairs(row.cellHalos[c]) do echo:SetWidth(largura - 6) end
+        -- Cada numero na fatia da coluna DELE, medida da direita da faixa para a esquerda.
+        local dentro = 0
+        for i = #vao.grupo.keys, 1, -1 do
+            local largura = ColumnWidthFor(vao.grupo.keys[i])
+            local fs = faixa.texts[i]
+            if not fs then
+                fs = faixa.top:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                fs:SetJustifyH("RIGHT")
+                fs:SetWordWrap(false)
+                faixa.texts[i] = fs
+            end
+
+            -- Corpo unico na linha inteira: numeros de tamanhos diferentes lado a lado
+            -- desalinham a leitura vertical. `ApplyRoleFont` tambem pendura o contorno
+            -- desenhado, que se ancora no CENTRO desta FontString e a acompanha sozinho.
+            ns.ApplyRoleFont(fs, "body", 0)
+            fs:ClearAllPoints()
+            fs:SetPoint("RIGHT", faixa, "RIGHT", -dentro - 3, 0)
+            fs:SetWidth(largura - 6)
+            fs:Show()
+
+            dentro = dentro + largura
         end
-        cell:Show()
+
+        for i = #vao.grupo.keys + 1, #faixa.texts do faixa.texts[i]:SetText("") end
+
+        faixa:Show()
     end
 
     -- A AREA DO NOME e o que sobra depois das colunas -- e agora as colunas EXISTEM de novo,
@@ -2202,11 +2253,10 @@ function Window.Draw()
     -- comparar, e comparar valor secret levanta erro; escalar pela regua que o jogo entrega
     -- (`session.maxAmount`, uma por metrica) nao exige ler nada. A geometria responde o que o Lua
     -- nao pode calcular.
-    -- OS GRUPOS DESTE DESENHO, e o mapa de onde cada metrica deles esta em `entry.values`.
+    -- OS VAOS DESTE DESENHO. `entry.values` e indexado pela lista que o jogador marcou
+    -- (`ns.db.columns`), que e o que `Data.GetRows` devolve; `posicaoDe` traduz chave -> posicao,
+    -- e e por ele que cada numero e cada barra acham o valor deles.
     --
-    -- `entry.values` continua indexado pela lista que o jogador marcou (`ns.db.columns`) -- e a
-    -- forma que `Data.GetRows` devolve, e mexer nela obrigaria o placar a mudar junto. O que muda
-    -- e so o DESENHO: `indices[c]` diz quais posicoes daquela lista pertencem ao grupo `c`.
     -- ⚑ REFAZ, NAO LE O CACHE. A versao anterior disto confiava num contrato -- "quem escreve
     -- `ns.db.columns` chama `Rebuild`" -- e ele quebrou no primeiro chamador que so desenhava: a
     -- tela ficou com os cinco grupos do desenho passado sobre uma lista de tres colunas. Contrato
@@ -2214,7 +2264,7 @@ function Window.Draw()
     --
     -- O custo e uma passada pelas colunas por DESENHO (nao por linha), que e o que o cache existe
     -- para evitar -- ele continua servindo os quatro consumidores dentro do mesmo desenho.
-    local gruposDesenho = RefreshGroups()
+    RefreshGroups()
 
     -- O CABECALHO E PINTADO NO DESENHO, nao so na reconstrucao.
     --
@@ -2228,23 +2278,37 @@ function Window.Draw()
     -- fica errado no primeiro que esquecer. Pintar onde a verdade e LIDA nao tem como divergir.
     BuildColumnHeader()
 
+    local vaosDesenho = GroupSpans()
+
     local posicaoDe = {}
     for i = 1, #ns.db.columns do posicaoDe[ns.db.columns[i]] = i end
 
-    local indices = {}
-    for c = 1, #gruposDesenho do
-        indices[c] = {}
-        for i = 1, #gruposDesenho[c].keys do
-            indices[c][i] = posicaoDe[gruposDesenho[c].keys[i]]
-        end
-    end
+    local escalas = ns.Data.GetColumnScales(ns.db.sessionType, ns.db.columns)
 
-    -- A REGUA DO GRUPO e a da metrica que o ordena. As duas metricas de um grupo compartilham a
-    -- sessao, entao a regua e a mesma -- mas ler pela posicao do primario deixa isso explicito.
-    local porColuna = ns.Data.GetColumnScales(ns.db.sessionType, ns.db.columns)
-    local scales = {}
-    for c = 1, #gruposDesenho do
-        scales[c] = porColuna[indices[c][1]]
+    -- A BARRA MEDE O TOTAL DO GRUPO, e a razao e que **so o total tem regua**.
+    --
+    -- A regua de cada familia e `session.maxAmount` (`Data.GetColumnScales`), que e o maior
+    -- `totalAmount` da sessao. A API nao devolve um maximo de `amountPerSecond` -- e descobrir um
+    -- em Lua esbarra na restricao que molda este arquivo inteiro: em combate os valores sao
+    -- secret e comparar levanta erro.
+    --
+    -- Foi tentado encher a barra com a metrica ORDENADA (para a barra cheia cair sempre na
+    -- primeira linha quando o jogador ordena por DPS). Nao fecha: sem regua da taxa, o unico
+    -- divisor disponivel seria o maximo do TOTAL, e uma taxa dividida por um total da um fiapo em
+    -- toda linha. O teste reprovou na hora, com a barra de ninguem cheia.
+    --
+    -- ⚑ E ISTO CORRIGE UM DEFEITO QUE JA EXISTIA. Quando cada coluna tinha a propria barra, a
+    -- do DPS era desenhada com o valor da TAXA sobre a regua do TOTAL -- exatamente o fiapo
+    -- descrito acima, em toda linha, desde sempre. Com uma barra por familia o problema deixa de
+    -- existir: ha uma barra e ela mede o que tem regua.
+    --
+    -- O que fica em aberto, e vale dizer em vez de supor: se `amountPerSecond` usar o tempo ATIVO
+    -- de cada um (e nao a duracao da sessao), ordenar por DPS pode dar uma lista em que a barra
+    -- mais longa nao e a primeira. Nao da para conferir isso daqui -- so uma corrida real
+    -- responde -- e a alternativa exigiria uma regua que a API nao oferece.
+    local encheCom = {}
+    for g = 1, #vaosDesenho do
+        encheCom[g] = posicaoDe[vaosDesenho[g].grupo.key]
     end
 
     local shown = 0
@@ -2274,27 +2338,30 @@ function Window.Draw()
             row.classFilename = source.classFilename
             row.source = source
 
-            for c = 1, #gruposDesenho do
-                local grupo = gruposDesenho[c]
-                local key = grupo.key
-                local cell = row.cells[c]
+            for g = 1, #vaosDesenho do
+                local grupo = vaosDesenho[g].grupo
+                local faixa = row.groups[g]
 
-                -- A BARRA usa o valor da metrica que ORDENA o grupo (o total), medido pela
-                -- regua dela: e o total que da a proporcao, e a taxa e ele dividido pelo mesmo
-                -- tempo para todos -- as duas barras seriam identicas.
-                local principal = entry.values[indices[c][1]]
-                local escala = scales[c]
+                -- A BARRA, uma so, atravessando o vao do grupo inteiro.
+                local at = encheCom[g]
+                local escala = at and escalas[at]
                 if escala == nil then escala = 1 end
-                cell.bar:SetMinMaxValues(0, escala)
-                cell.bar:SetValue(principal or 0)
-                ns.ApplyBarColor(cell.bar, source.classFilename)
+                faixa.bar:SetMinMaxValues(0, escala)
+                faixa.bar:SetValue(at and entry.values[at] or 0)
+                ns.ApplyBarColor(faixa.bar, source.classFilename)
 
-                local texto, secreto = GroupCellText(grupo, entry.values, indices[c])
-                if secreto then
-                    ns.SetCellText(cell.text, texto, key, row.cellHalos and row.cellHalos[c])
-                else
-                    ns.SetHaloText(cell.text, row.cellHalos and row.cellHalos[c], texto)
-                end
+                -- E UM NUMERO POR COLUNA, cada um formatado pela regra da metrica dele.
+                --
+                -- Cada texto passa sozinho por `SetCellText`, que sabe de porcentagem, de valor
+                -- nulo e da sondagem de valor secret. Foi a versao que juntava os dois numa
+                -- string so que precisava de um caminho especial em combate -- separados, cada um
+                -- sobrevive a luta por conta propria.
+                for i = 1, #grupo.keys do
+                    local key = grupo.keys[i]
+                    local pos = posicaoDe[key]
+                    local fs = faixa.texts[i]
+
+                    ns.SetCellText(fs, pos and entry.values[pos], key)
 
                 -- O NUMERO NAO GANHA COR DE CLASSE, e a razao e do usuario: *"a ideia e que o
                 -- tamanho da barra ja vai dizer qual ta na frente, e a linha de baixo que e da
@@ -2307,8 +2374,9 @@ function Window.Draw()
                 -- O segundo e a regra que a skill do workspace registra depois de tres tentativas
                 -- falhas: **cor de classe e vocabulario reservado**. Um numero dourado ao lado de
                 -- barras coloridas le como "ladino", nao como "este e o melhor". Aqui era pior,
-                -- porque a cor do numero e a cor da barra da MESMA linha competiam entre si.
-                cell.text:SetTextColor(unpack(ns.Skin.text))
+                    -- porque a cor do numero e a cor da barra da MESMA linha competiam entre si.
+                    fs:SetTextColor(unpack(ns.Skin.text))
+                end
             end
 
             row:Show()
@@ -2348,13 +2416,15 @@ function Window.DebugGeometry()
     local offsets, columnsWidth = ColumnOffsets()
     local row = rows and rows[1]
 
+    -- A BORDA ESQUERDA DE CADA BARRA, que e o que pode cair fora da janela.
+    --
+    -- Os numeros saem de `GroupSpans`, a MESMA funcao que ancora a faixa no desenho -- a versao
+    -- anterior repetia a aritmetica aqui, e o comentario de `MinWidth` conta o que custou deixar
+    -- duas contas do mesmo numero divergirem.
     local bordas = {}
-    local lista = Groups()
-    for c = 1, #lista do
-        -- A celula e ancorada pela DIREITA da area de texto, entao a borda esquerda dela e
-        -- "largura util menos o deslocamento menos a propria largura".
+    for c, vao in ipairs(GroupSpans()) do
         local util = largura - PADDING * 2
-        bordas[c] = util - offsets[c] - CELL_GAP / 2 - (GroupWidth(lista[c]) - CELL_GAP)
+        bordas[c] = util - vao.offset - CELL_GAP / 2 - (vao.width - CELL_GAP)
     end
 
     return {
@@ -2388,7 +2458,7 @@ function Window.DebugHeaders()
     local out = {}
     if not (headerRow and headerRow.labels) then return out end
 
-    for c = 1, #Groups() do
+    for c = 1, #ns.db.columns do
         local button = headerRow.labels[c]
         if button and button:IsShown() then
             local r, g, b = button.text:GetTextColor()
@@ -2436,17 +2506,75 @@ function Window.DebugCells(index)
     local row = rows and rows[index]
     if not row or not row:IsShown() then return {} end
 
-    local out = {}
-    for c = 1, #ns.WindowGroups() do
-        local cell = row.cells[c]
-        if cell and cell:IsShown() then
-            local _, escala = cell.bar:GetMinMaxValues()
-            local r, g, b = cell.text:GetTextColor()
-            out[c] = {
-                scale = escala, value = cell.bar:GetValue(), text = cell.text:GetText(),
-                color = { r, g, b },
-            }
+    -- UMA ENTRADA POR COLUNA, com a barra que ela DIVIDE.
+    --
+    -- Coluna e barra deixaram de ser a mesma coisa: duas colunas de uma familia partilham uma
+    -- barra so. A porta devolve o texto proprio de cada coluna e, junto, o valor/regua/largura da
+    -- barra do grupo dela -- e `group` diz quais colunas estao na mesma. Sem esse campo, "as duas
+    -- dividem a barra" seria indistinguivel de "as duas tem barras iguais por coincidencia".
+    local out, c = {}, 0
+    for gi, vao in ipairs(GroupSpans()) do
+        local faixa = row.groups[gi]
+        if faixa and faixa:IsShown() then
+            local _, escala = faixa.bar:GetMinMaxValues()
+            for i = 1, #vao.grupo.keys do
+                local fs = faixa.texts[i]
+                if fs and fs:IsShown() then
+                    c = c + 1
+                    local r, g, b = fs:GetTextColor()
+                    local _, _, _, ancora = fs:GetPoint(1)
+                    out[c] = {
+                        key = vao.grupo.keys[i],
+                        group = gi,
+                        text = fs:GetText(),
+                        color = { r, g, b },
+                        width = fs:GetWidth(),
+                        -- Deslocamento a partir da DIREITA da faixa: e o que poe cada numero na
+                        -- fatia da coluna dele em vez de os dois na mesma ponta.
+                        anchorX = ancora,
+                        -- Da barra do grupo, iguais para as colunas irmas:
+                        scale = escala,
+                        value = faixa.bar:GetValue(),
+                        barWidth = faixa:GetWidth(),
+                    }
+                end
+            end
         end
+    end
+    return out
+end
+
+---A largura reservada a UMA coluna.
+---
+---Sem ela o teste da barra que atravessa teria que reimplementar `ColumnWidthFor` para dizer
+---"a barra mede as duas somadas" -- e um teste que refaz a conta do codigo so confere que sabe
+---somar.
+function Window.DebugColumnWidth(key)
+    return ColumnWidthFor(key)
+end
+
+---OS VAOS desenhados: onde cada barra comeca e quanto ela atravessa.
+---
+---E a porta da ideia do usuario -- *"como se fosse apenas uma barra"*. Sem ela, so daria para
+---afirmar que existem duas colunas; que a barra vai de uma ate a outra e coisa que so o vao diz.
+function Window.DebugSpans()
+    local out = {}
+    for gi, vao in ipairs(GroupSpans()) do
+        local faixa = rows and rows[1] and rows[1].groups and rows[1].groups[gi]
+        -- `anchorX` e lido do WIDGET, nao recalculado: e a diferenca entre afirmar que a
+        -- barra esta no lugar e afirmar que a conta que a poe la sabe somar.
+        -- Em duas linhas de proposito: `x and x:GetPoint(1)` truncaria os multiplos retornos
+        -- para o PRIMEIRO -- `and` devolve um valor so. A ancora saia sempre nil.
+        local ancora
+        if faixa then local _, _, _, ax = faixa:GetPoint(1) ; ancora = ax end
+        out[gi] = {
+            keys = vao.grupo.keys,
+            offset = vao.offset,
+            width = vao.width,
+            barWidth = faixa and faixa:GetWidth() or nil,
+            anchorX = ancora,
+            textos = faixa and faixa.texts and #faixa.texts or 0,
+        }
     end
     return out
 end
@@ -2465,19 +2593,24 @@ function Window.DebugFirstRow()
         -- do nome: a cor de classe deixou de cruzar por baixo dos numeros de todas as colunas.
         stripWidth = row.bar:GetWidth(),
         rowWidth = row:GetWidth(),
-        -- A LARGURA DE CADA COLUNA, para o teste afirmar que ela depende do que a coluna escreve.
+        -- A LARGURA DE CADA COLUNA, na ordem da tela: e a caixa do NUMERO, que e o que decide
+        -- se ele cabe ou vira reticencias.
         cellWidths = (function()
-            local out = {}
-            for c = 1, #ns.WindowGroups() do
-                out[c] = row.cells[c] and row.cells[c]:GetWidth() or 0
+            local out, c = {}, 0
+            for gi, vao in ipairs(GroupSpans()) do
+                local faixa = row.groups[gi]
+                for i = 1, #vao.grupo.keys do
+                    c = c + 1
+                    out[c] = faixa and faixa.texts[i] and faixa.texts[i]:GetWidth() or 0
+                end
             end
             return out
         end)(),
-        -- Quantas celulas ainda tem trilho preto atras. Tem que ser ZERO.
+        -- Quantas faixas ainda tem trilho preto atras. Tem que ser ZERO.
         cellTracks = (function()
             local n = 0
-            for _, cell in pairs(row.cells) do
-                if cell.track then n = n + 1 end
+            for _, faixa in pairs(row.groups) do
+                if faixa.track then n = n + 1 end
             end
             return n
         end)(),
@@ -2718,25 +2851,53 @@ end
 --------------------------------------------------------------------------------
 -- Colunas
 --------------------------------------------------------------------------------
+---Liga ou desliga um ITEM -- que pode valer por duas colunas.
+---
+---Pedido do usuario: *"onde escolhe as colunas na configuracao o dano e dps e cura e cps tem que
+---ser um so item"*. A atomicidade mora AQUI, e nao na tela, porque a tela nao e o unico caminho:
+---`/rm col 2` chega no mesmo lugar. Regra dividida entre dois caminhos e regra que vale em um so.
 function Window.ToggleColumn(key)
-    local columns = ns.db.columns
-    for i = 1, #columns do
-        if columns[i] == key then
-            if #columns == 1 then
-                ns.Print(L["at least one column must stay."])
-                return
-            end
-            tremove(columns, i)
-            if ns.db.sortBy == key then
-                ns.db.sortBy = columns[1]
-            end
-            ns.db.width = nil        -- deixa a largura voltar ao mínimo das colunas
-            Window.Rebuild()
-            return
-        end
+    local item = ns.Data.GetItemFor(key)
+    local chaves = item and item.keys or { key }
+
+    local presente = {}
+    for _, id in ipairs(ns.db.columns) do presente[id] = true end
+
+    local ligado = false
+    for _, id in ipairs(chaves) do
+        if presente[id] then ligado = true end
     end
 
-    columns[#columns + 1] = key
+    local novo = {}
+    if ligado then
+        for _, id in ipairs(ns.db.columns) do
+            local sai = false
+            for _, fora in ipairs(chaves) do
+                if id == fora then sai = true end
+            end
+            if not sai then novo[#novo + 1] = id end
+        end
+
+        -- A JANELA NAO PODE FICAR SEM COLUNA. Com item de duas colunas, "sobra uma" deixou de
+        -- ser a conta certa: desligar o ultimo item leva as DUAS de uma vez.
+        if #novo == 0 then
+            ns.Print(L["at least one column must stay."])
+            return
+        end
+    else
+        for _, id in ipairs(ns.db.columns) do novo[#novo + 1] = id end
+        for _, id in ipairs(chaves) do novo[#novo + 1] = id end
+    end
+
+    ns.db.columns = ns.Data.NormalizeColumns(novo)
+
+    -- A ordenacao pode ter ido embora junto com o item.
+    local aindaTem = false
+    for _, id in ipairs(ns.db.columns) do
+        if id == ns.db.sortBy then aindaTem = true end
+    end
+    if not aindaTem then ns.db.sortBy = ns.db.columns[1] end
+
     ns.db.width = nil
     Window.Rebuild()
 end
@@ -2750,8 +2911,18 @@ end
 ---desejado: se `ns.db.columns` estava intercalada ({dano, cura, DPS, CPS} -- possivel marcando as
 ---caixas fora de ordem), ela volta agrupada. O que a tela mostra e o que fica guardado.
 function Window.MoveColumn(index, direction)
-    local lista = Groups()
+    -- ⚑ REFAZ OS GRUPOS ANTES DE LER. O cache e do desenho anterior, e `ns.db.columns` pode ter
+    -- mudado desde entao sem passar por um desenho -- SavedVariables entram assim. Lendo o cache,
+    -- esta funcao reescrevia a lista ATUAL a partir de grupos de uma lista que nao existe mais, e
+    -- o resultado era a lista antiga de volta na tela.
+    local lista = RefreshGroups()
     local target = index + direction
+
+    -- A ORIGEM TAMBEM E VALIDADA. So o destino era conferido, e um `index` acima do numero de
+    -- grupos passava: a troca deixava um BURACO no meio da lista (o slot de origem virava nil),
+    -- `#lista` mudava de valor e o achatamento logo abaixo indexava nil. Estouro de Lua, com a
+    -- janela morrendo no meio do desenho.
+    if index < 1 or index > #lista then return end
     if target < 1 or target > #lista then return end
 
     lista[index], lista[target] = lista[target], lista[index]
@@ -2762,7 +2933,9 @@ function Window.MoveColumn(index, direction)
             novo[#novo + 1] = lista[g].keys[k]
         end
     end
-    ns.db.columns = novo
+    -- NORMALIZA DE VOLTA. Trocar dois grupos nao pode desfazer a ordem DENTRO deles, e a
+    -- normalizacao e barata o bastante para ser a ultima palavra em todo caminho de escrita.
+    ns.db.columns = ns.Data.NormalizeColumns(novo)
 
     Window.Rebuild()
 end
@@ -2770,7 +2943,7 @@ end
 function Window.ApplyPreset(name)
     local preset = ns.Data.GetPresets()[name]
     if not preset then return false end
-    ns.db.columns = CopyTable(preset.columns)
+    ns.db.columns = ns.Data.NormalizeColumns(CopyTable(preset.columns))
     ns.db.sortBy = ns.db.columns[1]
     ns.db.width = nil
     Window.Rebuild()

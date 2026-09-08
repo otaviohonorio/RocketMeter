@@ -26,12 +26,20 @@ end
 function Profile.EnsureRuntimeDefaults()
     if not active then return end
 
-    -- Colunas salvas no formato antigo (ids de Enum) viram chaves.
+    -- Colunas salvas no formato antigo (ids de Enum) viram chaves -- e a lista sai NORMALIZADA
+    -- (agrupada por familia, par total+taxa completo, total antes da taxa).
+    --
+    -- ⚑ AS DUAS COISAS SAO ADOTADAS SEMPRE; so a MIGRACAO DE FORMATO tem consequencia. Reagrupar
+    -- nao invalida a ordenacao escolhida nem e novidade para o jogador: apagar `sortBy` e
+    -- anunciar "colunas migradas" a cada login, por causa de uma reordenacao, seria jogar fora a
+    -- escolha dele e mentir no chat sobre o motivo.
     local migrated, changed = ns.Data.MigrateColumns(active.columns)
-    if migrated and changed then
+    if migrated then
         active.columns = migrated
-        active.sortBy = nil
-        ns.Print(L["columns migrated to the new format."])
+        if changed then
+            active.sortBy = nil
+            ns.Print(L["columns migrated to the new format."])
+        end
     end
 
     if not active.columns or #active.columns == 0 then
