@@ -38,7 +38,7 @@ SABOTAGENS = [
     ("MinWidth para de contar as colunas", "Window.lua",
      u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH + columnsWidth",
      u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH",
-     "a faixa de classe para antes das colunas"),
+     "e as colunas cabem na janela"),
 
     # A calha some de UMA das duas contas: e a divergencia que permitiu o defeito original.
     ("a calha some da largura minima", "Window.lua",
@@ -68,11 +68,6 @@ SABOTAGENS = [
      u'    local escala = ns.RoleSizeSafe("body") / 16',
      u"    local escala = 1",
      "e a caixa cresce junto com o corpo"),
-
-    ("a faixa de classe volta a cruzar a linha toda", "Window.lua",
-     u"    row.bar:SetWidth(math.max(1, nomeAteX - 2))",
-     u"    row.bar:SetWidth(WindowWidth())",
-     "a faixa de classe para antes das colunas"),
 
     ("o fundo preto das celulas volta", "Window.lua",
      u'            faixa.bar = CreateFrame("StatusBar", nil, faixa)',

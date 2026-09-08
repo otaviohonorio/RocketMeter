@@ -1485,21 +1485,27 @@ do
 
     -- A COR DE CLASSE TEM UM LUGAR SO NA LINHA: a faixa do rodape cobre apenas a coluna do nome.
     --
-    -- Pedido do usuario: *"deixa a linha abaixo com a cor da classe apenas na coluna do nome"*. Ela
-    -- cruzava a linha inteira, passando por baixo dos numeros de TODAS as colunas -- a identidade
-    -- competindo com a metrica em cada celula. Agora a identidade mora onde a pessoa e
-    -- identificada, e dali para a direita e so numero.
-    -- A MEDIDA E CONTRA A JANELA, nao contra `row:GetWidth()`: a linha nao tem largura propria (ela
-    -- e ancorada nas duas bordas), e o simulador devolve 280 fixo para quem perguntar. Comparar
-    -- dois numeros falsos deixava a sabotagem passar -- foi o proprio sabotador que mostrou isso.
+    -- A FAIXA DE COR DE CLASSE SAIU (0.72.0). Ela era uma linha fina no rodape, limitada a coluna
+    -- do nome, com o comprimento proporcional a metrica ordenada. Pedido do usuario:
+    -- *"remove a linha da cor da classe da coluna do nome"*.
+    --
+    -- ⚑ E ISSO APAGOU DUAS VERIFICACOES QUE ERAM A REDE DE OUTRA COISA. Elas mediam a largura da
+    -- faixa contra a janela, e a sabotagem de `MinWidth` era pega por ali: quando `MinWidth`
+    -- deixava de somar as colunas, a area do nome ficava NEGATIVA e a faixa (que a acompanhava)
+    -- denunciava. Sem a faixa, a invariante continua valendo e precisa de medida propria -- senao
+    -- some junto o unico teste que pegava o defeito de 08/09.
     local primeira = ns.Window.DebugFirstRow()
     local geo = ns.Window.DebugGeometry()
-    local ondeComecamAsColunas = geo.width - geo.columnsWidth
 
-    check("a faixa de classe para antes das colunas",
-        primeira.stripWidth <= ondeComecamAsColunas, true)
-    check("e ela cobre o icone mais o nome",
-        primeira.stripWidth >= primeira.nameArea, true)
+    -- A AREA DO NOME NUNCA E NEGATIVA. Era isto que a largura da faixa denunciava de carona:
+    -- quando `MinWidth` deixava de somar as colunas, `nameArea` ia a -111 e so o clamp de 40px
+    -- segurava. Medir direto e mais honesto que medir pela sombra de outra coisa.
+    check("a area do nome nunca e negativa", primeira.nameArea > 0, true)
+    check("e as colunas cabem na janela", geo.columnsWidth < geo.width, true)
+
+    -- A COR DE CLASSE NAO SUMIU DA LINHA: ela mora nas barras das metricas, que continuam
+    -- pintadas por `ns.ApplyBarColor`. O que saiu foi o SEGUNDO lugar onde ela aparecia.
+    check("a barra da primeira coluna tem cor", primeira.barColored, true)
 
     -- E O FUNDO PRETO DAS CELULAS SAIU: *"tira o fundo preto com algum percentual de opacidade"*.
     check("nenhuma celula tem trilho preto atras", primeira.cellTracks, 0)

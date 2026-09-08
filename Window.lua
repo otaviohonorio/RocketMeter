@@ -150,7 +150,14 @@ local CELL_INSET = 2
 
 local ROW_HEIGHT_FIXED = 25   -- medido no nativo: linha de y=68 a y=92
 local COLUMN_WIDTH_FIXED = 58
-local ROW_BAR_HEIGHT = 3      -- a faixa de progresso no rodape da linha (= PROGRESS_HEIGHT)
+-- ⚑ ESTES 3px ERAM A FAIXA DE COR DE CLASSE no rodape da linha, removida a pedido do usuario
+-- em 08/09/2026 (*"remove a linha da cor da classe da coluna do nome"*). Eles FICARAM, e de
+-- proposito: tira-los reduz a altura da linha de 29 para 26 no corpo padrao e re-espaca a janela
+-- inteira -- uma mudanca visivel que ninguem pediu. Hoje sao respiro no rodape.
+--
+-- O nome mudou junto: constante que descreve o que nao existe mais e a forma mais barata de a
+-- proxima pessoa procurar uma faixa que nao esta la.
+local ROW_BOTTOM_ROOM = 3
 
 local FONT_SIZE_MIN = 10
 local FONT_SIZE_MAX = 20
@@ -184,12 +191,12 @@ local CLOCK_DELTA = -1
 ---
 ---25px é a medida tirada do medidor nativo e continua sendo o **piso**. Com o corpo
 ---configurável ela não pode ser só isso: em 20 o texto passa de 20px entre caixa alta,
----descendentes e contorno, e ainda há a faixa de progresso de 3px no rodapé — sem crescer
----junto, o texto encostaria na faixa e na linha de cima.
+---descendentes e contorno, e ainda há 3px de respiro no rodapé — sem crescer junto, o texto
+---encostaria na linha de baixo e na de cima.
 ---
 ---O fator 1,45 cobre caixa alta + descendente em Arial Narrow; os +2 são a folga do contorno.
 function ns.RowHeightFor(size)
-    local needed = math.ceil(size * 1.45) + 2 + ROW_BAR_HEIGHT
+    local needed = math.ceil(size * 1.45) + 2 + ROW_BOTTOM_ROOM
     if needed > ROW_HEIGHT_FIXED then return needed end
     return ROW_HEIGHT_FIXED
 end
@@ -526,7 +533,6 @@ local NAME_MIN_WIDTH = 96
 -- quando o indicador de rolagem entra no texto o botao cresce junto (ver Window.Draw).
 local SEGMENT_MIN_WIDTH = 120
 local PADDING = 3
-local PROGRESS_HEIGHT = 3       -- a faixa de progresso; o trilho a contorna com 1px de cada lado
 -- No nativo o texto fica **centrado na linha**, não erguido: centro dos glifos em y=81 contra
 -- centro da linha em y=80,5. A folga até a faixa colorida sai de a linha ser mais alta (25px),
 -- não de empurrar o texto para cima — lá sobra 1px entre a base da letra e a faixa.
@@ -1512,32 +1518,12 @@ local function BuildRow(index)
         -- Isso muda mais do que a estética: com o fundo neutro, a cor da classe fica livre
         -- para ser usada no texto da coluna liderada — o que antes era impossível, porque
         -- texto colorido sobre barra da mesma cor some.
-        -- Trilho escuro atrás da faixa: como ele é 1px maior de cada lado, aparece como um
-        -- contorno em volta da cor. É textura do próprio `row`, então fica **abaixo** da
-        -- StatusBar, que é frame filho.
-        row.barTrack = row:CreateTexture(nil, "ARTWORK")
-        row.barTrack:SetColorTexture(0, 0, 0, 0.75)
-
-        row.bar = CreateFrame("StatusBar", nil, row)
-        row.bar:SetPoint("BOTTOMLEFT", 2, 1)
-        row.bar:SetPoint("BOTTOMRIGHT", -2, 1)
-        row.bar:SetHeight(PROGRESS_HEIGHT)
-
-    row.barTrack:ClearAllPoints()
-    row.barTrack:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 0)
-    row.barTrack:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -1, 0)
-    row.barTrack:SetHeight(PROGRESS_HEIGHT + 2)
-        row.bar:SetStatusBarTexture(ns.BarTexture())
-        row.bar:SetMinMaxValues(0, 1)
-        row.bar:SetValue(0)
-        row.bar:SetFrameLevel(row:GetFrameLevel() + 1)
-
-        -- Camada de texto ACIMA da barra. Sem isso o texto some: a StatusBar e um frame
-        -- filho, e frame filho desenha por cima dos FontStrings do pai — foi exatamente o
-        -- bug da 0.11.0, em que a linha aparecia como uma barra vazia.
+        -- Camada de texto ACIMA das barras das colunas. Sem isso o texto some: StatusBar e
+        -- frame filho, e frame filho desenha por cima dos FontStrings do pai — foi exatamente
+        -- o bug da 0.11.0, em que a linha aparecia como uma barra vazia.
         row.text = CreateFrame("Frame", nil, row)
         row.text:SetAllPoints()
-        row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
+        row.text:SetFrameLevel(row:GetFrameLevel() + 2)
 
         row.hover = row.text:CreateTexture(nil, "ARTWORK")
         row.hover:SetAllPoints()
@@ -1600,10 +1586,8 @@ local function BuildRow(index)
     row:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, offsetY)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
 
-    row.bar:SetStatusBarTexture(ns.BarTexture())
-
     if row.SetBackdropBorderColor then
-        -- Sem borda em volta da linha: o contorno fica na faixa de progresso, não no retângulo.
+        -- Sem borda em volta da linha: quem separa uma linha da outra e o vao de 1px.
         row:SetBackdropBorderColor(0, 0, 0, 0)
     end
 
@@ -1641,22 +1625,6 @@ local function BuildRow(index)
     row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - NAME_GUTTER
     if row.nameArea < 40 then row.nameArea = 40 end
 
-    -- Onde a coluna do nome termina: margem + icone + o nome. Dali para a direita comeca a
-    -- calha e, depois dela, as colunas de metrica.
-    local nomeAteX = PADDING + iconSize + row.nameArea
-
-    row.bar:ClearAllPoints()
-    row.bar:SetPoint("BOTTOMLEFT", 2, 1)
-    row.bar:SetWidth(math.max(1, nomeAteX - 2))
-    row.bar:SetHeight(PROGRESS_HEIGHT)
-
-    -- O trilho continua, e ele NAO e "fundo": e o contorno de 1px que faz a faixa se ler sobre
-    -- qualquer cenario. Ele acompanha a faixa na largura nova.
-    row.barTrack:ClearAllPoints()
-    row.barTrack:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 0)
-    row.barTrack:SetWidth(math.max(1, nomeAteX))
-    row.barTrack:SetHeight(PROGRESS_HEIGHT + 2)
-    row.barTrack:Show()
     ns.ApplyRoleFont(row.name, "body", 0)
     SyncHaloFont(row.name, row.nameHalo, 0)
     -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
@@ -2199,7 +2167,6 @@ function Window.Draw()
 
     local data, session, total = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
         ns.db.rows, not ns.db.sortDesc, scrollOffset)
-    local maxAmount = session and session.maxAmount
 
     totalRows = total or 0
 
@@ -2208,9 +2175,8 @@ function Window.Draw()
     if maximum < 0 then maximum = 0 end
     if scrollOffset > maximum then
         scrollOffset = maximum
-        data, session = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
+        data = ns.Data.GetRows(ns.db.sessionType, ns.db.sortBy, ns.db.columns,
             ns.db.rows, not ns.db.sortDesc, scrollOffset)
-        maxAmount = session and session.maxAmount
     end
 
     local scope = ns.db.sessionType == 0 and L["Current fight"] or L["Overall"]
@@ -2322,15 +2288,6 @@ function Window.Draw()
             local source = entry.source
             shown = i
 
-            -- A BARRA DA LINHA (a do fundo) continua sendo a da metrica ORDENADA: ela e o que da
-            -- forma a lista e diz de relance a distancia entre o primeiro e o ultimo.
-            local top = maxAmount
-            if top == nil then top = 1 end
-            local value = source.totalAmount
-            if value == nil then value = 0 end
-            row.bar:SetMinMaxValues(0, top)
-            row.bar:SetValue(value)
-            ns.ApplyBarColor(row.bar, source.classFilename)
             row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
@@ -2589,10 +2546,18 @@ function Window.DebugFirstRow()
     return {
         nameArea = row.nameArea or 0,
         bgAlpha = cor and cor[4] or nil,
-        -- A LARGURA DA FAIXA DE CLASSE. Ela cobria a linha inteira e passou a cobrir so a coluna
-        -- do nome: a cor de classe deixou de cruzar por baixo dos numeros de todas as colunas.
-        stripWidth = row.bar:GetWidth(),
         rowWidth = row:GetWidth(),
+        -- A COR DE CLASSE CONTINUA NA LINHA, e agora num lugar so: as barras das metricas. Sem
+        -- esta porta, "removi a faixa" e "removi a cor da classe da linha inteira" seriam
+        -- indistinguiveis para o teste.
+        -- ⚑ LE `__gradient`, e nao `GetStatusBarColor`. O simulador nao implementa o getter --
+        -- ele cai no `__index` generico e devolve uma TABELA, que nunca e nil e nunca e igual a
+        -- outra: qualquer comparacao daria "tem cor" e o teste passaria a toa. `__gradient` e
+        -- escrito por `ns.ApplyBarColor` no caminho de verdade.
+        barColored = (function()
+            local faixa = row.groups and row.groups[1]
+            return faixa ~= nil and faixa.bar ~= nil and faixa.bar.__gradient == true
+        end)(),
         -- A LARGURA DE CADA COLUNA, na ordem da tela: e a caixa do NUMERO, que e o que decide
         -- se ele cabe ou vira reticencias.
         cellWidths = (function()
