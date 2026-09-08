@@ -75,8 +75,21 @@ local function BuildColumns()
         [E.Deaths]               = L["Deaths"],
         [E.EnemyDamageTaken]     = L["Damage on enemies"],
     }
+    -- METRICA QUE CONTA, e nao que soma. A diferenca importa para quem desenha: "339M" e "8"
+    -- precisam de larguras muito diferentes, e `field` NAO separa os dois -- interrupcoes e
+    -- dissipacoes tambem sao `total`, so que de uma contagem.
+    --
+    -- A distincao mora aqui, junto da definicao da metrica, e nao na janela: e uma propriedade do
+    -- DADO ("esta metrica produz numeros pequenos"), nao da tela.
+    local CONTAGEM = {
+        [E.Interrupts] = true,
+        [E.Dispels] = true,
+        [E.Deaths] = true,
+    }
+
     for i = 1, #list do
         list[i].family = FAMILY[list[i].attr] or list[i].short
+        list[i].counts = CONTAGEM[list[i].attr] or nil
     end
 
     local byKey = {}

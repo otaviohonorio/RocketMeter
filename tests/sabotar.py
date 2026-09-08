@@ -50,6 +50,19 @@ SABOTAGENS = [
      u"local DEFAULT_SLACK = 0",
      "  e a largura padrao tem folga sobre o minimo"),
 
+    ("toda coluna volta a ter a mesma largura", "Window.lua",
+     u'    local escala = ns.RoleSizeSafe("body") / 16',
+     u'    base = COLUMN_WIDTH_FIXED\n'
+     u'    local escala = ns.RoleSizeSafe("body") / 16',
+     "dano (total) e mais largo que DPS (taxa)"),
+
+    # Interrupcoes tambem e `field = "total"`: classificar por formato dava a ela a largura de
+    # "1.2B" para escrever "8". Quem separa os dois e a marca `counts` do catalogo.
+    ("a coluna de contagem volta a ter largura de total", "Data.lua",
+     u"        list[i].counts = CONTAGEM[list[i].attr] or nil",
+     u"        list[i].counts = nil",
+     "e DPS e mais largo que interrupcoes (contagem)"),
+
     ("a faixa de classe volta a cruzar a linha toda", "Window.lua",
      u"    row.bar:SetWidth(math.max(1, nomeAteX - 2))",
      u"    row.bar:SetWidth(WindowWidth())",

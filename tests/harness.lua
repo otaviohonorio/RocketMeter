@@ -1388,6 +1388,28 @@ do
     for _ in pairs(cores) do tons = tons + 1 end
     check("todo numero tem a mesma cor, inclusive o do lider", tons, 1)
 
+    -- A LARGURA DA COLUNA SEGUE O QUE ELA ESCREVE. Pedido: *"precisa aumentar um pouco a largura
+    -- das colunas, principalmente nas colunas onde o resultado e maior, Dano e Cura por exemplo"*.
+    --
+    -- Uma largura so para todas dava o mesmo espaco para "339M" e para "8": a primeira apertada,
+    -- a segunda com metade vazia.
+    do
+        ns.db.columns = { "damage", "dps", "interrupts" }
+        ns.Window.Rebuild()
+        ns.Window.Draw()
+
+        local larguras = ns.Window.DebugFirstRow().cellWidths
+        check("dano (total) e mais largo que DPS (taxa)", larguras[1] > larguras[2], true)
+        check("e DPS e mais largo que interrupcoes (contagem)", larguras[2] > larguras[3], true)
+        check("e o dano ficou MAIOR que os 58 de antes", larguras[1] > 58, true)
+
+        ns.db.columns = { "damage", "healing", "interrupts" }
+        ns.Window.Rebuild()
+        ns.Window.Draw()
+        local iguais = ns.Window.DebugFirstRow().cellWidths
+        check("dano e cura tem a mesma largura (mesmo formato)", iguais[1], iguais[2])
+    end
+
     -- A COR DE CLASSE TEM UM LUGAR SO NA LINHA: a faixa do rodape cobre apenas a coluna do nome.
     --
     -- Pedido do usuario: *"deixa a linha abaixo com a cor da classe apenas na coluna do nome"*. Ela

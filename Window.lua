@@ -1070,16 +1070,73 @@ local function RowHeight()
     return ns.RowHeightFor(FontSize())
 end
 
+-- A LARGURA DE CADA COLUNA, POR FAMILIA DE FORMATO.
+--
+-- Pedido do usuario: *"precisa aumentar um pouco a largura das colunas, principalmente nas colunas
+-- onde o resultado e maior, Dano e Cura por exemplo"*.
+--
+-- Ele apontou o defeito pela consequencia: a largura era **uma so para todas** (58), entao a
+-- coluna que escreve "339M" e a que escreve "8" recebiam o mesmo espaco -- a primeira apertada, a
+-- segunda com metade dela vazia. Largura uniforme so faz sentido com conteudo uniforme.
+--
+-- ⚠️ OS NUMEROS SAO RELATIVOS AOS 58 QUE JA ESTAVAM NA TELA, e nao uma medicao de glifo. Eu tentei
+-- derivar de largura de caractere primeiro e a conta deu larguras MENORES que as atuais -- porque
+-- a largura do digito depende da fonte escolhida (o padrao e Friz Quadrata, mas o usuario roda
+-- Arial Narrow), e isso eu nao consigo medir daqui. Ancorar no valor que ja funcionava e honesto;
+-- inventar uma medicao seria pior que assumir a referencia.
+--
+--   total      "339M", "1.2B"   -> +18   e a coluna que ele citou (Dano, Cura, Recebido)
+--   perSecond  "299K"           -> +6    um digito a menos que o total
+--   percent    "100%"           -> +6
+--   count      "19"             -> −10   dois digitos nao precisam de 58
+local COLUMN_WIDTH_BY_FIELD = {
+    total = 76,
+    perSecond = 64,
+    percent = 64,
+    count = 48,
+}
+
+---A largura de UMA coluna, pelo formato do que ela escreve.
+---
+---Acompanha o corpo da fonte: quem aumenta o texto aumenta a coluna junto, senao o numero cresce
+---dentro de uma caixa que nao cresceu -- que e o mesmo defeito, so que causado pela configuracao.
+local function ColumnWidthFor(key)
+    local def = ns.Data.GetColumn(key)
+
+    -- METRICA DE CONTAGEM VEM PRIMEIRO, e nao pelo `field`: interrupcoes e dissipacoes tambem sao
+    -- `total`, so que de uma contagem -- entao classificar por formato dava a elas a largura de
+    -- "1.2B" para escrever "8". Quem sabe disso e o catalogo, que marca a metrica com `counts`.
+    local base
+    if def and def.counts then
+        base = COLUMN_WIDTH_BY_FIELD.count
+    else
+        base = def and COLUMN_WIDTH_BY_FIELD[def.field] or COLUMN_WIDTH_FIXED
+    end
+
+    local escala = ns.RoleSizeSafe("body") / 16
+    local largura = math.floor(base * escala + 0.5)
+
+    -- PISO: abaixo disto o rotulo do cabecalho ("Interr", "Dissip") nao cabe, e coluna cujo nome
+    -- nao se le nao serve para nada.
+    if largura < 44 then largura = 44 end
+    return largura
+end
+
+---A largura da coluna mais larga, para quem precisa de UM numero (a celula, o cabecalho).
 local function ColumnWidth()
     return COLUMN_WIDTH_FIXED
 end
 
+---O deslocamento de cada coluna a partir da DIREITA, e a largura total.
+---
+---Cada coluna tem a largura DELA agora, entao o deslocamento acumulado nao e mais
+---`indice * largura`: e a soma das larguras das colunas a direita dela.
 local function ColumnOffsets()
     local columns = ns.db.columns
     local offsets, running = {}, 0
     for c = #columns, 1, -1 do
         offsets[c] = running
-        running = running + ColumnWidth()
+        running = running + ColumnWidthFor(columns[c])
     end
     return offsets, running
 end
@@ -1262,7 +1319,7 @@ local function BuildColumnHeader()
 
         local key = ns.db.columns[c]
         button.columnIndex = c
-        button:SetWidth(ColumnWidth())
+        button:SetWidth(ColumnWidthFor(ns.db.columns[c]))
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -offsets[c], 0)
         ns.ApplyRoleFont(button.text, "header", 0)
@@ -1504,7 +1561,6 @@ local function BuildRow(index)
     -- vazias.
     -- So os deslocamentos: a largura total ja foi lida acima, para a area do nome.
     local offsets = ColumnOffsets()
-    local largura = ColumnWidth() - CELL_GAP
 
     for _, cell in pairs(row.cells) do
         cell:Hide()
@@ -1537,6 +1593,7 @@ local function BuildRow(index)
             row.cellHalos[c] = CreateHalo(cell.top, cell.text)
         end
 
+        local largura = ColumnWidthFor(ns.db.columns[c]) - CELL_GAP
         cell:SetSize(largura, height - CELL_INSET * 2)
         cell:ClearAllPoints()
         cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - CELL_GAP / 2, 0)
@@ -2151,7 +2208,8 @@ function Window.DebugGeometry()
         -- A celula e ancorada pela DIREITA da area de texto, entao a borda esquerda dela e
         -- "largura util menos o deslocamento menos a propria largura".
         local util = largura - PADDING * 2
-        bordas[c] = util - offsets[c] - CELL_GAP / 2 - (ColumnWidth() - CELL_GAP)
+        bordas[c] = util - offsets[c] - CELL_GAP / 2
+            - (ColumnWidthFor(ns.db.columns[c]) - CELL_GAP)
     end
 
     return {
@@ -2226,6 +2284,14 @@ function Window.DebugFirstRow()
         -- do nome: a cor de classe deixou de cruzar por baixo dos numeros de todas as colunas.
         stripWidth = row.bar:GetWidth(),
         rowWidth = row:GetWidth(),
+        -- A LARGURA DE CADA COLUNA, para o teste afirmar que ela depende do que a coluna escreve.
+        cellWidths = (function()
+            local out = {}
+            for c = 1, #ns.db.columns do
+                out[c] = row.cells[c] and row.cells[c]:GetWidth() or 0
+            end
+            return out
+        end)(),
         -- Quantas celulas ainda tem trilho preto atras. Tem que ser ZERO.
         cellTracks = (function()
             local n = 0
