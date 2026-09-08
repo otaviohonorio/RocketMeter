@@ -67,6 +67,15 @@ local function widget(kind)
     -- `SetMinMaxValues` com um no-op, e a regua de cada secao -- que e o que impede a barra de
     -- cura de ser medida contra o maior dano -- ficava invisivel ao teste: sabotar `top = 1` nao
     -- reprovava nada.
+    -- A COR DO TEXTO, guardada: o usuario mandou tirar a cor de classe do numero, e "tirei" so se
+    -- prova perguntando ao widget que cor ele ficou.
+    function self.SetTextColor(_, r, g, b, a) self.__textColor = { r, g, b, a } end
+    function self.GetTextColor() 
+        local c = self.__textColor
+        if not c then return 1, 1, 1, 1 end
+        return c[1], c[2], c[3], c[4]
+    end
+
     -- A COR CHAPADA, guardada pelo mesmo motivo: o fundo tingido da linha e o que da chao ao
     -- numero encostado a direita, e sem registrar isso sabotar o tingimento nao reprovava nada.
     function self.SetColorTexture(_, r, g, b, a) self.__color = { r, g, b, a } end
@@ -1359,6 +1368,25 @@ do
         end
         check("a coluna " .. ns.db.columns[c] .. " tem uma barra cheia", cheia ~= nil, true)
     end
+
+    -- O NUMERO NAO GANHA COR DE CLASSE, nem o do lider. Pedido do usuario: *"nao precisa colocar
+    -- cor do texto da cor da classe, por que a ideia e que o tamanho da barra ja vai dizer qual
+    -- ta na frente e a linha de baixo que e da classe"*.
+    --
+    -- Ele esta certo em dois niveis: era um terceiro sinal dizendo o que a barra cheia e a faixa
+    -- de classe ja diziam, e cor de classe e vocabulario reservado -- numero colorido le como
+    -- "ladino", nao como "melhor".
+    --
+    -- O teste compara as cores de TODAS as linhas: se alguma diferir, alguem foi pintado.
+    local cores = {}
+    for linha = 1, ns.db.rows do
+        for _, cel in ipairs(ns.Window.DebugCells(linha)) do
+            cores[table.concat(cel.color, ",")] = true
+        end
+    end
+    local tons = 0
+    for _ in pairs(cores) do tons = tons + 1 end
+    check("todo numero tem a mesma cor, inclusive o do lider", tons, 1)
 
     -- O NOME NAO PODE FICAR ESPREMIDO. Com tres colunas de 58 numa janela de 340, sobra espaco de
     -- verdade; foi com SETE colunas que ele caiu para 57px e o nome virou reticencias.

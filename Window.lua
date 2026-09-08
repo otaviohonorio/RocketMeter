@@ -1999,13 +1999,19 @@ function Window.Draw()
                 ns.SetCellText(cell.text, entry.values[c], key,
                     row.cellHalos and row.cellHalos[c])
 
-                -- O REALCE DO LIDER continua, e agora ele e o SEGUNDO sinal: a barra cheia ja
-                -- diz quem lidera, e a cor confirma. Fora de combate, onde da para calcular.
-                if entry.best and entry.best[c] and ns.db.highlightBest ~= false then
-                    cell.text:SetTextColor(LeaderColor(source.classFilename))
-                else
-                    cell.text:SetTextColor(unpack(ns.Skin.text))
-                end
+                -- O NUMERO NAO GANHA COR DE CLASSE, e a razao e do usuario: *"a ideia e que o
+                -- tamanho da barra ja vai dizer qual ta na frente, e a linha de baixo que e da
+                -- classe"*.
+                --
+                -- Ele esta certo em dois niveis. O primeiro e redundancia: a barra CHEIA ja marca
+                -- o lider daquela coluna, e a faixa do rodape ja marca a classe -- pintar o
+                -- numero era um terceiro sinal dizendo o que dois ja diziam.
+                --
+                -- O segundo e a regra que a skill do workspace registra depois de tres tentativas
+                -- falhas: **cor de classe e vocabulario reservado**. Um numero dourado ao lado de
+                -- barras coloridas le como "ladino", nao como "este e o melhor". Aqui era pior,
+                -- porque a cor do numero e a cor da barra da MESMA linha competiam entre si.
+                cell.text:SetTextColor(unpack(ns.Skin.text))
             end
 
             row:Show()
@@ -2072,7 +2078,11 @@ function Window.DebugCells(index)
         local cell = row.cells[c]
         if cell and cell:IsShown() then
             local _, escala = cell.bar:GetMinMaxValues()
-            out[c] = { scale = escala, value = cell.bar:GetValue(), text = cell.text:GetText() }
+            local r, g, b = cell.text:GetTextColor()
+            out[c] = {
+                scale = escala, value = cell.bar:GetValue(), text = cell.text:GetText(),
+                color = { r, g, b },
+            }
         end
     end
     return out

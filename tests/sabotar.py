@@ -43,8 +43,15 @@ SABOTAGENS = [
      u"                cell.bar:SetMinMaxValues(0, 1)",
      "as colunas nao compartilham regua"),
 
-    # O clique escreve `sortBy` mas nao manda redesenhar: a coluna fica dourada e a lista nao
-    # muda -- o pior sintoma, porque parece que o addon ouviu e discordou.
+    ("a cor de classe volta para o numero", "Window.lua",
+     u"                cell.text:SetTextColor(unpack(ns.Skin.text))",
+     u"                if entry.best and entry.best[c] then\n"
+     u"                    cell.text:SetTextColor(LeaderColor(source.classFilename))\n"
+     u"                else\n"
+     u"                    cell.text:SetTextColor(unpack(ns.Skin.text))\n"
+     u"                end",
+     "todo numero tem a mesma cor, inclusive o do lider"),
+
     ("o clique no cabecalho deixa de reordenar", "Window.lua",
      u"                    ns.db.sortBy = key\n"
      u"                    ns.db.sortDesc = true\n"
