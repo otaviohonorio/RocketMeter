@@ -135,11 +135,18 @@ local NUMBER_RESERVE = 96
 -- `CELL_INSET` deixa a barra um pouco mais baixa que a linha, para as barras de linhas vizinhas
 -- nao se tocarem na vertical.
 --
--- `CELL_TRACK_ALPHA` e o trilho escuro atras: ele da chao ao numero na parte VAZIA da barra, que
--- e onde o numero cai para todo mundo menos o lider. Sem ele o numero fica sobre o cenario.
+-- O TRILHO ESCURO ATRAS DA BARRA SAIU, a pedido do usuario: *"tira o fundo preto com algum
+-- percentual de opacidade"*.
+--
+-- Ele existia para dar chao ao numero na parte VAZIA da barra -- que e onde o numero cai para
+-- todo mundo menos o lider da coluna. Sem ele, essa parte e o cenario do jogo.
+--
+-- ⚠️ Entao o que sustenta a leitura passa a ser SO a sombra do texto. E a mesma aposta que a
+-- janela ja faz no nome e no relogio (`ROW_BG_ALPHA = 0`, `WINDOW_ALPHA = 0`) e que o usuario ja
+-- aprovou la; se o numero ficar ruim sobre cenario claro, o conserto e o contorno/sombra DELE, e
+-- nao trazer a caixa de volta -- foi ela que ele mandou tirar.
 local CELL_GAP = 4
 local CELL_INSET = 2
-local CELL_TRACK_ALPHA = 0.55
 
 local ROW_HEIGHT_FIXED = 25   -- medido no nativo: linha de y=68 a y=92
 local COLUMN_WIDTH_FIXED = 58
@@ -1441,22 +1448,40 @@ local function BuildRow(index)
     -- O que torna isso legivel esta medido na skill: preenchimento **escurecido** (~0.65 da cor
     -- da classe), fundo de linha tingido para a parte vazia nao virar buraco, e sombra no texto.
     -- Sem as tres, e a reprovacao de antes de novo.
-    -- A BARRA DA LINHA VOLTA A SER A FAIXA FINA no rodape -- o desenho que o usuario ja tinha
-    -- aprovado, e que na 0.67.0 eu tinha trocado por barra cheia para caber o numero dentro.
+    -- A FAIXA DE CLASSE PASSA A COBRIR SO A COLUNA DO NOME, a pedido do usuario.
     --
-    -- Neste layout ela nao precisa mais ser cheia: o numero mora dentro da barra DA COLUNA, e
-    -- cada coluna tem o proprio trilho escuro. Uma barra cheia atras de tres barras de coluna
-    -- disputaria com elas -- quatro retangulos coloridos na mesma linha, e nenhum se le.
+    -- E a resposta para uma pergunta que estava aberta: a cor de classe aparecia em TRES lugares
+    -- na mesma linha -- icone, barra de cada coluna, e esta faixa cruzando a linha inteira. Tres
+    -- vezes a mesma informacao, e a faixa era a que mais competia, porque passava por baixo dos
+    -- numeros de todas as colunas.
     --
-    -- Ela continua valendo por uma coisa: mostra a fatia da metrica ORDENADA, que e o que da
-    -- forma vertical a lista.
+    -- Agora a identidade mora onde a pessoa e identificada: sob o icone e o nome. Da coluna do
+    -- nome para a direita e so metrica.
+    --
+    -- Ela CONTINUA sendo uma barra de progresso da metrica ordenada, nao um retangulo chapado:
+    -- e o que da forma vertical a lista, e agora essa forma vive no mesmo bloco que o nome.
+    -- A AREA DO NOME E CALCULADA UMA VEZ, AQUI, e nao la embaixo: a faixa de classe precisa dela
+    -- para saber onde parar, e ler `row.nameArea` antes de ele ser escrito devolvia o valor da
+    -- chamada ANTERIOR (nil na primeira). Um numero calculado em dois momentos e a mesma
+    -- divergencia que ja custou uma versao neste arquivo.
+    local _, columnsWidth = ColumnOffsets()
+    row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - NAME_GUTTER
+    if row.nameArea < 40 then row.nameArea = 40 end
+
+    -- Onde a coluna do nome termina: margem + icone + o nome. Dali para a direita comeca a
+    -- calha e, depois dela, as colunas de metrica.
+    local nomeAteX = PADDING + iconSize + row.nameArea
+
     row.bar:ClearAllPoints()
     row.bar:SetPoint("BOTTOMLEFT", 2, 1)
-    row.bar:SetPoint("BOTTOMRIGHT", -2, 1)
+    row.bar:SetWidth(math.max(1, nomeAteX - 2))
     row.bar:SetHeight(PROGRESS_HEIGHT)
+
+    -- O trilho continua, e ele NAO e "fundo": e o contorno de 1px que faz a faixa se ler sobre
+    -- qualquer cenario. Ele acompanha a faixa na largura nova.
     row.barTrack:ClearAllPoints()
     row.barTrack:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 1, 0)
-    row.barTrack:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -1, 0)
+    row.barTrack:SetWidth(math.max(1, nomeAteX))
     row.barTrack:SetHeight(PROGRESS_HEIGHT + 2)
     row.barTrack:Show()
     ns.ApplyRoleFont(row.name, "body", 0)
@@ -1477,7 +1502,8 @@ local function BuildRow(index)
     -- A barra e um frame filho da celula e o numero fica ACIMA dela, na camada de texto: frame
     -- filho desenha por cima de FontString do pai, e foi assim que a 0.11.0 saiu com barras
     -- vazias.
-    local offsets, columnsWidth = ColumnOffsets()
+    -- So os deslocamentos: a largura total ja foi lida acima, para a area do nome.
+    local offsets = ColumnOffsets()
     local largura = ColumnWidth() - CELL_GAP
 
     for _, cell in pairs(row.cells) do
@@ -1489,8 +1515,6 @@ local function BuildRow(index)
         if not cell then
             cell = CreateFrame("Frame", nil, row.text)
 
-            cell.track = cell:CreateTexture(nil, "BACKGROUND")
-            cell.track:SetAllPoints()
 
             cell.bar = CreateFrame("StatusBar", nil, cell)
             cell.bar:SetAllPoints()
@@ -1517,7 +1541,6 @@ local function BuildRow(index)
         cell:ClearAllPoints()
         cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - CELL_GAP / 2, 0)
 
-        cell.track:SetColorTexture(0, 0, 0, CELL_TRACK_ALPHA)
         cell.bar:SetStatusBarTexture(ns.BarTexture())
 
         -- Corpo unico na linha inteira: numeros de tamanhos diferentes lado a lado desalinham a
@@ -1534,8 +1557,6 @@ local function BuildRow(index)
     -- A AREA DO NOME e o que sobra depois das colunas -- e agora as colunas EXISTEM de novo,
     -- entao descontar a largura delas voltou a ser a conta certa. (Na 0.67.x ela descontava 406px
     -- de colunas que nao estavam mais sendo desenhadas, e o nome ficava com 57px.)
-    row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - NAME_GUTTER
-    if row.nameArea < 40 then row.nameArea = 40 end
     row.name:SetWidth(row.nameArea)
     row.realm:SetWidth(0)
     return row
@@ -2200,9 +2221,19 @@ function Window.DebugFirstRow()
     local cor = row.bg.GetColorTexture and row.bg:GetColorTexture()
     return {
         nameArea = row.nameArea or 0,
-        -- A opacidade do fundo da linha: 0 e transparente (o numero cai sobre o cenario),
-        -- maior que 0 e o chao que o tingimento devolve.
         bgAlpha = cor and cor[4] or nil,
+        -- A LARGURA DA FAIXA DE CLASSE. Ela cobria a linha inteira e passou a cobrir so a coluna
+        -- do nome: a cor de classe deixou de cruzar por baixo dos numeros de todas as colunas.
+        stripWidth = row.bar:GetWidth(),
+        rowWidth = row:GetWidth(),
+        -- Quantas celulas ainda tem trilho preto atras. Tem que ser ZERO.
+        cellTracks = (function()
+            local n = 0
+            for _, cell in pairs(row.cells) do
+                if cell.track then n = n + 1 end
+            end
+            return n
+        end)(),
     }
 end
 

@@ -1388,6 +1388,27 @@ do
     for _ in pairs(cores) do tons = tons + 1 end
     check("todo numero tem a mesma cor, inclusive o do lider", tons, 1)
 
+    -- A COR DE CLASSE TEM UM LUGAR SO NA LINHA: a faixa do rodape cobre apenas a coluna do nome.
+    --
+    -- Pedido do usuario: *"deixa a linha abaixo com a cor da classe apenas na coluna do nome"*. Ela
+    -- cruzava a linha inteira, passando por baixo dos numeros de TODAS as colunas -- a identidade
+    -- competindo com a metrica em cada celula. Agora a identidade mora onde a pessoa e
+    -- identificada, e dali para a direita e so numero.
+    -- A MEDIDA E CONTRA A JANELA, nao contra `row:GetWidth()`: a linha nao tem largura propria (ela
+    -- e ancorada nas duas bordas), e o simulador devolve 280 fixo para quem perguntar. Comparar
+    -- dois numeros falsos deixava a sabotagem passar -- foi o proprio sabotador que mostrou isso.
+    local primeira = ns.Window.DebugFirstRow()
+    local geo = ns.Window.DebugGeometry()
+    local ondeComecamAsColunas = geo.width - geo.columnsWidth
+
+    check("a faixa de classe para antes das colunas",
+        primeira.stripWidth <= ondeComecamAsColunas, true)
+    check("e ela cobre o icone mais o nome",
+        primeira.stripWidth >= primeira.nameArea, true)
+
+    -- E O FUNDO PRETO DAS CELULAS SAIU: *"tira o fundo preto com algum percentual de opacidade"*.
+    check("nenhuma celula tem trilho preto atras", primeira.cellTracks, 0)
+
     -- O NOME NAO PODE FICAR ESPREMIDO. Com tres colunas de 58 numa janela de 340, sobra espaco de
     -- verdade; foi com SETE colunas que ele caiu para 57px e o nome virou reticencias.
     check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 60, true)

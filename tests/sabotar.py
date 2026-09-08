@@ -37,7 +37,7 @@ SABOTAGENS = [
     ("MinWidth para de contar as colunas", "Window.lua",
      u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH + columnsWidth",
      u"    return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH",
-     "o nome tem largura de verdade"),
+     "a faixa de classe para antes das colunas"),
 
     # A calha some de UMA das duas contas: e a divergencia que permitiu o defeito original.
     ("a calha some da largura minima", "Window.lua",
@@ -49,6 +49,18 @@ SABOTAGENS = [
      u"local DEFAULT_SLACK = 48",
      u"local DEFAULT_SLACK = 0",
      "  e a largura padrao tem folga sobre o minimo"),
+
+    ("a faixa de classe volta a cruzar a linha toda", "Window.lua",
+     u"    row.bar:SetWidth(math.max(1, nomeAteX - 2))",
+     u"    row.bar:SetWidth(WindowWidth())",
+     "a faixa de classe para antes das colunas"),
+
+    ("o fundo preto das celulas volta", "Window.lua",
+     u'            cell.bar = CreateFrame("StatusBar", nil, cell)',
+     u'            cell.track = cell:CreateTexture(nil, "BACKGROUND")\n'
+     u'            cell.track:SetAllPoints()\n'
+     u'            cell.bar = CreateFrame("StatusBar", nil, cell)',
+     "nenhuma celula tem trilho preto atras"),
 
     ("as colunas voltam a compartilhar uma regua so", "Window.lua",
      u"                local escala = scales[c]",
