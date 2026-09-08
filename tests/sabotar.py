@@ -104,9 +104,20 @@ SABOTAGENS = [
     # A FAISCA presa na moldura fica parada na borda direita: nao diz nada sobre progresso, e
     # nada estoura. So a ancora denuncia.
     ("a faisca e ancorada na moldura, nao no preenchimento", "Window.lua",
-     u'        faixa.spark:SetPoint("RIGHT", faixa.bar:GetStatusBarTexture(), "RIGHT", 1, 0)',
-     u'        faixa.spark:SetPoint("RIGHT", faixa, "RIGHT", 1, 0)',
-     "a faisca esta presa no preenchimento"),
+     u'        faixa.spark:SetPoint("LEFT", preenchimento, "LEFT", 0, 0)',
+     u'        faixa.spark:SetPoint("LEFT", faixa, "LEFT", 0, 0)',
+     "a faisca esta presa no preenchimento pelas duas pontas"),
+
+    # ⚑ O DEFEITO DO PRINT DE 08/09: presa so pela direita, com largura fixa, a faisca fica MAIOR
+    # que a barra quando a barra e pequena -- e o excedente sai pela ESQUERDA, lendo como uma seta
+    # apontando para tras. Nao da para consertar medindo (GetWidth do preenchimento e secret);
+    # so a segunda ancora resolve, e so um teste que confere AS DUAS a protege.
+    ("a faisca volta a ter largura fixa, presa so pela direita", "Window.lua",
+     u'        faixa.spark:SetPoint("LEFT", preenchimento, "LEFT", 0, 0)\n'
+     u'        faixa.spark:SetPoint("RIGHT", preenchimento, "RIGHT", 0, 0)',
+     u'        faixa.spark:SetPoint("RIGHT", preenchimento, "RIGHT", 1, 0)\n'
+     u'        faixa.spark:SetWidth(10)',
+     "a faisca esta presa no preenchimento pelas duas pontas"),
 
     # ------------------------------------------------------------------ a barra que atravessa
     # IDEIA DO USUARIO, 08/09: "a barra que progride conforme quem ta melhor, ela vai desde a

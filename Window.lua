@@ -441,11 +441,14 @@ local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto bra
 -- ~18%, e 15 e o mesmo gesto um ponto mais discreto -- aqui a pista divide espaco com os numeros,
 -- que la ficam sobre a barra cheia.
 --
--- `SPARK_WIDTH` = 10 e o rastro; mais que isso vira mancha numa faixa de 25px de altura.
--- `SPARK_ALPHA` = 0,55 e o pico do degrade, no lado da ponta.
+-- `SPARK_ALPHA` = 0,35 e o pico do degrade, no lado da ponta.
+--
+-- Ele CAIU de 0,55 quando o brilho deixou de ter largura fixa. Com 10px de rastro, 0,55 era o
+-- pico de uma manchinha; agora o degrade se estica pelo preenchimento inteiro, e o mesmo 0,55
+-- lavaria a barra do lider de branco. 0,35 mantem a ponta nitidamente mais clara que o meio sem
+-- apagar a cor da classe embaixo -- que e o que a barra tem para dizer quem e quem.
 local TRACK_ALPHA = 0.15
-local SPARK_WIDTH = 10
-local SPARK_ALPHA = 0.55
+local SPARK_ALPHA = 0.35
 
 local BAR_GRADIENT_MIN = 0.52
 local BAR_GRADIENT_MAX = 0.84
@@ -1065,10 +1068,11 @@ function ns.ApplyTrackColor(texture, classFilename, mostrar)
     texture:SetColorTexture(r, g, b, TRACK_ALPHA)
 end
 
----A FAÍSCA: um rastro que se acende até a ponta do preenchimento.
+---A FAÍSCA: o preenchimento se acende em direção à ponta.
 ---
 ---Ela é branca e aditiva, com o alfa subindo da esquerda para a direita — o brilho mora no
----**fim**, que é onde a barra chegou. Não é cor de classe: cor de classe é vocabulário reservado
+---**fim**, que é onde a barra chegou. E ela ocupa exatamente o preenchimento, nem mais nem
+---menos: as duas pontas são presas nele, então uma barra de 2px tem 2px de brilho. Não é cor de classe: cor de classe é vocabulário reservado
 ---neste projeto (dourado lê como "ladino", não como "líder"), e branco aditivo sobre a própria
 ---barra clareia a cor que já está lá em vez de introduzir outra.
 ---
@@ -1800,7 +1804,6 @@ local function BuildRow(index)
             faixa.spark = faixa:CreateTexture(nil, "OVERLAY")
             faixa.spark:SetTexture("Interface\\Buttons\\WHITE8X8")
             faixa.spark:SetBlendMode("ADD")
-            faixa.spark:SetWidth(SPARK_WIDTH)
 
             faixa.top = CreateFrame("Frame", nil, faixa)
             faixa.top:SetAllPoints()
@@ -1830,8 +1833,25 @@ local function BuildRow(index)
         --
         -- Reancorar aqui e barato (uma vez por linha por reconstrucao) e nos poupa de depender de
         -- a textura sobreviver a `SetStatusBarTexture` logo acima.
+        -- ⚑ AS DUAS PONTAS PRESAS NO PREENCHIMENTO, e nao so a direita com largura fixa.
+        --
+        -- Defeito relatado em 08/09, com print: *"o brilho quando a barra ta quase num tamanho
+        -- minimo, ta ficando parecendo que vai andar pra tras"*. E era exatamente isso. Com
+        -- largura fixa de 10px e uma barra de ~2px (2.9M contra 224M do lider), o rastro saia
+        -- pela ESQUERDA da barra -- e como ele e claro na direita e some na esquerda, lia como
+        -- uma seta apontando para tras.
+        --
+        -- Nao da para consertar medindo: `GetWidth()` na textura de preenchimento e SECRET,
+        -- porque ela e ancorada por valor opaco (`SecretWhenAnchoringSecret`). "Esconde quando o
+        -- rastro for maior que a barra" e uma comparacao que o Lua nao pode fazer.
+        --
+        -- Prendendo as DUAS pontas, a largura do brilho passa a SER a do preenchimento -- por
+        -- construcao, em qualquer tamanho, sem o Lua saber qual e. Barra pequena, brilho pequeno;
+        -- e nunca ha nada a esquerda do inicio.
         faixa.spark:ClearAllPoints()
-        faixa.spark:SetPoint("RIGHT", faixa.bar:GetStatusBarTexture(), "RIGHT", 1, 0)
+        local preenchimento = faixa.bar:GetStatusBarTexture()
+        faixa.spark:SetPoint("LEFT", preenchimento, "LEFT", 0, 0)
+        faixa.spark:SetPoint("RIGHT", preenchimento, "RIGHT", 0, 0)
         faixa.spark:SetHeight(height - CELL_INSET * 2)
 
         -- TODO NUMERO SE ESCONDE ANTES, e so os deste desenho voltam.
@@ -2771,8 +2791,20 @@ function Window.DebugRow(index)
             for gi in ipairs(GroupSpans()) do
                 local faixa = row.groups[gi]
                 if faixa and faixa.spark then
-                    local _, rel = faixa.spark:GetPoint(1)
-                    out[gi] = rel == faixa.bar:GetStatusBarTexture()
+                    -- ⚑ AS DUAS ANCORAS, e nao so a primeira. E a segunda que impede o brilho de
+                    -- ser maior que a barra: com largura fixa e uma barra de 2px, o rastro saia
+                    -- pela esquerda e lia como uma seta para tras (print do usuario, 08/09).
+                    -- Conferir so a ancora da direita deixaria esse defeito voltar em silencio.
+                    local fill = faixa.bar:GetStatusBarTexture()
+                    local presas, lados = 0, {}
+                    for i = 1, faixa.spark:GetNumPoints() do
+                        local ponto, rel = faixa.spark:GetPoint(i)
+                        if rel == fill then
+                            presas = presas + 1
+                            lados[ponto] = true
+                        end
+                    end
+                    out[gi] = presas == 2 and lados.LEFT == true and lados.RIGHT == true
                 else
                     out[gi] = false
                 end

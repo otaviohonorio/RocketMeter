@@ -1563,8 +1563,21 @@ do
     --
     -- A fonte do 12.1.0 faz assim em seis lugares (linha do tempo de encontro, gerenciador de
     -- recargas, barra de honra, barras de widget), um deles movido por valor secret.
-    check("a faisca esta presa no preenchimento", primeira.cellSparkOnFill[1], true)
+    -- E PELAS DUAS PONTAS. Presa so pela direita com largura fixa, ela fica MAIOR que a barra
+    -- quando a barra e pequena, e o excedente sai pela esquerda -- lendo como uma seta para tras.
+    -- Foi o defeito de 08/09, com print: "o brilho quando a barra ta quase num tamanho minimo, ta
+    -- ficando parecendo que vai andar pra tras".
+    --
+    -- Nao da para consertar medindo: `GetWidth()` na textura de preenchimento e SECRET, porque ela
+    -- e ancorada por valor opaco. Prender as duas pontas resolve por CONSTRUCAO -- a largura do
+    -- brilho passa a ser a do preenchimento sem ninguem precisar saber qual e.
+    check("a faisca esta presa no preenchimento pelas duas pontas",
+        primeira.cellSparkOnFill[1], true)
     check("  em todos os grupos", primeira.cellSparkOnFill[2], true)
+
+    -- Uma terceira verificacao seria redundante e o simulador nao a sustentaria: com as duas
+    -- pontas ancoradas, qualquer `SetWidth` e ignorado pelo motor -- e aqui todo widget nasce com
+    -- largura 400, entao "largura propria" e indistinguivel de "largura nunca definida".
 
     -- E ONDE NAO HA VALOR, NADA. "Sem valor" sao DOIS casos, e os dois tem que esconder a pista:
     --
