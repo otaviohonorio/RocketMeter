@@ -122,6 +122,13 @@ local FONT_SIZE_DEFAULT = 16
 -- alta por causa das linhas, que e o que se pediu.
 local SECTION_HEADER_HEIGHT = 16
 
+-- QUANTO O NUMERO E A TAXA RESERVAM a direita da barra. E reserva fixa, nao medicao: medir o
+-- texto a cada quadro daria uma largura que muda conforme o numero cresce ("9K" -> "12K" ->
+-- "134K"), e o nome ficaria pulando de tamanho no meio da luta.
+--
+-- 96 = ~56 para o total (cabe "1.2B") + ~34 para a taxa + a folga entre os dois.
+local NUMBER_RESERVE = 96
+
 local ROW_HEIGHT_FIXED = 25   -- medido no nativo: linha de y=68 a y=92
 local COLUMN_WIDTH_FIXED = 58
 local ROW_BAR_HEIGHT = 3      -- a faixa de progresso no rodape da linha (= PROGRESS_HEIGHT)
@@ -1056,13 +1063,32 @@ local function ColumnOffsets()
     return offsets, running
 end
 
+---A largura minima da janela.
+---
+---Ela somava a largura das colunas (7 x 58 = 406), o que fazia a janela nascer com 508px de
+---largura minima por causa de colunas que nao sao mais desenhadas. Agora e o que a LINHA precisa:
+---icone, um nome legivel e o espaco do numero.
 local function MinWidth()
-    local _, columnsWidth = ColumnOffsets()
-    return PADDING * 2 + NAME_MIN_WIDTH + columnsWidth
+    -- ICONE + NOME LEGIVEL + O ESPACO DO NUMERO. Nada de `ColumnOffsets`: as colunas nao sao mais
+    -- desenhadas, e somar a largura delas fazia a janela nascer com 508px de minimo por causa de
+    -- 406px de nada.
+    return PADDING * 2 + RowHeight() + NAME_MIN_WIDTH + NUMBER_RESERVE
 end
+
+-- A LARGURA PADRAO, para quem nunca arrastou a janela.
+--
+-- Ela nao pode ser o MINIMO. Com o layout de colunas os dois coincidiam por acaso -- o minimo era
+-- 508px porque somava sete colunas --, e ninguem reparou. Sem as colunas o minimo caiu para 227,
+-- e usa-lo como padrao daria uma janela em que o nome tem 86px: "Lilianvoss" cortado de novo, so
+-- que por outro motivo.
+--
+-- 340 = os 227 do minimo + ~110 de folga para o nome. E o ponto em que um nome de reino longo
+-- ("Frenchmiku-Tichondrius") ainda cabe sem o numero encostar nele.
+local DEFAULT_WIDTH = 340
 
 local function WindowWidth()
     local saved = ns.db.width or 0
+    if saved <= 0 then saved = DEFAULT_WIDTH end
     local minimum = MinWidth()
     return saved > minimum and saved or minimum
 end
@@ -1092,21 +1118,30 @@ local function WindowHeight(rowCount)
     return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
 end
 
+-- Existe porque quatro caminhos (soltar a alca, mudar as colunas, mudar o corpo da fonte,
+-- arrastar) chamavam `WindowHeight(ns.db.rows)`, a formula do layout ANTIGO. Um lugar so decide
+-- altura, e ele pergunta ao desenho.
+-- ⚑ ELA VEM ANTES DE QUEM A LE, e esta linha custou uma versao inteira.
+--
+-- Na 0.67.2 eu declarei `local alturaDesenhada` SEIS LINHAS DEPOIS de `CurrentHeight`, que a le.
+-- Em Lua 5.1 o nome resolve como GLOBAL dentro da funcao, e global nunca atribuida e nil -- entao
+-- `CurrentHeight()` devolvia SEMPRE o fallback, que e a formula do layout de colunas. A correcao
+-- que eu tinha acabado de enviar era **inerte**, e os quatro caminhos continuavam encolhendo a
+-- janela para a altura de uma lista so.
+--
+-- E a setima vez nesta sessao. O arquivo ja documenta a armadilha em tres lugares.
+local alturaDesenhada
+-- Quantas secoes o ultimo desenho pos na tela. A alca precisa do mesmo numero que o desenho usou,
+-- senao as duas contas discordam e o arraste nao converge.
+local secoesDesenhadas = 1
+
 ---A altura que a janela deve ter AGORA, pelo que esta desenhado.
----
----Existe porque quatro caminhos diferentes (soltar a alca, mudar as colunas, mudar o corpo da
----fonte, arrastar) chamavam `WindowHeight(ns.db.rows)`, que e a formula do layout ANTIGO --
----cabecalho de coluna mais N linhas de uma lista so. Cada um deles devolvia a janela para uma
----altura que nao tem relacao com as secoes desenhadas, e o conteudo ficava cortado ou boiando.
----
----Um lugar so decide altura, e ele pergunta ao desenho.
 local function CurrentHeight()
     return alturaDesenhada or WindowHeight(ns.db.rows)
 end
 
 Window.__HeightForSections = HeightForSections
-
-local alturaDesenhada
+Window.__CurrentHeight = function() return CurrentHeight() end
 
 ---Quanto uma linha ocupa de altura, com a separação.
 local function RowStep()
@@ -1118,12 +1153,24 @@ end
 ---`floor`, e não `floor(x + 0.5)`: arredondar para o mais próximo aceita uma altura em que a
 ---última linha **não cabe**, e o jogador vê meia linha. O pedido foi literal — "para não
 ---cortar a linha de um jogador". Para baixo sempre cabe.
-local function RowsThatFit(height)
-    local usable = height - HEADER_HEIGHT - ColumnHeaderHeight() - PADDING
-    local n = math.floor(usable / RowStep())
-    if n < MIN_ROWS then n = MIN_ROWS end
-    if n > MAX_ROWS then n = MAX_ROWS end
-    return n
+---@param height number
+---@param sectionCount number|nil quantas secoes estao na tela (padrao: 1)
+local function RowsThatFit(height, sectionCount)
+    -- A FORMULA E A INVERSA DA QUE O DESENHO USA, e antes nao era.
+    --
+    -- Ela descontava `ColumnHeaderHeight()` -- que nao e mais desenhado -- e ignorava
+    -- `SECTION_HEADER_HEIGHT`, que agora aparece uma vez POR SECAO. E `ns.db.rows` mudou de
+    -- significado: era o total de linhas da janela, virou linhas POR SECAO. Com tres secoes a
+    -- alca calculava um numero que o desenho triplicava, entao arrastar nunca convergia: a
+    -- janela crescia, o desenho crescia mais, e a alca pedia mais ainda.
+    local n = sectionCount or secoesDesenhadas or 1
+    if n < 1 then n = 1 end
+
+    local usable = height - HEADER_HEIGHT - PADDING - n * SECTION_HEADER_HEIGHT
+    local linhas = math.floor(usable / (n * RowStep()))
+    if linhas < MIN_ROWS then linhas = MIN_ROWS end
+    if linhas > MAX_ROWS then linhas = MAX_ROWS end
+    return linhas
 end
 
 -- Ganchos para o harness: a geometria é a parte testável desta tela, e sem isso o teste teria
@@ -1474,41 +1521,36 @@ local function BuildRow(index, offsetY)
     ns.ApplyRoleFont(row.realm, "body", REALM_FONT_DELTA)
     SyncHaloFont(row.realm, row.realmHalo, REALM_FONT_DELTA)
 
+    -- AS CELULAS POR COLUNA SAEM DE CENA. No desenho em secoes os numeros vao dentro da barra
+    -- (`row.value` e `row.rate`); estas FontStrings continuavam sendo criadas, dimensionadas e
+    -- `Show()`adas -- sete por linha -- sem NUNCA receber texto. Invisiveis, mas nao inofensivas:
+    -- era a largura delas que estragava o nome (ver abaixo).
     for _, cell in pairs(row.cells) do
         cell:Hide()
     end
 
-    local offsets, columnsWidth = ColumnOffsets()
+    -- A FONTE DOS NUMEROS DA BARRA, que faltava. `row.value` e `row.rate` nasceram com o template
+    -- `GameFontHighlightSmall` e nunca passavam por `ApplyRoleFont`, entao ficavam no corpo do
+    -- template -- ignorando fonte, tamanho, contorno e sombra que o jogador escolheu. Todo o
+    -- resto da linha respeita a configuracao; so o numero, que e o que se le, nao respeitava.
+    ns.ApplyRoleFont(row.value, "body", 0)
+    SyncHaloFont(row.value, row.valueHalo, 0)
+    ns.ApplyRoleFont(row.rate, "body", REALM_FONT_DELTA)
+    SyncHaloFont(row.rate, row.rateHalo, REALM_FONT_DELTA)
 
-    for c = 1, #ns.db.columns do
-        local cell = row.cells[c]
-        if not cell then
-            cell = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            cell:SetJustifyH("RIGHT")
-            row.cells[c] = cell
-
-            row.cellHalos = row.cellHalos or {}
-            row.cellHalos[c] = CreateHalo(row.text, cell)
-        end
-        -- Corpo único na linha inteira: a coluna ordenada não cresce. Números de tamanhos
-        -- diferentes lado a lado desalinham a leitura vertical, e quem está ordenando já sabe
-        -- por qual coluna — o dourado no cabeçalho diz isso sem mexer no corpo.
-        ns.ApplyRoleFont(cell, "body", 0)
-        SyncHaloFont(cell, row.cellHalos and row.cellHalos[c], 0)
-        cell:SetWidth(ColumnWidth() - 8)
-        if row.cellHalos and row.cellHalos[c] then
-            for _, echo in ipairs(row.cellHalos[c]) do
-                echo:SetWidth(ColumnWidth() - 8)
-            end
-        end
-        cell:ClearAllPoints()
-        cell:SetPoint("RIGHT", row.text, "RIGHT", -offsets[c] - 4, TEXT_LIFT)
-        cell:Show()
-    end
-
-    -- Area disponivel para nome + reino. A repartição entre os dois acontece no desenho,
-    -- porque depende do texto de cada linha.
-    row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - 10
+    -- A AREA DO NOME, e este era o defeito que o usuario VIU.
+    --
+    -- Ela descontava `columnsWidth` -- a largura das colunas do layout antigo. Com o conjunto
+    -- padrao de Mitico+ sao 7 colunas x 58 = **406px** reservados para colunas que nao existem
+    -- mais. Numa janela de 508 sobravam 57px para o nome: "Lilianvoss" virava "Lilianvo…" numa
+    -- barra de 500px, com um vao morto de ~317px entre o nome e o numero.
+    --
+    -- Agora ela desconta o que esta REALMENTE na linha: o icone e o espaco que o numero e a taxa
+    -- ocupam a direita. `NUMBER_RESERVE` e reserva, nao medicao: medir com `GetStringWidth` daria
+    -- uma largura que muda a cada quadro conforme o numero cresce, e o nome ficaria pulando.
+    local reserva = NUMBER_RESERVE
+    row.nameArea = WindowWidth() - PADDING * 2 - iconSize - 10 - reserva
+    if row.nameArea < 40 then row.nameArea = 40 end
     row.name:SetWidth(row.nameArea)
     row.realm:SetWidth(0)
     return row
@@ -2096,6 +2138,8 @@ function Window.Draw()
     end
     -- `alturaDesenhada`, nao `visibleRows`: o que se guarda aqui e ALTURA, e reusar a variavel
     -- de contagem de linhas para isso e o tipo de economia que vira defeito na proxima leitura.
+    secoesDesenhadas = #secoes
+
     if altura ~= alturaDesenhada then
         alturaDesenhada = altura
         frame:SetHeight(altura)
@@ -2124,6 +2168,7 @@ function Window.DebugFirstRow()
     return {
         plate = row.valuePlate:IsShown(),
         track = row.barTrack:IsShown(),
+        nameArea = row.nameArea or 0,
         -- A opacidade do fundo da linha: 0 e transparente (o numero cai sobre o cenario),
         -- maior que 0 e o chao que o tingimento devolve.
         bgAlpha = cor and cor[4] or nil,

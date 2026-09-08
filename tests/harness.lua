@@ -1321,6 +1321,19 @@ do
     -- mostrado em `-HEADER_HEIGHT`, que e exatamente onde o cabecalho da PRIMEIRA SECAO vai --
     -- a janela desenhava os dois layouts um sobre o outro, e foi o que o usuario viu.
     check("o cabecalho de colunas antigo sumiu", ns.Window.DebugColumnHeaderShown(), false)
+
+    -- A ALTURA GUARDADA TEM QUE SER A DAS SECOES, nao a formula do layout antigo. Na 0.67.2 a
+    -- variavel `alturaDesenhada` foi declarada DEPOIS da funcao que a le: em Lua 5.1 isso resolve
+    -- como global nil, entao `CurrentHeight()` devolvia sempre o fallback e a correcao que eu
+    -- tinha acabado de enviar era **inerte**. Setima vez nesta sessao.
+    check("CurrentHeight le a altura desenhada, nao um global nil",
+        ns.Window.__CurrentHeight() == altura, true)
+
+    -- E O NOME TEM ESPACO. Ele descontava a largura das 7 colunas do layout antigo (7 x 58 =
+    -- 406px) numa janela de 508: sobravam 57px, e "Lilianvoss" virava "Lilianvo…" numa barra de
+    -- 500px com ~317px de vao morto. Era a diferenca mais visivel entre o desenho prometido e o
+    -- que foi para a tela.
+    check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 150, true)
     check("a primeira e Dano", secoes[1].label, ns.L["Damage"])
     check("a segunda e Cura", secoes[2].label, ns.L["Healing"])
     check("a terceira e Interrupcoes", secoes[3].label, ns.L["Interrupts"])
@@ -1735,31 +1748,52 @@ end
 print("== redimensionar nao pode cortar a linha de um jogador ==")
 -- Pedido do usuario: "criar um minimo aceitavel para caber as informacoes de acordo com as
 -- colunas e as linhas, para nao cortar a linha de um jogador".
+-- ⚑ E O PAR TEM QUE SER O DO DESENHO ATUAL. Ate a 0.67.2 este teste comparava
+-- `__WindowHeight` (a formula do layout de COLUNAS) com `__RowsThatFit`, e ficou verde enquanto a
+-- janela desenhava secoes -- ele validava um par de formulas que ninguem mais usava. A auditoria
+-- de 08/09 chamou isso pelo nome: *"passa verde para sempre"*.
+--
+-- Agora o par e `HeightForSections(n, linhas)` x `RowsThatFit(altura, n)`, que sao as duas contas
+-- que a janela realmente faz -- e sao inversas uma da outra por construcao.
 do
-    local altura = ns.Window.__WindowHeight
+    local altura = ns.Window.__HeightForSections
     local cabem = ns.Window.__RowsThatFit
     check("os dois auxiliares estao expostos", altura ~= nil and cabem ~= nil, true)
 
     if altura and cabem then
-        -- Meia linha a mais NAO pode virar uma linha a mais.
+        -- UMA SECAO, o caso simples: a inversa tem que fechar exatamente.
+        local falhou
         for n = 1, 12 do
-            local exata = altura(n)
-            if cabem(exata) ~= n then
-                check("altura exata de " .. n .. " linha(s) devolve " .. n, cabem(exata), n)
-            end
-            -- sobra de meia linha: continua sendo n, nunca n+1
-            local sobrando = exata + math.floor(ns.Window.__RowStep() / 2)
-            if cabem(sobrando) ~= n then
-                check("meia linha sobrando nao promove (" .. n .. ")", cabem(sobrando), n)
-            end
+            local exata = altura(1, n)
+            if cabem(exata, 1) ~= n then falhou = n end
         end
-        check("varredura de 1 a 12 linhas sem corte", true, true)
+        check("uma secao: a inversa fecha de 1 a 12 linhas", falhou, nil)
 
-        -- Faltando um pixel para a ultima linha: tem que devolver n-1, nao n.
-        check("faltando 1px, a ultima linha nao entra", cabem(altura(6) - 1), 5)
+        -- TRES SECOES, que e o caso do pedido (Dano, Cura, Interrupcoes). E aqui a formula antiga
+        -- errava por um fator de tres: `ns.db.rows` deixou de ser o total da janela e virou
+        -- linhas POR SECAO, entao a alca pedia um numero que o desenho triplicava -- arrastar
+        -- crescia a janela, o desenho crescia mais, e nunca convergia.
+        falhou = nil
+        for n = 1, 8 do
+            local exata = altura(3, n)
+            if cabem(exata, 3) ~= n then falhou = n end
+        end
+        check("tres secoes: a inversa tambem fecha", falhou, nil)
+
+        -- MEIA LINHA A MAIS NAO PROMOVE. Pedido literal do usuario: "para nao cortar a linha de
+        -- um jogador".
+        falhou = nil
+        for n = 1, 8 do
+            local sobrando = altura(3, n) + math.floor(ns.Window.__RowStep() / 2)
+            if cabem(sobrando, 3) ~= n then falhou = n end
+        end
+        check("meia linha sobrando nao vira uma linha", falhou, nil)
+
+        -- Faltando um pixel para a ultima linha de cada secao: devolve n-1.
+        check("faltando 1px, a ultima linha nao entra", cabem(altura(3, 6) - 1, 3), 5)
 
         -- Piso: nunca abaixo de uma linha, por menor que seja a altura.
-        check("altura absurda nao vai a zero linhas", cabem(10), 1)
+        check("altura absurda nao vai a zero linhas", cabem(10, 3), 1)
     end
 end
 

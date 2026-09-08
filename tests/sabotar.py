@@ -32,6 +32,24 @@ if not os.path.exists(LUA):
 
 # (nome, arquivo, de, para, label do check que TEM que reprovar)
 SABOTAGENS = [
+    ("o nome volta a descontar as colunas que sumiram", "Window.lua",
+     u"    row.nameArea = WindowWidth() - PADDING * 2 - iconSize - 10 - reserva",
+     u"    row.nameArea = WindowWidth() - PADDING * 2 - 406 - iconSize - 10",
+     "o nome tem largura de verdade"),
+
+    # A declaracao volta para DEPOIS de quem a le -- que e literalmente o defeito da 0.67.2.
+    ("CurrentHeight volta a ler um global nil", "Window.lua",
+     u"    return alturaDesenhada or WindowHeight(ns.db.rows)",
+     u"    return alturaQueSoExisteDepois or WindowHeight(ns.db.rows)",
+     "CurrentHeight le a altura desenhada, nao um global nil"),
+
+    ("a alca volta a medir o layout de colunas", "Window.lua",
+     u"    local usable = height - HEADER_HEIGHT - PADDING - n * SECTION_HEADER_HEIGHT\n"
+     u"    local linhas = math.floor(usable / (n * RowStep()))",
+     u"    local usable = height - HEADER_HEIGHT - ColumnHeaderHeight() - PADDING\n"
+     u"    local linhas = math.floor(usable / RowStep())",
+     "tres secoes: a inversa tambem fecha"),
+
     ("os dois layouts desenhados um sobre o outro", "Window.lua",
      u"    HideColumnHeader()",
      u"    BuildColumnHeader()",
