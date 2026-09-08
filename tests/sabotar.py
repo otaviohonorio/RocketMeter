@@ -54,14 +54,14 @@ SABOTAGENS = [
      u'    local escala = ns.RoleSizeSafe("body") / 16',
      u'    base = COLUMN_WIDTH_FIXED\n'
      u'    local escala = ns.RoleSizeSafe("body") / 16',
-     "dano (total) e mais largo que DPS (taxa)"),
+     "dano (total) e mais largo que interrupcoes (contagem)"),
 
     # Interrupcoes tambem e `field = "total"`: classificar por formato dava a ela a largura de
     # "1.2B" para escrever "8". Quem separa os dois e a marca `counts` do catalogo.
     ("a coluna de contagem volta a ter largura de total", "Data.lua",
      u"        list[i].counts = CONTAGEM[list[i].attr] or nil",
      u"        list[i].counts = nil",
-     "e DPS e mais largo que interrupcoes (contagem)"),
+     "dano (total) e mais largo que interrupcoes (contagem)"),
 
     ("a faixa de classe volta a cruzar a linha toda", "Window.lua",
      u"    row.bar:SetWidth(math.max(1, nomeAteX - 2))",
@@ -100,18 +100,16 @@ SABOTAGENS = [
      u"                    Window.Refresh(true)",
      u"                    ns.db.sortBy = key\n"
      u"                    ns.db.sortDesc = true",
-     "a lista foi reordenada de verdade"),
+     "e o dourado esta no grupo que ordena"),
 
     ("clicar de novo troca de coluna em vez de inverter", "Window.lua",
-     u"                elseif ns.db.sortBy == key then\n"
-     u"                    ns.db.sortDesc = not ns.db.sortDesc",
-     u"                elseif false then\n"
-     u"                    ns.db.sortDesc = not ns.db.sortDesc",
-     "e a ordem inverteu"),
+     u"                elseif self.groupHasSort then",
+     u"                elseif false then",
+     "clicar no grupo que ja ordena inverte a ordem"),
 
     ("o cabecalho de colunas some", "Window.lua",
-     u"    BuildColumnHeader()\n\n    for i = 1, ns.db.rows do",
-     u"    HideColumnHeader()\n\n    for i = 1, ns.db.rows do",
+     u"    BuildColumnHeader()\n\n    local posicaoDe",
+     u"    HideColumnHeader()\n\n    local posicaoDe",
      "o cabecalho de colunas esta na tela"),
 
     # A regua deixa de chegar a coluna: todas caem no fallback 1, e a barra de cada uma passa a
@@ -125,6 +123,103 @@ SABOTAGENS = [
 
 
 
+
+
+    # ------------------------------------------------------------------ a mescla de colunas
+    # IDEIA DO USUARIO, 08/09: "Dano - DPS" num cabecalho so, "65.1M - 48K" numa celula so. Cada
+    # linha abaixo e uma forma de a mescla se desfazer sem estourar nada.
+
+    ("o cabecalho volta a nomear uma metrica so", "Window.lua",
+     u'    return table.concat(partes, " - ")\nend\n\nlocal function ColumnWidthFor',
+     u'    return partes[1]\nend\n\nlocal function ColumnWidthFor',
+     "o primeiro junta os dois nomes"),
+
+    ("a celula escreve so o primeiro numero", "Window.lua",
+     u'    return table.concat(partes, " - "), false',
+     u'    return partes[1], false',
+     "a celula do grupo traz total E taxa"),
+
+    # Ordenar por DPS e por dano da a MESMA lista, entao trocar isto nao muda ordem nenhuma: o
+    # que quebra e o dourado, que passa a prometer "DPS" e a coluna clicavel a responder "dano".
+    ("o grupo passa a ser ordenado pela taxa", "Data.lua",
+     u'            grupo.keys[#grupo.keys + 1] = def.key',
+     u'            grupo.keys[#grupo.keys + 1] = def.key\n'
+     u'            grupo.key = def.key',
+     "o grupo e ordenado pelo total"),
+
+    # O DEFEITO QUE A MESCLA CRIOU: `columnIndex` virou indice de GRUPO, e o handler continuava
+    # lendo `ns.db.columns` com ele. Com {dano, DPS, cura, CPS, interr} o terceiro cabecalho e
+    # "Interr" e a terceira coluna e "cura" -- clicar em um ordenava pelo outro.
+    ("o clique volta a ler a coluna pelo indice do grupo", "Window.lua",
+     u"                local key = self.sortKey",
+     u"                local key = ns.db.columns[self.columnIndex]",
+     "e ordena pela metrica DELE"),
+
+    ("mover separa o total da taxa", "Window.lua",
+     u"    lista[index], lista[target] = lista[target], lista[index]",
+     u"    ns.db.columns[index], ns.db.columns[target] =\n"
+     u"        ns.db.columns[target], ns.db.columns[index]",
+     "mover trocou os dois primeiros grupos"),
+
+    # O CACHE DE GRUPOS NAO PODE ENVELHECER. Ele existe para os quatro consumidores de um mesmo
+    # desenho verem a mesma lista; se o desenho o LE em vez de refaze-lo, a tela fica com os
+    # grupos do desenho anterior sobre os dados do atual.
+    ("o desenho le o cache velho de grupos", "Window.lua",
+     u"    local gruposDesenho = RefreshGroups()",
+     u"    local gruposDesenho = Groups()",
+     "a primeira linha tem uma celula por coluna"),
+
+    # O dourado e o UNICO sinal de qual coluna ordena. Pintado so na reconstrucao, ele ficava na
+    # coluna anterior depois de um clique -- a janela mentindo sobre o que estava mostrando.
+    ("o cabecalho volta a ser pintado so na reconstrucao", "Window.lua",
+     u"local function BuildColumnHeader()\n    if not headerRow then",
+     u"local jaMontado\n"
+     u"local function BuildColumnHeader()\n"
+     u"    if jaMontado then return end\n"
+     u"    jaMontado = true\n"
+     u"    if not headerRow then",
+     "e o dourado esta no grupo que ordena"),
+
+    # A barra mede o TOTAL. As duas metricas dariam a mesma proporcao, mas so o total e o numero
+    # que o cabecalho dourado promete estar ordenando.
+    # ⚑ A MAIS IMPORTANTE DA MESCLA, e esta sabotagem corrigiu o comentario que eu tinha
+    # escrito: sem a guarda NADA estoura. `FormatCell` recusa valor secret e devolve traco, entao
+    # a celula mesclada mostra "- - -" em combate -- o numero some, em silencio, na hora em que o
+    # medidor serve para alguma coisa. Defeito silencioso e pior que erro de Lua: erro tem log.
+    ("a celula junta valor secret", "Window.lua",
+     u"        if valor ~= nil and issecretvalue(valor) then return valor, true end",
+     u"        -- sabotado",
+     "a celula do grupo opaco nao junta numeros"),
+
+    # O dourado tem que seguir o GRUPO. Com `sortBy = "dps"` nenhum grupo tem `key == sortBy`,
+    # e a janela ordenava sem dizer por qual coluna.
+    ("o dourado volta a exigir a coluna exata", "Window.lua",
+     u"        if GroupHas(grupo, ns.db.sortBy) then",
+     u"        if grupo.key == ns.db.sortBy then",
+     "ordenado por DPS, o grupo do dano fica dourado"),
+
+    ("clicar no grupo que ordena pela taxa troca em vez de inverter", "Window.lua",
+     u"                elseif self.groupHasSort then",
+     u"                elseif ns.db.sortBy == key then",
+     "clicar no grupo que ja ordena inverte a ordem"),
+
+    # A largura do grupo TEM que acompanhar o corpo da fonte: congelada, ela cabe o texto no
+    # corpo padrao e o estoura em qualquer corpo maior -- e o corpo e ajustavel pelo jogador.
+    ("a largura da coluna para de seguir o corpo da fonte", "Window.lua",
+     u'    local escala = ns.RoleSizeSafe("body") / 16',
+     u"    local escala = 1",
+     "  e o texto mesclado cabe nela"),
+
+    # E a fatia do segundo numero nao pode encolher a ponto de o texto nao caber.
+    ("o segundo numero ganha uma fatia pequena demais", "Window.lua",
+     u"        largura = largura + math.floor(ColumnWidthFor(grupo.keys[i]) * 0.62 + 0.5)",
+     u"        largura = largura + math.floor(ColumnWidthFor(grupo.keys[i]) * 0.10 + 0.5)",
+     "  e o texto mesclado cabe nela"),
+
+    ("a barra passa a medir a taxa", "Window.lua",
+     u"                local principal = entry.values[indices[c][1]]",
+     u"                local principal = entry.values[indices[c][#indices[c]]]",
+     "a barra usa o valor do total"),
 
     ("coluna sem construtor de celula", "Scoreboard.lua",
      u"CellBuilders.score = CellBuilders.value",

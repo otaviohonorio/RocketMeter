@@ -1358,15 +1358,24 @@ do
     check("as colunas nao compartilham regua", distintas > 1, true)
     check("e nenhuma caiu no 1 de fallback", reguas[1], nil)
 
-    -- E O LIDER E A BARRA CHEIA. Em cada coluna, alguem tem valor igual a regua.
-    local scales = ns.Data.GetColumnScales(0, ns.db.columns)
-    for c = 1, #ns.db.columns do
+    -- E O LIDER E A BARRA CHEIA. Em cada grupo, alguem tem valor igual a regua.
+    --
+    -- A regua e lida pela coluna que ORDENA o grupo (o total), porque e o valor dela que a barra
+    -- desenha: as duas metricas de um grupo dariam a mesma proporcao, mas ler pelo total deixa
+    -- explicito qual dos dois numeros a geometria esta contando.
+    local grupos = ns.Data.GroupColumns(ns.db.columns)
+    local porColuna = ns.Data.GetColumnScales(0, ns.db.columns)
+    local posicaoDe = {}
+    for i = 1, #ns.db.columns do posicaoDe[ns.db.columns[i]] = i end
+
+    for c = 1, #grupos do
+        local regua = porColuna[posicaoDe[grupos[c].keys[1]]]
         local cheia
         for linha = 1, ns.db.rows do
             local cell = ns.Window.DebugCells(linha)[c]
-            if cell and cell.value == scales[c] then cheia = linha end
+            if cell and cell.value == regua then cheia = linha end
         end
-        check("a coluna " .. ns.db.columns[c] .. " tem uma barra cheia", cheia ~= nil, true)
+        check("o grupo " .. grupos[c].key .. " tem uma barra cheia", cheia ~= nil, true)
     end
 
     -- O NUMERO NAO GANHA COR DE CLASSE, nem o do lider. Pedido do usuario: *"nao precisa colocar
@@ -1394,13 +1403,13 @@ do
     -- Uma largura so para todas dava o mesmo espaco para "339M" e para "8": a primeira apertada,
     -- a segunda com metade vazia.
     do
-        ns.db.columns = { "damage", "dps", "interrupts" }
+        ns.db.columns = { "damage", "interrupts" }
         ns.Window.Rebuild()
         ns.Window.Draw()
 
         local larguras = ns.Window.DebugFirstRow().cellWidths
-        check("dano (total) e mais largo que DPS (taxa)", larguras[1] > larguras[2], true)
-        check("e DPS e mais largo que interrupcoes (contagem)", larguras[2] > larguras[3], true)
+        check("dano (total) e mais largo que interrupcoes (contagem)",
+            larguras[1] > larguras[2], true)
         check("e o dano ficou MAIOR que os 58 de antes", larguras[1] > 58, true)
 
         ns.db.columns = { "damage", "healing", "interrupts" }
@@ -1436,6 +1445,269 @@ do
     check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 60, true)
 end
 
+print("== o total e a taxa moram na MESMA coluna ==")
+-- IDEIA DO USUARIO, 08/09: *"ao inves de ter duas colunas, DPS Dano e Cura e CPS, vamos mesclar
+-- para apenas uma coluna, e colocar como o Details faz, no header: Dano - DPS, Cura - CPS, no
+-- resultado, exemplo: 65.1M - 48K, 1.7M - 1.2K. Desta forma temos uma barra melhor estruturada"*.
+--
+-- O ganho que ele nomeou e o de espaco: duas colunas viram uma, sobra largura para a barra -- que
+-- era a queixa da versao anterior. O ganho que ele nao precisou nomear e maior: **o total e a taxa
+-- sao a mesma medida em duas unidades**. Em colunas separadas o olho tinha que cruzar a linha para
+-- juntar "quanto" com "quao rapido"; juntos, e uma leitura so.
+do
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+    ns.db.sortBy = "damage"
+    ns.db.rows = 5
+    ns.Window.Show(false)
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+
+    local grupos = ns.Data.GroupColumns(ns.db.columns)
+    check("cinco colunas marcadas viram tres grupos", #grupos, 3)
+    check("  e dano leva o DPS junto", #grupos[1].keys, 2)
+    check("  e cura leva o CPS", #grupos[2].keys, 2)
+    check("  e interrupcoes fica sozinha", #grupos[3].keys, 1)
+
+    -- QUEM ORDENA E O TOTAL. Ordenar por DPS e por dano da a MESMA lista (a taxa e o total sobre o
+    -- mesmo tempo), mas e o total que o jogador ve em destaque -- e a coluna ordenada fica dourada.
+    -- Dourar "Dano - DPS" e ordenar por DPS contaria duas historias sobre a mesma coluna.
+    check("o grupo e ordenado pelo total", grupos[1].key, "damage")
+
+    local marcadaAoContrario = ns.Data.GroupColumns({ "dps", "damage" })
+    check("mesmo quando a taxa foi marcada primeiro", marcadaAoContrario[1].key, "damage")
+    check("  sem trocar a ordem de leitura do rotulo", marcadaAoContrario[1].keys[1], "dps")
+
+    -- O CABECALHO ESCREVE OS DOIS NOMES, e o dourado marca o grupo ordenado.
+    local cabecalhos = ns.Window.DebugHeaders()
+    check("o cabecalho tem um rotulo por grupo", #cabecalhos, 3)
+    check("o primeiro junta os dois nomes",
+        cabecalhos[1].text, ns.Data.GetShortLabel("damage") .. " - " .. ns.Data.GetShortLabel("dps"))
+    check("e o grupo ordenado esta dourado", cabecalhos[1].sorted, true)
+    check("e so ele", cabecalhos[2].sorted, false)
+
+    -- E A CELULA ESCREVE OS DOIS NUMEROS, com o mesmo separador do cabecalho: e o que faz o
+    -- jogador ler "Dano - DPS" em cima e "65.1M - 48K" embaixo como a mesma dupla.
+    local celulas = ns.Window.DebugCells(1)
+    check("a linha tem uma celula por grupo", #celulas, 3)
+
+    local linhas = ns.Data.GetRows(0, ns.db.sortBy, ns.db.columns, ns.db.rows)
+    local esperado = ns.Data.FormatCell(linhas[1].values[1], "damage")
+        .. " - " .. ns.Data.FormatCell(linhas[1].values[2], "dps")
+    check("a celula do grupo traz total E taxa", celulas[1].text, esperado)
+    check("  e a de interrupcoes traz so o numero dela",
+        celulas[3].text, ns.Data.FormatCell(linhas[1].values[5], "interrupts"))
+
+    -- A BARRA MEDE O TOTAL, nao a taxa. As duas dariam a mesma proporcao, mas so uma delas e o
+    -- numero que o cabecalho dourado promete estar ordenando.
+    local scales = ns.Data.GetColumnScales(0, ns.db.columns)
+    check("a barra usa o valor do total", celulas[1].value, linhas[1].values[1])
+    check("medido pela regua do total", celulas[1].scale, scales[1])
+
+    -- E O ESPACO VOLTOU PARA A BARRA: o grupo e mais largo que uma coluna sozinha (escreve dois
+    -- numeros) e MENOS largo que as duas separadas -- a diferenca e o que a mescla devolveu.
+    local larguras = ns.Window.DebugFirstRow().cellWidths
+
+    ns.db.columns = { "damage", "healing", "interrupts" }
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+    local soTotais = ns.Window.DebugFirstRow().cellWidths
+
+    check("o grupo mesclado e mais largo que so o total", larguras[1] > soTotais[1], true)
+    check("e mais estreito que as duas colunas separadas", larguras[1] < soTotais[1] * 2, true)
+
+    ns.db.sortBy = "damage"
+end
+
+print("== em combate a celula mesclada nao pode juntar os dois numeros ==")
+-- ⚑ O RISCO QUE A MESCLA CRIOU, e ele so existe EM COMBATE -- onde o usuario nao tem como
+-- depurar e onde o defeito e SILENCIOSO.
+--
+-- Eu escrevi aqui que `..` sobre valor secret levantaria erro. A sabotagem desmentiu: sem a
+-- guarda o desenho nao estoura. `FormatCell` recusa valor secret e devolve traco, entao a celula
+-- mesclada mostraria "- - -" -- o numero SUMIRIA em combate, que e quando o medidor serve para
+-- alguma coisa. Some sem erro, sem log, sem nada a que se agarrar.
+--
+-- A saida: com um valor secret no grupo, a celula devolve o PRIMEIRO cru e deixa o motor
+-- desenhar. Perde-se a taxa durante a luta; e o preco de o numero continuar la.
+--
+-- O teste afirma as duas coisas: que nada estoura, E que o que aparece e o mesmo que uma coluna
+-- nao mesclada mostraria. So a segunda pega o defeito real.
+do
+    ns.db.columns = { "damage", "dps", "interrupts" }
+    ns.db.sortBy = "damage"
+    ns.db.rows = 5
+    ns.Window.Show(false)
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+
+    -- Fora de combate, a celula junta os dois: e o caso normal.
+    local antes = ns.Window.DebugCells(1)
+    check("fora de combate a celula junta os dois", antes[1].text:find(" - ") ~= nil, true)
+
+    -- AGORA EM COMBATE. `write` marca todo valor de dano como opaco, e qualquer `..` sobre ele
+    -- levanta -- exatamente como o cliente faz.
+    local opaco = setmetatable({}, {
+        __concat = function() error("attempt to concatenate a secret value", 2) end,
+        __tostring = function() return "SECRET" end,
+    })
+    local realIsSecret = issecretvalue
+    issecretvalue = function(v) return v == opaco end
+
+    -- A FAMILIA QUE FICA OPACA E A DO DANO, lida do catalogo: cravar o numero do enum aqui
+    -- faria o teste passar a mentir no dia em que ele mudasse.
+    local attrDano = ns.Data.GetColumn("damage").attr
+
+    local realGetSession = ns.Data.GetSession
+    ns.Data.GetSession = function(sessionType, attr)
+        local session = realGetSession(sessionType, attr)
+        if session and attr == attrDano then
+            local copia = { maxAmount = session.maxAmount, totalAmount = session.totalAmount,
+                durationSeconds = session.durationSeconds, combatSources = {} }
+            for i, src in ipairs(session.combatSources) do
+                local clone = {}
+                for k, v in pairs(src) do clone[k] = v end
+                -- Os DOIS campos: o total e a taxa. Sao os que a celula mesclada juntaria.
+                clone.totalAmount = opaco
+                clone.amountPerSecond = opaco
+                copia.combatSources[i] = clone
+            end
+            return copia
+        end
+        return session
+    end
+
+    -- O DESENHO NAO PODE ESTOURAR. `SafeDraw` embrulha em `pcall` e guarda o erro: se a
+    -- concatenacao acontecer, ela aparece aqui em vez de sumir numa linha de chat.
+    ns.Window.SafeDraw()
+    check("o desenho nao levantou erro de Lua", ns.Window.GetLastError(), nil)
+
+    -- E A CELULA MOSTRA O VALOR CRU, sem tentar juntar nada.
+    local durante = ns.Window.DebugCells(1)
+    check("a celula do grupo opaco nao junta numeros",
+        durante[1].text ~= nil and tostring(durante[1].text):find(" - "), nil)
+    -- E MOSTRA EXATAMENTE O QUE UMA COLUNA NAO MESCLADA MOSTRARIA.
+    --
+    -- Comparar com o objeto opaco seria estreito demais: `SetCellText` tem uma sondagem propria
+    -- para valor secret (`FormatSecretAmount`) e pode render um texto a partir dele. O que
+    -- importa nao e QUAL forma sai, e sim que a mescla nao muda nada -- em combate a celula
+    -- mesclada e a celula de sempre.
+    ns.db.columns = { "damage" }
+    ns.Window.Rebuild()
+    ns.Window.SafeDraw()
+    local semMescla = ns.Window.DebugCells(1)
+
+    ns.db.columns = { "damage", "dps", "interrupts" }
+    ns.Window.Rebuild()
+    ns.Window.SafeDraw()
+    durante = ns.Window.DebugCells(1)
+
+    check("  e mostra o mesmo que a coluna nao mesclada",
+        durante[1].text, semMescla[1].text)
+
+    -- E O GRUPO QUE NAO ESTA OPACO SEGUE LEGIVEL: uma metrica secret nao apaga as outras.
+    -- Interrupcoes e o grupo 2, nao o 3 -- {dano, DPS, interr} sao DOIS grupos.
+    check("a janela tem dois grupos, nao tres", #durante, 2)
+    check("interrupcoes continua sendo texto", type(durante[2].text), "string")
+    check("  e nao ficou opaca por tabela", issecretvalue(durante[2].text), false)
+
+    ns.Data.GetSession = realGetSession
+    issecretvalue = realIsSecret
+
+    ns.db.columns = { "damage", "healing", "interrupts" }
+    ns.Window.Rebuild()
+end
+
+print("== o cabecalho mesclado ordena, move e se atualiza ==")
+-- TRES DEFEITOS QUE A MESCLA CRIOU, achados lendo o handler depois de os grupos entrarem.
+--
+-- `button.columnIndex` sempre foi indice de `ns.db.columns`, e o handler o usava para descobrir
+-- por qual metrica ordenar. Depois da mescla ele passou a ser indice de GRUPO, e as duas listas
+-- deixaram de ter o mesmo tamanho -- mas o handler nao soube. Nada estourou: ele so ordenava por
+-- uma metrica e dourava outra.
+do
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+    ns.db.sortBy = "damage"
+    ns.db.sortDesc = true
+    ns.db.rows = 5
+    ns.Window.Show(false)
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+
+    -- 1) O CLIQUE ORDENA PELO GRUPO CLICADO. O terceiro cabecalho e "Interr"; `ns.db.columns[3]`
+    -- e "healing". Ler a coluna aqui ordenava por cura ao clicar em interrupcoes.
+    check("clicar no terceiro grupo responde", ns.Window.DebugClickColumn(3), true)
+    check("e ordena pela metrica DELE", ns.db.sortBy, "interrupts")
+
+    -- E clicar num grupo mesclado ordena pelo TOTAL, que e o que o dourado promete.
+    check("clicar no grupo Cura - CPS responde", ns.Window.DebugClickColumn(2), true)
+    check("ordena por cura, nao por CPS", ns.db.sortBy, "healing")
+
+    local cabecalhos = ns.Window.DebugHeaders()
+    check("e o dourado esta no grupo que ordena", cabecalhos[2].sorted, true)
+    check("  e nao em outro", cabecalhos[1].sorted, false)
+
+    -- 2) MOVER MOVE O GRUPO INTEIRO: o total e a taxa andam juntos, sempre.
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts" }
+    ns.Window.Rebuild()
+    ns.Window.MoveColumn(1, 1)
+
+    check("mover trocou os dois primeiros grupos",
+        table.concat(ns.db.columns, ","), "healing,hps,damage,dps,interrupts")
+
+    local depois = ns.Window.DebugHeaders()
+    check("e o cabecalho conta a mesma historia",
+        depois[1].text, ns.Data.GetShortLabel("healing") .. " - " .. ns.Data.GetShortLabel("hps"))
+
+    -- Nao ha grupo a esquerda do primeiro nem a direita do ultimo.
+    local antes = table.concat(ns.db.columns, ",")
+    ns.Window.MoveColumn(1, -1)
+    check("mover para fora da lista nao faz nada", table.concat(ns.db.columns, ","), antes)
+
+    -- E LISTA INTERCALADA VOLTA AGRUPADA: marcando as caixas fora de ordem da para escrever
+    -- {dano, cura, DPS, CPS}, e as duas metricas de dano nao ficam vizinhas.
+    ns.db.columns = { "damage", "healing", "dps", "hps" }
+    ns.Window.Rebuild()
+    ns.Window.MoveColumn(1, 1)
+    check("a lista guardada volta agrupada",
+        table.concat(ns.db.columns, ","), "healing,hps,damage,dps")
+
+    -- 3) MARCAR UMA COLUNA MUDA A TELA NA HORA. Os grupos ficam em cache -- quatro consumidores
+    -- precisam ver a MESMA lista -- e cache que nao se invalida mostra o desenho anterior.
+    ns.db.columns = { "damage", "interrupts" }
+    ns.db.sortBy = "damage"
+    ns.Window.Rebuild()
+    check("duas colunas, dois cabecalhos", #ns.Window.DebugHeaders(), 2)
+
+    ns.db.columns = { "damage", "dps", "interrupts" }
+    ns.Window.Rebuild()
+    local comDps = ns.Window.DebugHeaders()
+    check("marcar DPS nao cria um terceiro cabecalho", #comDps, 2)
+    check("  ele entra no cabecalho do dano",
+        comDps[1].text, ns.Data.GetShortLabel("damage") .. " - " .. ns.Data.GetShortLabel("dps"))
+
+    -- 4) ORDENACAO GUARDADA PELA TAXA. `ns.db.sortBy` sobrevive entre sessoes e tambem sai de
+    -- `ApplyPreset` (primeira coluna da predefinicao) -- entao "dps" chega aqui de duas formas.
+    -- Comparar so com a coluna que ordena o grupo (sempre o total) deixava a janela ordenada por
+    -- DPS sem NENHUM cabecalho dourado: a lista trocava de ordem e nada dizia por que.
+    ns.db.columns = { "damage", "dps", "healing", "hps" }
+    ns.db.sortBy = "dps"
+    ns.Window.Rebuild()
+
+    local comTaxa = ns.Window.DebugHeaders()
+    check("ordenado por DPS, o grupo do dano fica dourado", comTaxa[1].sorted, true)
+    check("  e o da cura nao", comTaxa[2].sorted, false)
+
+    -- E CLICAR NELE INVERTE, em vez de "trocar para dano". Para o jogador e o mesmo cabecalho.
+    ns.db.sortDesc = true
+    ns.Window.DebugClickColumn(1)
+    check("clicar no grupo que ja ordena inverte a ordem", ns.db.sortDesc, false)
+
+    ns.db.columns = { "damage", "healing", "interrupts" }
+    ns.db.sortBy = "damage"
+    ns.db.sortDesc = true
+    ns.Window.Rebuild()
+end
+
 print("== a janela cabe o que ela desenha, em qualquer conjunto de colunas ==")
 -- DEFEITO DE 08/09, achado por tres lentes independentes de um estudo de aparencia.
 --
@@ -1464,9 +1736,13 @@ do
         ns.Window.Draw()
 
         local g = ns.Window.DebugGeometry()
-        local quantas = #conjunto
 
-        check("com " .. quantas .. " coluna(s), o nome tem o piso",
+        -- O QUE A JANELA DESENHA SAO GRUPOS, nao colunas marcadas: as sete do conjunto de
+        -- Mitico+ viram cinco (dano+DPS e cura+CPS se fundem). Contar `#conjunto` aqui pediria
+        -- pela borda de duas celulas que nao existem -- e foi exatamente o `nil` que apareceu.
+        local quantas = #ns.Data.GroupColumns(conjunto)
+
+        check("com " .. #conjunto .. " coluna(s) em " .. quantas .. " grupo(s), o nome tem o piso",
             g.nameArea ~= nil and g.nameArea >= g.nameFloor, true)
 
         local foraDaJanela
@@ -1993,6 +2269,30 @@ do
     end
     check("o teto e o que cabe na celula",
         L.fontSizeMax <= math.floor((L.columnWidth - 8) / (maiorTexto * 0.5)), true)
+
+    -- E O MESMO TETO TEM QUE VALER PARA A CELULA MESCLADA, que escreve MUITO mais.
+    --
+    -- A verificacao acima mede "339M" (5 caracteres) contra a coluna estreita. Depois da mescla a
+    -- celula escreve "339M - 299K": os dois numeros mais o separador, mais que o dobro. Uma
+    -- largura que cabia o total sozinho nao diz nada sobre a dupla.
+    --
+    -- O que garante isso e a largura do grupo ACOMPANHAR o corpo da fonte (`ColumnWidthFor`
+    -- multiplica pela escala do corpo). Se ela virasse constante, aumentar o texto passaria a
+    -- estourar a celula -- e o teste roda nos DOIS extremos por isso.
+    do
+        local maiorGrupo = maiorTexto + 3 + 4          -- "339M" + " - " + "299K"
+
+        for _, corpo in ipairs({ L.fontSizeMin, L.fontSizeMax }) do
+            ns.Window.SetRoleSize("body", corpo)
+
+            local grupos = ns.Window.DebugGroupWidths({ "damage", "dps" })
+            check("com corpo " .. corpo .. ", o grupo tem uma celula so", #grupos, 1)
+            check("  e o texto mesclado cabe nela",
+                maiorGrupo * corpo * 0.5 <= grupos[1].width - 8, true)
+        end
+
+        ns.Window.SetRoleSize("body", 16)
+    end
 
     -- OS TRES SAO INDEPENDENTES. E o pedido literal: mexer num nao pode mexer nos outros.
     ns.Window.SetRoleSize("body", 18)

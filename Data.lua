@@ -864,6 +864,59 @@ function Data.GetSections(sessionType, columns, rowsPerSection)
     return secoes
 end
 
+---As colunas VISIVEIS: as escolhidas pelo jogador, agrupadas por metrica.
+---
+---Ideia do usuario: *"ao inves de ter duas colunas, DPS Dano e Cura e CPS, vamos mesclar para
+---apenas uma coluna, e colocar como o Details faz, no header: Dano - DPS... no resultado:
+---65.1M - 48K"*.
+---
+---Ele esta certo, e o ganho e duplo. O obvio: duas colunas viram uma, entao sobra largura e a
+---barra fica maior -- que era a queixa anterior. O menos obvio, e mais importante: **o total e a
+---taxa sao a mesma coisa medida de dois jeitos**. Separa-los em colunas obrigava o olho a cruzar
+---a linha para juntar "quanto" com "quao rapido"; juntos, a leitura e uma so.
+---
+---Cada grupo devolve `keys` na ordem em que o jogador as marcou, e `key` (a primeira) e quem
+---ordena o grupo -- clicar no cabecalho "Dano - DPS" ordena por dano.
+---
+---@return table[] grupos `{ key, attr, keys }`
+function Data.GroupColumns(columns)
+    local grupos, porAttr = {}, {}
+
+    for c = 1, #columns do
+        local def = Data.GetColumn(columns[c])
+        if def then
+            local grupo = porAttr[def.attr]
+            if not grupo then
+                grupo = { key = def.key, attr = def.attr, keys = {} }
+                porAttr[def.attr] = grupo
+                grupos[#grupos + 1] = grupo
+            end
+            grupo.keys[#grupo.keys + 1] = def.key
+
+            -- QUEM ORDENA O GRUPO E O TOTAL, mesmo que a taxa tenha sido marcada primeiro:
+            -- ordenar por DPS e por dano da a mesma lista (a taxa e o total dividido pelo mesmo
+            -- tempo), mas o numero que o jogador ve em destaque e o total, e a coluna ordenada
+            -- fica dourada -- dourar "DPS" e ordenar por dano seria contar duas historias.
+            if def.field == "total" then grupo.key = def.key end
+        end
+    end
+
+    return grupos
+end
+
+---O TEXTO ja formatado de um valor, sem widget no meio.
+---
+---`ns.SetCellText` escreve direto num FontString, o que serve para uma coluna por celula. Com
+---grupos a celula junta DOIS numeros, e para juntar e preciso ter os dois como texto antes.
+---Formatar num lugar so mantem a celula e o cabecalho concordando sobre o que e "339M".
+function Data.FormatCell(value, key)
+    if value == nil then return "|cff4a4a4a-|r" end
+    if Data.IsPercentColumn(key) then
+        return Data.FormatPercent(value) or "|cff4a4a4a-|r"
+    end
+    return Data.FormatAmount(value) or "|cff4a4a4a-|r"
+end
+
 ---A REGUA DE CADA COLUNA: o maior valor da metrica a que ela pertence.
 ---
 ---POR QUE ISTO EXISTE, e e o que faz o desenho em colunas funcionar em combate. O pedido foi ver
