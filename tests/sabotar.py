@@ -43,6 +43,23 @@ SABOTAGENS = [
      u"                cell.bar:SetMinMaxValues(0, 1)",
      "as colunas nao compartilham regua"),
 
+    # O clique escreve `sortBy` mas nao manda redesenhar: a coluna fica dourada e a lista nao
+    # muda -- o pior sintoma, porque parece que o addon ouviu e discordou.
+    ("o clique no cabecalho deixa de reordenar", "Window.lua",
+     u"                    ns.db.sortBy = key\n"
+     u"                    ns.db.sortDesc = true\n"
+     u"                    Window.Refresh(true)",
+     u"                    ns.db.sortBy = key\n"
+     u"                    ns.db.sortDesc = true",
+     "a lista foi reordenada de verdade"),
+
+    ("clicar de novo troca de coluna em vez de inverter", "Window.lua",
+     u"                elseif ns.db.sortBy == key then\n"
+     u"                    ns.db.sortDesc = not ns.db.sortDesc",
+     u"                elseif false then\n"
+     u"                    ns.db.sortDesc = not ns.db.sortDesc",
+     "e a ordem inverteu"),
+
     ("o cabecalho de colunas some", "Window.lua",
      u"    BuildColumnHeader()\n\n    for i = 1, ns.db.rows do",
      u"    HideColumnHeader()\n\n    for i = 1, ns.db.rows do",

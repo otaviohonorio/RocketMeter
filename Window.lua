@@ -2034,6 +2034,29 @@ function Window.DebugColumnHeaderShown()
     return headerRow ~= nil and headerRow:IsShown() and true or false
 end
 
+---Dispara o clique no cabecalho de uma coluna, como o jogador faria.
+---
+---Existe porque "a ordenacao ainda funciona?" nao se responde lendo o codigo: o clique escreve
+---`sortBy`, o desenho le, e entre os dois ha um `Refresh` e uma consulta a API. So um teste que
+---clica e olha a lista resultante responde.
+function Window.DebugClickColumn(index)
+    local button = headerRow and headerRow.labels and headerRow.labels[index]
+    if not button then return false end
+    local handler = button:GetScript("OnClick")
+    if not handler then return false end
+    handler(button)
+    return true
+end
+
+---Os nomes desenhados, na ordem em que estao na tela.
+function Window.DebugRowNames()
+    local out = {}
+    for i = 1, #rows do
+        if rows[i]:IsShown() then out[#out + 1] = rows[i].name:GetText() end
+    end
+    return out
+end
+
 ---As CELULAS de uma linha, com a regua e o valor que cada barra recebeu.
 ---
 ---Sao os dois numeros que decidem o desenho: a regua diz contra o que aquela coluna e medida, e o

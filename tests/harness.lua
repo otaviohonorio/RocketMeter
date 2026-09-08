@@ -467,6 +467,21 @@ C_DamageMeter = {
                     if v > maximum then maximum = v end
                 end
             end
+            -- ⚑ A LISTA VEM ORDENADA PELA METRICA PEDIDA, e sem isto o simulador escondia a
+            -- unica propriedade de que o desenho inteiro depende.
+            --
+            -- Ele montava a lista na ordem fixa dos nomes. A API real devolve ordenada -- e isso
+            -- foi CONFERIDO no medidor da propria Blizzard, que nao ordena nada em Lua: percorre
+            -- `combatSources` na ordem e usa `index = i` como posicao
+            -- (`DamageMeterSessionWindow.lua:621-641`). E tem que ser assim, porque em combate os
+            -- valores sao secret e ordenar em Lua levantaria erro.
+            --
+            -- Com o stub em ordem de nome, clicar num cabecalho de coluna nao mudava nada na
+            -- lista, e o teste que perguntava "a ordenacao ainda funciona?" respondia NAO para um
+            -- addon que estava certo. Quinta vez nesta sessao que o stub acusa ou absolve por nao
+            -- saber representar a API.
+            table.sort(sources, function(a, b) return a.totalAmount > b.totalAmount end)
+
             return {
                 combatSources = sources, totalAmount = total,
                 maxAmount = maximum, durationSeconds = 134,
@@ -1348,6 +1363,52 @@ do
     -- O NOME NAO PODE FICAR ESPREMIDO. Com tres colunas de 58 numa janela de 340, sobra espaco de
     -- verdade; foi com SETE colunas que ele caiu para 57px e o nome virou reticencias.
     check("o nome tem largura de verdade", ns.Window.DebugFirstRow().nameArea > 60, true)
+end
+
+print("== a ordenacao pelas colunas continua funcionando ==")
+-- Pergunta do usuario depois da mudanca de layout: *"a ordenacao pelas colunas ainda funciona?"*.
+--
+-- Ler o codigo nao responde: o clique escreve `ns.db.sortBy`, o desenho le, e entre os dois ha um
+-- `Refresh` e uma consulta a API. So clicando e olhando a lista resultante da para afirmar.
+do
+    ns.db.columns = { "damage", "healing", "interrupts" }
+    ns.db.rows = 5
+    ns.db.sortBy = "damage"
+    ns.db.sortDesc = true
+    ns.Window.Show(false)
+    ns.Window.Draw()
+
+    local porDano = ns.Window.DebugRowNames()
+    check("ha gente na lista", #porDano > 1, true)
+
+    -- CLICA NA COLUNA DE CURA (a segunda).
+    check("o cabecalho responde ao clique", ns.Window.DebugClickColumn(2), true)
+    check("e a coluna ordenada mudou", ns.db.sortBy, "healing")
+
+    local porCura = ns.Window.DebugRowNames()
+    check("a lista foi reordenada de verdade",
+        table.concat(porCura, "|") ~= table.concat(porDano, "|"), true)
+
+    -- CLICAR DE NOVO NA MESMA INVERTE a ordem, em vez de trocar de coluna.
+    check("clicar de novo responde", ns.Window.DebugClickColumn(2), true)
+    check("a coluna continua a mesma", ns.db.sortBy, "healing")
+    check("e a ordem inverteu", ns.db.sortDesc, false)
+
+    local invertida = ns.Window.DebugRowNames()
+    check("e a lista virou de fato",
+        table.concat(invertida, "|") ~= table.concat(porCura, "|"), true)
+
+    -- E AS REGUAS DAS COLUNAS NAO SEGUEM A ORDENACAO. Cada coluna continua medida contra a
+    -- propria metrica: ordenar por cura nao pode fazer a barra de dano encolher.
+    local celulas = ns.Window.DebugCells(1)
+    local reguas = {}
+    for _, c in ipairs(celulas) do reguas[c.scale] = true end
+    local distintas = 0
+    for _ in pairs(reguas) do distintas = distintas + 1 end
+    check("cada coluna segue com a sua regua depois de reordenar", distintas > 1, true)
+
+    ns.db.sortBy = "damage"
+    ns.db.sortDesc = true
 end
 
 print("== placar: a copia do Details! Mythic+ Scoreboard ==")
