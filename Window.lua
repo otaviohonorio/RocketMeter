@@ -1173,11 +1173,28 @@ end
 --   perSecond  "299K"           -> +6    um digito a menos que o total
 --   percent    "100%"           -> +6
 --   count      "19"             -> −10   dois digitos nao precisam de 58
+-- A LARGURA POR FORMATO, e os tres pedidos de 08/09 cabem nesta tabela e no `DEFAULT_SLACK`:
+-- *"a coluna do nome ta meio grande, acho que da pra reduzir um pouco so e aumentar as outras,
+-- alem de deixa os nomes das colunas mescladas um pouco mais perto"*.
+--
+-- **O TOTAL CRESCE** (76 -> 92) porque e onde a barra mora. A largura aqui nao e sobre caber o
+-- texto -- "1.2B" sempre coube -- e sobre RESOLUCAO da barra: 16px a mais e a diferenca entre
+-- distinguir 78% de 84% e nao distinguir.
+--
+-- **A TAXA ENCOLHE** (64 -> 56), e e isso que aproxima os rotulos. O cabecalho e alinhado a
+-- direita da coluna dele, entao o que separa "Dano" de "DPS" e exatamente a largura da coluna do
+-- DPS: estreita-la puxa os dois um para o outro. Os dois numeros do par passam a se agrupar na
+-- metade direita da barra, que e como o par deve ser lido -- uma dupla, nao duas colunas.
+--
+-- **A CONTAGEM CRESCE** (48 -> 56) porque ela era a mais apertada e e onde o par nao existe.
+--
+-- A conta fecha na largura de hoje: 92+56+92+56+56 = 352 contra 328, e os 24 a mais saem do
+-- `DEFAULT_SLACK`. A janela continua em 517.
 local COLUMN_WIDTH_BY_FIELD = {
-    total = 76,
-    perSecond = 64,
-    percent = 64,
-    count = 48,
+    total = 92,
+    perSecond = 56,
+    percent = 56,
+    count = 56,
 }
 
 ---A largura de UMA coluna, pelo formato do que ela escreve.
@@ -1368,7 +1385,18 @@ end
 --
 -- E ela e SOMADA ao minimo, nao um numero absoluto: o minimo depende de quantas colunas o jogador
 -- marcou, entao uma largura padrao fixa voltaria a nao caber assim que ele marcasse mais uma.
-local DEFAULT_SLACK = 48
+-- A FOLGA DA LARGURA PADRAO, e ela vai INTEIRA para o nome.
+--
+-- ⚑ E POR ISSO QUE A COLUNA DO NOME NAO E UMA CONSTANTE. Ela e o que sobra:
+-- `nameArea = largura - colunas - icone - calha`, e a largura padrao e `MinWidth + DEFAULT_SLACK`
+-- -- onde `MinWidth` ja embute `NAME_MIN_WIDTH`. Substituindo, a area do nome na largura padrao e
+-- sempre `NAME_MIN_WIDTH + DEFAULT_SLACK`, **independente do tamanho das colunas**. Aumentar as
+-- colunas sozinho nao encolheria o nome em um pixel: a janela cresceria junto.
+--
+-- Entao o pedido *"a coluna do nome ta meio grande"* se atende aqui, e so aqui. 24 deixa a area
+-- em 120px: um nome de 12 caracteres (o limite do jogo) ocupa ~77px no corpo padrao, entao ainda
+-- sobram 43 para o reino e para o respiro. 48 era mais ar do que o nome mais longo pede.
+local DEFAULT_SLACK = 24
 
 local function WindowWidth()
     local saved = ns.db.width or 0

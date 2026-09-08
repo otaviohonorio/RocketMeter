@@ -8,7 +8,7 @@
 ## Category-ptBR: Combate
 
 ## Author: Otávio Honório
-## Version: 0.73.0
+## Version: 0.74.0
 ## SavedVariables: RocketMeterDB, RocketMeterLogDB
 ## SavedVariablesPerCharacter: RocketMeterCharDB, RocketMeterRunsDB
 ## IconTexture: Interface\Icons\INV_Misc_MissileLarge_Red

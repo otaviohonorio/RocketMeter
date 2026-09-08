@@ -47,7 +47,7 @@ SABOTAGENS = [
      "no minimo, o nome ainda tem o piso exato"),
 
     ("a largura padrao nasce colada no minimo", "Window.lua",
-     u"local DEFAULT_SLACK = 48",
+     u"local DEFAULT_SLACK = 24",
      u"local DEFAULT_SLACK = 0",
      "  e a largura padrao tem folga sobre o minimo"),
 
@@ -67,7 +67,7 @@ SABOTAGENS = [
     ("a largura da coluna para de seguir o corpo da fonte", "Window.lua",
      u'    local escala = ns.RoleSizeSafe("body") / 16',
      u"    local escala = 1",
-     "e a caixa cresce junto com o corpo"),
+     "com corpo 20, o texto cabe na caixa dele"),
 
     # A PISTA existe agora, tingida com a cor da classe a pedido. O que nao pode voltar e o
     # PRETO -- o usuario o reprovou duas vezes ("tira o fundo preto", "o fundo preto e feio").
