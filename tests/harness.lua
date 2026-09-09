@@ -1670,6 +1670,23 @@ do
     check("nenhum dos dois passa da metade da barra",
         celulas[1].width + celulas[2].width <= larguraFaixa, true)
 
+    -- ⚑ O ROTULO COMECA NO MESMO X QUE O NUMERO. Relatado com print em 09/09: *"o alinhamento
+    -- do titulo do header com o comeco no inicio da barra, nao ta bem alinhado"*.
+    --
+    -- Eram 7px, de duas divergencias somadas: o cabecalho ainda dividia a folga entre familias
+    -- em dois (`GROUP_GAP / 2`) enquanto a barra ja a tirava inteira da esquerda, e `headerRow`
+    -- recuava `PADDING + 2` contra o `PADDING` da linha.
+    --
+    -- Nenhum teste olhava isso, e por um motivo que vale registrar: enquanto os dois eram
+    -- alinhados a DIREITA, 7px de diferenca na esquerda nao apareciam. A mudanca para as pontas
+    -- (0.76.0) tornou visivel um desencontro que ja existia.
+    --
+    -- Os dois lados vem de caminhos INDEPENDENTES -- o do cabecalho e o do desenho da linha --,
+    -- que e o que faz a comparacao valer alguma coisa.
+    local cabAlinha = ns.Window.DebugHeaders()
+    check("o rotulo comeca no mesmo x que o numero", cabAlinha[1].inkX, celulas[1].inkX)
+    check("  e o da cura tambem", cabAlinha[3].inkX, celulas[3].inkX)
+
     -- ⚑ E O QUE ORDENA FICA EM CORPO CHEIO. Pedido do usuario depois de ver o mockup.
     --
     -- E um SEGUNDO sinal da ordenacao, de graca: hoje o estado "ordenado por DPS" e afirmado por

@@ -195,6 +195,22 @@ SABOTAGENS = [
 
     # O ROTULO TEM QUE IR JUNTO COM O NUMERO. Sem isto o botao fica no lugar certo e o texto
     # dele nao: "Dano" apareceria colado em "DPS" enquanto os numeros ficam nas pontas.
+    # ⚑ OS 7px DO PRINT DE 09/09: "o alinhamento do titulo do header com o comeco no inicio
+    # da barra, nao ta bem alinhado". Eram DUAS divergencias somadas, e cada uma volta sozinha.
+
+    ("o cabecalho volta a dividir a folga entre familias", "Window.lua",
+     u'                offset = vao.offset + off,',
+     u'                offset = vao.offset + GROUP_GAP / 2 + off,',
+     "o rotulo comeca no mesmo x que o numero"),
+
+    # A ancora que importa e a DIREITA: os botoes do cabecalho sao ancorados por ela, entao mexer
+    # na esquerda nao move rotulo nenhum. Foi o que a primeira versao desta sabotagem fez -- e ela
+    # passou batida, provando que a linha esquerda nao e a que alinha.
+    ("o cabecalho volta a ter margem propria", "Window.lua",
+     u'    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -HEADER_HEIGHT)',
+     u'    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING - 2, -HEADER_HEIGHT)',
+     "o rotulo comeca no mesmo x que o numero"),
+
     ("o rotulo nao acompanha a ponta do numero", "Window.lua",
      u'        button.text:SetJustifyH(onde.lado)',
      u'        button.text:SetJustifyH("RIGHT")',
@@ -322,7 +338,7 @@ SABOTAGENS = [
      u"    if jaMontado then return end\n"
      u"    jaMontado = true\n"
      u"    if not headerRow then",
-     "o dourado esta no DPS"),
+     "o rotulo comeca no mesmo x que o numero"),
 
     # O CACHE DE GRUPOS NAO PODE ENVELHECER. Se o desenho o LE em vez de refaze-lo, a tela fica
     # com os grupos do desenho anterior sobre os dados do atual.

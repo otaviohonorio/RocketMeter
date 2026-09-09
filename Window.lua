@@ -605,6 +605,27 @@ function ns.AtlasExists(name)
     return info ~= nil
 end
 
+-- Onde cada coluna mora dentro do grupo dela, do ultimo desenho do cabecalho. Guardado para a
+-- porta de teste poder comparar o rotulo com o numero -- sem isso, "eles comecam no mesmo x"
+-- seria uma conta refeita, e conta refeita concorda consigo mesma.
+local ondeFicaCache = {}
+
+---A margem DIREITA de um frame, lida das ancoras dele.
+---
+---⚑ EXISTE PARA AS PORTAS DE TESTE NAO MEDIREM A FORMULA. A primeira versao de `inkX` repetia
+---`PADDING` a mao dos dois lados -- e com isso a sabotagem "o cabecalho volta a ter margem
+---propria" passava batida: mudar o `SetPoint` do `headerRow` nao mexia num numero que nao vinha
+---dele. Conta refeita concorda consigo mesma.
+local function MargemDireita(frame_)
+    for i = 1, (frame_.GetNumPoints and frame_:GetNumPoints() or 0) do
+        local ponto, _, _, x = frame_:GetPoint(i)
+        if ponto == "TOPRIGHT" or ponto == "RIGHT" or ponto == "BOTTOMRIGHT" then
+            return -(x or 0)
+        end
+    end
+    return PADDING
+end
+
 local frame, headerRow, rows
 local dirty, throttle = false, 0
 local visibleRows = -1
@@ -1446,8 +1467,17 @@ local function BuildColumnHeader()
     end
 
     headerRow:ClearAllPoints()
-    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING + 2, -HEADER_HEIGHT)
-    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING - 2, -HEADER_HEIGHT)
+    -- ⚑ A MESMA MARGEM DA LINHA, e nao `PADDING + 2`.
+    --
+    -- Enquanto o numero era alinhado a direita e o rotulo tambem, 2px de diferenca passavam
+    -- despercebidos. Com os dois encostando na ESQUERDA (0.76.0), a diferenca virou desencontro
+    -- visivel -- e foi o que o usuario relatou com print em 09/09: *"o alinhamento do titulo do
+    -- header com o comeco no inicio da barra, nao ta bem alinhado"*.
+    --
+    -- Duas referencias diferentes para coisas que precisam se alinhar e divergencia esperando
+    -- acontecer. Agora o cabecalho e a linha partem do mesmo `PADDING`.
+    headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -HEADER_HEIGHT)
+    headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -HEADER_HEIGHT)
     headerRow:SetHeight(COLHEAD_HEIGHT)
 
     for _, button in pairs(headerRow.labels) do
@@ -1459,13 +1489,18 @@ local function BuildColumnHeader()
     -- ONDE CADA COLUNA MORA DENTRO DO GRUPO DELA. O cabecalho deixou de poder ser posicionado
     -- pelo acumulado das colunas: os numeros agora vao para as PONTAS da barra, e o rotulo tem
     -- que ir junto.
-    local ondeFica = {}
+    ondeFicaCache = {}
+    local ondeFica = ondeFicaCache
     for _, vao in ipairs(GroupSpans()) do
         local larguraFaixa = vao.width - GROUP_GAP
         for i, key in ipairs(vao.grupo.keys) do
             local off, larg = MemberSlice(vao.grupo, i, larguraFaixa)
             ondeFica[key] = {
-                offset = vao.offset + GROUP_GAP / 2 + off,
+                -- ⚑ SEM `GROUP_GAP / 2`. A folga entre familias sai INTEIRA da esquerda do
+                -- grupo (`faixa:SetPoint("RIGHT", ..., -vao.offset)`), e este calculo tinha ficado
+                -- no modelo antigo, que a dividia entre os dois lados. Sao 5px que deslocavam
+                -- todo rotulo para a esquerda do numero que ele nomeia.
+                offset = vao.offset + off,
                 largura = larg,
                 lado = MemberAlign(i, #vao.grupo.keys),
             }
@@ -2632,7 +2667,14 @@ function Window.DebugHeaders()
         local button = headerRow.labels[c]
         if button and button:IsShown() then
             local r, g, b = button.text:GetTextColor()
+            -- ONDE A TINTA DO ROTULO COMECA, medida da borda direita da janela. E o unico jeito
+            -- de comparar cabecalho com numero: os dois sao ancorados em frames diferentes, com
+            -- margens que ja divergiram uma vez em silencio.
+            local onde = ondeFicaCache[ns.db.columns[c]]
             out[c] = {
+                inkX = onde
+                    and (MargemDireita(headerRow) + onde.offset + onde.largura - TEXT_INSET)
+                    or nil,
                 text = button.text:GetText(),
                 width = button:GetWidth(),
                 -- O rotulo encosta na mesma ponta que o numero que ele nomeia.
@@ -2705,6 +2747,14 @@ function Window.DebugCells(index)
                         -- decide. Medir so a largura nao distinguiria "os dois nas pontas" de
                         -- "os dois na mesma ponta com caixas menores".
                         align = fs:GetJustifyH(),
+                        -- Onde a tinta comeca, medida da borda direita da janela: o mesmo
+                        -- referencial que `DebugHeaders` usa, para os dois serem comparaveis.
+                        -- Sai do caminho do DESENHO; o do cabecalho sai do caminho do cabecalho.
+                        -- Duas contas independentes -- que e o que faz a comparacao valer.
+                        inkX = (i == 1)
+                            and (MargemDireita(row) + vao.offset + vao.width - GROUP_GAP
+                                - TEXT_INSET)
+                            or nil,
                         -- O CORPO de cada numero: e o que separa o que ORDENA do companheiro.
                         -- Sem ele, "o degrau existe" e indistinguivel de "os dois iguais".
                         size = select(2, fs:GetFont()),
