@@ -65,10 +65,33 @@ function Log.Snapshot(reason)
 
     -- VARREDURA: qual tipo de sessão tem o grupo? Percorre todos os valores possíveis e
     -- anota quantos atores e quem é o primeiro. É o que responde por que a Valira sumiu.
+    --
+    -- ⚑ ELA PERCORRE O ENUM, E NÃO `0, 3`. O laço fixo era um erro de Lua por combate: este
+    -- cliente tem TRÊS valores (`Current=1 Overall=0 Expired=2`), o `3` não existe, e
+    -- `GetCombatSessionFromType` levanta em argumento inválido em vez de devolver `nil`. Como o
+    -- diagnóstico roda em todo `PLAYER_REGEN_DISABLED`, dava uma linha vermelha por pull — 1628
+    -- delas no BugGrabber até 09/09, sempre a mesma. Instrumento que quebra o addon que ele
+    -- deveria explicar é pior que instrumento nenhum.
+    --
+    -- E a chave passa a ser o NOME do valor, não "tipo0": o número sozinho não diz nada, e a
+    -- ordem deles muda de cliente para cliente (aqui `Current` é 1, não 0).
     data.sessionEnum = ns.Data.DescribeSessionEnum()
     data.sweep = {}
-    for candidate = 0, 3 do
-        local probe = C_DamageMeter.GetCombatSessionFromType(candidate, def.attr)
+
+    local candidatos = {}
+    for nome, valor in pairs(Enum.DamageMeterSessionType or {}) do
+        if type(valor) == "number" then
+            candidatos[#candidatos + 1] = { nome = nome, valor = valor }
+        end
+    end
+    table.sort(candidatos, function(a, b) return a.valor < b.valor end)
+
+    for _, candidato in ipairs(candidatos) do
+        local candidate = candidato.valor
+        -- `pcall` porque a API LEVANTA em valor que ela não aceita, e um cliente futuro pode
+        -- acrescentar um valor de enum que ela ainda não atenda.
+        local okProbe, probe = pcall(C_DamageMeter.GetCombatSessionFromType, candidate, def.attr)
+        if not okProbe then probe = nil end
         local list = probe and probe.combatSources
         local entry = {
             atores = list and #list or 0,
@@ -82,7 +105,8 @@ function Log.Snapshot(reason)
             end
             entry.quem = table.concat(nomes, " | ")
         end
-        data.sweep["tipo" .. candidate] = entry
+        entry.erro = (not okProbe) and "a API recusou este valor" or nil
+        data.sweep[candidato.nome .. "(" .. candidate .. ")"] = entry
     end
 
     -- Os dois caminhos, separados: é a pergunta que precisa de resposta.

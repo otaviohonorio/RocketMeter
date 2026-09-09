@@ -486,12 +486,31 @@ local function fakeSource(name, total, extra)
     return src
 end
 
+-- Os valores que `GetCombatSessionFromType` aceita neste "cliente". Fixo de proposito: ver a
+-- nota dentro do stub.
+local SESSION_TYPES_ACEITOS = { [0] = true, [1] = true, [2] = true }
+
 C_DamageMeter = {
     IsDamageMeterAvailable = function() return true end,
     GetSessionDurationSeconds = function() return 134 end,
     ResetAllCombatSessions = function() end,
     GetAvailableCombatSessions = function() return { { sessionID = 1 } } end,
     GetCombatSessionFromType = function(sessionType, attribute)
+        -- ⚑ VALOR FORA DO ENUM LEVANTA, como no cliente de verdade -- ela NAO devolve `nil`.
+        --
+        -- O stub aceitava qualquer numero, e por isso o harness ficou verde enquanto o log de
+        -- diagnostico varria `0, 3` num enum de tres valores: uma linha vermelha por combate, 1628
+        -- delas no BugGrabber ate 09/09/2026, e nenhum teste daqui podia ter pego. Simulador que
+        -- e mais permissivo que o jogo transforma erro em silencio.
+        -- O CONJUNTO ACEITO E FIXO AQUI, e nao lido de `Enum.DamageMeterSessionType`. A funcao do
+        -- cliente e C: ela tem a lista dela, que nao muda porque alguem mexeu na tabela Lua do
+        -- enum. Ler o enum aqui tornaria impossivel simular o caso que interessa -- um valor
+        -- existir no enum e a funcao ainda nao atende-lo.
+        if not SESSION_TYPES_ACEITOS[sessionType] then
+            error("bad argument #1 to 'GetCombatSessionFromType' (Usage: local session = "
+                .. "C_DamageMeter.GetCombatSessionFromType(sessionType, type))", 2)
+        end
+
         -- Cada metrica tem seus proprios valores: e o que torna os testes de cruzamento
         -- significativos. Antes tudo devolvia a sessao de dano e o teste passava por acidente.
         -- MORTES TEM FORMA PROPRIA: cada entrada da lista e UM OBITO, nao um jogador com
@@ -3249,6 +3268,50 @@ do
     check("o valor salvo casa com uma opcao do combo", achou, true)
 
     ns.db.fontOutline = salvo
+end
+
+print("== o diagnostico nao pode derrubar o addon ==")
+-- ⚑ ERRO REAL, achado no BugGrabber em 09/09/2026: 1628 ocorrencias de
+-- "bad argument #1 to '?' (Usage: local session = C_DamageMeter.GetCombatSessionFromType(...))",
+-- com a pilha em `Log.lua:71`, dentro de `Snapshot`, chamado por `Log.OnCombatStart`.
+--
+-- A causa era o laco da varredura: `for candidate = 0, 3`, num enum que tem TRES valores. O `3`
+-- nao existe, e a API LEVANTA em valor invalido em vez de devolver `nil` -- entao o instrumento
+-- que existe para explicar o addon dava uma linha vermelha por combate.
+--
+-- O simulador tambem tinha culpa: ele aceitava qualquer numero, mais permissivo que o jogo, e por
+-- isso o harness ficava verde. A guarda esta agora no stub, e este bloco trava o resto.
+do
+    local antes = ns.Log.Count and ns.Log.Count() or 0
+    local ok = pcall(ns.Log.Snapshot, "teste da varredura")
+    check("a foto de diagnostico nao levanta", ok, true)
+    check("  e gravou a linha", (ns.Log.Count and ns.Log.Count() or 0) > antes, true)
+
+    -- E A VARREDURA COBRE O ENUM INTEIRO, com o NOME de cada valor. "tipo0" nao diz nada, e a
+    -- ordem muda de cliente para cliente: neste `Current` e 1, nao 0.
+    local foto
+    for _, entrada in ipairs(RocketMeterLogDB.entries or {}) do
+        if entrada.data and entrada.data.sweep then foto = entrada.data.sweep end
+    end
+    check("a varredura existe na foto", foto ~= nil, true)
+
+    local quantos = 0
+    for _ in pairs(foto or {}) do quantos = quantos + 1 end
+    local doEnum = 0
+    for _ in pairs(Enum.DamageMeterSessionType) do doEnum = doEnum + 1 end
+    check("  e tem uma entrada por valor do enum", quantos, doEnum)
+    check("  nomeada pelo valor, nao pelo numero cru",
+        foto and foto["Overall(1)"] ~= nil, true)
+
+    -- ⚑ E O CLIENTE QUE GANHA UM VALOR DE ENUM QUE A API AINDA NAO ATENDE. E o mesmo defeito um
+    -- degrau acima do laco fixo: percorrer o enum deixa de bastar no dia em que a Blizzard
+    -- acrescentar um valor antes de a funcao aceita-lo. Sem o `pcall` da sonda, a foto inteira
+    -- morre por causa de UM valor -- e o instrumento some justamente na versao em que ele seria
+    -- mais necessario. O stub recusa o que nao esta na tabela, entao basta pos um valor a mais.
+    Enum.DamageMeterSessionType.Futuro = 9
+    local okFuturo = pcall(ns.Log.Snapshot, "enum com valor novo")
+    Enum.DamageMeterSessionType.Futuro = nil
+    check("valor de enum que a API recusa nao derruba a foto", okFuturo, true)
 end
 
 print("== a visao segue o combate ==")

@@ -545,6 +545,24 @@ SABOTAGENS = [
      u"    -- sabotado: a secao Sessao inteira saiu",
      "a caixa esta na tela de configuracao"),
 
+    # -------------------------------------------- o diagnostico que derrubava o addon (09/09)
+    # O LACO FIXO VOLTA. Era `for candidate = 0, 3` num enum de TRES valores: o `3` nao existe,
+    # a API levanta em vez de devolver nil, e como a varredura roda em todo
+    # PLAYER_REGEN_DISABLED dava uma linha vermelha por combate -- 1628 no BugGrabber ate 09/09.
+    ("a varredura volta ao laco fixo 0..3", "Log.lua",
+     u"    for _, candidato in ipairs(candidatos) do\n"
+     u"        local candidate = candidato.valor",
+     u"    for candidate = 0, 3 do\n"
+     u"        local candidato = { nome = \"tipo\" .. candidate }",
+     "  e tem uma entrada por valor do enum"),
+
+    # E o `pcall` da sonda: sem ele um cliente que acrescente um valor de enum ainda nao
+    # atendido derruba a foto inteira, que e o mesmo defeito um degrau acima.
+    ("a sonda perde o pcall", "Log.lua",
+     u"        local okProbe, probe = pcall(C_DamageMeter.GetCombatSessionFromType, candidate, def.attr)",
+     u"        local okProbe, probe = true, C_DamageMeter.GetCombatSessionFromType(candidate, def.attr)",
+     "valor de enum que a API recusa nao derruba a foto"),
+
     # A Blizzard escreve "Fillagree" com dois L; "Filigree" (a grafia correta do ingles) some sem
     # avisar. Este teste encerra o harness com mensagem propria, nao com uma linha "ERRO " --
     # entao o criterio aqui e "o harness NAO chegou ao fim".
