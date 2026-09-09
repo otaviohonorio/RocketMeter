@@ -416,13 +416,27 @@ local TEXT_INSET = 3
 -- mesma folga que separa duas celulas hoje (`CELL_GAP`), aplicada ao texto.
 local TEXT_ROOM = 4
 
--- O DEGRAU entre o numero que ORDENA e o companheiro dele na mesma barra.
+-- ⚑ O CORPO DA FONTE NAO E UM SINAL. Nao virou um agora, e nao pode voltar a ser.
 --
--- -3 pontos e a distancia que ja existe neste arquivo entre o nome e o reino (`REALM_FONT_DELTA`
--- e -1) multiplicada por tres: um ponto separa duas coisas do MESMO assunto, tres separam assunto
--- de anotacao. Menos que isso e ruido; mais, e o secundario vira nota de rodape -- e ele nao e
--- nota de rodape, e a segunda metade da mesma leitura.
-local PAIR_DELTA = -3
+-- E decisao do usuario de 05/09/2026, ja escrita neste arquivo -- e que eu desrespeitei em 09/09
+-- ao por o companheiro do par tres pontos menor. Ele mandou desfazer no mesmo dia, com print:
+-- *"o texto cada um parece em uma escala ou tamanho de fonte diferente, ficou bizarro, esse tipo
+-- de erro nao pode mais acontecer"*.
+--
+-- Duas razoes, e a segunda so apareceu na tela:
+--
+-- 1. **A regua vertical danca.** Numeros de uma mesma coluna mudando de tamanho de linha para
+--    linha tiram a referencia que faz uma tabela ser legivel de relance.
+-- 2. **O degrau cruzava o limiar do CONTORNO.** Com corpo 13 e `OUTLINE_MIN_SIZE` tambem 13, o
+--    companheiro caia para 10 e perdia o contorno JUNTO com o tamanho -- duas mudancas de uma
+--    vez, e e por isso que leu como "escalas diferentes" em vez de hierarquia.
+--
+-- A hierarquia que sobra e a COR, que nao mexe em metrica nenhuma. Mais fraca de proposito: e o
+-- preco de nao mexer no corpo, e o corpo nao esta em jogo.
+--
+-- A constante fica em ZERO, e nao some, para o proximo que pensar em usar o corpo como sinal ler
+-- isto antes de tentar.
+local PAIR_DELTA = 0
 
 -- O SEPARADOR do trio. Um ponto medio, na cor apagada, entre numeros vizinhos.
 --
@@ -1879,20 +1893,6 @@ local function BuildRow(index)
         local quantos = #vao.grupo.keys
         local larguraFaixa = vao.width - GROUP_GAP
 
-        -- QUEM ORDENA FICA EM CORPO CHEIO; o companheiro desce. Ver `PAIR_DELTA`.
-        --
-        -- ⚑ E ISTO E UM SEGUNDO SINAL DA ORDENACAO, de graca. Hoje o estado "ordenado por DPS" e
-        -- afirmado por uma palavra dourada de 12px no topo e mais nada -- se o cabecalho sair da
-        -- tela por rolagem, ou se o olho estiver na linha e nao no topo, nao ha o que ler. Com o
-        -- degrau, as cinco (ou vinte) linhas dizem a mesma coisa.
-        --
-        -- Quando a metrica ordenada NAO esta neste grupo, o primario e o total -- que e a leitura
-        -- principal da familia, e a mesma escolha que a barra faz.
-        local primario = 1
-        for i = 1, quantos do
-            if vao.grupo.keys[i] == ns.db.sortBy then primario = i end
-        end
-
         for i = 1, quantos do
             local fs = faixa.texts[i]
             if not fs then
@@ -1901,10 +1901,8 @@ local function BuildRow(index)
                 faixa.texts[i] = fs
             end
 
-            -- O COMPANHEIRO DESCE UM DEGRAU. A regra de "corpo unico na linha inteira"
-            -- continua valendo entre COLUNAS -- o que varia agora e dentro de uma familia, onde
-            -- os dois numeros nao sao irmaos: um e o assunto, o outro e a anotacao dele.
-            ns.ApplyRoleFont(fs, "body", i == primario and 0 or PAIR_DELTA)
+            -- CORPO UNICO NA LINHA INTEIRA, sem excecao. Ver `PAIR_DELTA`.
+            ns.ApplyRoleFont(fs, "body", PAIR_DELTA)
 
             local lado = MemberAlign(i, quantos)
             fs:SetJustifyH(lado)
@@ -2580,7 +2578,24 @@ function Window.Draw()
                 -- falhas: **cor de classe e vocabulario reservado**. Um numero dourado ao lado de
                 -- barras coloridas le como "ladino", nao como "este e o melhor". Aqui era pior,
                     -- porque a cor do numero e a cor da barra da MESMA linha competiam entre si.
-                    fs:SetTextColor(unpack(ns.Skin.text))
+                    --
+                    -- O QUE VARIA E O BRILHO, e so ele: quem ORDENA fica em `Skin.text`, o
+                    -- companheiro na mesma barra em `Skin.dim`. E o unico sinal de hierarquia que
+                    -- sobrou depois de o corpo sair da lista, e ele nao mexe em metrica nenhuma --
+                    -- entao a regua vertical nao danca.
+                    --
+                    -- Quando a metrica ordenada nao esta neste grupo, o primario e o total: a
+                    -- leitura principal da familia, e a mesma escolha que a barra faz.
+                    local ordena = 1
+                    for k = 1, #grupo.keys do
+                        if grupo.keys[k] == ns.db.sortBy then ordena = k end
+                    end
+
+                    if i == ordena then
+                        fs:SetTextColor(unpack(ns.Skin.text))
+                    else
+                        fs:SetTextColor(unpack(ns.Skin.dim))
+                    end
                 end
             end
 

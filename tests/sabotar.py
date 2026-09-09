@@ -354,6 +354,25 @@ SABOTAGENS = [
      u"    local lista = Groups()",
      "mover devolve a lista agrupada mesmo se ela chegou intercalada"),
 
+    # ⚑ O CORPO DA FONTE NAO E UM SINAL. Decisao do usuario de 05/09/2026 que NAO TINHA
+    # TESTE -- e por isso eu a desrespeitei em 09/09, pondo o companheiro do par tres pontos
+    # menor. Ele viu no jogo: "o texto cada um parece em uma escala ou tamanho de fonte
+    # diferente, ficou bizarro, esse tipo de erro nao pode mais acontecer".
+    #
+    # Decisao sem teste e decisao que volta a ser quebrada. Esta linha e o que faltava.
+    # O alvo e a CONDICIONAL, e nao a constante: com o delta uniforme todos encolhem juntos e
+    # continuam iguais entre si. O defeito era o corpo VARIAR dentro da linha.
+    ("o corpo volta a ser sinal: o companheiro encolhe", "Window.lua",
+     u'            ns.ApplyRoleFont(fs, "body", PAIR_DELTA)',
+     u'            ns.ApplyRoleFont(fs, "body", i == 1 and 0 or -3)',
+     "todo numero da linha tem o MESMO corpo"),
+
+    # E a hierarquia que SOBROU e a cor. Sem ela, nada distingue o que ordena do companheiro.
+    ("a cor deixa de distinguir quem ordena", "Window.lua",
+     u"                    if i == ordena then",
+     u"                    if true then",
+     "quem ordena fica mais claro que o companheiro"),
+
     ("a cor de classe volta para o numero", "Window.lua",
      u"                    fs:SetTextColor(unpack(ns.Skin.text))",
      u"                    if entry.best and entry.best[i] then\n"

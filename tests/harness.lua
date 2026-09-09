@@ -1687,24 +1687,48 @@ do
     check("o rotulo comeca no mesmo x que o numero", cabAlinha[1].inkX, celulas[1].inkX)
     check("  e o da cura tambem", cabAlinha[3].inkX, celulas[3].inkX)
 
-    -- ⚑ E O QUE ORDENA FICA EM CORPO CHEIO. Pedido do usuario depois de ver o mockup.
+    -- ⚑ CORPO UNICO NA LINHA INTEIRA. O CORPO DA FONTE NAO E UM SINAL.
     --
-    -- E um SEGUNDO sinal da ordenacao, de graca: hoje o estado "ordenado por DPS" e afirmado por
-    -- uma palavra dourada de 12px no topo e mais nada. Se o cabecalho sair da tela por rolagem,
-    -- ou se o olho estiver na linha e nao no topo, nao ha o que ler. Com o degrau, todas as
-    -- linhas dizem a mesma coisa.
-    check("ordenado por dano, o total fica maior que a taxa",
-        celulas[1].size > celulas[2].size, true)
+    -- Decisao do usuario de 05/09/2026, ja escrita em `ns.StyleCell` -- *"o corpo de fonte saiu da
+    -- lista de sinais... o +1pt dava presenca ao lider, mas ao custo de os numeros de uma mesma
+    -- coluna mudarem de tamanho de linha para linha: a regua vertical dancava"*.
+    --
+    -- ⚑ ELA NAO TINHA TESTE, e em 09/09 eu a desrespeitei: pus o companheiro do par tres pontos
+    -- menor. Ele viu no jogo e mandou desfazer -- *"o texto cada um parece em uma escala ou
+    -- tamanho de fonte diferente, ficou bizarro, esse tipo de erro nao pode mais acontecer"*.
+    --
+    -- E havia um agravante que so a tela mostrou: o degrau CRUZAVA o limiar do contorno (corpo 13,
+    -- `OUTLINE_MIN_SIZE` 13), entao o companheiro perdia o contorno JUNTO com o tamanho. Duas
+    -- mudancas de uma vez, e e por isso que leu como "escalas diferentes" e nao como hierarquia.
+    --
+    -- Este check e o que a decisao nunca teve. Vale para a linha INTEIRA, em qualquer ordenacao.
+    do
+        local corpos = {}
+        for _, cel in ipairs(celulas) do corpos[cel.size or 0] = true end
+        local quantos = 0
+        for _ in pairs(corpos) do quantos = quantos + 1 end
+        check("todo numero da linha tem o MESMO corpo", quantos, 1)
+    end
 
+    -- E CONTINUA VALENDO COM OUTRA COLUNA ORDENANDO: era exatamente ai que o degrau agia.
     ns.db.sortBy = "dps"
     ns.Window.Draw()
-    local porTaxa2 = ns.Window.DebugCells(1)
-    check("ordenado por DPS, o degrau inverte", porTaxa2[2].size > porTaxa2[1].size, true)
+    do
+        local porTaxa2 = ns.Window.DebugCells(1)
+        local corpos = {}
+        for _, cel in ipairs(porTaxa2) do corpos[cel.size or 0] = true end
+        local quantos = 0
+        for _ in pairs(corpos) do quantos = quantos + 1 end
+        check("  inclusive ordenando pela taxa", quantos, 1)
 
-    -- E A FAMILIA QUE NAO ORDENA MANTEM O TOTAL COMO PRINCIPAL: e a leitura principal dela, e a
-    -- mesma escolha que a barra faz.
-    check("  e a cura, que nao ordena, segue com o total maior",
-        porTaxa2[3].size > porTaxa2[4].size, true)
+        -- A HIERARQUIA QUE SOBROU E A COR, e ela nao mexe em metrica nenhuma: quem ordena fica
+        -- claro, o companheiro apaga.
+        local claro = table.concat(porTaxa2[2].color, ",")
+        local apagado = table.concat(porTaxa2[1].color, ",")
+        check("quem ordena fica mais claro que o companheiro", claro ~= apagado, true)
+        check("  e o claro e o `Skin.text`", claro, table.concat(ns.Skin.text, ","))
+        check("  e o apagado, o `Skin.dim`", apagado, table.concat(ns.Skin.dim, ","))
+    end
 
     ns.db.sortBy = "damage"
     ns.Window.Draw()
