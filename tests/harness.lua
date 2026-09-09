@@ -3251,6 +3251,60 @@ do
     ns.db.fontOutline = salvo
 end
 
+print("== a visao segue o combate ==")
+-- PEDIDO DE 09/09: *"assim que sair de combate a visao do painel muda para geral (overall) e
+-- durante combate, a luta atual"*, ligado por padrao.
+--
+-- ⚑ ESTE TESTE EXISTE PORQUE O ESTADO DE COMBATE NAO E TESTAVEL AQUI. `InCombatLockdown()` e um
+-- stub que devolve `false` sempre, e o harness nao tem como entrar em combate de verdade -- foi
+-- por isso que `ApplyAutoSession` recebe o estado por PARAMETRO em vez de perguntar ao cliente.
+-- Sem o parametro, a metade "entrou em combate" da regra ficaria sem cobertura nenhuma.
+do
+    local salvo, ligado = ns.db.sessionType, ns.db.autoSession
+
+    check("a opcao nasce ligada", ns.defaults.autoSession, true)
+
+    ns.db.autoSession = true
+
+    -- OS DOIS SENTIDOS, e nao so o que o pedido cita primeiro.
+    ns.db.sessionType = 1
+    ns.Window.OnCombatStart()
+    check("entrar em combate mostra a luta atual", ns.db.sessionType, 0)
+
+    ns.Window.OnCombatEnd()
+    check("sair do combate volta para o geral", ns.db.sessionType, 1)
+
+    -- E A TROCA TEM QUE SER ANUNCIADA A QUEM CHAMA. `false` aqui nao e detalhe: e o que impede o
+    -- desenho dobrado no caminho mais quente do addon (o `Core` ja chama `Refresh` nos dois
+    -- eventos). Se isto passar a devolver `true` sempre, a janela redesenha duas vezes por pull.
+    check("estando na visao certa, nada muda", ns.Window.ApplyAutoSession(false), false)
+    check("  e mudar de verdade avisa quem chamou", ns.Window.ApplyAutoSession(true), true)
+
+    -- DESLIGADA, A OPCAO NAO ENCOSTA NA ESCOLHA DO JOGADOR. Quem desliga quer trocar na mao pelo
+    -- cabecalho ou pelo `/rm overall`, e a regra passando por cima seria pior que nao existir.
+    ns.db.autoSession = false
+    ns.db.sessionType = 0
+    ns.Window.OnCombatEnd()
+    check("desligada, sair do combate nao mexe na visao", ns.db.sessionType, 0)
+    ns.db.sessionType = 1
+    ns.Window.OnCombatStart()
+    check("  nem entrar nele", ns.db.sessionType, 1)
+
+    -- A CAIXA EXISTE NA TELA, na coluna da janela, e dentro dela. O comportamento pode estar
+    -- certo e a opcao inalcancavel -- ja aconteceu nesta tela, com o rotulo saindo pela borda.
+    ns.Picker.Create()
+    local caixa
+    for _, c in ipairs(ns.Picker.__probe()) do
+        if c.name == ns.L["Follow the combat"] then caixa = c end
+    end
+    check("a caixa esta na tela de configuracao", caixa ~= nil, true)
+    check("  na coluna da janela", caixa and caixa.column, 2)
+    check("  e dentro da coluna",
+        caixa and caixa.x >= 0 and caixa.x + caixa.width <= ns.Picker.__layout.columnWidth, true)
+
+    ns.db.autoSession, ns.db.sessionType = ligado, salvo
+end
+
 print("== comandos ==")
 for _, cmd in ipairs({ "", "show", "hide", "help", "col", "columns", "preset raid", "preset",
                        "overall", "profile", "profile char", "profile account",

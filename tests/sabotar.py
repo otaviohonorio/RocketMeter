@@ -502,6 +502,49 @@ SABOTAGENS = [
      u"        knownFrom = 0\n        combatTimeline[1] = { 0, false }",
      "retomada sabe que so viu do minuto 15 em diante"),
 
+    # ------------------------------------------------------- a visao segue o combate (0.79.0)
+    # O RISCO AQUI E O SENTIDO INVERTIDO. Trocar 0 por 1 nao quebra nada de forma visivel no
+    # codigo -- a janela desenha igual -- e so aparece no jogo, na hora errada, mostrando a luta
+    # atual depois que ela acabou. E exatamente o oposto do que o usuario pediu.
+    ("a regra da visao sai invertida", "Window.lua",
+     u"    local wanted = inCombat and 0 or 1",
+     u"    local wanted = inCombat and 1 or 0",
+     "entrar em combate mostra a luta atual"),
+
+    # Sem o `ApplyAutoSession` no fim do combate, a metade que o pedido cita PRIMEIRO ("assim que
+    # sair de combate a visao muda para geral") simplesmente nao acontece.
+    ("sair do combate deixa de trocar a visao", "Window.lua",
+     u"    if Window.ApplyAutoSession(false) then\n"
+     u"        Window.Refresh(true)\n"
+     u"    end",
+     u"    -- sabotado",
+     "sair do combate volta para o geral"),
+
+    # E a guarda da opcao desligada: sem ela a regra passa por cima de quem escolheu trocar na mao.
+    ("a opcao desligada deixa de ser respeitada", "Window.lua",
+     u"    if not ns.db.autoSession then return false end",
+     u"    if false then return false end",
+     "desligada, sair do combate nao mexe na visao"),
+
+    # A CAIXA SOME DA TELA. O comportamento continua certo e a opcao vira invisivel -- que e o
+    # defeito de tela que este projeto ja teve duas vezes, so que ao contrario.
+    ("a caixa some da tela de configuracao", "Picker.lua",
+     u"    y = BuildSection(colWindow, y + GAP_SECTION, L[\"Session\"])\n"
+     u"\n"
+     u"    y, frame.autoSession = BuildCheck(colWindow, y, L[\"Follow the combat\"],\n"
+     u"        L[\"In combat, the current fight; when it ends, back to the overall.\"],\n"
+     u"        function() return ns.db.autoSession end,\n"
+     u"        function(v)\n"
+     u"            ns.db.autoSession = v\n"
+     u"            -- Ligar a caixa fora de combate tem que MOSTRAR o efeito na hora. Marcar e não ver\n"
+     u"            -- nada acontecer até a próxima luta é o que faz o jogador achar que a opção não pega.\n"
+     u"            if ns.Window.ApplyAutoSession() then\n"
+     u"                ns.Window.Refresh(true)\n"
+     u"            end\n"
+     u"        end)",
+     u"    -- sabotado: a secao Sessao inteira saiu",
+     "a caixa esta na tela de configuracao"),
+
     # A Blizzard escreve "Fillagree" com dois L; "Filigree" (a grafia correta do ingles) some sem
     # avisar. Este teste encerra o harness com mensagem propria, nao com uma linha "ERRO " --
     # entao o criterio aqui e "o harness NAO chegou ao fim".

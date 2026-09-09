@@ -232,3 +232,9 @@ L["Column header"] = "Cabeçalho das colunas"
 L["Keystone"] = "Pedra"
 L["Loot"] = "Saque"
 L["Not in combat: %s"] = "Fora de combate: %s"
+
+-- A visao segue o combate (0.79.0)
+L["Session"] = "Sessão"
+L["Follow the combat"] = "Acompanhar o combate"
+L["In combat, the current fight; when it ends, back to the overall."] =
+    "Em combate, a luta atual; quando ela acaba, volta para o geral."

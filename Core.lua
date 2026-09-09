@@ -10,6 +10,16 @@ ns.defaults = {
     columns = nil,
     sortBy = nil,
     sessionType = 0,      -- 0 = sessão atual; 1 = geral
+
+    -- A VISÃO SEGUE O COMBATE: em combate, a luta atual; fora dele, o geral. **Ligado por
+    -- padrão**, a pedido — e o padrão é o certo porque as duas visões respondem a perguntas
+    -- diferentes em momentos diferentes. Durante a luta a única pergunta é "como estou AGORA";
+    -- terminada ela, a pergunta vira "como foi a corrida até aqui", e trocar isso na mão a cada
+    -- pull é trabalho que a máquina faz melhor.
+    --
+    -- Trocar na mão continua funcionando (`/rm overall` e o clique no cabeçalho); o que a opção
+    -- garante é para onde a visão volta na PRÓXIMA transição de combate.
+    autoSession = true,
     sortDesc = true,      -- maior primeiro
     rows = 5,                 -- linhas visíveis; a alça muda isso
     scale = 1.0,
@@ -106,6 +116,12 @@ function handlers:PLAYER_LOGIN()
     ns.Window.Create()
     ns.Minimap.Create()
     ns.SetupOptions()
+
+    -- A visão salva pode ser a do combate anterior ao `/reload`. Aplicar a regra no login é o
+    -- que impede a janela de abrir em "Combate atual" parada fora de combate — estado que a
+    -- opção existe justamente para não deixar acontecer.
+    ns.Window.ApplyAutoSession()
+
     ns.Window.ApplyVisibility()
 end
 

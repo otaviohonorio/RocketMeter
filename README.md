@@ -94,6 +94,18 @@ fica no lugar em qualquer tamanho de minimapa, e arrasta ao redor da borda.
 
 Pode ser escondido nas opções — quem usa o compartimento de addons não precisa dos dois.
 
+### A visão segue o combate
+
+O canto esquerdo do cabeçalho diz qual sessão está na tela — **Combate atual** ou **Geral** — e o
+clique alterna as duas (pelo chat: `/rm overall`).
+
+Por padrão isso é automático: **em combate a janela mostra a luta atual; assim que ela acaba,
+volta para o geral**. É a leitura que serve em cada momento — durante o pull a pergunta é "como
+estou agora", terminado ele a pergunta é "como foi a corrida até aqui". A caixa *"Acompanhar o
+combate"*, na seção **Sessão** da configuração, desliga isso para quem prefere escolher a visão
+na mão; trocar na mão continua funcionando com ela ligada, e a regra volta a valer na próxima
+transição de combate.
+
 ### Ordenação
 
 Clique no cabeçalho para ordenar por aquela coluna; clique de novo para **inverter a direção**

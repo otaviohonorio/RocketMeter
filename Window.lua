@@ -2983,13 +2983,47 @@ function Window.ApplyVisibility()
     end
 end
 
+---A visão segue o combate: em combate, a luta atual (0); fora dele, o geral (1).
+---
+---Devolve `true` quando a visão MUDOU, e quem chama decide se redesenha. Devolver isso em vez de
+---redesenhar aqui dentro evita o desenho dobrado no caminho mais quente do addon: o
+---`PLAYER_REGEN_DISABLED` já chama `Refresh` logo depois desta função.
+---
+---⚑ O ESTADO DE COMBATE VEM POR PARÂMETRO nos dois eventos, e não de `InCombatLockdown()`. Não é
+---desconfiança da API — é que o valor certo já está na mão de quem chama, e passá-lo torna a
+---regra testável fora do jogo: o harness não tem como entrar em combate de verdade.
+---Sem argumento (opção ligada na tela, login), aí sim pergunta ao cliente.
+function Window.ApplyAutoSession(inCombat)
+    if not ns.db.autoSession then return false end
+
+    if inCombat == nil then
+        inCombat = InCombatLockdown() and true or false
+    end
+
+    local wanted = inCombat and 0 or 1
+    if ns.db.sessionType == wanted then return false end
+
+    ns.db.sessionType = wanted
+    return true
+end
+
 function Window.OnCombatStart()
+    Window.ApplyAutoSession(true)
+
     if ns.db.combatOnly and ns.db.shown then
         Window.Show(false)
     end
 end
 
 function Window.OnCombatEnd()
+    -- ⚑ O REDESENHO É DAQUI, e não do `Core`. Ele chama `Refresh` ANTES desta função (os valores
+    -- deixam de ser secret ao sair do combate), então a troca de visão feita agora só apareceria
+    -- no refresh seguinte — que pode demorar uma luta inteira, com a janela parada em "Combate
+    -- atual" depois de o combate ter acabado.
+    if Window.ApplyAutoSession(false) then
+        Window.Refresh(true)
+    end
+
     if ns.db.combatOnly then
         C_Timer.After(ns.db.hideDelay or 5, function()
             if ns.db.combatOnly and not InCombatLockdown() then

@@ -488,6 +488,7 @@ function Picker.Create()
     -- espaço quando uma linha é acrescentada.
     local h1 = H_SECTION + #columns * H_COLUMN_ROW
     local h2 = H_SECTION + H_FIELD * 2 + H_CHECK                       -- Aparencia
+        + GAP_SECTION + H_SECTION + H_CHECK                            -- Sessao
         + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON * 2     -- Placar
     -- Tres secoes de texto identicas: titulo + deslizador + combo + caixa.
     local h3 = (H_SECTION + H_FIELD * 2 + H_CHECK) * 3 + GAP_SECTION * 2
@@ -554,6 +555,24 @@ function Picker.Create()
         function(v)
             ns.db.showRealm = v
             ns.Window.Refresh()
+        end)
+
+    -- SEÇÃO PRÓPRIA, e não uma quarta linha em "Aparência". A regra da tela é que seção é
+    -- ASSUNTO, não quantidade: fonte, linhas e reino dizem como a janela SE PARECE; qual sessão
+    -- ela mostra é outro assunto, e enfiá-lo sob "Aparência" faria o título mentir. Uma seção com
+    -- um controle só é o que a Blizzard faz quando o assunto é um só.
+    y = BuildSection(colWindow, y + GAP_SECTION, L["Session"])
+
+    y, frame.autoSession = BuildCheck(colWindow, y, L["Follow the combat"],
+        L["In combat, the current fight; when it ends, back to the overall."],
+        function() return ns.db.autoSession end,
+        function(v)
+            ns.db.autoSession = v
+            -- Ligar a caixa fora de combate tem que MOSTRAR o efeito na hora. Marcar e não ver
+            -- nada acontecer até a próxima luta é o que faz o jogador achar que a opção não pega.
+            if ns.Window.ApplyAutoSession() then
+                ns.Window.Refresh(true)
+            end
         end)
 
     y = BuildSection(colWindow, y + GAP_SECTION, L["Scoreboard"])
@@ -699,7 +718,7 @@ function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
 
     for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.realmCheck,
-                             frame.autoMPlus, frame.autoRaid }) do
+                             frame.autoSession, frame.autoMPlus, frame.autoRaid }) do
         if widget and widget.Refresh then widget.Refresh() end
     end
 
