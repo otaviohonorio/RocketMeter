@@ -46,29 +46,37 @@ SABOTAGENS = [
      u"    return PADDING * 2 + RowHeight() + NAME_MIN_WIDTH + columnsWidth",
      "no minimo, o nome ainda tem o piso exato"),
 
-    ("a largura padrao nasce colada no minimo", "Window.lua",
-     u"local DEFAULT_SLACK = 24",
-     u"local DEFAULT_SLACK = 0",
-     "  e a largura padrao tem folga sobre o minimo"),
+    # ⚑ A LARGURA MEDE O TEXTO, e nao escala com o corpo. Queixa do usuario, 08/09:
+    # "trocar tamanho de fonte e a fonte bagunca muito a largura das colunas, as vezes ate
+    # desproporcional". Eram dois erros na mesma linha: a largura escalava com o CORPO (mas
+    # ela existe para dar resolucao a BARRA, que nada tem a ver com a letra) e a FAMILIA da
+    # fonte nao entrava na conta (numa fonte larga o texto transbordava sem aviso).
+    ("a largura volta a escalar com o corpo em vez de medir", "Window.lua",
+     u'    local largura = math.max(resolucao, pedidoDoTexto)',
+     u'    local largura = math.floor(resolucao * (ns.RoleSizeSafe("body") / 16) + 0.5)',
+     "a coluna do dano nao encolhe com a fonte pequena"),
 
-    ("toda coluna volta a ter a mesma largura", "Window.lua",
-     u'    local escala = ns.RoleSizeSafe("body") / 16',
-     u'    base = COLUMN_WIDTH_FIXED\n'
-     u'    local escala = ns.RoleSizeSafe("body") / 16',
-     "dano (total) e mais largo que interrupcoes (contagem)"),
+    # E a resolucao da barra continua sendo o PISO: sem ela, uma fonte estreita encolheria a
+    # coluna ate o texto, e a barra perderia a resolucao que 0.74.0 comprou.
+    ("a resolucao da barra deixa de ser piso", "Window.lua",
+     u'    local largura = math.max(resolucao, pedidoDoTexto)',
+     u'    local largura = pedidoDoTexto > 0 and pedidoDoTexto or resolucao',
+     "e a caixa do numero do dano passa dos 58 de antes"),
 
-    # Interrupcoes tambem e `field = "total"`: classificar por formato dava a ela a largura de
-    # "1.2B" para escrever "8". Quem separa os dois e a marca `counts` do catalogo.
+    # E a marca `counts` continua separando contagem de total: interrupcoes tambem e
+    # `field = "total"`, e sem a marca ela ganharia a caixa de "999.9M" para escrever "8".
     ("a coluna de contagem volta a ter largura de total", "Data.lua",
      u"        list[i].counts = CONTAGEM[list[i].attr] or nil",
      u"        list[i].counts = nil",
      "dano (total) e mais largo que interrupcoes (contagem)"),
 
-    ("a largura da coluna para de seguir o corpo da fonte", "Window.lua",
-     u'    local escala = ns.RoleSizeSafe("body") / 16',
-     u"    local escala = 1",
-     "com corpo 20, o texto cabe na caixa dele"),
+    ("a largura padrao nasce colada no minimo", "Window.lua",
+     u"local DEFAULT_SLACK = 24",
+     u"local DEFAULT_SLACK = 0",
+     "  e a largura padrao tem folga sobre o minimo"),
 
+    # Interrupcoes tambem e `field = "total"`: classificar por formato dava a ela a largura de
+    # "1.2B" para escrever "8". Quem separa os dois e a marca `counts` do catalogo.
     # A PISTA existe agora, tingida com a cor da classe a pedido. O que nao pode voltar e o
     # PRETO -- o usuario o reprovou duas vezes ("tira o fundo preto", "o fundo preto e feio").
     ("a pista volta a ser preta", "Window.lua",

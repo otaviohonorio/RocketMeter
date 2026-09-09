@@ -412,6 +412,26 @@ local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto bra
 -- quando era alinhado a direita -- o que mudou foi a ponta, nao a margem.
 local TEXT_INSET = 3
 
+-- O respiro ALEM do recuo, para o numero nao encostar no vizinho quando a fonte e larga. 4px e a
+-- mesma folga que separa duas celulas hoje (`CELL_GAP`), aplicada ao texto.
+local TEXT_ROOM = 4
+
+-- O DEGRAU entre o numero que ORDENA e o companheiro dele na mesma barra.
+--
+-- -3 pontos e a distancia que ja existe neste arquivo entre o nome e o reino (`REALM_FONT_DELTA`
+-- e -1) multiplicada por tres: um ponto separa duas coisas do MESMO assunto, tres separam assunto
+-- de anotacao. Menos que isso e ruido; mais, e o secundario vira nota de rodape -- e ele nao e
+-- nota de rodape, e a segunda metade da mesma leitura.
+local PAIR_DELTA = -3
+
+-- O SEPARADOR do trio. Um ponto medio, na cor apagada, entre numeros vizinhos.
+--
+-- So aparece com TRES membros, a pedido do usuario. Com dois ele seria pior que nada: eles estao
+-- nas duas pontas da barra, longe um do outro, e um ponto solto no meio nao separaria nada --
+-- pareceria sujeira. Com tres, os vizinhos se aproximam e a marca passa a ter trabalho.
+local DOT_TEXT = "\194\183"     -- U+00B7 MIDDLE DOT, em UTF-8
+local DOT_DELTA = -4
+
 local TRACK_ALPHA = 0.15
 local SPARK_ALPHA = 0.35
 
@@ -1073,25 +1093,89 @@ local function GroupIndexFor(key)
     return nil
 end
 
+-- O TEXTO MAIS LONGO que cada formato chega a escrever. Nao e chute: sao as faixas que
+-- `Data.FormatAmount` produz (uma casa decimal, corte em K/M/B) e `Data.FormatPercent`.
+local COLUMN_SAMPLE = {
+    total = "999.9M",
+    perSecond = "999.9K",
+    percent = "100.0%",
+    count = "999",
+}
+
+-- A REGUA: uma FontString escondida, so para medir. O resultado e cacheado por
+-- fonte+corpo, entao a medicao acontece uma vez por mudanca de aparencia -- nao por desenho.
+local regua, larguraCache, larguraChave = nil, {}, nil
+
+local function MedirTexto(texto)
+    if not regua then
+        regua = UIParent:CreateFontString(nil, "BACKGROUND", "GameFontHighlightSmall")
+        regua:Hide()
+    end
+    ns.ApplyRoleFont(regua, "body", 0)
+    regua:SetText(texto)
+    local w = regua:GetStringWidth()
+    return (type(w) == "number" and w > 0) and w or nil
+end
+
+---A largura de UMA coluna.
+---
+---⚑ ELA DEIXOU DE ESCALAR COM O CORPO DA FONTE, e passou a MEDIR o texto. Queixa do usuario,
+---08/09: *"percebi que trocar tamanho de fonte e a fonte bagunca muito a largura das colunas, as
+---vezes ate desproporcional"*.
+---
+---Ele descreveu o sintoma; a causa sao dois erros na mesma linha antiga
+---(`base * RoleSizeSafe("body") / 16`):
+---
+---1. **A largura escalava com o CORPO**, mas ela existe para dar RESOLUCAO A BARRA -- 92px contra
+---   56px e a diferenca entre distinguir 78% de 84% e nao distinguir. Resolucao de barra nao tem
+---   nada a ver com o tamanho da letra. Escalando, trocar o corpo de 13 para 20 inflava a janela
+---   inteira em ~54%, e era isso o "desproporcional".
+---2. **A FAMILIA da fonte nao entrava na conta.** O fator saia de 16 assumindo as proporcoes da
+---   Arial Narrow; numa fonte larga (FRIZQT, Morpheus) o mesmo corpo pede muito mais tinta, e o
+---   texto transbordava sem nada avisar. Numa estreita, sobrava ar.
+---
+---Agora sao duas exigencias independentes, e a largura e a maior das duas:
+---
+---    resolucao   -- `COLUMN_WIDTH_BY_FIELD`, FIXA, porque e sobre a barra
+---    o texto     -- MEDIDO na fonte e no corpo que estao valendo, mais o respiro
+---
+---Isso responde tambem o que ele ofereceu como alternativa (*"podemos por limite no tamanho da
+---fonte... o limite por fonte pode mudar"*): com a coluna medindo o proprio texto, o limite deixa
+---de ser necessario -- ela acompanha qualquer fonte em qualquer corpo, em vez de supor uma.
 local function ColumnWidthFor(key)
     local def = ns.Data.GetColumn(key)
 
     -- METRICA DE CONTAGEM VEM PRIMEIRO, e nao pelo `field`: interrupcoes e dissipacoes tambem sao
     -- `total`, so que de uma contagem -- entao classificar por formato dava a elas a largura de
     -- "1.2B" para escrever "8". Quem sabe disso e o catalogo, que marca a metrica com `counts`.
-    local base
+    local formato = "total"
     if def and def.counts then
-        base = COLUMN_WIDTH_BY_FIELD.count
-    else
-        base = def and COLUMN_WIDTH_BY_FIELD[def.field] or COLUMN_WIDTH_FIXED
+        formato = "count"
+    elseif def and def.field then
+        formato = def.field
     end
 
-    local escala = ns.RoleSizeSafe("body") / 16
-    local largura = math.floor(base * escala + 0.5)
+    local chave = tostring(ns.FontPath()) .. ":" .. tostring(ns.RoleSizeSafe("body"))
+    if chave ~= larguraChave then
+        larguraCache, larguraChave = {}, chave
+    end
+    if larguraCache[formato] then return larguraCache[formato] end
+
+    local resolucao = COLUMN_WIDTH_BY_FIELD[formato] or COLUMN_WIDTH_FIXED
+
+    -- O TEXTO, medido. Se a regua nao responder (cliente sem `GetStringWidth`, fonte que nao
+    -- carregou), a resolucao sozinha decide -- que e exatamente o comportamento de antes desta
+    -- mudanca. Reserva que piora nada.
+    local tinta = MedirTexto(COLUMN_SAMPLE[formato] or COLUMN_SAMPLE.total)
+    local pedidoDoTexto = tinta and math.ceil(tinta + TEXT_INSET * 2 + TEXT_ROOM) or 0
+
+    local largura = math.max(resolucao, pedidoDoTexto)
 
     -- PISO: abaixo disto o rotulo do cabecalho ("Interr", "Dissip") nao cabe, e coluna cujo nome
     -- nao se le nao serve para nada.
     if largura < 44 then largura = 44 end
+
+    larguraCache[formato] = largura
     return largura
 end
 
@@ -1760,6 +1844,20 @@ local function BuildRow(index)
         local quantos = #vao.grupo.keys
         local larguraFaixa = vao.width - GROUP_GAP
 
+        -- QUEM ORDENA FICA EM CORPO CHEIO; o companheiro desce. Ver `PAIR_DELTA`.
+        --
+        -- ⚑ E ISTO E UM SEGUNDO SINAL DA ORDENACAO, de graca. Hoje o estado "ordenado por DPS" e
+        -- afirmado por uma palavra dourada de 12px no topo e mais nada -- se o cabecalho sair da
+        -- tela por rolagem, ou se o olho estiver na linha e nao no topo, nao ha o que ler. Com o
+        -- degrau, as cinco (ou vinte) linhas dizem a mesma coisa.
+        --
+        -- Quando a metrica ordenada NAO esta neste grupo, o primario e o total -- que e a leitura
+        -- principal da familia, e a mesma escolha que a barra faz.
+        local primario = 1
+        for i = 1, quantos do
+            if vao.grupo.keys[i] == ns.db.sortBy then primario = i end
+        end
+
         for i = 1, quantos do
             local fs = faixa.texts[i]
             if not fs then
@@ -1768,9 +1866,10 @@ local function BuildRow(index)
                 faixa.texts[i] = fs
             end
 
-            -- Corpo unico na linha inteira: numeros de tamanhos diferentes lado a lado
-            -- desalinham a leitura vertical.
-            ns.ApplyRoleFont(fs, "body", 0)
+            -- O COMPANHEIRO DESCE UM DEGRAU. A regra de "corpo unico na linha inteira"
+            -- continua valendo entre COLUNAS -- o que varia agora e dentro de uma familia, onde
+            -- os dois numeros nao sao irmaos: um e o assunto, o outro e a anotacao dele.
+            ns.ApplyRoleFont(fs, "body", i == primario and 0 or PAIR_DELTA)
 
             local lado = MemberAlign(i, quantos)
             fs:SetJustifyH(lado)
@@ -1790,6 +1889,30 @@ local function BuildRow(index)
                 fs:SetPoint("CENTER", faixa, "CENTER", 0, 0)
             end
             fs:Show()
+        end
+
+        -- OS PONTINHOS DO TRIO, entre numeros vizinhos. Ver `DOT_TEXT`.
+        faixa.dots = faixa.dots or {}
+        for _, d in ipairs(faixa.dots) do d:Hide() end
+
+        if quantos >= 3 then
+            for i = 1, quantos - 1 do
+                local d = faixa.dots[i]
+                if not d then
+                    d = faixa.top:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    d:SetJustifyH("CENTER")
+                    faixa.dots[i] = d
+                end
+                ns.ApplyRoleFont(d, "body", DOT_DELTA)
+                d:SetText(DOT_TEXT)
+                d:SetTextColor(unpack(ns.Skin.dim))
+
+                -- NA FRONTEIRA ENTRE AS DUAS FATIAS, que e onde a separacao e necessaria.
+                local off = select(1, MemberSlice(vao.grupo, i, larguraFaixa))
+                d:ClearAllPoints()
+                d:SetPoint("CENTER", faixa, "RIGHT", -off, 0)
+                d:Show()
+            end
         end
 
         for i = #vao.grupo.keys + 1, #faixa.texts do faixa.texts[i]:SetText("") end
@@ -2582,6 +2705,9 @@ function Window.DebugCells(index)
                         -- decide. Medir so a largura nao distinguiria "os dois nas pontas" de
                         -- "os dois na mesma ponta com caixas menores".
                         align = fs:GetJustifyH(),
+                        -- O CORPO de cada numero: e o que separa o que ORDENA do companheiro.
+                        -- Sem ele, "o degrau existe" e indistinguivel de "os dois iguais".
+                        size = select(2, fs:GetFont()),
                         anchorX = ancora,
                         -- Da barra do grupo, iguais para as colunas irmas:
                         scale = escala,
@@ -2719,6 +2845,18 @@ function Window.DebugRow(index)
                 else
                     out[gi] = false
                 end
+            end
+            return out
+        end)(),
+        -- OS PONTINHOS do trio, por grupo: quantos estao na tela.
+        cellDots = (function()
+            local out = {}
+            for gi in ipairs(GroupSpans()) do
+                local faixa, n = row.groups[gi], 0
+                for _, d in ipairs(faixa and faixa.dots or {}) do
+                    if d:IsShown() then n = n + 1 end
+                end
+                out[gi] = n
             end
             return out
         end)(),

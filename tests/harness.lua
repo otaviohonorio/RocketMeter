@@ -173,7 +173,21 @@ local function widget(kind)
         if not p then return nil end
         return p.point, p.relative, p.relativePoint, p.x, p.y
     end
-    function self.GetStringWidth() return 40 end
+    -- ⚑ A LARGURA DO TEXTO DEPENDE DO TEXTO E DO CORPO, como no jogo. Ate 08/09 isto devolvia
+    -- 40 fixo, e a consequencia so apareceu quando a largura da coluna passou a MEDIR o texto:
+    -- com uma regua que responde sempre a mesma coisa, "a coluna acompanha a fonte" seria uma
+    -- afirmacao sobre nada -- todas as colunas mediriam igual, em qualquer fonte, em qualquer
+    -- corpo.
+    --
+    -- O fator 0,5 e o avanco de um digito em Arial Narrow (medido neste projeto: "Kaelvorn", 8
+    -- letras, 51px no corpo 16). Nao e a fonte do jogador, e nao precisa ser: o que o teste
+    -- afirma e que a largura SEGUE o texto e o corpo, nao qual e o numero exato.
+    function self.GetStringWidth()
+        local texto = self.__text
+        if type(texto) ~= "string" then return 40 end
+        local corpo = self.__size or 16
+        return #texto * corpo * 0.5
+    end
     function self.GetFrameLevel() return 1 end
     -- A MESMA textura em toda chamada, como no jogo. Devolver uma nova a cada
     -- `GetNormalTexture()` fazia todo teste sobre estado de icone olhar um objeto recem criado
@@ -1656,6 +1670,28 @@ do
     check("nenhum dos dois passa da metade da barra",
         celulas[1].width + celulas[2].width <= larguraFaixa, true)
 
+    -- ⚑ E O QUE ORDENA FICA EM CORPO CHEIO. Pedido do usuario depois de ver o mockup.
+    --
+    -- E um SEGUNDO sinal da ordenacao, de graca: hoje o estado "ordenado por DPS" e afirmado por
+    -- uma palavra dourada de 12px no topo e mais nada. Se o cabecalho sair da tela por rolagem,
+    -- ou se o olho estiver na linha e nao no topo, nao ha o que ler. Com o degrau, todas as
+    -- linhas dizem a mesma coisa.
+    check("ordenado por dano, o total fica maior que a taxa",
+        celulas[1].size > celulas[2].size, true)
+
+    ns.db.sortBy = "dps"
+    ns.Window.Draw()
+    local porTaxa2 = ns.Window.DebugCells(1)
+    check("ordenado por DPS, o degrau inverte", porTaxa2[2].size > porTaxa2[1].size, true)
+
+    -- E A FAMILIA QUE NAO ORDENA MANTEM O TOTAL COMO PRINCIPAL: e a leitura principal dela, e a
+    -- mesma escolha que a barra faz.
+    check("  e a cura, que nao ordena, segue com o total maior",
+        porTaxa2[3].size > porTaxa2[4].size, true)
+
+    ns.db.sortBy = "damage"
+    ns.Window.Draw()
+
     -- ⚑ E O CABECALHO VAI JUNTO. O rotulo tem que ficar em cima do numero que ele nomeia -- e o
     -- botao em cima da fatia que ele ordena. Sem isso, "Dano" apareceria colado em "DPS" enquanto
     -- os numeros ficam nas pontas, e clicar no lugar errado ordenaria pela metrica errada.
@@ -1718,6 +1754,46 @@ do
 
     ns.db.sortBy = "damage"
     ns.db.columns = { "damage", "healing", "interrupts" }
+    ns.Window.Rebuild()
+end
+
+print("== os pontinhos separam o trio, e so o trio ==")
+-- PEDIDO DO USUARIO: *"quando tiver 3, pode usar aquele micropontinhos, os bem pequenos pra
+-- separar de alguma forma"*.
+--
+-- ⚑ E SO COM TRES, de proposito. Com DOIS os numeros estao nas duas pontas da barra, longe um do
+-- outro: um ponto solto no meio nao separaria nada -- pareceria sujeira. Com tres, os vizinhos se
+-- aproximam e a marca passa a ter trabalho.
+do
+    ns.db.columns = { "damage", "dps", "interrupts" }
+    ns.db.sortBy = "damage"
+    ns.db.rows = 5
+    ns.Window.Show(false)
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+
+    local doisMembros = ns.Window.DebugFirstRow()
+    check("com dois numeros, nenhum pontinho", doisMembros.cellDots[1], 0)
+    check("  e com um numero, tambem nao", doisMembros.cellDots[2], 0)
+
+    -- O TRIO NAO E HIPOTETICO: dano + DPS + dano% vem de fabrica em duas das tres predefinicoes.
+    ns.db.columns = { "damage", "dps", "damagepct", "interrupts" }
+    ns.db.sortBy = "damage"
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+
+    local trio = ns.Window.DebugFirstRow()
+    check("com tres numeros, dois pontinhos", trio.cellDots[1], 2)
+    check("  e a coluna sozinha continua sem nenhum", trio.cellDots[2], 0)
+
+    -- E OS TRES SE ESPALHAM: esquerda, centro, direita.
+    local celulasTrio = ns.Window.DebugCells(1)
+    check("o primeiro do trio na esquerda", celulasTrio[1].align, "LEFT")
+    check("  o do meio, centrado", celulasTrio[2].align, "CENTER")
+    check("  e o ultimo na direita", celulasTrio[3].align, "RIGHT")
+
+    ns.db.columns = { "damage", "healing", "interrupts" }
+    ns.db.sortBy = "damage"
     ns.Window.Rebuild()
 end
 
@@ -2715,11 +2791,27 @@ do
                 maiorTexto * corpo * 0.5 <= caixa - 8, true)
         end
 
-        -- E A CAIXA CRESCE COM O CORPO. So "cabe" nao basta: uma largura CONSTANTE tambem cabe no
-        -- corpo padrao, e so estoura quando o jogador aumenta a fonte -- que e quando ninguem
-        -- esta olhando um teste. A afirmacao que fecha e a largura SEGUIR o corpo.
+        -- E A CAIXA CRESCE COM O CORPO, quando o texto pede. So "cabe" nao basta: uma largura
+        -- CONSTANTE tambem cabe no corpo padrao, e so estoura quando o jogador aumenta a fonte --
+        -- que e quando ninguem esta olhando um teste.
         check("e a caixa cresce junto com o corpo",
             medida[L.fontSizeMax] > medida[L.fontSizeMin], true)
+
+        -- ⚑ MAS A RESOLUCAO DA BARRA NAO ENCOLHE COM ELA. Esta e a metade que faltava, e e a
+        -- queixa do usuario: *"trocar tamanho de fonte e a fonte bagunca muito a largura das
+        -- colunas, as vezes ate desproporcional"*.
+        --
+        -- A largura antiga era `base * corpo / 16`: diminuir a fonte encolhia a barra junto, e
+        -- aumentar inflava a janela inteira. Mas a largura da coluna do TOTAL existe para dar
+        -- RESOLUCAO A BARRA -- 92 contra 56 e distinguir 78% de 84% --, e resolucao de barra nao
+        -- tem nada a ver com o tamanho da letra. Sao duas exigencias independentes, e a largura e
+        -- a MAIOR das duas.
+        ns.Window.SetRoleSize("body", L.fontSizeMin)
+        local comFontePequena = ns.Window.DebugColumnWidth("damage")
+        ns.Window.SetRoleSize("body", 16)
+        local comFonteNormal = ns.Window.DebugColumnWidth("damage")
+        check("a coluna do dano nao encolhe com a fonte pequena",
+            comFontePequena, comFonteNormal)
 
         ns.Window.SetRoleSize("body", 16)
     end
