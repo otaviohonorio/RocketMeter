@@ -139,9 +139,40 @@ local NUMBER_RESERVE = 96
 -- grupo) deixaria de ficar em cima do numero que ele nomeia. Saindo so da esquerda, o vao aparece
 -- exatamente onde ele precisa aparecer -- entre uma familia e a anterior -- e o alinhamento de
 -- cabecalho com numero fica intacto.
-local GROUP_GAP = 10
+--
+-- ⚑ 09/09/2026: VIROU CONFIGURÁVEL, com padrão **8** (o número que o usuário deu). O 10 antigo
+-- passa a ser só o ponto de partida histórico.
+--
+-- O que o padrão respeita, e o slider não pode fazer respeitar: a razão sobre o `CELL_GAP` de 4.
+-- É ela — e não o valor absoluto — que faz o vão ser lido como "muda de assunto", e o piso
+-- praticado é **2×**. Em 8 a razão é exatamente 2,0; em 6 seria 1,5, que é literalmente a razão
+-- que produziu a queixa original. Quem descer o slider abaixo de 8 está escolhendo isso, e o
+-- mínimo do controle (4) existe para que a escolha seja possível sem ser acidental.
+local GROUP_GAP_DEFAULT = 8
+local GROUP_GAP_MIN, GROUP_GAP_MAX = 4, 20
 local CELL_GAP = 4
 local CELL_INSET = 2
+
+---A folga entre famílias, como o jogador deixou.
+local function GroupGap()
+    local v = ns.db and ns.db.groupGap
+    if type(v) ~= "number" then return GROUP_GAP_DEFAULT end
+    if v < GROUP_GAP_MIN then return GROUP_GAP_MIN end
+    if v > GROUP_GAP_MAX then return GROUP_GAP_MAX end
+    return v
+end
+
+local TOTAL_WIDTH_DEFAULT = 84
+local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 56, 120
+
+---A largura da coluna de total, como o jogador deixou.
+local function TotalWidth()
+    local v = ns.db and ns.db.totalWidth
+    if type(v) ~= "number" then return TOTAL_WIDTH_DEFAULT end
+    if v < TOTAL_WIDTH_MIN then return TOTAL_WIDTH_MIN end
+    if v > TOTAL_WIDTH_MAX then return TOTAL_WIDTH_MAX end
+    return v
+end
 
 local ROW_HEIGHT_FIXED = 25   -- medido no nativo: linha de y=68 a y=92
 local COLUMN_WIDTH_FIXED = 58
@@ -483,12 +514,18 @@ ns.Skin = {
     fontSizeMax = FONT_SIZE_MAX,
     rowsMin = 1,
     rowsMax = 20,
+    -- Os limites das duas distancias configuraveis. Expostos pelo mesmo motivo dos de fonte: a
+    -- tela le daqui, entao nao ha como o deslizador oferecer um valor que o desenho recusa.
+    groupGapMin = GROUP_GAP_MIN,
+    groupGapMax = GROUP_GAP_MAX,
+    totalWidthMin = TOTAL_WIDTH_MIN,
+    totalWidthMax = TOTAL_WIDTH_MAX,
     -- Exposta porque é dela que sai o teto do corpo: o texto mais longo de uma célula tem que
     -- caber aqui, e é isso que o harness confere.
     columnWidth = COLUMN_WIDTH_FIXED,
     -- A folga entre familias de metrica. Exposta porque o teste afirma sobre ela, e travar
     -- o numero no teste faria a proxima mudanca de folga reprovar por design.
-    groupGap = GROUP_GAP,
+    groupGap = GROUP_GAP_DEFAULT,
     scoreboardFontSize = SCOREBOARD_FONT_SIZE,
     barTexture = BAR_TEXTURE,
     barBrightness = BAR_BRIGHTNESS,
@@ -1063,8 +1100,31 @@ end
 --
 -- A conta fecha na largura de hoje: 92+56+92+56+56 = 352 contra 328, e os 24 a mais saem do
 -- `DEFAULT_SLACK`. A janela continua em 517.
+-- ⚑ O TOTAL SAIU DAQUI E VIROU CONFIGURÁVEL (`ns.db.totalWidth`, padrão **84**), porque o que ele
+-- controla não é a largura de uma coluna qualquer: é **a distância entre os dois valores de uma
+-- coluna dupla**. Pedido de 09/09/2026, com print: *"são das distância entre colunas e entre
+-- valores nas colunas mescladas"*.
+--
+-- POR QUE ELE, E NÃO UM ESPAÇAMENTO PRÓPRIO. O par é UMA barra só, com um número ancorado em cada
+-- ponta dela (ver `MemberAlign`). Então o vão entre os dois é a largura da barra menos a tinta dos
+-- dois números — não existe um "espaço entre valores" para ajustar. Encurtar a barra é o único
+-- jeito de aproximá-los, e a barra é a soma das duas colunas do par.
+--
+-- Medido no print de 09/09, que saiu 1:1 com o jogo: barra de x=217 a x=355 (138 px), "93.2M"
+-- terminando em 255, "116K" começando em 321 — **65 px de vão**, com o total em 92. A tinta dos
+-- dois números mais os recuos come 74 px fixos, então o vão é `total + 56 - groupGap - 74`. Em 84
+-- com folga 8 dá **58 px**, que é o "60" que ele pediu, dentro do erro de quem mede na tela.
+--
+-- O QUE ISSO CUSTA, dito na mesma linha em que se cobra: os 92 existiam pela RESOLUÇÃO DA BARRA,
+-- não pelo texto (*"92px contra 56px é a diferença entre distinguir 78% de 84% e não distinguir"*).
+-- Em 84 a fatia do dano cai de 86 para 79 px — 1 px passa a valer 1,3% em vez de 1,2%.
+--
+-- ⚑ E O PISO DE 56 NÃO É ESTÉTICO. `ColumnWidthFor` devolve `math.max(resolução, texto medido)`, e
+-- "999.9M" na Arial Narrow 16 pede ~50 px com o respiro; numa fonte larga, mais. Abaixo disso o
+-- texto passa a mandar e **o slider deixa de ter efeito na tela** — o jogador arrastaria e nada
+-- mudaria. O mínimo do controle existe para que esse fundo não seja alcançável por acidente.
 local COLUMN_WIDTH_BY_FIELD = {
-    total = 92,
+    total = TOTAL_WIDTH_DEFAULT,   -- só o padrão; quem manda em tempo de desenho é `TotalWidth()`
     perSecond = 56,
     percent = 56,
     count = 56,
@@ -1190,13 +1250,18 @@ local function ColumnWidthFor(key)
         formato = def.field
     end
 
+    -- ⚑ A LARGURA CONFIGURADA ENTRA NA CHAVE DO CACHE. Sem ela, arrastar o deslizador não muda
+    -- nada na tela até a próxima troca de fonte — o valor velho fica cacheado e o jogador conclui
+    -- que a opção não funciona. É o mesmo tipo de defeito de um `SetAtlas` que falha calado.
     local chave = tostring(ns.FontPath()) .. ":" .. tostring(ns.RoleSizeSafe("body"))
+        .. ":" .. tostring(TotalWidth())
     if chave ~= larguraChave then
         larguraCache, larguraChave = {}, chave
     end
     if larguraCache[formato] then return larguraCache[formato] end
 
     local resolucao = COLUMN_WIDTH_BY_FIELD[formato] or COLUMN_WIDTH_FIXED
+    if formato == "total" then resolucao = TotalWidth() end
 
     -- O TEXTO, medido. Se a regua nao responder (cliente sem `GetStringWidth`, fonte que nao
     -- carregou), a resolucao sozinha decide -- que e exatamente o comportamento de antes desta
@@ -1506,7 +1571,7 @@ local function BuildColumnHeader()
     ondeFicaCache = {}
     local ondeFica = ondeFicaCache
     for _, vao in ipairs(GroupSpans()) do
-        local larguraFaixa = vao.width - GROUP_GAP
+        local larguraFaixa = vao.width - GroupGap()
         for i, key in ipairs(vao.grupo.keys) do
             local off, larg = MemberSlice(vao.grupo, i, larguraFaixa)
             ondeFica[key] = {
@@ -1843,7 +1908,7 @@ local function BuildRow(index)
             row.groups[gi] = faixa
         end
 
-        faixa:SetSize(vao.width - GROUP_GAP, height - CELL_INSET * 2)
+        faixa:SetSize(vao.width - GroupGap(), height - CELL_INSET * 2)
         faixa:ClearAllPoints()
         faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset, 0)
         faixa.bar:SetStatusBarTexture(ns.BarTexture())
@@ -1891,7 +1956,7 @@ local function BuildRow(index)
         -- continua governando quanto espaco cada metrica pede, mesmo que a POSICAO agora venha
         -- da ponta e nao do acumulado.
         local quantos = #vao.grupo.keys
-        local larguraFaixa = vao.width - GROUP_GAP
+        local larguraFaixa = vao.width - GroupGap()
 
         for i = 1, quantos do
             local fs = faixa.texts[i]
@@ -2767,7 +2832,7 @@ function Window.DebugCells(index)
                         -- Sai do caminho do DESENHO; o do cabecalho sai do caminho do cabecalho.
                         -- Duas contas independentes -- que e o que faz a comparacao valer.
                         inkX = (i == 1)
-                            and (MargemDireita(row) + vao.offset + vao.width - GROUP_GAP
+                            and (MargemDireita(row) + vao.offset + vao.width - GroupGap()
                                 - TEXT_INSET)
                             or nil,
                         -- O CORPO de cada numero: e o que separa o que ORDENA do companheiro.
@@ -2793,6 +2858,60 @@ end
 ---somar.
 function Window.DebugColumnWidth(key)
     return ColumnWidthFor(key)
+end
+
+---Os dois vãos da linha: entre famílias e dentro de uma família.
+---
+---Existe para o harness travar a RAZÃO entre eles, e não os números crus — os números mudam
+---quando o usuário pede outra densidade (já mudaram em 09/09), a razão é o que não pode quebrar.
+function Window.DebugGaps()
+    return GroupGap(), CELL_GAP
+end
+
+--------------------------------------------------------------------------------
+-- As duas distâncias configuráveis
+--------------------------------------------------------------------------------
+function Window.GetGroupGap()
+    return GroupGap()
+end
+
+function Window.SetGroupGap(value)
+    value = math.floor(tonumber(value) or GROUP_GAP_DEFAULT)
+    if value < GROUP_GAP_MIN then value = GROUP_GAP_MIN end
+    if value > GROUP_GAP_MAX then value = GROUP_GAP_MAX end
+    ns.db.groupGap = value
+    Window.Rebuild()
+    return value
+end
+
+function Window.GetTotalWidth()
+    return TotalWidth()
+end
+
+function Window.SetTotalWidth(value)
+    value = math.floor(tonumber(value) or TOTAL_WIDTH_DEFAULT)
+    if value < TOTAL_WIDTH_MIN then value = TOTAL_WIDTH_MIN end
+    if value > TOTAL_WIDTH_MAX then value = TOTAL_WIDTH_MAX end
+    ns.db.totalWidth = value
+    -- ⚑ O CACHE DE LARGURA MORRE JUNTO. `Rebuild` sozinho redesenharia com o valor velho até a
+    -- chave do cache mudar por outro motivo — o jogador arrastaria e nada aconteceria.
+    larguraCache, larguraChave = {}, nil
+    Window.Rebuild()
+    return value
+end
+
+---Quanto sobra ENTRE os dois números de uma coluna dupla, com o que está valendo agora.
+---
+---É o número que o jogador enxerga (e o que ele mediu no print), mas ele **não é ajustável
+---diretamente**: sai da largura do par menos a tinta dos dois números, porque cada um é ancorado
+---numa ponta da barra. A tela mostra este valor ao lado do deslizador para que um controle
+---abstrato ("largura do total") tenha um efeito legível.
+function Window.PairValueGap()
+    local tintaDosDois = (MedirTexto(COLUMN_SAMPLE.total) or 40)
+        + (MedirTexto(COLUMN_SAMPLE.perSecond) or 34)
+    local vao = TotalWidth() + COLUMN_WIDTH_BY_FIELD.perSecond
+        - GroupGap() - tintaDosDois - TEXT_INSET * 2
+    return math.max(0, math.floor(vao + 0.5))
 end
 
 ---OS VAOS desenhados: onde cada barra comeca e quanto ela atravessa.

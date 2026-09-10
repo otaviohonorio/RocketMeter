@@ -244,3 +244,8 @@ L["errors are NOT being captured on this client."] =
     "os erros NAO estao sendo capturados neste cliente."
 L["no error captured (capture: %s)."] = "nenhum erro capturado (captura: %s)."
 L["%d error(s) captured, %d occurrence(s):"] = "%d erro(s) capturado(s), %d ocorrencia(s):"
+
+-- As duas distancias da linha, configuraveis (0.81.0)
+L["Space between columns"] = "Espaço entre colunas"
+L["Width of the total column"] = "Largura da coluna de total"
+L["%d px between the two values"] = "%d px entre os dois valores"

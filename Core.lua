@@ -34,6 +34,20 @@ ns.defaults = {
     text = nil,
     rowHeight = 20,          -- altura da barra na referência
     columnWidth = 58,
+
+    -- AS DUAS DISTÂNCIAS DA LINHA, configuráveis a pedido (09/09/2026), com print e retângulos
+    -- apontando as duas: *"são das distância entre colunas e entre valores nas colunas
+    -- mescladas"*. Os padrões são os números que ele deu.
+    --
+    --   `groupGap`   o branco ENTRE famílias de métrica (Dano+DPS | Cura+CPS | Interr | Mortes)
+    --   `totalWidth` a largura da coluna de TOTAL, que é quem governa a distância entre os dois
+    --                valores de uma coluna dupla — cada um é ancorado numa ponta da barra, então
+    --                aproximar os dois é encurtar a barra, e não mexer num espaçamento
+    --
+    -- ⚑ As unidades são pixel do jogo, e o print de 09/09 saiu 1:1: o vão medido nele (10 px)
+    -- era exatamente o `GROUP_GAP` do código. Medir na tela e digitar aqui funciona.
+    groupGap = 8,
+    totalWidth = 84,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
     rowIcon = "spec",         -- "spec" (padrão) ou "class"
     barTexture = "flat",      -- chapada, como a referência

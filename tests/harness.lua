@@ -1694,8 +1694,12 @@ do
     local larguraDps = ns.Window.DebugColumnWidth("dps")
     check("a barra do dano cobre as duas colunas",
         vaos[1].width, larguraDano + larguraDps)
+    -- ⚑ O VAO VEM DE `GetGroupGap()`, e nao de `ns.Skin.groupGap`. O do Skin e o PADRAO, uma
+    -- constante; o desenho usa o que o jogador configurou (09/09/2026). Comparar com o padrao
+    -- passava so enquanto ninguem tivesse mexido no deslizador -- teste que so vale na
+    -- configuracao de fabrica nao protege o addon de ninguem.
     check("  e o widget tem essa largura mesmo",
-        vaos[1].barWidth, larguraDano + larguraDps - ns.Skin.groupGap)
+        vaos[1].barWidth, larguraDano + larguraDps - ns.Window.GetGroupGap())
     check("a de interrupcoes cobre uma so",
         vaos[3].width, ns.Window.DebugColumnWidth("interrupts"))
 
@@ -2106,9 +2110,10 @@ do
     -- BARRA. O que a largura declarada continua governando e a PROPORCAO entre elas -- o total,
     -- que pede mais espaco, tambem fica com o alvo de clique maior.
     local fatias = cabecalhos[1].width + cabecalhos[2].width
+    -- Idem: o vao vem de `GetGroupGap()`, que e o configurado, e nao do padrao do Skin.
     check("as duas fatias somam a barra do par",
         fatias, ns.Window.DebugColumnWidth("damage") + ns.Window.DebugColumnWidth("dps")
-            - ns.Skin.groupGap)
+            - ns.Window.GetGroupGap())
     check("  e a do total e a maior das duas",
         cabecalhos[1].width > cabecalhos[2].width, true)
 
@@ -3297,6 +3302,88 @@ do
     check("o valor salvo casa com uma opcao do combo", achou, true)
 
     ns.db.fontOutline = salvo
+end
+
+print("== as duas distancias da linha, configuraveis ==")
+-- PEDIDO DE 09/09/2026, com print e retangulos apontando DUAS distancias: *"sao das distancia
+-- entre colunas e entre valores nas colunas mescladas"*, e depois *"coloca estas distancias
+-- configuraveis no addon, padrao de valor entre colunas de 8px e entre valores de 60px ou se for
+-- medir pelo tamanho total das colunas duplas (mescladas) 84px"*.
+--
+-- O print saiu 1:1 com o jogo, e as duas foram MEDIDAS nele: vao entre familias = 10 px (que era
+-- exatamente o `GROUP_GAP` do codigo, e e o que prova a escala 1:1), e vao entre os dois numeros
+-- de um par = 65 px, com a coluna de total em 92.
+do
+    local gapAntes, totalAntes = ns.db.groupGap, ns.db.totalWidth
+
+    check("o vao entre colunas nasce em 8", ns.defaults.groupGap, 8)
+    check("e a coluna de total nasce em 84", ns.defaults.totalWidth, 84)
+
+    -- ⚑ O SEGUNDO NUMERO E O QUE MANDA NO PRIMEIRO SENTIDO DO PEDIDO. Nao existe "espaco entre
+    -- valores" para ajustar: o par e UMA barra com um numero ancorado em cada ponta, entao o vao
+    -- entre eles e a largura do par menos a tinta dos dois. Encurtar a coluna de total e o unico
+    -- jeito de aproxima-los -- e por isso o deslizador ajusta uma coisa e mostra outra.
+    ns.db.groupGap, ns.db.totalWidth = 8, 84
+    local vaoEm84 = ns.Window.PairValueGap()
+    ns.Window.SetTotalWidth(120)
+    check("alargar a coluna de total AFASTA os dois valores",
+        ns.Window.PairValueGap() > vaoEm84, true)
+    ns.Window.SetTotalWidth(56)
+    check("  e estreitar aproxima", ns.Window.PairValueGap() < vaoEm84, true)
+
+    -- ⚑ E O DESLIZADOR TEM QUE TER EFEITO NA TELA. `ColumnWidthFor` guarda a largura num cache
+    -- com chave propria; se a chave nao souber do valor configurado, arrastar o controle nao muda
+    -- NADA ate a proxima troca de fonte -- o jogador conclui que a opcao nao funciona, e nenhum
+    -- erro aparece. E o mesmo defeito calado de um `SetAtlas` que falha em silencio.
+    ns.Window.SetTotalWidth(120)
+    local largo = ns.Window.DebugColumnWidth("damage")
+    ns.Window.SetTotalWidth(56)
+    local estreito = ns.Window.DebugColumnWidth("damage")
+    check("mudar a largura atravessa o cache", largo > estreito, true)
+
+    -- ⚑ E PELO CAMINHO QUE NAO PASSA PELO SETTER. Trocar de perfil, ligar a configuracao por
+    -- personagem ou zerar tudo escrevem em `ns.db` DIRETO e chamam `Rebuild` -- nenhum deles limpa
+    -- o cache. Se a chave do cache nao souber da largura configurada, o jogador troca de perfil e
+    -- a janela continua desenhada com a largura do perfil anterior, sem nada acusar.
+    ns.db.totalWidth = 120
+    local porPerfilLargo = ns.Window.DebugColumnWidth("damage")
+    ns.db.totalWidth = 56
+    local porPerfilEstreito = ns.Window.DebugColumnWidth("damage")
+    check("  e tambem quando o perfil muda o valor por fora",
+        porPerfilLargo > porPerfilEstreito, true)
+
+    -- LIMITES. O piso de 56 nao e estetico: `ColumnWidthFor` devolve `max(resolucao, texto)`, e
+    -- abaixo do que "999.9M" pede o texto passa a mandar e o deslizador emudece.
+    check("valor abaixo do piso e preso no piso",
+        ns.Window.SetTotalWidth(10), ns.Skin.totalWidthMin)
+    check("  e acima do teto, no teto",
+        ns.Window.SetTotalWidth(999), ns.Skin.totalWidthMax)
+    check("o vao entre colunas tambem tem piso",
+        ns.Window.SetGroupGap(0), ns.Skin.groupGapMin)
+    check("  e teto", ns.Window.SetGroupGap(999), ns.Skin.groupGapMax)
+
+    -- ⚑ A RAZAO, no PADRAO. O que faz o vao ser lido como "muda de assunto" e ele ser multiplo do
+    -- vao de dentro da familia (`CELL_GAP`), e o piso praticado e 2x -- foi a razao de 1,5x que
+    -- produziu o *"ta tudo muito junto e grudado"* na tela de configuracao, e e a mesma lei de
+    -- proximidade numa linha de dados. O jogador pode descer abaixo disso; o PADRAO nao pode.
+    ns.db.groupGap = ns.defaults.groupGap
+    local grupo, celula = ns.Window.DebugGaps()
+    check("no padrao, o vao de fora e ao menos o DOBRO do de dentro", grupo >= celula * 2, true)
+
+    -- E os dois controles existem na tela, dentro da coluna.
+    ns.Picker.Create()
+    local achados = 0
+    for _, c in ipairs(ns.Picker.__probe()) do
+        if c.name == ns.L["Space between columns"] or c.name == ns.L["Width of the total column"] then
+            achados = achados + 1
+            check("  '" .. c.name .. "' cabe na coluna",
+                c.x >= 0 and c.x + c.width <= ns.Picker.__layout.columnWidth, true)
+        end
+    end
+    check("os dois deslizadores estao na tela", achados, 2)
+
+    ns.db.groupGap, ns.db.totalWidth = gapAntes, totalAntes
+    ns.Window.Rebuild()
 end
 
 print("== o diagnostico nao pode derrubar o addon ==")

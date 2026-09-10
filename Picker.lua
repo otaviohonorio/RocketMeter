@@ -487,7 +487,8 @@ function Picker.Create()
     -- constantes que posicionam os controles, é o que impede a janela de sobrar ou faltar
     -- espaço quando uma linha é acrescentada.
     local h1 = H_SECTION + #columns * H_COLUMN_ROW
-    local h2 = H_SECTION + H_FIELD * 2 + H_CHECK                       -- Aparencia
+    -- Aparencia: fonte, linhas, os DOIS deslizadores de distancia, o rotulo do vao e o reino.
+    local h2 = H_SECTION + H_FIELD * 4 + GAP_LABEL + H_LABEL + H_CHECK  -- Aparencia
         + GAP_SECTION + H_SECTION + H_CHECK                            -- Sessao
         + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON * 2     -- Placar
     -- Tres secoes de texto identicas: titulo + deslizador + combo + caixa.
@@ -548,6 +549,43 @@ function Picker.Create()
         ns.Skin.rowsMin, ns.Skin.rowsMax, "%d",
         function() return ns.Window.GetRows() or 5 end,
         function(v) ns.Window.SetRows(v) end)
+
+    -- AS DUAS DISTÂNCIAS DA LINHA, na seção da aparência da janela porque é disso que se trata:
+    -- densidade. Pedido de 09/09/2026, com print e retângulos apontando as duas.
+    --
+    -- ⚑ O SEGUNDO DESLIZADOR CONTROLA UMA COISA E MOSTRA OUTRA, e isso é deliberado. O que se
+    -- ajusta é a largura da coluna de total; o que o jogador quer ver é **quanto sobra entre os
+    -- dois valores** — e esse número não é ajustável direto, porque cada valor é ancorado numa
+    -- ponta da barra do par. Mostrar só "84" deixaria o controle mudo; mostrar os dois amarra o
+    -- que ele arrasta ao que ele enxerga.
+    y, frame.gapSlider = BuildSlider(colWindow, y, L["Space between columns"],
+        ns.Skin.groupGapMin, ns.Skin.groupGapMax, "%dpx",
+        function() return ns.Window.GetGroupGap() end,
+        function(v) ns.Window.SetGroupGap(v) end)
+
+    y, frame.pairSlider = BuildSlider(colWindow, y, L["Width of the total column"],
+        ns.Skin.totalWidthMin, ns.Skin.totalWidthMax, "%dpx",
+        function() return ns.Window.GetTotalWidth() end,
+        function(v)
+            ns.Window.SetTotalWidth(v)
+            -- O rótulo do vão acompanha na hora: ele é consequência deste deslizador.
+            if frame.pairGapLabel then
+                frame.pairGapLabel:SetText(format(L["%d px between the two values"],
+                    ns.Window.PairValueGap()))
+            end
+        end)
+
+    frame.pairGapLabel = colWindow:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    frame.pairGapLabel:SetPoint("TOPLEFT", colWindow, "TOPLEFT", 0, -(y - GAP_FIELD + 2))
+    frame.pairGapLabel:SetWidth(COL_W)
+    frame.pairGapLabel:SetJustifyH("LEFT")
+    -- ⚑ A LEGENDA PERTENCE AO DESLIZADOR DE CIMA, e por isso mora a 2px dele — o mesmo `GAP_LABEL`
+    -- que cola um rótulo no seu controle. O respiro de 10 vem DEPOIS dela, separando o campo
+    -- inteiro do próximo. Se ela ficasse no meio do caminho, o olho não saberia de quem ela fala.
+    --
+    -- E ela NÃO entra no `Probe`: o harness mede vão entre CAMPOS vizinhos com piso de 9, e uma
+    -- legenda a 2px do próprio controle reprovaria por ser exatamente o que deve ser.
+    y = y + GAP_LABEL + H_LABEL
 
     y, frame.realmCheck = BuildCheck(colWindow, y, L["Show the realm next to the name"],
         L["Off by default: the realm eats the column and the name is what ends up cut."],
@@ -718,8 +756,14 @@ function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
 
     for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.realmCheck,
+                             frame.gapSlider, frame.pairSlider,
                              frame.autoSession, frame.autoMPlus, frame.autoRaid }) do
         if widget and widget.Refresh then widget.Refresh() end
+    end
+
+    if frame.pairGapLabel then
+        frame.pairGapLabel:SetText(format(L["%d px between the two values"],
+            ns.Window.PairValueGap()))
     end
 
     for _, widgets in pairs(frame.roleWidgets or {}) do

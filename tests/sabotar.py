@@ -132,8 +132,8 @@ SABOTAGENS = [
     # coluna de dano ate o DPS, como se fosse apenas uma barra".
 
     ("a barra volta a ser uma por coluna", "Window.lua",
-     u"        faixa:SetSize(vao.width - GROUP_GAP, height - CELL_INSET * 2)",
-     u"        faixa:SetSize(ColumnWidthFor(vao.grupo.key) - GROUP_GAP, height - CELL_INSET * 2)",
+     u"        faixa:SetSize(vao.width - GroupGap(), height - CELL_INSET * 2)",
+     u"        faixa:SetSize(ColumnWidthFor(vao.grupo.key) - GroupGap(), height - CELL_INSET * 2)",
      "  e o widget tem essa largura mesmo"),
 
     # A faixa e ancorada pela DIREITA no vao do grupo. Ancorar pela coluna que ordena poe a barra
@@ -200,7 +200,7 @@ SABOTAGENS = [
 
     ("o cabecalho volta a dividir a folga entre familias", "Window.lua",
      u'                offset = vao.offset + off,',
-     u'                offset = vao.offset + GROUP_GAP / 2 + off,',
+     u'                offset = vao.offset + GroupGap() / 2 + off,',
      "o rotulo comeca no mesmo x que o numero"),
 
     # A ancora que importa e a DIREITA: os botoes do cabecalho sao ancorados por ela, entao mexer
@@ -544,6 +544,53 @@ SABOTAGENS = [
      u"        end)",
      u"    -- sabotado: a secao Sessao inteira saiu",
      "a caixa esta na tela de configuracao"),
+
+    # ------------------------------------------ as duas distancias configuraveis (09/09/2026)
+    # ⚑ O CACHE. `ColumnWidthFor` guarda a largura numa chave propria; sem o valor configurado
+    # dentro dela, arrastar o deslizador nao muda NADA na tela ate a proxima troca de fonte. O
+    # jogador conclui que a opcao nao funciona, e nenhum erro aparece -- e o defeito calado.
+    ("a largura configurada sai da chave do cache", "Window.lua",
+     u"        .. \":\" .. tostring(TotalWidth())",
+     u"        .. \"\"",
+     "  e tambem quando o perfil muda o valor por fora"),
+
+    # E o valor configurado tem que CHEGAR na conta da largura. Sem esta linha o deslizador
+    # grava no perfil e o desenho segue usando o padrao -- opcao que existe e nao faz nada.
+    ("o desenho ignora a largura configurada", "Window.lua",
+     u"    if formato == \"total\" then resolucao = TotalWidth() end",
+     u"    -- sabotado",
+     "mudar a largura atravessa o cache"),
+
+    # O PISO DE 56 NAO E ESTETICO: abaixo do que "999.9M" pede, o texto passa a mandar e o
+    # deslizador emudece. Deixar passar valor menor entrega um controle que para de responder
+    # no meio do curso.
+    ("a largura aceita valor abaixo do piso", "Window.lua",
+     u"    if value < TOTAL_WIDTH_MIN then value = TOTAL_WIDTH_MIN end",
+     u"    -- sabotado",
+     "valor abaixo do piso e preso no piso"),
+
+    # E O PADRAO NAO PODE QUEBRAR A RAZAO. O jogador pode descer o vao abaixo de 2x o de
+    # dentro da familia -- e escolha dele; o PADRAO nascer assim e trazer de volta a queixa
+    # que criou este numero ("ta muito em cima da anterior... o interrupt comeca em cima do CPS").
+    ("o padrao do vao quebra a razao de 2x", "Core.lua",
+     u"    groupGap = 8,",
+     u"    groupGap = 6,",
+     "o vao entre colunas nasce em 8"),
+
+    # E A RAZAO EM SI, atacada pelo outro lado: engordar o vao de DENTRO da familia derruba a
+    # razao sem tocar no padrao do vao de fora. E o check da razao que tem que pegar isto -- se
+    # so o valor exato estivesse travado, a proporcao ficaria sem ninguem olhando por ela.
+    ("o vao de dentro da familia engole a razao", "Window.lua",
+     u"local CELL_GAP = 4",
+     u"local CELL_GAP = 5",
+     "no padrao, o vao de fora e ao menos o DOBRO do de dentro"),
+
+    # E OS DOIS CONTROLES EXISTEM NA TELA. O comportamento pode estar certo e a opcao
+    # inalcancavel -- ja aconteceu nesta tela, com o rotulo saindo pela borda.
+    ("o deslizador do vao some da tela", "Picker.lua",
+     u"    y, frame.gapSlider = BuildSlider(colWindow, y, L[\"Space between columns\"],",
+     u"    y, frame.gapSlider = BuildSlider(colWindow, y, L[\"Rows\"],",
+     "os dois deslizadores estao na tela"),
 
     # ------------------------------------------------ captura de erro no diario (09/09/2026)
     # ⚑ A CONFERENCIA DO HANDLER. O !BugGrabber faz `function seterrorhandler() end`, entao
