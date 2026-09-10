@@ -410,6 +410,11 @@ C_MythicPlus = {
 }
 
 Enum = {
+    -- Classes de item, para o filtro do saque. Só as duas que o filtro cita: a coluna é sobre
+    -- **a peça que a corrida rendeu**, e sem o filtro ela mostraria a primeira erva que caísse no
+    -- colo de alguém. O diário do usuário tem o caso real (10/09/2026): "Raiz Petrificada",
+    -- descartada, e duas armas, guardadas.
+    ItemClass = { Weapon = 2, Armor = 4, Consumable = 0, Tradegoods = 7 },
     DamageMeterSessionType = { Current = 0, Overall = 1, Expired = 2 },
     DamageMeterType = {
         DamageDone = 0, Dps = 1, HealingDone = 2, Hps = 3, Absorbs = 4,
@@ -518,6 +523,25 @@ end
 function debugstack()
     return mundoErro.pilha or ""
 end
+
+-- ITENS, para o filtro do saque. O tipo sai do proprio link de teste ("|arma|", "|erva|"), o que
+-- deixa cada caso do teste dizer em uma palavra o que ele esta exercitando.
+--
+-- ⚑ SEM ESTE STUB, `Party.NoteLoot` SAIA NA PRIMEIRA LINHA (`if not C_Item then return end`) -- e
+-- o teste do saque tinha que chamar `Scoreboard.OnLoot` direto, pulando justamente o pedaco onde
+-- mora o defeito. Uma sabotagem que arrancava o aviso do `Party.lua` passava despercebida.
+C_Item = {
+    GetItemInfoInstant = function(link)
+        if type(link) ~= "string" then return nil end
+        if link:find("|erva|", 1, true) then
+            return nil, nil, nil, nil, nil, Enum.ItemClass.Tradegoods
+        end
+        return nil, nil, nil, nil, nil, Enum.ItemClass.Weapon
+    end,
+    IsItemBindToAccountUntilEquip = function(link)
+        return type(link) == "string" and link:find("|presente|", 1, true) ~= nil
+    end,
+}
 
 C_DamageMeter = {
     IsDamageMeterAvailable = function() return true end,
@@ -2454,6 +2478,11 @@ do
 
     -- As colunas: ordem e largura, uma linha `ScoreboardColumn:Create` cada
     -- (`scoreboard_layout.lua:291,361,378,515,650,674,701,717,780,844,904,964,1037`).
+    -- ⚑ DA `loot` PARA BAIXO ISTO DEIXOU DE SER COPIA DO DETAILS (10/09/2026, a pedido): entraram
+    -- Dano e Cura totais, a ordem passou a por a TAXA antes do TOTAL -- a mesma leitura que
+    -- inverteu o brilho do par na 0.82.0 -- e as larguras cairam em dois degraus, 84 para valor e
+    -- 60 para contagem. As SEIS primeiras continuam com os numeros dele, e por isso continuam
+    -- citando a fonte: identidade e Mitico+ e onde a semelhanca com o painel que ele conhece vale.
     local ESPERADO = {
         { "portrait",   60 },
         { "spec",       25 },
@@ -2461,13 +2490,15 @@ do
         { "keystone",   60 },
         { "score",      90 },
         { "loot",       80 },
-        { "deaths",     80 },
-        { "avoidable",  80 },
-        { "taken",     100 },
-        { "dps",       100 },
-        { "hps",       100 },
-        { "interrupts",100 },
-        { "dispels",    80 },
+        { "dps",        84 },
+        { "damage",     84 },
+        { "hps",        84 },
+        { "healing",    84 },
+        { "interrupts", 60 },
+        { "dispels",    60 },
+        { "deaths",     60 },
+        { "avoidable",  84 },
+        { "taken",      84 },
     }
 
     check("quantas colunas", #m.order, #ESPERADO)
@@ -2523,7 +2554,11 @@ do
 
     local celulas = ns.Scoreboard.DebugRow(1)
     check("a primeira linha existe", celulas ~= nil, true)
-    check("com as treze colunas", #celulas, 13)
+    -- ⚑ CONTA A PARTIR DO LAYOUT, e nao um numero cravado. Ele ja mudou de 13 para 15 quando
+    -- entraram Dano e Cura totais (10/09/2026); cravar aqui faria a proxima coluna nova
+    -- reprovar num teste que nao fala de colunas novas, e num lugar que nao explica por que.
+    -- Quem trava a lista de colunas e o bloco de layout, que a compara item a item.
+    check("com uma celula por coluna", #celulas, #ns.Scoreboard.DebugLayout().order)
 
     -- E cada celula e do tipo que a coluna pediu -- senao um retrato poderia ter sido
     -- construido onde deveria haver numero, sem erro nenhum e completamente errado.
@@ -3639,6 +3674,148 @@ do
     ns.db.sortBy, ns.db.columns = sortAntes, colsAntes
     ns.Window.Rebuild()
     ns.Window.Draw()
+end
+
+print("== o saque chega DEPOIS da captura, e tem que entrar assim mesmo ==")
+-- ⚑ DEFEITO DATADO PELO DIARIO DO USUARIO, 10/09/2026. A coluna Saque estava vazia para TODO
+-- mundo, inclusive para ele, que sabia ter ganhado item:
+--
+--     00:33:16  snapshot  fim do combate
+--     00:33:18  saque cru  Kankerlekker  (descartado: nao e arma nem armadura -- filtro correto)
+--     00:33:20  saque      Gsm
+--     00:33:30  saque      Dauo
+--
+-- `OnChallengeCompleted` roda 1,5s depois do evento de fim -- por volta de 00:33:18. O saque do
+-- grupo chegou 2s depois e o do proprio jogador 12s depois. A captura lia `Party.Loot` uma vez e
+-- nunca mais olhava para tras.
+--
+-- Esperar mais antes de capturar NAO resolve: nao ha prazo garantido para o ultimo item cair, e
+-- qualquer numero escolhido aqui seria chute. Costurar depois resolve para qualquer atraso.
+do
+    ns.Scoreboard.ShowDemo()
+    local corrida = ns.Scoreboard.DebugContext()
+    check("a demo tem linhas para costurar", corrida ~= nil and #corrida.rows > 0, true)
+
+    local quem = corrida.rows[1].name
+    corrida.rows[1].loot = nil
+
+    -- ⚑ PELO CAMINHO REAL, e nao chamando `Scoreboard.OnLoot` direto: o defeito mora justamente no
+    -- pedaco entre o evento e o placar. A primeira versao deste teste pulava o `Party`, e uma
+    -- sabotagem que arrancava o aviso de la passava despercebida -- o teste "passava" com o
+    -- defeito de pe, que e a pior nota que um teste pode tirar.
+    ns.Party.NoteLoot("|arma|[Item de Teste]", quem)
+    check("o saque que chega depois entra na linha certa",
+        corrida.rows[1].loot ~= nil, true)
+
+    -- E O FILTRO CONTINUA VALENDO NO MEIO DO CAMINHO. Caso real do diario de 10/09: a "Raiz
+    -- Petrificada" chegou como saque e foi descartada, porque a coluna e sobre a PECA que a
+    -- corrida rendeu -- sem o filtro ela mostraria a primeira erva que caisse no colo de alguem.
+    local antes = corrida.rows[2] and corrida.rows[2].loot
+    ns.Party.NoteLoot("|erva|[Raiz Petrificada]", corrida.rows[2] and corrida.rows[2].name)
+    check("erva nao vira saque", corrida.rows[2] and corrida.rows[2].loot, antes)
+
+    -- E NAO ESCORRE PARA A LINHA ERRADA: um nome que nao esta no placar nao pode marcar ninguem.
+    ns.Party.NoteLoot("|arma|[Outro]", "NinguemAqui")
+    check("nome de fora nao marca ninguem", corrida.rows[2] and corrida.rows[2].loot, antes)
+
+    -- ⚑ E NAO SOBRESCREVE O QUE JA HAVIA. Duas pecas para a mesma pessoa: a primeira e a que a
+    -- corrida rendeu no momento em que se olhou; trocar por qualquer item posterior faria a
+    -- coluna mudar sozinha depois de o jogador ja ter lido.
+    ns.Party.NoteLoot("|arma|[Segundo]", quem)
+    check("segundo item nao sobrescreve o primeiro",
+        corrida.rows[1].loot:find("Item de Teste", 1, true) ~= nil, true)
+end
+
+print("== a pedra dos colegas: a chave da lib tem reino ==")
+-- ⚑ ERA POR ISSO QUE SO A PEDRA DELE APARECIA (*"tambem a pontuacao e tambem a pedra, so a minha
+-- aparece"*). A dele vem do caminho `C_MythicPlus`, que nao passa pela lib; a dos outros vinha de
+-- uma busca que nunca casava.
+--
+-- `GetAllKeystonesInfo` documenta o formato na fonte instalada
+-- (`Details/Libs/LibOpenRaid/LibOpenRaid.lua:3044`): "[playerName-realm] = {information}". E
+-- `GetKeystoneInfo(unitId)` faz `GetUnitName(unitId, true) or unitId` -- passando "Gsm", que nao e
+-- token de unidade, ela procura a chave "Gsm" numa tabela indexada por "Gsm-Dragonblight".
+--
+-- NAO LEVANTA ERRO: devolve nil. E `nil` aqui e indistinguivel de "esse jogador nao tem pedra" --
+-- que e o que faz este defeito ser invisivel sem alguem reparar na tela.
+do
+    local libAntes = LibStub and LibStub.libs and LibStub.libs["LibOpenRaid-1.0"]
+
+    local pedida = false
+    LibStub = LibStub or {}
+    LibStub.libs = LibStub.libs or {}
+    LibStub.libs["LibOpenRaid-1.0"] = {
+        -- Reproduz a tabela REAL: indexada com reino.
+        GetAllKeystonesInfo = function()
+            return { ["Gsm-Dragonblight"] = { level = 12, challengeMapID = 500 } }
+        end,
+        -- E a busca direta erra, como no jogo: a chave curta nao existe na tabela.
+        GetKeystoneInfo = function(nome)
+            if nome == "Gsm-Dragonblight" then
+                return { level = 12, challengeMapID = 500 }
+            end
+            return nil
+        end,
+        RequestKeystoneDataFromParty = function() pedida = true return true end,
+    }
+    LibStub.GetLibrary = function(_, nome) return LibStub.libs[nome] end
+
+    local nivel, mapa = ns.Party.Keystone("Gsm")
+    check("acha a pedra do colega mesmo passando o nome sem reino", nivel, 12)
+    check("  e traz a masmorra junto", mapa, 500)
+
+    check("quem nao tem pedra continua devolvendo nil", ns.Party.Keystone("Fantasma"), nil)
+
+    -- E O PEDIDO EXISTE. A lib guarda o que os outros MANDAM, e eles mandam quando alguem
+    -- pergunta; sem o pedido a tabela pode estar vazia e a coluna some sem nada estar quebrado.
+    check("o addon sabe pedir os dados ao grupo", ns.Party.RequestKeystones(), true)
+    check("  e pediu de verdade", pedida, true)
+
+    if libAntes then LibStub.libs["LibOpenRaid-1.0"] = libAntes
+    else LibStub.libs["LibOpenRaid-1.0"] = nil end
+end
+
+print("== o marcador de morte so ganha classe quando da para provar qual e ==")
+-- Pedido: *"a outra marcacao e a morte, poderia ter o icone da classe que morreu"*.
+--
+-- ⚑ SAO DUAS FONTES E NENHUMA SOZINHA RESPONDE. O `Run` sabe QUANDO (relogio da chave) e nao sabe
+-- QUEM -- esta escrito la como limite aceito. A metrica de mortes do medidor sabe QUEM, com uma
+-- entrada por obito, mas o relogio dela e `deathTimeSeconds` e daqui nao da para confirmar de onde
+-- ele conta. Misturar os dois relogios poria caveira no minuto errado.
+--
+-- Entao: o `Run` posiciona, o medidor so empresta a CLASSE, e so quando as duas listas tem o mesmo
+-- tamanho -- a unica condicao verificavel em tempo de execucao que torna a ordem confiavel.
+do
+    local obitos = ns.Data.GetDeathList(1)
+    check("o medidor lista os obitos um a um", #obitos > 0, true)
+    check("  com a classe de quem morreu", obitos[1].classe ~= nil, true)
+
+    -- ⚑ E SO OS OBITOS DE VERDADE. `deathRecapID == 0` e entrada que o jogo NAO conta como morte
+    -- (o caso do cacador com 19 mortes sem ter morrido, 06/09). Se este filtro cair, a contagem
+    -- passa a diferir da do `Run` e -- pela guarda -- o icone simplesmente some, sem erro nenhum.
+    local naLista = 0
+    for _, src in ipairs(C_DamageMeter.GetCombatSessionFromType(
+        ns.Data.SessionValue(1), Enum.DamageMeterType.Deaths).combatSources) do
+        naLista = naLista + 1
+    end
+    check("  e descarta as entradas que nao sao morte", #obitos < naLista, true)
+
+    -- ⚑ OS DOIS RAMOS DA GUARDA. Ela e o que separa "icone certo" de "icone que pode estar
+    -- errado", e so o ramo do CASO BOM aparecia aqui -- a sabotagem que remove a guarda passava
+    -- inteira, porque nada exercitava o caso em que ela precisa dizer nao.
+    local base = { sessionType = 1, deathMarks = {} }
+    for i = 1, #obitos do base.deathMarks[i] = { i * 60 } end
+    ns.Scoreboard.__attachDeathClasses(base)
+    check("contagens iguais: o marcador ganha a classe", base.deathMarks[1][2] ~= nil, true)
+
+    -- E COM UMA MORTE A MAIS NA LINHA DO TEMPO, a correspondencia por ordem vira chute: alguma das
+    -- duas listas viu algo que a outra nao viu. O marcador tem que FICAR SEM CLASSE, e nao ganhar
+    -- a classe de outra pessoa -- icone errado ensina pior do que icone nenhum.
+    local desiguais = { sessionType = 1, deathMarks = {} }
+    for i = 1, #obitos + 1 do desiguais.deathMarks[i] = { i * 60 } end
+    ns.Scoreboard.__attachDeathClasses(desiguais)
+    check("contagens diferentes: nenhum marcador ganha classe",
+        desiguais.deathMarks[1][2], nil)
 end
 
 print("== comandos ==")

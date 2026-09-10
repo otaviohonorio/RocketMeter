@@ -725,6 +725,41 @@ local function IsRealDeath(source)
     return recap ~= 0
 end
 
+---Os óbitos da sessão, um por entrada, com QUEM morreu e QUANDO.
+---
+---⚑ ISTO EXISTE PORQUE O `Run.lua` SÓ SABE O "QUANDO". Está escrito lá, como limite aceito: o
+---`CHALLENGE_MODE_DEATH_COUNT_UPDATED` dá o instante e o contador, nunca o nome. Pedido de
+---10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"* — e a
+---resposta estava na outra ponta, na métrica de mortes do medidor, onde **cada entrada é um
+---óbito** e traz `classFilename` junto.
+---
+---`deathTimeSeconds` vai junto, mas ele é para **conferência**, não para posicionar: não dá para
+---confirmar daqui qual é a origem do relógio dele (sessão? combate? chave?), e chutar isso
+---colocaria caveira no minuto errado. Quem posiciona continua sendo o `Run`.
+---@return table lista `{ { nome, classe, quando }, ... }`, já filtrada por `deathRecapID ~= 0`
+function Data.GetDeathList(sessionType)
+    local out = {}
+    if not Enum or not Enum.DamageMeterType then return out end
+
+    local session = Data.GetSession(sessionType, Enum.DamageMeterType.Deaths)
+    local sources = session and session.combatSources
+    if not sources then return out end
+
+    for i = 1, #sources do
+        local src = sources[i]
+        if IsRealDeath(src) then
+            local nome = src.name
+            if issecretvalue(nome) then nome = nil end
+            local classe = src.classFilename
+            if issecretvalue(classe) then classe = nil end
+            local quando = src.deathTimeSeconds
+            if quando ~= nil and issecretvalue(quando) then quando = nil end
+            out[#out + 1] = { nome = nome, classe = classe, quando = quando }
+        end
+    end
+    return out
+end
+
     -- Índice por métrica: ator por GUID, ator por identidade, e CONTAGEM por ambos.
     --
     -- A contagem existe por causa da métrica de mortes, onde cada entrada é um óbito e não um

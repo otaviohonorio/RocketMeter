@@ -164,13 +164,34 @@ local ALL_COLUMNS = {
     { key = "keystone",   width = 60,  render = "keystone", custom = true, label = L["Keystone"] },
     { key = "score",      width = 90,  render = "score",    custom = true, label = L["Score"] },
     { key = "loot",       width = 80,  render = "loot",     custom = true, label = L["Loot"] },
-    { key = "deaths",     width = 80 },
-    { key = "avoidable",  width = 80 },
-    { key = "taken",      width = 100 },
-    { key = "dps",        width = 100 },
-    { key = "hps",        width = 100 },
-    { key = "interrupts", width = 100 },
-    { key = "dispels",    width = 80 },
+
+    -- ⚑ DAQUI PARA BAIXO O PLACAR DEIXOU DE COPIAR O DETAILS, e é decisão do usuário
+    -- (10/09/2026), não descuido: *"tá faltando o total de dano e total de cura, e vamos ordenar
+    -- isso, depois da coluna saque, vem o DPS, Dano, CPS, Cura, Interrupts, Disspel, Mortes,
+    -- Evitavel, Recebido, pode diminuir só um pouco a largura das colunas"*.
+    --
+    -- As seis de cima (retrato, spec, nome, pedra, pontuação, saque) continuam com os números
+    -- dele: são identidade e Mítico+, e ali a semelhança com o painel que ele conhece vale.
+    --
+    -- A ORDEM TEM UMA LÓGICA, e ela casa com a da janela de combate: **a taxa vem antes do
+    -- total**, porque a taxa é a leitura principal e o total é o contexto dela — a mesma decisão
+    -- que inverteu o brilho do par na 0.82.0. Depois vêm as contagens, e por último o dano
+    -- recebido, que é o que menos se olha ao fim de uma chave.
+    --
+    -- AS LARGURAS descem em dois degraus, não num só: métrica de valor (dano, cura, DPS, CPS,
+    -- recebido, evitável) fica em **84**, e métrica de CONTAGEM (interrupções, dissipações,
+    -- mortes) em **60**. Contagem escreve "7", não "44.4M" — dar a ela a mesma caixa era o que
+    -- fazia a tabela parecer vazia à direita. O piso de 60 é o rótulo: "Dissip" e "Mortes"
+    -- precisam caber no cabeçalho, senão a coluna perde o nome.
+    { key = "dps",        width = 84 },
+    { key = "damage",     width = 84 },
+    { key = "hps",        width = 84 },
+    { key = "healing",    width = 84 },
+    { key = "interrupts", width = 60 },
+    { key = "dispels",    width = 60 },
+    { key = "deaths",     width = 60 },
+    { key = "avoidable",  width = 84 },
+    { key = "taken",      width = 84 },
 }
 
 local DEFAULT_SORT = "dps"
@@ -474,6 +495,97 @@ function Scoreboard.GetRun(kind)
     local run = Store()[kind]
     if type(run) ~= "table" or type(run.rows) ~= "table" or #run.rows == 0 then return nil end
     return run
+end
+
+---Põe a CLASSE em cada marcador de morte da linha do tempo — quando dá para provar qual é.
+---
+---Pedido de 10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"*.
+---
+---⚑ SÃO DUAS FONTES E NENHUMA DELAS SOZINHA RESPONDE. O `Run` sabe **quando** cada morte
+---aconteceu, no relógio da chave, mas o evento dele não diz **quem**. A métrica de mortes do
+---medidor sabe **quem** (uma entrada por óbito, com a classe), mas o relógio dela é
+---`deathTimeSeconds`, e daqui não dá para confirmar de onde ele conta.
+---
+---Então não se mistura relógio: o `Run` continua posicionando, e a lista do medidor só empresta a
+---classe **na ordem**. E isso só é honesto sob uma condição que dá para verificar em tempo de
+---execução: **as duas listas terem o mesmo tamanho**. Se tiverem, cada morte do medidor casa com
+---o marcador de mesma posição. Se não tiverem, alguma das duas viu algo que a outra não viu, a
+---correspondência por ordem passa a ser chute, e o marcador fica a caveira de sempre.
+---
+---É a diferença entre um ícone que pode estar errado e um ícone que só aparece quando está certo.
+local function AttachDeathClasses(base)
+    local marks = base.deathMarks
+    if type(marks) ~= "table" or #marks == 0 then return end
+    if not ns.Data or not ns.Data.GetDeathList then return end
+
+    local obitos = ns.Data.GetDeathList(base.sessionType or 1)
+
+    if #obitos ~= #marks then
+        if ns.Log then
+            ns.Log.Add("mortes", {
+                marcadores = #marks, medidor = #obitos,
+                decisao = "contagens diferentes; marcador fica sem classe",
+            })
+        end
+        return
+    end
+
+    for i = 1, #marks do
+        marks[i][2] = obitos[i].classe
+        marks[i][3] = obitos[i].nome
+    end
+
+    if ns.Log then
+        ns.Log.Add("mortes", { marcadores = #marks, decisao = "classe casada por ordem" })
+    end
+end
+
+---O saque chegou DEPOIS da captura. Costura ele na corrida que já está retratada.
+---
+---⚑ ESTE É O DEFEITO DO PRINT DE 10/09, e o diário do usuário o datou sem sobrar dúvida:
+---
+---    00:33:16  snapshot  fim do combate
+---    00:33:18  saque cru  Kankerlekker  (descartado: não é arma nem armadura)
+---    00:33:20  saque      Gsm
+---    00:33:30  saque      Dauð
+---
+---`Scoreboard.OnChallengeCompleted` roda **1,5 s** depois do `CHALLENGE_MODE_COMPLETED` — ou seja,
+---por volta de 00:33:18. O saque do Gsm chegou 2 s depois e o do próprio jogador **12 s** depois.
+---A coluna era capturada vazia e nunca mais olhava para trás; por isso ela estava vazia para
+---**todo mundo**, inclusive para quem abriu o painel e sabia que tinha ganhado item.
+---
+---Esperar mais antes de capturar não resolve: não há prazo garantido para o último item cair, e
+---qualquer número escolhido aqui seria chute. Costurar depois resolve para qualquer atraso.
+---
+---Mexe nos TRÊS lugares onde a corrida existe, e é por isso que a função é uma só: o retrato em
+---memória (o que está na tela), o gravado em disco (o que `/rm score` reabre amanhã) e o desenho.
+function Scoreboard.OnLoot(name, itemLink)
+    if not name or not itemLink then return end
+
+    local function costura(run)
+        if type(run) ~= "table" or type(run.rows) ~= "table" then return false end
+        local mudou = false
+        for _, row in ipairs(run.rows) do
+            if row.name == name and row.loot == nil then
+                row.loot = itemLink
+                mudou = true
+            end
+        end
+        return mudou
+    end
+
+    local naTela = costura(context)
+    -- Em disco, só a corrida do mesmo tipo da que está na tela: um saque de chave não pode
+    -- aparecer no placar do último chefe de raide.
+    local kind = context and context.kind
+    if kind then costura(Store()[kind]) end
+
+    -- `Scoreboard.Refresh`, e não o `SafeDraw` local: ele só é declarado 1200 linhas abaixo daqui,
+    -- e um `local` referenciado antes da declaração vira busca de global — ou seja, `nil` na hora
+    -- da chamada. O campo da tabela se resolve no momento da chamada e não tem esse problema.
+    if naTela and frame and frame:IsShown() then
+        Scoreboard.Refresh()
+    end
 end
 
 ---Há quanto tempo a corrida foi feita, em texto curto ("há 2 dias").
@@ -991,8 +1103,25 @@ local function DrawTimeline()
             mark:SetSize(DEATH_ICON, DEATH_ICON)
             timeline.deaths[i] = mark
         end
-        if not Atlas(mark, "BossBanner-SkullCircle") then
-            mark:SetColorTexture(0.85, 0.25, 0.25, 0.9)
+        -- ⚑ O ÍCONE DA CLASSE QUANDO SE SABE QUAL FOI, a caveira quando não se sabe. A classe só
+        -- chega aqui se `AttachDeathClasses` tiver conseguido provar a correspondência (as duas
+        -- listas com o mesmo tamanho) — então `death[2]` presente já significa "isto está certo".
+        --
+        -- A arte é a folha de classes do próprio jogo, recortada por `CLASS_ICON_TCOORDS`, que é
+        -- como o retrato da linha já faz neste arquivo. Sem inventar atlas: o recorte vem da mesma
+        -- tabela que a Blizzard usa na ficha do personagem.
+        local classe = death[2]
+        local coords = classe and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classe]
+        if coords then
+            mark:SetTexture("Interface\\WorldStateFrame\\ICONS-CLASSES")
+            mark:SetTexCoord(unpack(coords))
+        else
+            -- `SetTexCoord` fica pegajoso: uma textura que já foi ícone de classe guarda o
+            -- recorte, e o atlas seguinte sairia cortado no mesmo quadrado. Desfaz antes.
+            mark:SetTexCoord(0, 1, 0, 1)
+            if not Atlas(mark, "BossBanner-SkullCircle") then
+                mark:SetColorTexture(0.85, 0.25, 0.25, 0.9)
+            end
         end
         mark:ClearAllPoints()
         mark:SetPoint("TOP", timeline.rail, "BOTTOMLEFT", X(death[1]), -3)
@@ -1623,6 +1752,15 @@ end
 
 ---O que a faixa de cima esta MOSTRANDO. Existe porque a diferenca entre "o numero esta certo" e
 ---"o numero nao devia estar ai" so se ve perguntando ao widget.
+---A corrida que está na tela, para o harness afirmar sobre ela.
+---
+---`context` é local do arquivo e o teste do saque precisa ver a linha ANTES e DEPOIS de o item
+---chegar — sem esta porta, ele teria que reabrir o painel e inferir pelo desenho, que é medir
+---outra coisa.
+function Scoreboard.DebugContext()
+    return context
+end
+
 function Scoreboard.DebugHeader()
     if not frame then return {} end
     return {
@@ -1780,9 +1918,19 @@ end
 ---sairia vazio. A fila do `Core.lua` já drena no `PLAYER_REGEN_ENABLED`, então o placar de um
 ---boss de raide morto com adds ainda vivos aparece quando a luta realmente acaba — que é
 ---também quando ele é útil.
+---A guarda das classes de morte, para o harness exercitar os dois ramos.
+---
+---Gancho declarado, no estilo do `Picker.__probe`: ela roda dentro da captura, e sem esta porta o
+---teste do ramo "as contagens discordam" teria que forjar uma corrida inteira para chegar nela.
+Scoreboard.__attachDeathClasses = AttachDeathClasses
+
 local function CaptureAndShow(base, kind, auto)
     base.kind = kind
     ns.RunWhenSafe(function()
+        -- A classe de cada morte entra ANTES do retrato, para viajar junto com ele para o disco:
+        -- uma corrida reaberta na semana que vem não tem mais sessão de medidor para consultar.
+        pcall(AttachDeathClasses, base)
+
         local ok, snapshot = pcall(Scoreboard.Snapshot, base)
         if not ok or not snapshot then
             ns.Print(L["error while drawing:"] .. " " .. tostring(snapshot))

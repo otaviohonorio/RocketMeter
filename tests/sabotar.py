@@ -465,15 +465,25 @@ SABOTAGENS = [
      u'render = "name",     custom = true, label = L["Score"]',
      "celula 5 (score) e do tipo certo"),
 
-    ("largura de coluna fora da copia", "Scoreboard.lua",
-     u'{ key = "dps",        width = 100 },',
+    ("largura de coluna sai do combinado", "Scoreboard.lua",
+     u'{ key = "dps",        width = 84 },',
      u'{ key = "dps",        width = 90 },',
-     "  e mede 100"),
+     "  e mede 84"),
 
+    # A ORDEM E PEDIDO DO USUARIO (10/09/2026), nao copia do Details: taxa antes do total,
+    # contagens depois, dano recebido por ultimo. Trocar duas de lugar nao levanta nada -- so
+    # muda a tabela debaixo de quem ja aprendeu onde olhar.
     ("ordem das colunas trocada", "Scoreboard.lua",
-     u'{ key = "deaths",     width = 80 },\n    { key = "avoidable",  width = 80 },',
-     u'{ key = "avoidable",  width = 80 },\n    { key = "deaths",     width = 80 },',
-     "coluna 7 e deaths"),
+     u'{ key = "dps",        width = 84 },\n    { key = "damage",     width = 84 },',
+     u'{ key = "damage",     width = 84 },\n    { key = "dps",        width = 84 },',
+     "coluna 7 e dps"),
+
+    # E AS DUAS COLUNAS NOVAS, que sao metade do pedido ("ta faltando o total de dano e total
+    # de cura"). Sem elas o placar volta a mostrar so as taxas, e nada acusa.
+    ("a coluna de dano total some de novo", "Scoreboard.lua",
+     u'    { key = "damage",     width = 84 },\n',
+     u'',
+     "quantas colunas"),
 
     ("altura da linha fora da copia", "Scoreboard.lua",
      u"local ROW_HEIGHT = 46 ",
@@ -551,6 +561,47 @@ SABOTAGENS = [
      u"local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 50, 99",
      u"local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 90, 99",
      "o padrao da largura cabe na faixa"),
+
+    # ------------------------------------------------------ o placar de 10/09/2026
+    # ⚑ O SAQUE VOLTA A CHEGAR TARDE DEMAIS. Sem o aviso, a coluna e capturada vazia e nunca
+    # mais olha para tras -- o diario datou: captura 00:33:18, saque 00:33:20 e 00:33:30.
+    ("o saque deixa de avisar o placar", "Party.lua",
+     u"        pcall(ns.Scoreboard.OnLoot, name, itemLink)",
+     u"        local _ = name",
+     "o saque que chega depois entra na linha certa"),
+
+    # E O SEGUNDO ITEM NAO PODE SOBRESCREVER O PRIMEIRO: a coluna mudaria sozinha depois de o
+    # jogador ja ter lido, sem nada acusar.
+    ("o saque passa a sobrescrever o anterior", "Scoreboard.lua",
+     u"            if row.name == name and row.loot == nil then",
+     u"            if row.name == name then",
+     "segundo item nao sobrescreve o primeiro"),
+
+    # A PEDRA VOLTA A PROCURAR PELA CHAVE CURTA numa tabela indexada com reino. Nao levanta
+    # erro: devolve nil, indistinguivel de "esse jogador nao tem pedra".
+    ("a pedra volta a buscar so pela chave curta", "Party.lua",
+     u"                if type(chave) == \"string\" and (ns.SplitName(chave) or chave) == name then",
+     u"                if chave == name then",
+     "acha a pedra do colega mesmo passando o nome sem reino"),
+
+    # E A CLASSE DA MORTE SO PODE APARECER SOB PROVA. Sem a guarda de tamanho, a lista do
+    # medidor e a do Run casam por ordem sem nada garantir que descrevem as mesmas mortes --
+    # e o icone fica errado em vez de ausente, que e pior.
+    ("a classe da morte passa a casar sem prova", "Scoreboard.lua",
+     u"    if #obitos ~= #marks then",
+     u"    if false then",
+     # E ELA NAO SO ERRARIA O ICONE: com mais marcadores que obitos, o laco indexa a lista curta
+     # fora do fim e LEVANTA. Em producao `AttachDeathClasses` roda sob `pcall`, entao o erro
+     # sumiria e o enriquecimento inteiro desapareceria em silencio -- por isso o criterio aqui e
+     # "o harness parou", e nao um check nomeado.
+     None),
+
+    # E o filtro de obito de verdade (`deathRecapID ~= 0`): o caso do cacador com 19 mortes
+    # sem ter morrido. Sem ele a contagem infla e a lista deixa de bater com a do Run.
+    ("o filtro de obito de verdade cai", "Data.lua",
+     u"        if IsRealDeath(src) then",
+     u"        if true then",
+     "  e descarta as entradas que nao sao morte"),
 
     # ---------------------------------------------- o brilho do par se inverte (10/09/2026)
     # ⚑ A REGRA VELHA VOLTA: "quem ORDENA fica claro". Ela e o defeito relatado -- o perfil do

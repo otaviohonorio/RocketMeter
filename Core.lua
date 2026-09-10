@@ -172,6 +172,13 @@ function handlers:CHALLENGE_MODE_START()
     -- A gravação da linha do tempo não depende de `autoScoreboard`: quem desliga o painel
     -- automático ainda pode abrir depois com `/rm score`, e aí o rodapé precisa ter dados.
     RunCall("Start")
+
+    -- E pede a pedra dos colegas no começo da chave, não no fim: a resposta viaja pelo canal de
+    -- addon e leva um instante. Perguntar na captura seria perguntar tarde demais — o mesmo erro
+    -- de tempo que deixava a coluna de saque vazia.
+    if ns.Party and ns.Party.RequestKeystones then
+        pcall(ns.Party.RequestKeystones)
+    end
 end
 
 function handlers:CHALLENGE_MODE_RESET()

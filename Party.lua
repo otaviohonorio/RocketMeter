@@ -154,13 +154,60 @@ function Party.Keystone(name)
         if level and mapID then return level, mapID end
     end
 
+    -- ⚑ A CHAVE DA LIB TEM REINO, E A NOSSA NÃO TINHA. Era isto que deixava a coluna Pedra com só
+    -- a linha do próprio jogador preenchida (relato de 10/09/2026: *"também a pontuação e também
+    -- a pedra, só a minha aparece"*) — a minha vem do caminho `C_MythicPlus` acima, que não passa
+    -- pela lib; a dos outros vinha de uma busca que nunca casava.
+    --
+    -- `GetAllKeystonesInfo` documenta o formato na própria fonte instalada
+    -- (`Details/Libs/LibOpenRaid/LibOpenRaid.lua:3044`): *"[playerName-realm] = {information}"*.
+    -- E `GetKeystoneInfo(unitId)` faz `GetUnitName(unitId, true) or unitId` — passando "Gsm", que
+    -- não é token de unidade, ela procura a chave "Gsm" numa tabela indexada por
+    -- "Gsm-Dragonblight". Não levanta erro: devolve `nil`, e `nil` aqui é indistinguível de
+    -- "esse jogador não tem pedra".
+    --
+    -- Varrer a tabela e casar pela parte antes do "-" resolve os dois casos de uma vez (com reino
+    -- e sem), e não depende de sabermos o reino de ninguém — que é informação que o medidor pode
+    -- não trazer.
     local lib = OpenRaid()
-    if not lib or not lib.GetKeystoneInfo then return nil end
+    if not lib then return nil end
 
-    local ok, info = pcall(lib.GetKeystoneInfo, name)
-    if not ok or type(info) ~= "table" then return nil end
-    if not info.level or info.level <= 0 then return nil end
-    return info.level, info.challengeMapID
+    local candidatas = {}
+    if lib.GetAllKeystonesInfo then
+        local okAll, todas = pcall(lib.GetAllKeystonesInfo)
+        if okAll and type(todas) == "table" then
+            for chave, info in pairs(todas) do
+                if type(chave) == "string" and (ns.SplitName(chave) or chave) == name then
+                    candidatas[#candidatas + 1] = info
+                end
+            end
+        end
+    end
+
+    -- Reserva: a busca direta, que funciona quando o nome já vem sem reino na tabela dela.
+    if #candidatas == 0 and lib.GetKeystoneInfo then
+        local okOne, info = pcall(lib.GetKeystoneInfo, name)
+        if okOne and type(info) == "table" then candidatas[1] = info end
+    end
+
+    for _, info in ipairs(candidatas) do
+        if info.level and info.level > 0 then
+            return info.level, info.challengeMapID
+        end
+    end
+    return nil
+end
+
+---Pede aos colegas os dados de pedra pelo canal da LibOpenRaid.
+---
+---A lib guarda o que os OUTROS mandam, e eles mandam quando alguém pergunta. Sem o pedido, a
+---tabela pode estar vazia numa sessão em que ninguém mais perguntou — e a coluna some sem que
+---nada esteja quebrado. Chamar não custa: é um `SendAddonMessage` para o grupo.
+function Party.RequestKeystones()
+    local lib = OpenRaid()
+    if not lib or not lib.RequestKeystoneDataFromParty then return false end
+    local ok, enviou = pcall(lib.RequestKeystoneDataFromParty)
+    return ok and enviou or false
 end
 
 --------------------------------------------------------------------------------
@@ -202,6 +249,13 @@ function Party.NoteLoot(itemLink, playerName)
 
     loot[name] = itemLink
     if ns.Log then ns.Log.Add("saque", { quem = name, item = itemLink }) end
+
+    -- ⚑ E AVISA O PLACAR, porque o saque quase sempre chega DEPOIS da captura da corrida. O
+    -- diário de 10/09 mediu: captura às 00:33:18, saque do grupo às 00:33:20 e o do próprio
+    -- jogador às 00:33:30. Sem este aviso a coluna nasce vazia e fica vazia para sempre.
+    if ns.Scoreboard and ns.Scoreboard.OnLoot then
+        pcall(ns.Scoreboard.OnLoot, name, itemLink)
+    end
 end
 
 --------------------------------------------------------------------------------
