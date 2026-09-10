@@ -562,6 +562,36 @@ SABOTAGENS = [
      u"local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 90, 99",
      "o padrao da largura cabe na faixa"),
 
+    # ------------------------------------------------- cabecalho do placar (10/09/2026)
+    # ⚑ A PILHA VOLTA PARA O EIXO CENTRAL, que e o defeito medido no print: com titulo, tempo
+    # e resultado empilhados, o ultimo cai DENTRO da faixa de cabecalho das colunas (y 93..99
+    # contra a faixa em 80..106). Somar constantes nao pega isso -- so a ancora lida do widget.
+    ("o tempo volta a ser empilhado sob o titulo", "Scoreboard.lua",
+     u"    frame.clock:SetPoint(\"TOPRIGHT\", frame, \"TOPRIGHT\", -SIDE - 24, CLOCK_Y)",
+     u"    frame.clock:SetPoint(\"TOP\", frame.title, \"BOTTOM\", 0, -8)",
+     "o tempo sai do centro e vai para a direita"),
+
+    # E O CORPO NAO PODE ESTOURAR A FAIXA. Um titulo que cresce sem o cabecalho crescer junto
+    # repoe o mesmo defeito por outro caminho, e sem nada aparecer errado no codigo.
+    ("o titulo cresce alem da faixa", "Scoreboard.lua",
+     u"local TITLE_SIZE = 22",
+     u"local TITLE_SIZE = 44",
+     "o titulo cabe na faixa de cabecalho"),
+
+    # E A HIERARQUIA: tempo maior que titulo inverte a ordem de leitura da tela.
+    ("o tempo passa o titulo", "Scoreboard.lua",
+     u"local CLOCK_SIZE = 18",
+     u"local CLOCK_SIZE = 24",
+     "o titulo e maior que o tempo"),
+
+    # ⚑ E O NIVEL DE ITEM DOS OUTROS. A inspecao falha calada (distancia, fase, rajada) e so e
+    # disparada no GROUP_ROSTER_UPDATE -- numa chave, uma tentativa so, no pior momento. Sem a
+    # LibOpenRaid como segunda fonte, a coluna volta a ter so a linha do proprio jogador.
+    ("o ilvl perde a segunda fonte", "Party.lua",
+     u"    local gear = LibLookup(\"GetAllUnitsGear\", \"GetUnitGear\", name)",
+     u"    local gear = nil",
+     "o ilvl do colega vem da lib quando a inspecao falha"),
+
     # ------------------------------------------------------ o placar de 10/09/2026
     # ⚑ O PLACAR PARA DE SE ATUALIZAR DEPOIS DO FIM. E o comportamento que o usuario descreveu
     # no Details: pedra, saque e pontuacao chegam conforme cada um abre o bau. Sem reencostar,
@@ -603,8 +633,8 @@ SABOTAGENS = [
     # A PEDRA VOLTA A PROCURAR PELA CHAVE CURTA numa tabela indexada com reino. Nao levanta
     # erro: devolve nil, indistinguivel de "esse jogador nao tem pedra".
     ("a pedra volta a buscar so pela chave curta", "Party.lua",
-     u"                if type(chave) == \"string\" and (ns.SplitName(chave) or chave) == name then",
-     u"                if chave == name then",
+     u"                    and (ns.SplitName(chave) or chave) == name then",
+     u"                    and chave == name then",
      "acha a pedra do colega mesmo passando o nome sem reino"),
 
     # E A CLASSE DA MORTE SO PODE APARECER SOB PROVA. Sem a guarda de tamanho, a lista do

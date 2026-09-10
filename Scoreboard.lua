@@ -79,10 +79,24 @@ local COLHEAD_TINT = { 0, 0, 0, 0.5 }
 local COLHEAD_TINT_SORTED = { 0.3, 0.3, 0.3, 0.5 }
 
 local TITLE_Y = -12              -- `dungeonNameY`   (scoreboard.lua:123)
-local TITLE_SIZE = 20            -- (:355)
-local TITLE_GAP = -8             -- (:360)
-local CLOCK_SIZE = 16            -- (:361)
-local IDLE_SIZE = 11             -- (:453)
+
+-- ⚑ OS CORPOS SUBIRAM 2, a pedido (*"aumente só um pouco a fonte"*, 10/09/2026). E subiram TODOS
+-- juntos, de propósito: a hierarquia do cabeçalho é a razão entre eles (20/16/11 ≈ 1,8 e 1,45), e
+-- crescer um só a achataria. Com +2 vira 22/18/13, e as razões ficam 1,22 e 1,38 — mais próximas
+-- entre si, o que é o efeito de aumentar tudo; o que não pode é inverter, e não inverte.
+--
+-- O tempo é o que mais ganha em presença relativa, e isso é intencional: ele deixou de ser a
+-- segunda linha do título e virou o bloco da direita, onde precisa se sustentar sozinho.
+local TITLE_SIZE = 22            -- era 20 (`scoreboard.lua:355`)
+local CLOCK_SIZE = 18            -- era 16 (:361)
+local IDLE_SIZE = 13             -- era 11 (:453)
+
+-- O bloco da direita: o tempo começa na mesma altura do título, e o resultado 2px abaixo dele.
+-- Os 2 são o mesmo `GAP_LABEL` que cola rótulo em controle na tela de configuração — aqui o
+-- resultado é legenda do tempo, e legenda mora colada no que descreve.
+local CLOCK_Y = -14
+local RESULT_GAP = -2
+local RESULT_SIZE = 13           -- legenda do tempo: mesmo corpo da faixa de contexto
 
 -- Estrela do nível da chave: 100x100 centrada em ("center", frame, "top", 0, 27). Os números
 -- foram medidos pelo autor do Details contra o painel oficial — copiados, não recalibrados.
@@ -630,6 +644,17 @@ function Scoreboard.RefreshExternalColumns()
                     local item = ns.Party.Loot(row.name)
                     if item then
                         row.loot = item
+                        mudou = true
+                    end
+                end
+                -- O NÍVEL DE ITEM ENTRA NA MESMA LISTA, pelo mesmo motivo: a inspeção do começo
+                -- da chave falha calada (distância, fase, rajada de pedidos), e a resposta da
+                -- LibOpenRaid pode chegar depois. Relato de 10/09: *"não aparece o ilvl dos
+                -- outros"*.
+                if row.ilevel == nil then
+                    local nivel = ns.Party.ItemLevel(row.name)
+                    if nivel then
+                        row.ilevel = nivel
                         mudou = true
                     end
                 end
@@ -1381,17 +1406,37 @@ local function CreatePanel()
 
     CreateHeaderArt()
 
-    -- Título a -12 e corpo 20; tempo logo abaixo a -8 e corpo 16. São as quatro medidas do
-    -- cabeçalho do Details (`scoreboard.lua:123`, `:355`, `:360`, `:361`).
+    -- ⚑ A PILHA CENTRAL VIROU DUAS COLUNAS, e a medição no print de 10/09 é o motivo.
+    --
+    -- O Details empilha três coisas no centro — título (-12, corpo 20), tempo (-8, corpo 16) e,
+    -- abaixo, o resultado. Copiamos as medidas dele, mas **não a fonte**: a nossa sai de
+    -- `ns.Skin.scoreboardFontSize` com a família que o jogador escolheu, e ela renderiza mais
+    -- alta. A pilha não cabia nos 65 do cabeçalho, e o print mostra exatamente isso:
+    --
+    --     faixa de cabeçalho de coluna ... y 80 a 106
+    --     "no tempo +1" .................. y 93 a 99   ← dentro dela
+    --
+    -- Espremer os vãos consertaria um pixel e deixaria a mesma armadilha para o próximo que
+    -- mexesse no corpo da fonte. **Tirar do eixo resolve por construção**: o centro fica só com o
+    -- título, e o tempo — que é o número principal de uma corrida — vai para a DIREITA, com o
+    -- resultado embaixo dele. Foi o que o usuário pediu (*"o tempo da dungeon não está em um lugar
+    -- bom, pode ficar melhor alinhado na direita"*), e é também a saída certa: a esquerda já é uma
+    -- faixa de contexto (fora de combate, ilvl, mortes), então a direita era o vazio da tela.
     frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     frame.title:SetPoint("TOP", frame, "TOP", 0, TITLE_Y)
     frame.title:SetTextColor(1, 0.82, 0)
 
+    -- O TEMPO, à direita, alinhado pela borda. Abaixo do botão de fechar para não disputar com
+    -- ele, e com a mesma margem lateral do resto do painel.
     frame.clock = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    frame.clock:SetPoint("TOP", frame.title, "BOTTOM", 0, TITLE_GAP)
+    frame.clock:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE - 24, CLOCK_Y)
+    frame.clock:SetJustifyH("RIGHT")
 
+    -- E o resultado logo abaixo dele, na mesma borda: os dois formam UM bloco, e o olho lê
+    -- "30:47 / no tempo +1" como uma coisa só, que é o que eles são.
     frame.result = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    frame.result:SetPoint("TOP", frame.clock, "BOTTOM", 0, -3)
+    frame.result:SetPoint("TOPRIGHT", frame.clock, "BOTTOMRIGHT", 0, RESULT_GAP)
+    frame.result:SetJustifyH("RIGHT")
 
     -- CANTO SUPERIOR ESQUERDO: o relógio de tempo FORA de combate e o nível de item médio do
     -- grupo (`scoreboard.lua:443-470`). São as duas linhas de contexto da corrida que o Details
@@ -1482,6 +1527,10 @@ local function DrawHeader()
     -- valendo: título 20, tempo 16, relógio de ocioso 11.
     ns.ApplyScoreboardFont(frame.title, TITLE_SIZE - ns.Skin.scoreboardFontSize, "")
     ns.ApplyScoreboardFont(frame.clock, CLOCK_SIZE - ns.Skin.scoreboardFontSize, "")
+    -- O RESULTADO FICAVA DE FORA desta lista, e por isso era o único texto do cabeçalho que não
+    -- seguia a fonte escolhida pelo jogador — ficava no `GameFontNormalSmall` do template. Passou
+    -- despercebido porque "não seguir a fonte" não parece defeito, parece escolha.
+    ns.ApplyScoreboardFont(frame.result, RESULT_SIZE - ns.Skin.scoreboardFontSize, "")
     ns.ApplyScoreboardFont(frame.idle, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
     ns.ApplyScoreboardFont(frame.ilvl, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
     ns.ApplyScoreboardFont(frame.deaths, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
@@ -1769,6 +1818,15 @@ function Scoreboard.DebugLayout()
         titleY = TITLE_Y,
         titleSize = TITLE_SIZE,
         clockSize = CLOCK_SIZE,
+        -- O corpo da faixa de contexto (fora de combate, ilvl, mortes). Entra porque o que o
+        -- harness trava agora e a HIERARQUIA entre os tres, e nao os numeros de cada um.
+        idleSize = IDLE_SIZE,
+        -- E o que o harness precisa para conferir que a pilha CABE na faixa de cabecalho, que e
+        -- o defeito que o print de 10/09 mostrou: "no tempo +1" desenhado dentro da faixa das
+        -- colunas. Sem estes tres, so daria para afirmar sobre corpos de fonte soltos.
+        clockY = CLOCK_Y,
+        resultGap = RESULT_GAP,
+        resultSize = RESULT_SIZE,
         widths = widths,
         order = (function()
             local out = {}
@@ -1818,6 +1876,27 @@ end
 ---outra coisa.
 function Scoreboard.DebugContext()
     return context
+end
+
+---A ancoragem real dos textos do cabeçalho, lida dos widgets.
+---
+---⚑ NÃO SÃO AS CONSTANTES DE NOVO. O defeito de 10/09 foi de ARRANJO — três textos empilhados no
+---mesmo eixo, o último caindo dentro da faixa das colunas —, e um teste que só soma constantes
+---continuaria passando se alguém reempilhasse tudo. Aqui se lê onde o widget ficou de fato.
+function Scoreboard.DebugHeaderAnchors()
+    if not frame then return nil end
+    local function ancora(fs)
+        if not fs or not fs.GetPoint then return nil end
+        local ponto, relativo, relPonto = fs:GetPoint(1)
+        return { point = ponto, relativeTo = relativo, relativePoint = relPonto }
+    end
+    return {
+        title = ancora(frame.title),
+        clock = ancora(frame.clock),
+        result = ancora(frame.result),
+        titleWidget = frame.title,
+        clockWidget = frame.clock,
+    }
 end
 
 function Scoreboard.DebugHeader()
@@ -2003,7 +2082,10 @@ local function ReencostarAteCompletar(restante)
 
     local falta = false
     for _, row in ipairs(context.rows) do
-        if row.keystoneLevel == nil or row.loot == nil then falta = true break end
+        if row.keystoneLevel == nil or row.loot == nil or row.ilevel == nil then
+            falta = true
+            break
+        end
     end
 
     if not falta then

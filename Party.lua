@@ -39,6 +39,11 @@ local ilevelCache = {}           -- [nome] = { level = n, at = tempo }
 local inspectQueue = {}
 local inspecting = false
 
+-- Declarada aqui e escrita lá embaixo, junto das outras coisas de LibOpenRaid: o nível de item
+-- (que vem primeiro no arquivo) e a pedra (que vem depois) usam a MESMA busca, e um `local`
+-- referenciado antes da declaração vira busca de global — `nil` na hora da chamada, calado.
+local LibLookup
+
 ---Nome curto e legível, ou nil. Identidade pode vir opaca em combate.
 local function Readable(name)
     if name == nil or issecretvalue(name) or type(name) ~= "string" or name == "" then return nil end
@@ -72,6 +77,25 @@ function Party.ItemLevel(name)
     if entry then
         local now = GetTime and GetTime() or 0
         if now - entry.at < CACHE_TTL then return entry.level end
+    end
+
+    -- ⚑ SEGUNDA FONTE: a LibOpenRaid. Relato de 10/09/2026: *"não aparece o ilvl dos outros"* — e a
+    -- corrida gravada das 02:28 mostrou `ilevel` só na linha do próprio jogador, num grupo
+    -- cross-realm de LFG.
+    --
+    -- A inspeção é frágil por natureza e não avisa quando falha: exige `CanInspect` (distância,
+    -- mesma fase), o servidor descarta pedidos em rajada, e ela só é disparada no
+    -- `GROUP_ROSTER_UPDATE` — numa chave o grupo não muda, então **é uma tentativa só, no pior
+    -- momento possível** (o começo, com todo mundo se posicionando e tela de carregamento).
+    --
+    -- A lib não tem nenhum desses limites: o dado viaja pelo canal de addon, funciona cross-realm
+    -- e a qualquer distância. Ela entra DEPOIS da inspeção, e não antes, porque a inspeção lê o
+    -- cliente direto — quando responde, é a fonte mais exata das duas.
+    local gear = LibLookup("GetAllUnitsGear", "GetUnitGear", name)
+    local nivel = gear and gear.ilevel
+    if type(nivel) == "number" and nivel > 0 then
+        Remember(name, nivel)
+        return nivel
     end
     return nil
 end
@@ -142,6 +166,48 @@ local function OpenRaid()
     return nil
 end
 
+---Acha a entrada de alguém numa tabela da LibOpenRaid, com ou sem reino no nome.
+---
+---⚑ A CHAVE DA LIB TEM REINO, E A NOSSA NÃO TINHA. Era isto que deixava a coluna Pedra com só a
+---linha do próprio jogador preenchida (relato de 10/09/2026: *"também a pontuação e também a
+---pedra, só a minha aparece"*) — a minha vem do caminho `C_MythicPlus`, que não passa pela lib.
+---
+---As duas tabelas dela seguem o mesmo formato, documentado na fonte instalada
+---(`Details/Libs/LibOpenRaid/LibOpenRaid.lua:3044`): **`[playerName-realm] = {information}`**. E as
+---funções de busca por unidade fazem `GetUnitName(unitId, true) or unitId` — passando "Gsm", que
+---não é token de unidade, elas procuram a chave "Gsm" numa tabela indexada por "Gsm-Dragonblight".
+---
+---**Não levanta erro: devolve `nil`** — e `nil` aqui é indistinguível de "esse jogador não tem
+---pedra" ou "não sei o nível de item dele". Foi isso que fez o defeito sobreviver sem ninguém ver.
+---
+---Varrer casando pela parte antes do "-" resolve os dois casos (com e sem reino) e não depende de
+---sabermos o reino de ninguém — informação que o medidor pode não trazer.
+---@param todasFn string nome da função que devolve a tabela inteira
+---@param umaFn string nome da função de busca direta, usada como reserva
+LibLookup = function(todasFn, umaFn, name)
+    local lib = OpenRaid()
+    if not lib then return nil end
+
+    if lib[todasFn] then
+        local ok, todas = pcall(lib[todasFn])
+        if ok and type(todas) == "table" then
+            for chave, info in pairs(todas) do
+                if type(chave) == "string" and type(info) == "table"
+                    and (ns.SplitName(chave) or chave) == name then
+                    return info
+                end
+            end
+        end
+    end
+
+    -- Reserva: a busca direta, que funciona quando o nome já vem sem reino na tabela dela.
+    if lib[umaFn] then
+        local ok, info = pcall(lib[umaFn], name)
+        if ok and type(info) == "table" then return info end
+    end
+    return nil
+end
+
 ---@return number|nil nivel, number|nil mapID
 function Party.Keystone(name)
     name = Readable(name)
@@ -154,48 +220,9 @@ function Party.Keystone(name)
         if level and mapID then return level, mapID end
     end
 
-    -- ⚑ A CHAVE DA LIB TEM REINO, E A NOSSA NÃO TINHA. Era isto que deixava a coluna Pedra com só
-    -- a linha do próprio jogador preenchida (relato de 10/09/2026: *"também a pontuação e também
-    -- a pedra, só a minha aparece"*) — a minha vem do caminho `C_MythicPlus` acima, que não passa
-    -- pela lib; a dos outros vinha de uma busca que nunca casava.
-    --
-    -- `GetAllKeystonesInfo` documenta o formato na própria fonte instalada
-    -- (`Details/Libs/LibOpenRaid/LibOpenRaid.lua:3044`): *"[playerName-realm] = {information}"*.
-    -- E `GetKeystoneInfo(unitId)` faz `GetUnitName(unitId, true) or unitId` — passando "Gsm", que
-    -- não é token de unidade, ela procura a chave "Gsm" numa tabela indexada por
-    -- "Gsm-Dragonblight". Não levanta erro: devolve `nil`, e `nil` aqui é indistinguível de
-    -- "esse jogador não tem pedra".
-    --
-    -- Varrer a tabela e casar pela parte antes do "-" resolve os dois casos de uma vez (com reino
-    -- e sem), e não depende de sabermos o reino de ninguém — que é informação que o medidor pode
-    -- não trazer.
-    local lib = OpenRaid()
-    if not lib then return nil end
-
-    local candidatas = {}
-    if lib.GetAllKeystonesInfo then
-        local okAll, todas = pcall(lib.GetAllKeystonesInfo)
-        if okAll and type(todas) == "table" then
-            for chave, info in pairs(todas) do
-                if type(chave) == "string" and (ns.SplitName(chave) or chave) == name then
-                    candidatas[#candidatas + 1] = info
-                end
-            end
-        end
-    end
-
-    -- Reserva: a busca direta, que funciona quando o nome já vem sem reino na tabela dela.
-    if #candidatas == 0 and lib.GetKeystoneInfo then
-        local okOne, info = pcall(lib.GetKeystoneInfo, name)
-        if okOne and type(info) == "table" then candidatas[1] = info end
-    end
-
-    for _, info in ipairs(candidatas) do
-        if info.level and info.level > 0 then
-            return info.level, info.challengeMapID
-        end
-    end
-    return nil
+    local info = LibLookup("GetAllKeystonesInfo", "GetKeystoneInfo", name)
+    if not info or not info.level or info.level <= 0 then return nil end
+    return info.level, info.challengeMapID
 end
 
 ---Pede aos colegas os dados de pedra pelo canal da LibOpenRaid.
@@ -205,7 +232,14 @@ end
 ---nada esteja quebrado. Chamar não custa: é um `SendAddonMessage` para o grupo.
 function Party.RequestKeystones()
     local lib = OpenRaid()
-    if not lib or not lib.RequestKeystoneDataFromParty then return false end
+    if not lib then return false end
+
+    -- `RequestAllData` traz o EQUIPAMENTO junto, e e por isso que ele entra aqui: a mesma ida ao
+    -- canal de addon que busca a pedra resolve o nivel de item dos outros, que a inspecao so
+    -- consegue as vezes. Se ela nao existir, o pedido de pedra sozinho ainda vale.
+    if lib.RequestAllData then pcall(lib.RequestAllData) end
+
+    if not lib.RequestKeystoneDataFromParty then return false end
     local ok, enviou = pcall(lib.RequestKeystoneDataFromParty)
     return ok and enviou or false
 end

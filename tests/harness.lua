@@ -2468,8 +2468,53 @@ do
     check("altura do cabecalho",        m.colheadHeight, 20)   -- `header_height`  DF/header:747
     check("respiro entre colunas",      m.colPadding,     2)   -- `padding`        DF/header:733
     check("titulo",                     m.titleY,       -12)   -- `dungeonNameY`          :123
-    check("corpo do titulo",            m.titleSize,     20)   -- (:355)
-    check("corpo do tempo",             m.clockSize,     16)   -- (:361)
+    -- ⚑ OS CORPOS DO CABECALHO DEIXARAM DE COPIAR O DETAILS (10/09/2026, *"aumente so um pouco a
+    -- fonte"*): 20/16/11 viraram 22/18/13. O que se trava agora e a HIERARQUIA -- titulo maior que
+    -- tempo, tempo maior que a linha de contexto --, e nao os numeros crus, que vao mudar de novo
+    -- na proxima vez que ele pedir. Numero cravado aqui faria o proximo pedido reprovar por design.
+    check("o titulo e maior que o tempo",   m.titleSize > m.clockSize, true)
+    check("e o tempo, maior que o contexto", m.clockSize > m.idleSize, true)
+    -- E O CABECALHO CRESCEU EM RELACAO A LINHA DE DADOS: era 20 contra 12. Se um dia o corpo da
+    -- linha passar o do titulo, a tela perde a ordem de leitura sem nada quebrar.
+    check("  e o titulo passa do corpo da linha", m.titleSize > ns.Skin.scoreboardFontSize, true)
+
+    -- ⚑ E O QUE DE FATO QUEBROU: A PILHA TEM QUE CABER NA FAIXA DO CABECALHO.
+    --
+    -- Medido no print de 10/09: a faixa de cabecalho de coluna ocupa y 80..106, e "no tempo +1"
+    -- tinha tinta em y 93..99 -- desenhado DENTRO dela. A causa: copiamos as medidas do Details
+    -- (titulo -12/20, tempo -8/16, resultado abaixo) mas nao a FONTE dele; a nossa sai da familia
+    -- que o jogador escolheu e renderiza mais alta, entao a pilha de tres estourava os 65.
+    --
+    -- O conserto tirou o tempo e o resultado do eixo central (foram para a direita), mas o teste
+    -- precisa valer para os DOIS blocos -- senao a proxima mudanca de corpo repete o defeito no
+    -- lado novo.
+    --
+    -- ⚑ O FATOR 1,3 E UM TETO, NAO UMA MEDICAO. Altura de linha depende da familia da fonte, e
+    -- isso so o jogo responde; 1,3 e generoso para as fontes do WoW (a caixa real fica em ~1,2),
+    -- entao passar aqui e mais dificil do que passar na tela. Superestimar e o lado seguro de
+    -- errar: um teste que folga demais reprova cedo, um que aperta demais deixa passar.
+    local function alturaDeLinha(corpo) return math.ceil(corpo * 1.3) end
+
+    local pilhaCentral = math.abs(m.titleY) + alturaDeLinha(m.titleSize)
+    check("o titulo cabe na faixa de cabecalho (" .. pilhaCentral .. " de " .. m.headerHeight .. ")",
+        pilhaCentral <= m.headerHeight, true)
+
+    local pilhaDireita = math.abs(m.clockY) + alturaDeLinha(m.clockSize)
+        + math.abs(m.resultGap) + alturaDeLinha(m.resultSize)
+    check("o tempo e o resultado cabem tambem (" .. pilhaDireita .. " de " .. m.headerHeight .. ")",
+        pilhaDireita <= m.headerHeight, true)
+
+    -- ⚑ E O ARRANJO, LIDO DOS WIDGETS. As duas contas acima somam CONSTANTES, e continuariam
+    -- passando se alguem reempilhasse os tres textos no mesmo eixo -- que foi o defeito. O que
+    -- separa "cabe" de "esta no lugar certo" e a ancora de verdade.
+    ns.Scoreboard.ShowDemo()
+    local a = ns.Scoreboard.DebugHeaderAnchors()
+    check("o cabecalho responde onde cada texto ficou", a ~= nil, true)
+    check("o titulo fica no topo, centrado", a.title.point, "TOP")
+    check("o tempo sai do centro e vai para a direita", a.clock.point, "TOPRIGHT")
+    check("  ancorado na JANELA, nao no titulo", a.clock.relativeTo == a.titleWidget, false)
+    check("o resultado acompanha o tempo, nao o titulo",
+        a.result.relativeTo == a.clockWidget, true)
 
     -- A CONTA FECHA NOS 452 DELE (`mainFrameHeight`, :117). E o unico check aqui que nao copia
     -- um numero: ele deriva a altura de cinco linhas dos outros seis e compara com o total.
@@ -3826,6 +3871,19 @@ do
     -- *"conforme os jogadores vao abrindo o bau ele vai atualizando o placar"*. A pedra NOVA de
     -- cada um so existe depois de o bau abrir -- nao ha instante de captura que a pegue, e por
     -- isso o placar precisa continuar vivo depois do fim da corrida.
+    -- ⚑ E O NIVEL DE ITEM VEM DA MESMA TABELA, pela mesma busca. Relato de 10/09: *"nao aparece o
+    -- ilvl dos outros"*, e a corrida gravada mostrou `ilevel` so na linha do proprio jogador, num
+    -- grupo cross-realm.
+    --
+    -- A inspecao e fragil por natureza e NAO AVISA QUANDO FALHA: exige `CanInspect` (distancia,
+    -- fase), o servidor descarta pedidos em rajada, e ela so dispara no `GROUP_ROSTER_UPDATE` --
+    -- numa chave o grupo nao muda, entao e uma tentativa so, no pior momento possivel.
+    LibStub.libs["LibOpenRaid-1.0"].GetAllUnitsGear = function()
+        return { ["Gsm-Dragonblight"] = { ilevel = 623.4 } }
+    end
+    check("o ilvl do colega vem da lib quando a inspecao falha",
+        ns.Party.ItemLevel("Gsm"), 623.4)
+
     check("assina o aviso de pedra mudada", ns.Party.WatchKeystones(), true)
     check("  e a inscricao chegou na lib", assinaturas["KeystoneUpdate"] ~= nil, true)
     check("  e nao assina duas vezes", ns.Party.WatchKeystones(), true)
