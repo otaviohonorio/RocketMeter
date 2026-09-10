@@ -367,11 +367,11 @@ SABOTAGENS = [
      u'            ns.ApplyRoleFont(fs, "body", i == 1 and 0 or -3)',
      "todo numero da linha tem o MESMO corpo"),
 
-    # E a hierarquia que SOBROU e a cor. Sem ela, nada distingue o que ordena do companheiro.
-    ("a cor deixa de distinguir quem ordena", "Window.lua",
-     u"                    if i == ordena then",
+    # E a hierarquia que SOBROU e a cor. Sem ela, nada distingue a taxa do total dentro do par.
+    ("a cor deixa de distinguir a taxa do total", "Window.lua",
+     u"                    if i == primario then",
      u"                    if true then",
-     "quem ordena fica mais claro que o companheiro"),
+     "a taxa fica mais clara que o total"),
 
     ("a cor de classe volta para o numero", "Window.lua",
      u"                    fs:SetTextColor(unpack(ns.Skin.text))",
@@ -544,6 +544,16 @@ SABOTAGENS = [
      u"        end)",
      u"    -- sabotado: a secao Sessao inteira saiu",
      "a caixa esta na tela de configuracao"),
+
+    # ---------------------------------------------- o brilho do par se inverte (10/09/2026)
+    # ⚑ A REGRA VELHA VOLTA: "quem ORDENA fica claro". Ela e o defeito relatado -- o perfil do
+    # usuario ordena por dano, entao a taxa saia apagada em toda linha, e o pedido foi
+    # literalmente *"inverter isso"*. A sabotagem so e pega pelo check que ordena pelo TOTAL:
+    # ordenando pela taxa as duas regras concordam, e o teste passaria com o defeito de pe.
+    ("o brilho volta a seguir quem ordena", "Window.lua",
+     u"                        if def and def.field == \"perSecond\" then",
+     u"                        if grupo.keys[k] == ns.db.sortBy then",
+     "ordenando pelo TOTAL, quem fica clara ainda e a taxa"),
 
     # ------------------------------------------ as duas distancias configuraveis (09/09/2026)
     # ⚑ O CACHE. `ColumnWidthFor` guarda a largura numa chave propria; sem o valor configurado

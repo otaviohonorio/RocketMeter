@@ -2649,14 +2649,35 @@ function Window.Draw()
                     -- sobrou depois de o corpo sair da lista, e ele nao mexe em metrica nenhuma --
                     -- entao a regua vertical nao danca.
                     --
-                    -- Quando a metrica ordenada nao esta neste grupo, o primario e o total: a
-                    -- leitura principal da familia, e a mesma escolha que a barra faz.
-                    local ordena = 1
+                    -- ⚑ O PRIMARIO DO PAR E A TAXA, e nao mais quem ordena. Pedido de 10/09/2026:
+                    -- *"a coluna de dano e cura e um texto em branco, a coluna de DPS e CPS parece
+                    -- meio cinza e nao branco, o que pedi foi para inverter isso"*.
+                    --
+                    -- CONFIRMADO NOS DOIS LADOS antes de mexer. No codigo, a regra antiga era
+                    -- "quem ORDENA fica claro", e o perfil dele ordena por `damage` -- por isso o
+                    -- Dano saia claro e o DPS apagado; na Cura, a metrica ordenada nao esta no
+                    -- grupo, entao caia no total. No print, o pico da tinta deu (253,255,255) no
+                    -- total contra (205,208,216) na taxa: razao **0,81**, contra os 0,79 de
+                    -- `dim`/`text`. A tela estava fazendo exatamente o que o codigo mandava.
+                    --
+                    -- E POR QUE ISSO NAO PERDE O SINAL DE ORDENACAO: ele nunca morou aqui. Quem
+                    -- diz qual coluna ordena e o CABECALHO, em dourado -- e a skill do workspace
+                    -- ja registra que repetir o mesmo sinal em dois lugares nao acrescenta nada.
+                    -- O brilho da linha passa a dizer outra coisa, que e o que ele le primeiro:
+                    -- numa familia, a TAXA e a leitura principal e o total e o contexto dela.
+                    --
+                    -- Familia de uma coluna so (Interr, Mortes) nao tem taxa: cai no 1 e fica
+                    -- clara, como sempre esteve.
+                    local primario = 1
                     for k = 1, #grupo.keys do
-                        if grupo.keys[k] == ns.db.sortBy then ordena = k end
+                        local def = ns.Data.GetColumn(grupo.keys[k])
+                        if def and def.field == "perSecond" then
+                            primario = k
+                            break
+                        end
                     end
 
-                    if i == ordena then
+                    if i == primario then
                         fs:SetTextColor(unpack(ns.Skin.text))
                     else
                         fs:SetTextColor(unpack(ns.Skin.dim))

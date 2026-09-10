@@ -1773,17 +1773,33 @@ do
         for _ in pairs(corpos) do quantos = quantos + 1 end
         check("  inclusive ordenando pela taxa", quantos, 1)
 
-        -- A HIERARQUIA QUE SOBROU E A COR, e ela nao mexe em metrica nenhuma: quem ordena fica
-        -- claro, o companheiro apaga.
+        -- ⚑ A HIERARQUIA QUE SOBROU E A COR, e o PRIMARIO DO PAR E A TAXA -- nao quem ordena.
+        --
+        -- Pedido de 10/09/2026: *"a coluna de dano e cura e um texto em branco, a coluna de DPS e
+        -- CPS parece meio cinza e nao branco, o que pedi foi para inverter isso"*. Antes a regra
+        -- era "quem ordena fica claro", e como o perfil dele ordena por dano, a taxa saia apagada
+        -- em toda linha.
         local claro = table.concat(porTaxa2[2].color, ",")
         local apagado = table.concat(porTaxa2[1].color, ",")
-        check("quem ordena fica mais claro que o companheiro", claro ~= apagado, true)
-        check("  e o claro e o `Skin.text`", claro, table.concat(ns.Skin.text, ","))
+        check("a taxa fica mais clara que o total", claro ~= apagado, true)
+        check("  e a clara e o `Skin.text`", claro, table.concat(ns.Skin.text, ","))
         check("  e o apagado, o `Skin.dim`", apagado, table.concat(ns.Skin.dim, ","))
     end
 
     ns.db.sortBy = "damage"
     ns.Window.Draw()
+
+    -- ⚑ E ORDENANDO PELO TOTAL A TAXA CONTINUA CLARA. **Este e o check do pedido**: e exatamente a
+    -- configuracao do usuario (`sortBy = "damage"`), e e onde a regra velha e a nova discordam. Sem
+    -- ele, o bloco acima passaria com as duas regras -- ordenando pela taxa, "quem ordena" e "a
+    -- taxa" sao a MESMA coluna, e o teste nao separaria uma da outra.
+    do
+        local porTotal = ns.Window.DebugCells(1)
+        check("ordenando pelo TOTAL, quem fica clara ainda e a taxa",
+            table.concat(porTotal[2].color, ","), table.concat(ns.Skin.text, ","))
+        check("  e o total e que apaga",
+            table.concat(porTotal[1].color, ","), table.concat(ns.Skin.dim, ","))
+    end
 
     -- ⚑ E O CABECALHO VAI JUNTO. O rotulo tem que ficar em cima do numero que ele nomeia -- e o
     -- botao em cima da fatia que ele ordena. Sem isso, "Dano" apareceria colado em "DPS" enquanto
@@ -3572,6 +3588,45 @@ do
     mundoErro.mudo = false
     mundoErro.handler = nil
     ns.Log.ClearErrors()
+end
+
+print("== a cor de cada coluna da linha, com a ordenacao no dano ==")
+-- ⚑ ESTE E O RETRATO DO PEDIDO DE 10/09/2026, na configuracao exata do usuario (`sortBy =
+-- "damage"`): *"a coluna de dano e cura e um texto em branco, a coluna de DPS e CPS parece meio
+-- cinza e nao branco, o que pedi foi para inverter isso"*.
+--
+-- E ele fechou a regra na mesma conversa, depois de notar sozinho a incoerencia da antiga (*"a
+-- Cura nao ta ordenada e ta branco"*): *"nao precisa fazer essa mudanca na fonte conforme a
+-- ordenacao, o titulo no header ja fica visivel"*. Entao o brilho **nao fala mais de ordenacao**
+-- -- quem faz isso e o cabecalho dourado -- e passa a dizer so quem e a leitura principal do par.
+do
+    local sortAntes, colsAntes = ns.db.sortBy, ns.db.columns
+    ns.db.sortBy = "damage"
+    ns.db.columns = { "damage", "dps", "healing", "hps", "interrupts", "deaths" }
+    ns.Window.Rebuild()
+    ns.Window.Draw()
+
+    local claro = table.concat(ns.Skin.text, ",")
+    local apagado = table.concat(ns.Skin.dim, ",")
+    local cor = {}
+    for _, cel in ipairs(ns.Window.DebugCells(1)) do
+        cor[cel.key] = table.concat(cel.color, ",")
+    end
+
+    check("dano apaga", cor.damage, apagado)
+    check("  e DPS fica claro", cor.dps, claro)
+    check("cura apaga", cor.healing, apagado)
+    check("  e CPS fica claro", cor.hps, claro)
+
+    -- ⚑ COLUNA SOZINHA NAO APAGA. Interrupcoes e Mortes nao tem taxa nem companheiro: apagar por
+    -- simetria deixaria o numero mais dificil de ler sem contrastar com nada. O apagado so existe
+    -- porque ha um par -- ele e relativo, nao um estilo de "coluna secundaria".
+    check("interrupcoes, sem par, fica clara", cor.interrupts, claro)
+    check("  e mortes tambem", cor.deaths, claro)
+
+    ns.db.sortBy, ns.db.columns = sortAntes, colsAntes
+    ns.Window.Rebuild()
+    ns.Window.Draw()
 end
 
 print("== comandos ==")
