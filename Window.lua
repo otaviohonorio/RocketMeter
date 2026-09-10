@@ -163,7 +163,18 @@ local function GroupGap()
 end
 
 local TOTAL_WIDTH_DEFAULT = 84
-local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 56, 120
+-- 50 e 99 a pedido (10/09/2026). O padrão de 84 fica confortavelmente dentro da faixa.
+--
+-- ⚑ O QUE MUDA COM O PISO EM 50, dito porque não dá para consertar daqui: `ColumnWidthFor` devolve
+-- `math.max(resolução, texto medido)`, então a coluna nunca fica menor do que o número precisa. O
+-- deslizador não quebra nada abaixo do pedido do texto — ele **para de ter efeito**, porque o
+-- texto passa a mandar. Medido no print de 09/09 (1:1 com o jogo), "999.9M" na Arial Narrow 16
+-- pede ~51 px com os recuos, então em 50 o fim do curso já é o piso real.
+--
+-- E a faixa muda com a tipografia: numa fonte larga, ou no corpo 20, o texto pede mais e o trecho
+-- mudo do deslizador cresce. Isso já era verdade com o piso em 56 — o pedido só o torna um pouco
+-- mais visível. Se ele arrastar até o fim e a janela não encolher mais, é isto, e não um defeito.
+local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 50, 99
 
 ---A largura da coluna de total, como o jogador deixou.
 local function TotalWidth()

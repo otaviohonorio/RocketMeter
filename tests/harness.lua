@@ -3335,25 +3335,37 @@ do
     check("o vao entre colunas nasce em 8", ns.defaults.groupGap, 8)
     check("e a coluna de total nasce em 84", ns.defaults.totalWidth, 84)
 
+    -- ⚑ O PADRAO TEM QUE CABER NA FAIXA, e este check nao trava numero nenhum -- trava a relacao
+    -- entre eles. A faixa ja mudou uma vez a pedido (56..120 -> 50..99, em 10/09/2026) e vai mudar
+    -- de novo; o que nao pode acontecer e um limite novo deixar o PADRAO do lado de fora, porque
+    -- ai todo perfil novo nasce com o valor preso no limite e ninguem ve erro nenhum.
+    check("o padrao da largura cabe na faixa",
+        ns.defaults.totalWidth >= ns.Skin.totalWidthMin
+        and ns.defaults.totalWidth <= ns.Skin.totalWidthMax, true)
+    check("  e o mesmo vale para o vao entre colunas",
+        ns.defaults.groupGap >= ns.Skin.groupGapMin
+        and ns.defaults.groupGap <= ns.Skin.groupGapMax, true)
+
+
     -- ⚑ O SEGUNDO NUMERO E O QUE MANDA NO PRIMEIRO SENTIDO DO PEDIDO. Nao existe "espaco entre
     -- valores" para ajustar: o par e UMA barra com um numero ancorado em cada ponta, entao o vao
     -- entre eles e a largura do par menos a tinta dos dois. Encurtar a coluna de total e o unico
     -- jeito de aproxima-los -- e por isso o deslizador ajusta uma coisa e mostra outra.
     ns.db.groupGap, ns.db.totalWidth = 8, 84
     local vaoEm84 = ns.Window.PairValueGap()
-    ns.Window.SetTotalWidth(120)
+    ns.Window.SetTotalWidth(ns.Skin.totalWidthMax)
     check("alargar a coluna de total AFASTA os dois valores",
         ns.Window.PairValueGap() > vaoEm84, true)
-    ns.Window.SetTotalWidth(56)
+    ns.Window.SetTotalWidth(ns.Skin.totalWidthMin)
     check("  e estreitar aproxima", ns.Window.PairValueGap() < vaoEm84, true)
 
     -- ⚑ E O DESLIZADOR TEM QUE TER EFEITO NA TELA. `ColumnWidthFor` guarda a largura num cache
     -- com chave propria; se a chave nao souber do valor configurado, arrastar o controle nao muda
     -- NADA ate a proxima troca de fonte -- o jogador conclui que a opcao nao funciona, e nenhum
     -- erro aparece. E o mesmo defeito calado de um `SetAtlas` que falha em silencio.
-    ns.Window.SetTotalWidth(120)
+    ns.Window.SetTotalWidth(ns.Skin.totalWidthMax)
     local largo = ns.Window.DebugColumnWidth("damage")
-    ns.Window.SetTotalWidth(56)
+    ns.Window.SetTotalWidth(ns.Skin.totalWidthMin)
     local estreito = ns.Window.DebugColumnWidth("damage")
     check("mudar a largura atravessa o cache", largo > estreito, true)
 
@@ -3361,9 +3373,9 @@ do
     -- personagem ou zerar tudo escrevem em `ns.db` DIRETO e chamam `Rebuild` -- nenhum deles limpa
     -- o cache. Se a chave do cache nao souber da largura configurada, o jogador troca de perfil e
     -- a janela continua desenhada com a largura do perfil anterior, sem nada acusar.
-    ns.db.totalWidth = 120
+    ns.db.totalWidth = ns.Skin.totalWidthMax
     local porPerfilLargo = ns.Window.DebugColumnWidth("damage")
-    ns.db.totalWidth = 56
+    ns.db.totalWidth = ns.Skin.totalWidthMin
     local porPerfilEstreito = ns.Window.DebugColumnWidth("damage")
     check("  e tambem quando o perfil muda o valor por fora",
         porPerfilLargo > porPerfilEstreito, true)

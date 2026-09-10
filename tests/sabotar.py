@@ -545,6 +545,13 @@ SABOTAGENS = [
      u"    -- sabotado: a secao Sessao inteira saiu",
      "a caixa esta na tela de configuracao"),
 
+    # UM LIMITE NOVO DEIXA O PADRAO DE FORA. Nao levanta erro nenhum: todo perfil novo nasce
+    # com o valor preso no limite, e a opcao parece so "nao ter pegado".
+    ("o piso da largura passa do padrao", "Window.lua",
+     u"local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 50, 99",
+     u"local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 90, 99",
+     "o padrao da largura cabe na faixa"),
+
     # ---------------------------------------------- o brilho do par se inverte (10/09/2026)
     # ⚑ A REGRA VELHA VOLTA: "quem ORDENA fica claro". Ela e o defeito relatado -- o perfil do
     # usuario ordena por dano, entao a taxa saia apagada em toda linha, e o pedido foi
