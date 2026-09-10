@@ -490,6 +490,35 @@ end
 -- nota dentro do stub.
 local SESSION_TYPES_ACEITOS = { [0] = true, [1] = true, [2] = true }
 
+--------------------------------------------------------------------------------
+-- Tratamento de erro do cliente
+--------------------------------------------------------------------------------
+-- O SIMULADOR PRECISA DOS TRES MUNDOS, porque o addon escolhe caminho diferente em cada um:
+--
+--   1. sem !BugGrabber          -> encadeia no handler que estiver valendo
+--   2. com !BugGrabber          -> assina o callback dele (e o `seterrorhandler` e um no-op)
+--   3. `seterrorhandler` mudo, sem BugGrabber -> nao da para capturar, e tem que ADMITIR isso
+--
+-- O mundo 3 e o que justifica a conferencia `geterrorhandler() == meu` no addon: sem ela a
+-- captura se declara ligada estando desligada, e "o arquivo nao tem erro" viraria mentira.
+mundoErro = {
+    handler = nil,
+    mudo = false,        -- o !BugGrabber faz `function seterrorhandler() end`
+}
+
+function seterrorhandler(fn)
+    if mundoErro.mudo then return end
+    mundoErro.handler = fn
+end
+
+function geterrorhandler()
+    return mundoErro.handler
+end
+
+function debugstack()
+    return mundoErro.pilha or ""
+end
+
 C_DamageMeter = {
     IsDamageMeterAvailable = function() return true end,
     GetSessionDurationSeconds = function() return 134 end,
@@ -3366,6 +3395,96 @@ do
         caixa and caixa.x >= 0 and caixa.x + caixa.width <= ns.Picker.__layout.columnWidth, true)
 
     ns.db.autoSession, ns.db.sessionType = ligado, salvo
+end
+
+print("== o diario captura os erros DESTE addon ==")
+-- ⚑ PEDIDO DO USUARIO, 09/09/2026: *"tu esta armazenando logs de ambos addons? fazendo aqueles
+-- logs de tudo que faz e etc para capturar qualquer erro inesperado?"*. A resposta era NAO: o
+-- diario so sabia o que a gente mandou anotar, e erro de Lua ficava fora dele. No mesmo dia isso
+-- custou 1628 ocorrencias do mesmo erro passando despercebidas no arquivo de um addon de terceiro.
+do
+    local ADDON_PATH = "Interface/AddOns/" .. "RocketMeter"
+
+    ns.Log.ClearErrors()
+
+    -- MUNDO 1: sem !BugGrabber. Encadeia no handler que estiver valendo.
+    local chamouAnterior = false
+    mundoErro.mudo = false
+    mundoErro.handler = function() chamouAnterior = true end
+    ns.Log.__resetCapture()
+    check("sem BugGrabber, encadeia no handler", ns.Log.CaptureErrors(), "handler")
+
+    mundoErro.pilha = ADDON_PATH .. "/Data.lua:10: in function 'X'\n"
+        .. "Interface/AddOns/Outro/Coisa.lua:3: in function <Coisa>"
+    geterrorhandler()(ADDON_PATH .. "/Data.lua:10: deu ruim")
+
+    local distintos, total = ns.Log.ErrorCount()
+    check("o erro nosso entra no diario", distintos, 1)
+
+    -- ⚑ NAO ROUBAR O ERRO DE QUEM JA TRATAVA. Substituir sem chamar o anterior apagaria o erro
+    -- do BugSack/ElvUI do jogador -- estragar a ferramenta dos outros para ter a nossa.
+    check("  e o handler anterior continua sendo chamado", chamouAnterior, true)
+
+    local guardado = RocketMeterLogDB.erros[1]
+    check("  com a pilha filtrada nos nossos quadros",
+        guardado.pilha ~= nil and guardado.pilha:find("Outro/Coisa", 1, true) == nil, true)
+
+    -- REPETICAO VIRA CONTAGEM. Sem isto, o caso real (1628 vezes o mesmo erro) varreria o anel
+    -- inteiro e apagaria justamente o contexto que explica o defeito.
+    geterrorhandler()(ADDON_PATH .. "/Data.lua:10: deu ruim")
+    geterrorhandler()(ADDON_PATH .. "/Data.lua:10: deu ruim")
+    distintos, total = ns.Log.ErrorCount()
+    check("repeticao vira contagem, nao linha nova", distintos, 1)
+    check("  e a contagem sobe", total, 3)
+
+    -- ERRO DE OUTRO ADDON NAO E NOSSO. Guardar o alheio enche o arquivo do que nao vamos
+    -- consertar, e -- pior -- faz parecer que o defeito e nosso.
+    mundoErro.pilha = "Interface/AddOns/Outro/Coisa.lua:3: in function <Coisa>"
+    geterrorhandler()("Interface/AddOns/Outro/Coisa.lua:3: erro alheio")
+    distintos = ns.Log.ErrorCount()
+    check("erro de outro addon nao entra", distintos, 1)
+
+    -- MUNDO 2: com !BugGrabber. Ele NEUTRALIZA o seterrorhandler
+    -- (`!BugGrabber/BugGrabber.lua:573-574`), entao o caminho tem que ser o callback dele.
+    ns.Log.ClearErrors()
+    local assinantes = {}
+    EventRegistry = {
+        RegisterCallback = function(_, evento, fn) assinantes[evento] = fn end,
+    }
+    BugGrabber = {
+        erros = {},
+        GetErrorByID = function(self, id) return self.erros[id] end,
+    }
+    mundoErro.mudo = true
+    ns.Log.__resetCapture()
+    check("com BugGrabber, assina o callback dele", ns.Log.CaptureErrors(), "buggrabber")
+
+    BugGrabber.erros["x1"] = {
+        message = ADDON_PATH .. "/Window.lua:882: bad argument",
+        stack = ADDON_PATH .. "/Window.lua:882: in function 'Y'",
+    }
+    assinantes["BugGrabber.BugGrabbed"](nil, "x1")
+    check("  e copia o erro que e nosso", ns.Log.ErrorCount(), 1)
+
+    BugGrabber.erros["x2"] = {
+        message = "Interface/AddOns/Outro/Coisa.lua:3: alheio",
+        stack = "Interface/AddOns/Outro/Coisa.lua:3: in function <Coisa>",
+    }
+    assinantes["BugGrabber.BugGrabbed"](nil, "x2")
+    check("  e so o que e nosso", ns.Log.ErrorCount(), 1)
+
+    -- ⚑ MUNDO 3: `seterrorhandler` mudo e SEM BugGrabber. E o mundo que a conferencia existe para
+    -- pegar. Declarar "handler" aqui seria a pior falha possivel num instrumento: ele afirmaria
+    -- estar ligado, o arquivo sairia limpo, e a conclusao "nao houve erro" seria falsa.
+    BugGrabber, EventRegistry = nil, nil
+    mundoErro.mudo = true
+    ns.Log.__resetCapture()
+    check("seterrorhandler mudo e sem BugGrabber: admite que nao captura",
+        ns.Log.CaptureErrors(), "nenhuma")
+
+    mundoErro.mudo = false
+    mundoErro.handler = nil
+    ns.Log.ClearErrors()
 end
 
 print("== comandos ==")

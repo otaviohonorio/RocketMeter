@@ -146,9 +146,14 @@ commands["log"] = function(rest)
     local arg = rest and rest:lower():match("^%S*")
     if arg == "clear" then
         ns.Log.Clear()
+        ns.Log.ClearErrors()
         ns.Print(L["log cleared."])
         return
     end
+
+    -- OS ERROS PRIMEIRO, e no chat. Ler o arquivo exige `/reload` e sair do jogo; a contagem
+    -- aqui responde "aconteceu alguma coisa?" sem nada disso.
+    ns.PrintErrorSummary()
 
     ns.Log.Snapshot("requested by the user")
     ns.Print(format(L["snapshot saved (%d entries). Type /reload so the file is written."],

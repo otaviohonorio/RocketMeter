@@ -238,3 +238,9 @@ L["Session"] = "Sessão"
 L["Follow the combat"] = "Acompanhar o combate"
 L["In combat, the current fight; when it ends, back to the overall."] =
     "Em combate, a luta atual; quando ela acaba, volta para o geral."
+
+-- Captura de erro no diario (RocketMeter 0.80.0 / RocketSwap 0.21.0)
+L["errors are NOT being captured on this client."] =
+    "os erros NAO estao sendo capturados neste cliente."
+L["no error captured (capture: %s)."] = "nenhum erro capturado (captura: %s)."
+L["%d error(s) captured, %d occurrence(s):"] = "%d erro(s) capturado(s), %d ocorrencia(s):"
