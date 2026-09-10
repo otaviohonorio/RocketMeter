@@ -176,8 +176,12 @@ function handlers:CHALLENGE_MODE_START()
     -- E pede a pedra dos colegas no começo da chave, não no fim: a resposta viaja pelo canal de
     -- addon e leva um instante. Perguntar na captura seria perguntar tarde demais — o mesmo erro
     -- de tempo que deixava a coluna de saque vazia.
-    if ns.Party and ns.Party.RequestKeystones then
-        pcall(ns.Party.RequestKeystones)
+    --
+    -- ⚑ E ASSINA O AVISO DE MUDANÇA, que é o que faz o placar acertar sozinho depois: a pedra
+    -- NOVA de cada um só existe quando ele abre o baú, e é aí que a lib transmite.
+    if ns.Party then
+        if ns.Party.RequestKeystones then pcall(ns.Party.RequestKeystones) end
+        if ns.Party.WatchKeystones then pcall(ns.Party.WatchKeystones) end
     end
 end
 

@@ -557,13 +557,36 @@ end
 ---Esperar mais antes de capturar não resolve: não há prazo garantido para o último item cair, e
 ---qualquer número escolhido aqui seria chute. Costurar depois resolve para qualquer atraso.
 ---
----Mexe nos TRÊS lugares onde a corrida existe, e é por isso que a função é uma só: o retrato em
----memória (o que está na tela), o gravado em disco (o que `/rm score` reabre amanhã) e o desenho.
+---Mexe nos DOIS lugares onde a corrida existe, e é por isso que a função é uma só: o retrato em
+---memória (o que está na tela) e o gravado em disco (o que `/rm score` reabre amanhã).
+---
+---⚑ E O DESENHO NÃO SE ATUALIZA SOZINHO — quem repinta é `Scoreboard.Refresh`, chamado no fim.
+---`Scoreboard.Refresh`, e não o `SafeDraw` local: ele só é declarado 1200 linhas abaixo daqui, e um
+---`local` referenciado antes da declaração vira busca de global — `nil` na hora da chamada.
+local function Costura(mexe)
+    local naTela = false
+    if type(context) == "table" and type(context.rows) == "table" then
+        naTela = mexe(context) and true or false
+    end
+
+    -- Em disco, só a corrida do mesmo tipo da que está na tela: um saque de chave não pode
+    -- aparecer no placar do último chefe de raide.
+    local kind = context and context.kind
+    local guardada = kind and Store()[kind]
+    if type(guardada) == "table" and type(guardada.rows) == "table" and guardada ~= context then
+        mexe(guardada)
+    end
+
+    if naTela and frame and frame:IsShown() then
+        Scoreboard.Refresh()
+    end
+    return naTela
+end
+
 function Scoreboard.OnLoot(name, itemLink)
     if not name or not itemLink then return end
 
-    local function costura(run)
-        if type(run) ~= "table" or type(run.rows) ~= "table" then return false end
+    Costura(function(run)
         local mudou = false
         for _, row in ipairs(run.rows) do
             if row.name == name and row.loot == nil then
@@ -572,20 +595,56 @@ function Scoreboard.OnLoot(name, itemLink)
             end
         end
         return mudou
-    end
+    end)
+end
 
-    local naTela = costura(context)
-    -- Em disco, só a corrida do mesmo tipo da que está na tela: um saque de chave não pode
-    -- aparecer no placar do último chefe de raide.
-    local kind = context and context.kind
-    if kind then costura(Store()[kind]) end
+---A pedra e a pontuação chegam **depois**, como o saque — e continuam chegando por minutos.
+---
+---⚑ ISTO É OBSERVAÇÃO DO USUÁRIO SOBRE O DETAILS, 10/09/2026, e ela reenquadrou a correção:
+---*"geralmente o Details também não aparece na hora, mas conforme os jogadores vão abrindo o baú
+---ele vai atualizando o placar, e então fica tudo certinho, as pedras o saque, a pontuação"*.
+---
+---Ou seja: **não é para acertar o instante da captura, é para o placar continuar vivo depois
+---dela.** Faz sentido pelo próprio jogo — a pedra nova só existe quando cada um abre o baú, e é
+---ela que a LibOpenRaid transmite; a pontuação da temporada é recalculada no servidor. Capturar
+---mais tarde só trocaria um instante errado por outro.
+---
+---Então esta função reencosta as três colunas que dependem de fora, e ela é chamada tanto pelo
+---aviso da lib quanto por uma janela de tentativas depois do fim da corrida.
+---@return boolean mudou alguma coisa
+function Scoreboard.RefreshExternalColumns()
+    if not ns.Party then return false end
 
-    -- `Scoreboard.Refresh`, e não o `SafeDraw` local: ele só é declarado 1200 linhas abaixo daqui,
-    -- e um `local` referenciado antes da declaração vira busca de global — ou seja, `nil` na hora
-    -- da chamada. O campo da tabela se resolve no momento da chamada e não tem esse problema.
-    if naTela and frame and frame:IsShown() then
-        Scoreboard.Refresh()
-    end
+    return Costura(function(run)
+        local mudou = false
+        for _, row in ipairs(run.rows) do
+            if row.name then
+                if row.keystoneLevel == nil then
+                    local nivel, mapa = ns.Party.Keystone(row.name)
+                    if nivel then
+                        row.keystoneLevel, row.keystoneMapID = nivel, mapa
+                        mudou = true
+                    end
+                end
+                if row.loot == nil then
+                    local item = ns.Party.Loot(row.name)
+                    if item then
+                        row.loot = item
+                        mudou = true
+                    end
+                end
+                -- A PONTUAÇÃO É A ÚNICA QUE SE SOBRESCREVE, e de propósito: ela não "chega", ela
+                -- **muda** — o servidor recalcula a da temporada depois da corrida. Manter a
+                -- primeira leitura seria mostrar de propósito o número velho.
+                local nova = ScoreFor(row.name)
+                if nova and row.values and row.values.score ~= nova then
+                    row.values.score = nova
+                    mudou = true
+                end
+            end
+        end
+        return mudou
+    end)
 end
 
 ---Há quanto tempo a corrida foi feita, em texto curto ("há 2 dias").
@@ -1924,6 +1983,45 @@ end
 ---teste do ramo "as contagens discordam" teria que forjar uma corrida inteira para chegar nela.
 Scoreboard.__attachDeathClasses = AttachDeathClasses
 
+---A janela em que o placar continua reencostando as colunas que vêm de fora.
+---
+---⚑ ELA EXISTE PORQUE NÃO HÁ EVENTO PARA "O GRUPO TERMINOU DE ABRIR O BAÚ". A pedra nova de cada
+---um chega quando ele abre; a pontuação, quando o servidor recalcula. O aviso da LibOpenRaid cobre
+---a pedra de quem roda addon compatível — esta janela cobre o resto, e cobre também o caso de a
+---lib não estar presente.
+---
+---Dois minutos, de 5 em 5 segundos, e **para assim que não falta mais nada**: enquanto houver
+---linha sem pedra ou sem saque continua tentando; completou, encerra. Assim o custo é do caso
+---incompleto, e não de toda corrida.
+local JANELA_EXTERNA_SEGUNDOS = 120
+local JANELA_EXTERNA_PASSO = 5
+
+local function ReencostarAteCompletar(restante)
+    if not context or type(context.rows) ~= "table" then return end
+
+    pcall(Scoreboard.RefreshExternalColumns)
+
+    local falta = false
+    for _, row in ipairs(context.rows) do
+        if row.keystoneLevel == nil or row.loot == nil then falta = true break end
+    end
+
+    if not falta then
+        if ns.Log then ns.Log.Add("placar", { externas = "completou" }) end
+        return
+    end
+
+    restante = restante - JANELA_EXTERNA_PASSO
+    if restante <= 0 then
+        if ns.Log then
+            ns.Log.Add("placar", { externas = "prazo esgotado; alguma linha ficou sem pedra ou saque" })
+        end
+        return
+    end
+
+    C_Timer.After(JANELA_EXTERNA_PASSO, function() ReencostarAteCompletar(restante) end)
+end
+
 local function CaptureAndShow(base, kind, auto)
     base.kind = kind
     ns.RunWhenSafe(function()
@@ -1945,6 +2043,14 @@ local function CaptureAndShow(base, kind, auto)
         local wanted = kind == "mplus" and ns.db.autoScoreboardMPlus or ns.db.autoScoreboardRaid
         if auto == false or wanted then
             Scoreboard.Show(snapshot)
+        end
+
+        -- E a partir daqui o placar continua vivo: pedra, saque e pontuação chegam nos minutos
+        -- seguintes, conforme cada um abre o baú. Só em Mítico+ — num chefe de raide essas três
+        -- colunas nem existem.
+        if kind == "mplus" then
+            if ns.Party and ns.Party.RequestKeystones then pcall(ns.Party.RequestKeystones) end
+            ReencostarAteCompletar(JANELA_EXTERNA_SEGUNDOS)
         end
     end)
 end

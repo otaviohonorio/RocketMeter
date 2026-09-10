@@ -563,6 +563,29 @@ SABOTAGENS = [
      "o padrao da largura cabe na faixa"),
 
     # ------------------------------------------------------ o placar de 10/09/2026
+    # ⚑ O PLACAR PARA DE SE ATUALIZAR DEPOIS DO FIM. E o comportamento que o usuario descreveu
+    # no Details: pedra, saque e pontuacao chegam conforme cada um abre o bau. Sem reencostar,
+    # a captura vira uma foto de um instante em que os dados ainda nao existiam.
+    ("a pedra deixa de ser reencostada depois", "Scoreboard.lua",
+     u"                if row.keystoneLevel == nil then",
+     u"                if false then",
+     "reencostar traz a pedra que chegou depois"),
+
+    # E A PONTUACAO E A UNICA QUE SE SOBRESCREVE: ela nao chega, ela MUDA. Tratar como as
+    # outras deixa o numero velho na tela de proposito.
+    ("a pontuacao para de acompanhar o recalculo", "Scoreboard.lua",
+     u"                if nova and row.values and row.values.score ~= nova then",
+     u"                if nova and row.values and row.values.score == nil then",
+     "a pontuacao acompanha o recalculo"),
+
+    # E O AVISO DA LIB, que e o que faz o placar acertar sozinho no instante em que a pedra
+    # nova aparece -- sem ele sobra so a janela de tentativas, que tem prazo.
+    ("o addon deixa de assinar o aviso de pedra", "Party.lua",
+     u"    local ok = pcall(lib.RegisterCallback, ouvinte, \"KeystoneUpdate\", \"RocketMeterKeystoneUpdate\")",
+     u"    local ok = false",
+     "assina o aviso de pedra mudada"),
+
+
     # ⚑ O SAQUE VOLTA A CHEGAR TARDE DEMAIS. Sem o aviso, a coluna e capturada vazia e nunca
     # mais olha para tras -- o diario datou: captura 00:33:18, saque 00:33:20 e 00:33:30.
     ("o saque deixa de avisar o placar", "Party.lua",

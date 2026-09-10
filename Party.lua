@@ -210,6 +210,36 @@ function Party.RequestKeystones()
     return ok and enviou or false
 end
 
+---Assina o aviso da lib: "a pedra de fulano mudou".
+---
+---⚑ ISTO É O QUE FAZ O PLACAR SE ATUALIZAR SOZINHO conforme o grupo abre o baú, que é o
+---comportamento que o usuário descreveu no Details (10/09/2026): *"conforme os jogadores vão
+---abrindo o baú ele vai atualizando o placar"*. A pedra nova só existe depois de o baú abrir, e é
+---nesse instante que a lib transmite — não há como capturar antes.
+---
+---Assina uma vez só: a lib guarda a inscrição numa lista e assinar de novo duplicaria a chamada.
+local assinado = false
+
+function Party.WatchKeystones()
+    if assinado then return true end
+
+    local lib = OpenRaid()
+    if not lib or not lib.RegisterCallback then return false end
+
+    -- A lib chama `objeto[nome](...)`, então precisa de uma tabela com o método pelo nome.
+    local ouvinte = {
+        RocketMeterKeystoneUpdate = function()
+            if ns.Scoreboard and ns.Scoreboard.RefreshExternalColumns then
+                pcall(ns.Scoreboard.RefreshExternalColumns)
+            end
+        end,
+    }
+
+    local ok = pcall(lib.RegisterCallback, ouvinte, "KeystoneUpdate", "RocketMeterKeystoneUpdate")
+    assinado = ok and true or false
+    return assinado
+end
+
 --------------------------------------------------------------------------------
 -- Saque
 --------------------------------------------------------------------------------

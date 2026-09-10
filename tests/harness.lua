@@ -3726,6 +3726,51 @@ do
         corrida.rows[1].loot:find("Item de Teste", 1, true) ~= nil, true)
 end
 
+print("== pedra, saque e pontuacao continuam chegando DEPOIS do fim ==")
+-- ⚑ OBSERVACAO DO USUARIO SOBRE O DETAILS (10/09/2026), e ela reenquadrou a correcao inteira:
+-- *"geralmente o Details tambem nao aparece na hora, mas conforme os jogadores vao abrindo o bau
+-- ele vai atualizando o placar, e entao fica tudo certinho, as pedras o saque, a pontuacao"*.
+--
+-- Ou seja: **nao e para acertar o instante da captura, e para o placar continuar vivo depois
+-- dela**. E isso faz sentido pelo jogo: a pedra NOVA de cada um so existe quando ele abre o bau, e
+-- a pontuacao da temporada e recalculada no servidor. Capturar mais tarde so trocaria um instante
+-- errado por outro.
+do
+    ns.Scoreboard.ShowDemo()
+    local corrida = ns.Scoreboard.DebugContext()
+    local quem = corrida.rows[1].name
+
+    corrida.rows[1].keystoneLevel = nil
+    corrida.rows[1].loot = nil
+
+    -- O mundo muda DEPOIS da captura: a pedra aparece e um item cai.
+    local KeystoneAntes, LootAntes = ns.Party.Keystone, ns.Party.Loot
+    ns.Party.Keystone = function(n) if n == quem then return 15, 501 end end
+    ns.Party.Loot = function(n) if n == quem then return "|arma|[Tarde]" end end
+
+    check("reencostar traz a pedra que chegou depois",
+        ns.Scoreboard.RefreshExternalColumns() and corrida.rows[1].keystoneLevel, 15)
+    check("  e o saque tambem", corrida.rows[1].loot ~= nil, true)
+
+    -- ⚑ E A PONTUACAO SE SOBRESCREVE, ao contrario das outras duas: ela nao "chega", ela MUDA --
+    -- o servidor recalcula a da temporada depois da corrida. Manter a primeira leitura seria
+    -- mostrar de proposito o numero velho.
+    corrida.rows[1].values = corrida.rows[1].values or {}
+    corrida.rows[1].values.score = 100
+    ns.Scoreboard.RefreshExternalColumns()
+    check("a pontuacao acompanha o recalculo", corrida.rows[1].values.score ~= 100, true)
+
+    -- E NADA DISSO PODE MEXER EM QUEM JA ESTAVA PREENCHIDO: reencostar roda varias vezes na
+    -- janela de dois minutos, e um saque trocado no terceiro passe seria o placar mudando debaixo
+    -- de quem ja leu.
+    local intocado = corrida.rows[1].loot
+    ns.Party.Loot = function() return "|arma|[Ainda Mais Tarde]" end
+    ns.Scoreboard.RefreshExternalColumns()
+    check("saque ja preenchido nao troca", corrida.rows[1].loot, intocado)
+
+    ns.Party.Keystone, ns.Party.Loot = KeystoneAntes, LootAntes
+end
+
 print("== a pedra dos colegas: a chave da lib tem reino ==")
 -- ⚑ ERA POR ISSO QUE SO A PEDRA DELE APARECIA (*"tambem a pontuacao e tambem a pedra, so a minha
 -- aparece"*). A dele vem do caminho `C_MythicPlus`, que nao passa pela lib; a dos outros vinha de
@@ -3742,6 +3787,7 @@ do
     local libAntes = LibStub and LibStub.libs and LibStub.libs["LibOpenRaid-1.0"]
 
     local pedida = false
+    local assinaturas = {}
     LibStub = LibStub or {}
     LibStub.libs = LibStub.libs or {}
     LibStub.libs["LibOpenRaid-1.0"] = {
@@ -3757,6 +3803,11 @@ do
             return nil
         end,
         RequestKeystoneDataFromParty = function() pedida = true return true end,
+        RegisterCallback = function(objeto, evento, metodo)
+            assinaturas[#assinaturas + 1] = { objeto, evento, metodo }
+            assinaturas[evento] = objeto
+            return true
+        end,
     }
     LibStub.GetLibrary = function(_, nome) return LibStub.libs[nome] end
 
@@ -3770,6 +3821,15 @@ do
     -- pergunta; sem o pedido a tabela pode estar vazia e a coluna some sem nada estar quebrado.
     check("o addon sabe pedir os dados ao grupo", ns.Party.RequestKeystones(), true)
     check("  e pediu de verdade", pedida, true)
+
+    -- ⚑ E ASSINA O AVISO DE MUDANCA. Observacao do usuario sobre o Details (10/09/2026):
+    -- *"conforme os jogadores vao abrindo o bau ele vai atualizando o placar"*. A pedra NOVA de
+    -- cada um so existe depois de o bau abrir -- nao ha instante de captura que a pegue, e por
+    -- isso o placar precisa continuar vivo depois do fim da corrida.
+    check("assina o aviso de pedra mudada", ns.Party.WatchKeystones(), true)
+    check("  e a inscricao chegou na lib", assinaturas["KeystoneUpdate"] ~= nil, true)
+    check("  e nao assina duas vezes", ns.Party.WatchKeystones(), true)
+    check("    (uma inscricao so)", #assinaturas, 1)
 
     if libAntes then LibStub.libs["LibOpenRaid-1.0"] = libAntes
     else LibStub.libs["LibOpenRaid-1.0"] = nil end
