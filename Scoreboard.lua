@@ -98,6 +98,16 @@ local CLOCK_Y = -14
 local RESULT_GAP = -2
 local RESULT_SIZE = 13           -- legenda do tempo: mesmo corpo da faixa de contexto
 
+-- ⚑ QUANTO O BLOCO DA DIREITA ENTRA PARA DENTRO. Na 0.85.0 ele nasceu em 29 (a margem do painel
+-- mais um respiro) e ficou colado na borda — *"o tempo à direita ficou muito à direita... deixando
+-- ele à direita, mas não tão à direita"* (10/09/2026).
+--
+-- 65 não é um número escolhido no olho: é a largura de uma coluna de contagem (**60**) mais a
+-- margem lateral do painel (**5**). Com ele o bloco fica **sobre a última coluna** em vez de
+-- pendurado no canto — quer dizer, alinhado a uma borda que já existe na tela, e não a uma
+-- distância inventada. Se a largura das colunas mudar, este número tem um lugar de onde vir.
+local CLOCK_RIGHT_INSET = 65
+
 -- Estrela do nível da chave: 100x100 centrada em ("center", frame, "top", 0, 27). Os números
 -- foram medidos pelo autor do Details contra o painel oficial — copiados, não recalibrados.
 local STAR_SIZE = 100
@@ -577,6 +587,17 @@ end
 ---⚑ E O DESENHO NÃO SE ATUALIZA SOZINHO — quem repinta é `Scoreboard.Refresh`, chamado no fim.
 ---`Scoreboard.Refresh`, e não o `SafeDraw` local: ele só é declarado 1200 linhas abaixo daqui, e um
 ---`local` referenciado antes da declaração vira busca de global — `nil` na hora da chamada.
+-- ⚑ REDESENHO NAO PODE ACONTECER DENTRO DE UM REDESENHO, e isto nasceu de um defeito real: o
+-- `ReencostarAteCompletar` chama `RefreshExternalColumns`, que chama `Scoreboard.Refresh`. Com o
+-- timer do simulador rodando o callback **dentro** de quem o agendou (o do jogo não faz isso), a
+-- corrente virava 24 desenhos empilhados, um por cima do outro, reescrevendo os caches
+-- compartilhados no meio do próprio uso. O sintoma eram erros de TIPO em lugares sem relação
+-- nenhuma com timer, um a cada ~30 execuções.
+--
+-- O stub do harness foi corrigido, mas a guarda fica: no jogo o `Refresh` também pode ser chamado
+-- de um `OnClick`, de um evento e do timer, e nada garante que dois não se cruzem.
+local desenhando = false
+
 local function Costura(mexe)
     local naTela = false
     if type(context) == "table" and type(context.rows) == "table" then
@@ -1429,7 +1450,7 @@ local function CreatePanel()
     -- O TEMPO, à direita, alinhado pela borda. Abaixo do botão de fechar para não disputar com
     -- ele, e com a mesma margem lateral do resto do painel.
     frame.clock = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    frame.clock:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -SIDE - 24, CLOCK_Y)
+    frame.clock:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -CLOCK_RIGHT_INSET, CLOCK_Y)
     frame.clock:SetJustifyH("RIGHT")
 
     -- E o resultado logo abaixo dele, na mesma borda: os dois formam UM bloco, e o olho lê
@@ -1509,8 +1530,18 @@ local function CreatePanel()
 
     -- A dica (e o aviso de simulação) vai no CABEÇALHO, não no rodapé: embaixo ela disputaria
     -- espaço com o eixo de tempo, e o eixo é informação, a dica é só dica.
+    -- ⚑ O RODAPÉ FOI PARA O RODAPÉ, e isso é conserto de uma colisão que eu criei na 0.85.0.
+    --
+    -- Ele estava em `TOPRIGHT, -10, -38` — dentro do CABEÇALHO, apesar do nome — e era o único
+    -- ocupante da direita ali. Quando o tempo da corrida mudou para esse canto, os dois passaram a
+    -- disputar o mesmo espaço: o relato foi *"tem texto embaixo"*, e a conta bate — o resultado
+    -- ("no tempo +1") fecha por volta de −39 e ele começava em −38.
+    --
+    -- O lugar certo é embaixo, e por dois motivos além de não colidir: é o que o nome dele diz, e
+    -- o que ele escreve — *"há 20 min"* ou a dica de arrastar — é a informação de menor prioridade
+    -- da tela. O eixo do tempo fica a 63 do fundo, então há faixa livre abaixo dele.
     frame.footer = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    frame.footer:SetPoint("TOPRIGHT", -10, -38)
+    frame.footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SIDE - 6, 6)
     frame.footer:SetJustifyH("RIGHT")
 
     CreateTimeline()
@@ -1894,8 +1925,12 @@ function Scoreboard.DebugHeaderAnchors()
         title = ancora(frame.title),
         clock = ancora(frame.clock),
         result = ancora(frame.result),
+        -- O rodapé entra aqui porque ele DISPUTAVA este espaço: enquanto estava ancorado no topo
+        -- à direita, o bloco do tempo caía em cima dele. Só um teste que veja os dois pega isso.
+        footer = ancora(frame.footer),
         titleWidget = frame.title,
         clockWidget = frame.clock,
+        clockInset = CLOCK_RIGHT_INSET,
     }
 end
 
@@ -1966,7 +2001,15 @@ end
 ---de dentro de um `OnClick` faz o erro sumir em silêncio quando `scriptErrors` está desligado
 ---(o padrão do jogo), e aí o usuário vê a coluna trocar de cor e as linhas não mudarem.
 function Scoreboard.Refresh()
+    -- ⚑ NAO REENTRA. Ver a nota de `desenhando`: um desenho disparado de dentro de outro reescreve
+    -- os caches no meio do uso, e o erro sai em outro lugar, com outra cara.
+    if desenhando then return end
+    desenhando = true
+
     local ok, err = pcall(Scoreboard.Draw)
+
+    desenhando = false
+
     if not ok then
         Scoreboard.lastError = err
         ns.Print(L["error while drawing:"] .. " " .. tostring(err))

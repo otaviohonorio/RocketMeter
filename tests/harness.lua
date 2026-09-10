@@ -380,7 +380,60 @@ C_Texture = {
                  topTexCoord = 0, bottomTexCoord = 1, width = 64, height = 64 }
     end,
 }
-C_Timer = { After = function(_, fn) fn() end }
+-- ⚑ TIMER QUE NAO ANINHA, e esta foi a causa de uma suite instavel em 10/09/2026.
+--
+-- O stub era `After = function(_, fn) fn() end`: executava na hora E DENTRO de quem chamou. No
+-- jogo isso nao existe -- um callback de timer nunca roda dentro de outro; ele volta para o laco
+-- de quadros primeiro. O simulador estava permitindo o que o cliente nao permite, que e o mesmo
+-- defeito de fundo do `GetCombatSessionFromType` aceitar valor fora do enum.
+--
+-- A consequencia foi feia e demorou a ser vista: o `ReencostarAteCompletar` do placar se reagenda
+-- a cada 5s ate completar 120, e com o timer sincrono isso virava **24 niveis de recursao dentro
+-- do desenho**, cada um redesenhando o painel por cima do desenho em curso. O resultado era erro
+-- de tipo em lugares que nao tem nada a ver com timer -- "attempt to call local 'offsets' (a
+-- number value)", "arithmetic on a table value" --, um a cada ~30 execucoes, em pontos
+-- diferentes. Cacheis compartilhados (`ondeFicaCache`, `larguraCache`, `timeline.ticks`) sendo
+-- reescritos no meio do proprio uso.
+--
+-- E o pior: **isso deixou a suite de sabotagem irrepetivel**, reprovando entradas diferentes a
+-- cada rodada. Uma suite instavel nao distingue "o teste nao pega" de "deu azar agora".
+--
+-- Agora o callback roda na hora quando chamado de fora, e **entra na fila** quando chamado de
+-- dentro de outro callback -- que e o comportamento do jogo. O teto existe para um timer que se
+-- reagenda para sempre nao travar o harness em silencio: estourar com mensagem propria e melhor
+-- que rodar 10 minutos e ninguem entender.
+local timerRodando = false
+local timerFila = {}
+local TIMER_TETO = 500
+
+C_Timer = {
+    After = function(_, fn)
+        if timerRodando then
+            timerFila[#timerFila + 1] = fn
+            return
+        end
+
+        timerRodando = true
+        local ok, err = pcall(fn)
+
+        local rodadas = 0
+        while #timerFila > 0 do
+            rodadas = rodadas + 1
+            if rodadas > TIMER_TETO then
+                timerRodando = false
+                timerFila = {}
+                error("C_Timer: mais de " .. TIMER_TETO .. " reagendamentos encadeados -- "
+                    .. "algum timer se reagenda sem condicao de parada")
+            end
+            local proximo = table.remove(timerFila, 1)
+            local okFila, errFila = pcall(proximo)
+            if not okFila and ok then ok, err = false, errFila end
+        end
+
+        timerRodando = false
+        if not ok then error(err, 0) end
+    end,
+}
 C_ChallengeMode = {
     GetActiveChallengeMapID = function() return mundo.challengeMapID end,
     -- Formato do 12.1.0: UMA TABELA. Os campos abaixo sao os que o placar le.
@@ -2516,6 +2569,19 @@ do
     check("o resultado acompanha o tempo, nao o titulo",
         a.result.relativeTo == a.clockWidget, true)
 
+    -- ⚑ E O RODAPE NAO PODE DISPUTAR O CANTO COM ELE. Este check nasceu de um defeito que EU
+    -- criei: o "ha 20 min" estava ancorado em `TOPRIGHT, -10, -38` -- dentro do cabecalho, apesar
+    -- do nome -- e era o unico ocupante daquele canto. Ao mover o tempo para la, os dois passaram
+    -- a se sobrepor (*"tem texto embaixo"*), e nenhum teste viu, porque nenhum olhava para os dois
+    -- ao mesmo tempo.
+    check("o rodape esta no rodape, e nao no cabecalho",
+        a.footer.point:find("BOTTOM", 1, true) ~= nil, true)
+
+    -- E O BLOCO DA DIREITA NAO FICA COLADO NA BORDA. O recuo tem que ser maior que a margem do
+    -- painel -- senao ele encosta, que foi o relato (*"ficou muito a direita"*).
+    check("o tempo entra para dentro da borda (" .. a.clockInset .. " > " .. m.side .. ")",
+        a.clockInset > m.side, true)
+
     -- A CONTA FECHA NOS 452 DELE (`mainFrameHeight`, :117). E o unico check aqui que nao copia
     -- um numero: ele deriva a altura de cinco linhas dos outros seis e compara com o total.
     -- Se um dos seis for mexido sem que o rodape acompanhe, e aqui que aparece.
@@ -3379,7 +3445,14 @@ print("== migracao do contorno salvo ==")
 do
     local salvo = ns.db.fontOutline
 
-    for antigo, novo in pairs({ OUTLINE = "thin", THICKOUTLINE = "thick", [""] = "none" }) do
+    -- ⚑ LISTA ORDENADA, e nao `pairs` num mapa. A ordem de `pairs` varia entre EXECUCOES no
+    -- LuaJIT, e com ela variava a ordem destas tres linhas na saida. Sozinho isso e inofensivo --
+    -- os tres checks passam de qualquer jeito --, mas o `sabotar.py` casa a saida por TEXTO para
+    -- decidir qual check reprovou primeiro. Saida que muda de ordem sem o codigo mudar torna a
+    -- suite de sabotagem irrepetivel, e suite instavel nao distingue "o teste nao pega" de "deu
+    -- azar agora" -- que e exatamente o defeito que o cabecalho deste arquivo ja registra.
+    for _, par in ipairs({ { "OUTLINE", "thin" }, { "THICKOUTLINE", "thick" }, { "", "none" } }) do
+        local antigo, novo = par[1], par[2]
         ns.db.fontOutline = antigo
         ns.Profile.EnsureRuntimeDefaults()
         check("'" .. antigo .. "' vira '" .. novo .. "'", ns.db.fontOutline, novo)

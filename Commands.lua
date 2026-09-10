@@ -87,8 +87,16 @@ commands["preset"] = function(rest)
         return
     end
     ns.Print(L["available presets:"])
-    for name, preset in pairs(presets) do
-        print("  /rm preset " .. name .. "  —  " .. preset.label)
+
+    -- ⚑ ORDEM FIXA, e não a de `pairs`. Ela varia entre execuções, então a mesma lista saía em
+    -- ordem diferente a cada `/rm preset` — para o jogador é só estranho; para o `sabotar.py`, que
+    -- casa a saída do harness por texto, era uma suíte que mudava de resultado sem o código mudar.
+    local nomes = {}
+    for name in pairs(presets) do nomes[#nomes + 1] = name end
+    table.sort(nomes)
+
+    for _, name in ipairs(nomes) do
+        print("  /rm preset " .. name .. "  —  " .. presets[name].label)
     end
 end
 

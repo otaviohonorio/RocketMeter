@@ -159,7 +159,20 @@ function ns.CheckGameStrings()
         local text, why = Usable(tag)
         report[#report + 1] = { key = key, tag = tag, text = text, why = why }
     end
-    table.sort(report, function(a, b) return a.tag < b.tag end)
+    -- ⚑ O DESEMPATE PELA CHAVE NÃO É ENFEITE. `DAMAGE_METER_TYPE_DEATHS` está em `FROM_GAME`
+    -- DUAS vezes — uma para "Player deaths" e outra para "Deaths" —, e um comparador que devolve
+    -- `false` para os dois deixa a ordem deles indefinida: `table.sort` não é estável.
+    --
+    -- Isso parecia inofensivo (as duas linhas dizem a mesma coisa), e não era: a saída do `/rm
+    -- i18n` mudava de ordem entre execuções, o harness a imprime, e o `sabotar.py` casa a saída
+    -- por TEXTO para decidir qual check reprovou primeiro. **Uma suíte de sabotagem que muda de
+    -- resultado sem o código mudar não distingue "o teste não pega" de "deu azar agora"** — e foi
+    -- exatamente esse sintoma que apareceu em 10/09/2026, com sabotagens diferentes falhando a
+    -- cada rodada.
+    table.sort(report, function(a, b)
+        if a.tag ~= b.tag then return a.tag < b.tag end
+        return a.key < b.key
+    end)
     return report
 end
 

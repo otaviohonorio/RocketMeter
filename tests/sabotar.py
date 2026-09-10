@@ -563,11 +563,26 @@ SABOTAGENS = [
      "o padrao da largura cabe na faixa"),
 
     # ------------------------------------------------- cabecalho do placar (10/09/2026)
+    # ⚑ O RODAPE VOLTA PARA O CABECALHO. Foi o defeito que EU criei ao mover o tempo para a
+    # direita: o "ha 20 min" ja morava naquele canto (`TOPRIGHT, -10, -38`, apesar do nome) e os
+    # dois passaram a se sobrepor. Nenhum teste viu, porque nenhum olhava para os dois juntos.
+    ("o rodape volta a disputar o canto do tempo", "Scoreboard.lua",
+     u'    frame.footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SIDE - 6, 6)',
+     u'    frame.footer:SetPoint("TOPRIGHT", -10, -38)',
+     "o rodape esta no rodape, e nao no cabecalho"),
+
+    # E o bloco da direita colado na borda de novo.
+    ("o tempo volta a encostar na borda", "Scoreboard.lua",
+     u"local CLOCK_RIGHT_INSET = 65",
+     u"local CLOCK_RIGHT_INSET = 5",
+     "o tempo entra para dentro da borda"),
+
+
     # ⚑ A PILHA VOLTA PARA O EIXO CENTRAL, que e o defeito medido no print: com titulo, tempo
     # e resultado empilhados, o ultimo cai DENTRO da faixa de cabecalho das colunas (y 93..99
     # contra a faixa em 80..106). Somar constantes nao pega isso -- so a ancora lida do widget.
     ("o tempo volta a ser empilhado sob o titulo", "Scoreboard.lua",
-     u"    frame.clock:SetPoint(\"TOPRIGHT\", frame, \"TOPRIGHT\", -SIDE - 24, CLOCK_Y)",
+     u"    frame.clock:SetPoint(\"TOPRIGHT\", frame, \"TOPRIGHT\", -CLOCK_RIGHT_INSET, CLOCK_Y)",
      u"    frame.clock:SetPoint(\"TOP\", frame.title, \"BOTTOM\", 0, -8)",
      "o tempo sai do centro e vai para a direita"),
 
