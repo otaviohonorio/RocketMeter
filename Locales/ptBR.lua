@@ -248,4 +248,3 @@ L["%d error(s) captured, %d occurrence(s):"] = "%d erro(s) capturado(s), %d ocor
 -- As duas distancias da linha, configuraveis (0.81.0)
 L["Space between columns"] = "Espaço entre colunas"
 L["Width of the total column"] = "Largura da coluna de total"
-L["%d px between the two values"] = "%d px entre os dois valores"

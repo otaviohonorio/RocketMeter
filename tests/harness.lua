@@ -3352,12 +3352,12 @@ do
     -- entre eles e a largura do par menos a tinta dos dois. Encurtar a coluna de total e o unico
     -- jeito de aproxima-los -- e por isso o deslizador ajusta uma coisa e mostra outra.
     ns.db.groupGap, ns.db.totalWidth = 8, 84
-    local vaoEm84 = ns.Window.PairValueGap()
+    local vaoEm84 = ns.Window.DebugPairValueGap()
     ns.Window.SetTotalWidth(ns.Skin.totalWidthMax)
     check("alargar a coluna de total AFASTA os dois valores",
-        ns.Window.PairValueGap() > vaoEm84, true)
+        ns.Window.DebugPairValueGap() > vaoEm84, true)
     ns.Window.SetTotalWidth(ns.Skin.totalWidthMin)
-    check("  e estreitar aproxima", ns.Window.PairValueGap() < vaoEm84, true)
+    check("  e estreitar aproxima", ns.Window.DebugPairValueGap() < vaoEm84, true)
 
     -- ⚑ E O DESLIZADOR TEM QUE TER EFEITO NA TELA. `ColumnWidthFor` guarda a largura num cache
     -- com chave propria; se a chave nao souber do valor configurado, arrastar o controle nao muda

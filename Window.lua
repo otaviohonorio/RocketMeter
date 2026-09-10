@@ -2934,11 +2934,14 @@ end
 
 ---Quanto sobra ENTRE os dois números de uma coluna dupla, com o que está valendo agora.
 ---
----É o número que o jogador enxerga (e o que ele mediu no print), mas ele **não é ajustável
----diretamente**: sai da largura do par menos a tinta dos dois números, porque cada um é ancorado
----numa ponta da barra. A tela mostra este valor ao lado do deslizador para que um controle
----abstrato ("largura do total") tenha um efeito legível.
-function Window.PairValueGap()
+---⚑ É GANCHO DE TESTE, e o nome diz isso desde 10/09/2026. Ele nasceu alimentando uma legenda na
+---tela ("N px entre os dois valores"), que o usuário mandou tirar — o efeito já se vê na janela
+---atrás da configuração, que redesenha a cada arrasto. Sem o `Debug` no nome, a próxima leitura
+---procuraria a tela que mostra este número e não acharia.
+---
+---O que ele mede não é ajustável diretamente: sai da largura do par menos a tinta dos dois
+---números, porque cada um é ancorado numa ponta da barra.
+function Window.DebugPairValueGap()
     local tintaDosDois = (MedirTexto(COLUMN_SAMPLE.total) or 40)
         + (MedirTexto(COLUMN_SAMPLE.perSecond) or 34)
     local vao = TotalWidth() + COLUMN_WIDTH_BY_FIELD.perSecond
