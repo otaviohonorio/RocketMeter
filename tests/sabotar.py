@@ -784,6 +784,47 @@ SABOTAGENS = [
      u'    "BossBanner-LeftFillagree",',
      u'    "BossBanner-LeftFiligree",',
      None),
+
+    # ------------------------------- o placar de raide nasce desligado (pedido de 11/09)
+    ("o padrao de raide volta a nascer ligado", "Core.lua",
+     u"    autoScoreboardRaid = false,",
+     u"    autoScoreboardRaid = true,",
+     "e raide nasce desligada"),
+
+    # SEM A HERANCA, o pedido nao alcanca quem pediu: `Fill` so preenche chave ausente, e o perfil
+    # dele tem `true` gravado desde o primeiro login.
+    ("o perfil salvo deixa de herdar o padrao novo", "Profile.lua",
+     u"    if active.raidAutoReviewed == nil then",
+     u"    if false then",
+     "perfil salvo herda o padrao novo uma vez"),
+
+    # SEM A MARCA GRAVADA nao ha como saber que a heranca ja aconteceu -- e o check que morde
+    # primeiro e o da propria marca, que e o que descreve esta linha.
+    ("a marca de revisado deixa de ser gravada", "Profile.lua",
+     u"        active.raidAutoReviewed = true",
+     u"        local _ = active",
+     "  e fica marcado como revisado"),
+
+    # E A HERANCA SEM GUARDA: a marca continua sendo gravada, mas o desligamento roda a CADA login
+    # e desfaz o que o jogador religou -- configuracao voltando sozinha.
+    ("a heranca desliga a raide a cada login", "Profile.lua",
+     u"    if active.raidAutoReviewed == nil then\n"
+     u"        if not herdouDaChaveAntiga then\n"
+     u"            active.autoScoreboardRaid = false\n"
+     u"        end\n"
+     u"        active.raidAutoReviewed = true\n"
+     u"    end",
+     u"    if not herdouDaChaveAntiga then\n"
+     u"        active.autoScoreboardRaid = false\n"
+     u"    end\n"
+     u"    active.raidAutoReviewed = true",
+     "religar a de raide continua valendo"),
+
+    # E ELA NAO PODE PASSAR POR CIMA DA ESCOLHA HERDADA DA CHAVE ANTIGA.
+    ("o padrao novo passa por cima da escolha antiga", "Profile.lua",
+     u"        if not herdouDaChaveAntiga then",
+     u"        if true then",
+     "escolha herdada da chave antiga sobrevive"),
 ]
 
 FIM = "Tudo carregou e rodou sem erro de Lua."

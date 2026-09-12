@@ -3473,6 +3473,41 @@ do
     ns.db.fontOutline = salvo
 end
 
+print("== o placar de raide nasce desligado ==")
+-- Pedido de 11/09: *"o placar da raid por padrao pode deixar desabilitado"*. As duas opcoes ja
+-- existiam na secao Placar de `/rm columns`; o que mudou e o PADRAO.
+--
+-- ⚑ E PADRAO NAO ALCANCA PERFIL QUE JA EXISTE: `Fill` so preenche chave AUSENTE, e quem ja usava o
+-- addon tem `autoScoreboardRaid = true` gravado desde o primeiro login. Sem a heranca de uma vez
+-- so, o pedido nao mudaria nada para quem pediu -- que e o unico caso que importa aqui.
+do
+    local raw = ns.Profile.Raw()
+    local salvos = { raw.autoScoreboardMPlus, raw.autoScoreboardRaid,
+                     raw.raidAutoReviewed, raw.autoScoreboard }
+
+    check("de fabrica, mitica nasce ligada", ns.defaults.autoScoreboardMPlus, true)
+    check("e raide nasce desligada", ns.defaults.autoScoreboardRaid, false)
+
+    raw.autoScoreboardRaid, raw.raidAutoReviewed, raw.autoScoreboard = true, nil, nil
+    ns.Profile.EnsureRuntimeDefaults()
+    check("perfil salvo herda o padrao novo uma vez", raw.autoScoreboardRaid, false)
+    check("  e fica marcado como revisado", raw.raidAutoReviewed, true)
+
+    -- E NAO REPETE. Configuracao que volta sozinha no login seguinte e defeito, nao padrao.
+    raw.autoScoreboardRaid = true
+    ns.Profile.EnsureRuntimeDefaults()
+    check("religar a de raide continua valendo", raw.autoScoreboardRaid, true)
+
+    -- ESCOLHA DELIBERADA VALE MAIS QUE PADRAO NOVO: quem tinha a chave ANTIGA tinha escolhido.
+    raw.autoScoreboard, raw.raidAutoReviewed, raw.autoScoreboardRaid = true, nil, nil
+    ns.Profile.EnsureRuntimeDefaults()
+    check("escolha herdada da chave antiga sobrevive", raw.autoScoreboardRaid, true)
+    check("  e a chave antiga some", raw.autoScoreboard, nil)
+
+    raw.autoScoreboardMPlus, raw.autoScoreboardRaid = salvos[1], salvos[2]
+    raw.raidAutoReviewed, raw.autoScoreboard = salvos[3], salvos[4]
+end
+
 print("== as duas distancias da linha, configuraveis ==")
 -- PEDIDO DE 09/09/2026, com print e retangulos apontando DUAS distancias: *"sao das distancia
 -- entre colunas e entre valores nas colunas mescladas"*, e depois *"coloca estas distancias

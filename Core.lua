@@ -75,8 +75,13 @@ ns.defaults = {
     -- noite pode querer o resumo lá e não a cada chefe de raide, e vice-versa. A chave antiga
     -- `autoScoreboard` continua sendo lida uma vez, para não desligar o painel de quem já
     -- tinha escolhido (ver `Profile.MigrateScoreboard`).
+    --
+    -- ⚑ RAIDE NASCE DESLIGADA (pedido de 11/09: *"o placar da raid por padrão pode deixar
+    -- desabilitado"*). A assimetria tem razão de uso: uma corrida de Mítico+ termina UMA vez, e o
+    -- resumo é o fecho dela; uma noite de raide tem um chefe atrás do outro, e o painel abrindo a
+    -- cada um vira estorvo no meio da progressão.
     autoScoreboardMPlus = true,
-    autoScoreboardRaid = true,
+    autoScoreboardRaid = false,
 
     pos = nil,
 }

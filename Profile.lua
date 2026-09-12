@@ -54,10 +54,32 @@ function Profile.EnsureRuntimeDefaults()
     -- `autoScoreboard` (uma chave) virou duas: Mítico+ e raide. Quem tinha desligado o painel
     -- teria ele de volta ligado, porque as chaves novas nascem `true` — então a escolha antiga
     -- é herdada uma vez e a chave velha some, para a herança não se repetir.
+    local herdouDaChaveAntiga = false
     if active.autoScoreboard ~= nil then
         active.autoScoreboardMPlus = active.autoScoreboard
         active.autoScoreboardRaid = active.autoScoreboard
         active.autoScoreboard = nil
+        herdouDaChaveAntiga = true
+    end
+
+    -- ⚑ O PADRÃO DE RAIDE VIROU DESLIGADO, E PADRÃO NÃO ALCANÇA PERFIL QUE JÁ EXISTE. A chave foi
+    -- gravada `true` no primeiro login de quem já usava o addon, e `Fill` só preenche chave
+    -- AUSENTE — então, sem esta herança, o pedido *"o placar da raid por padrão pode deixar
+    -- desabilitado"* não mudaria nada para quem pediu.
+    --
+    -- UMA VEZ SÓ, pela mesma razão da herança acima: marcada por chave própria, para não desligar
+    -- de novo se o jogador religar a de raide depois. Repetir seria a configuração voltando
+    -- sozinha — o defeito que a herança da chave antiga já evitou uma vez.
+    --
+    -- ⚑ E NÃO PASSA POR CIMA DE QUEM ACABOU DE HERDAR A CHAVE ANTIGA: ali houve escolha
+    -- deliberada (o jogador tinha ligado ou desligado o painel), e escolha vale mais que padrão
+    -- novo. `raidAutoReviewed` fica FORA de `ns.defaults` de propósito: se estivesse lá, o `Fill`
+    -- a marcaria antes desta linha rodar e a herança nunca aconteceria.
+    if active.raidAutoReviewed == nil then
+        if not herdouDaChaveAntiga then
+            active.autoScoreboardRaid = false
+        end
+        active.raidAutoReviewed = true
     end
 
     -- `fontOutline` guardava a FLAG do WoW ("OUTLINE"); agora guarda a escolha do jogador
