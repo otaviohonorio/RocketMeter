@@ -236,3 +236,7 @@ era a casca, refeita nesta versão.
 - [ ] Placar: pontuação de M+ por jogador e loot recebido (`ENCOUNTER_LOOT_RECEIVED`)
 - [ ] Placar: histórico das últimas corridas (`GetAvailableCombatSessions`)
 - [ ] Relatório para o chat (só fora de combate — os dados são secret durante)
+
+## Licença
+
+MIT — ver `LICENSE`.
