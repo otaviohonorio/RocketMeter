@@ -6,3 +6,10 @@ ignore:
   - .luacheckrc
   - README.md
   - tests
+
+# O changelog do CurseForge sai DESTE arquivo, e não dos commits. Sem isto o packager lista as
+# mensagens de commit desde a última tag — em português, longas e escritas para quem mantém.
+# O arquivo guarda SÓ a versão que está saindo: cada publicação o reescreve.
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
