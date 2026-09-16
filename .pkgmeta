@@ -1,0 +1,8 @@
+package-as: RocketMeter
+
+# Nada daqui é código do addon: tudo isto fica fora do zip que o jogador baixa.
+ignore:
+  - .github
+  - .luacheckrc
+  - README.md
+  - tests

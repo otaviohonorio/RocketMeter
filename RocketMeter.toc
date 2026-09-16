@@ -7,7 +7,7 @@
 ## Notes-ptBR: Medidor de dano e estatísticas sobre a API oficial C_DamageMeter — bonito por padrão e fácil de configurar.
 ## Category-ptBR: Combate
 
-## Author: Otávio Honório
+## Author: Otto Rocket (Otávio Honório)
 ## Version: 0.87.0
 ## SavedVariables: RocketMeterDB, RocketMeterLogDB
 ## SavedVariablesPerCharacter: RocketMeterCharDB, RocketMeterRunsDB
