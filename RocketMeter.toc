@@ -8,7 +8,7 @@
 ## Category-ptBR: Combate
 
 ## Author: Otto Rocket (Otávio Honório)
-## Version: 0.87.0
+## Version: 0.87.1
 ## X-Curse-Project-ID: 1698580
 ## SavedVariables: RocketMeterDB, RocketMeterLogDB
 ## SavedVariablesPerCharacter: RocketMeterCharDB, RocketMeterRunsDB

@@ -1,10 +1,6 @@
-# Rocket Meter 0.87.0
+# Rocket Meter 0.87.1
 
-First public release.
+Packaging only — no changes to the addon itself.
 
-- One window with any combination of damage, healing, absorb, damage taken, avoidable damage,
-  interrupt, dispel and death columns.
-- Mythic+, Raid and Damage only column presets.
-- Spell breakdown panel for each player.
-- End-of-run scoreboard for Mythic+ keys and raid bosses.
-- English and Brazilian Portuguese.
+- The package is now built and published automatically from source.
+- Adds the MIT license file to the package.
