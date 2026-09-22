@@ -5,6 +5,7 @@ ignore:
   - .github
   - .luacheckrc
   - README.md
+  - README-ptBR.md
   - tests
 
 # O changelog do CurseForge sai DESTE arquivo, e não dos commits. Sem isto o packager lista as

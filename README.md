@@ -1,242 +1,236 @@
 # Rocket Meter
 
-Medidor de dano, cura e estatísticas de combate para World of Warcraft: Midnight (12.x).
+Damage, healing and combat statistics for World of Warcraft: Midnight (12.x).
 
-## Por que existe
+> 🇧🇷 [Leia em português](README-ptBR.md)
 
-O Details! é o padrão do gênero e faz tudo — mas é visualmente datado e a configuração é
-labiríntica. O Rocket Meter aposta no contrário: **bonito no primeiro segundo, configurável em
-três cliques**, cobrindo o que 95% das pessoas realmente olham.
+## Why it exists
 
-## Por que agora é possível
+Details! is the standard of the genre and does everything — but it looks dated and its
+configuration is a maze. Rocket Meter bets on the opposite: **good-looking in the first second,
+configurable in three clicks**, covering what 95% of people actually look at.
 
-No Midnight a Blizzard removeu `COMBAT_LOG_EVENT_UNFILTERED` e introduziu os *Secret Values*.
-Em troca, entregou a API oficial **`C_DamageMeter`**, que faz a coleta e a agregação do lado do
-jogo. Ou seja: a parte difícil (parsear o combat log) deixou de existir para todo mundo, e o que
-diferencia um medidor do outro passou a ser exatamente **apresentação e usabilidade** — o ponto
-fraco do Details!.
+## Why it is possible now
 
-## Arquitetura
+In Midnight, Blizzard removed `COMBAT_LOG_EVENT_UNFILTERED` and introduced *Secret Values*. In
+exchange it shipped the official **`C_DamageMeter`** API, which collects and aggregates on the
+game side. The hard part (parsing the combat log) stopped existing for everyone, and what
+separates one meter from another became exactly **presentation and usability** — the weak spot
+of Details!.
 
-| Arquivo | Responsabilidade |
+## Architecture
+
+| File | Responsibility |
 |---|---|
-| `Core.lua` | ciclo de vida, SavedVariables, eventos, fila de combate |
-| `Data.lua` | **única** camada que fala com `C_DamageMeter`; trata secret values |
-| `Window.lua` | desenho: janela, cabeçalho, linhas, barras |
-| `Scoreboard.lua` | placar de fim de Mítico+ e de encontro de raide |
-| `Options.lua` | painel na Settings API |
-| `Commands.lua` | `/rm` e subcomandos |
-| `Picker.lua` | painel de colunas — a tela de configuração de verdade |
-| `Minimap.lua` | botão de minimapa próprio, sem biblioteca externa |
-| `Profile.lua` | onde a configuração mora: conta ou personagem |
-| `Locales/` | `enUS.lua` (chaves = inglês) e `ptBR.lua` |
+| `Core.lua` | lifecycle, SavedVariables, events, combat queue |
+| `Data.lua` | the **only** layer that talks to `C_DamageMeter`; handles secret values |
+| `Window.lua` | drawing: window, header, rows, bars |
+| `Breakdown.lua` | the per-spell panel for one player |
+| `Scoreboard.lua` | end-of-run board for Mythic+ and raid encounters |
+| `Options.lua` | Settings API panel |
+| `Commands.lua` | `/rm` and subcommands |
+| `Picker.lua` | the column panel — the configuration screen that matters |
+| `Minimap.lua` | own minimap button, no external library |
+| `Profile.lua` | where the configuration lives: account or character |
+| `Log.lua` | diagnostic diary in SavedVariables |
+| `Locales/` | `enUS.lua` (keys = English) and `ptBR.lua` |
 
-### A regra que orienta tudo
+### The rule that drives everything
 
-Durante o combate, os campos da sessão — inclusive `name` — são **secret values**: não podem ser
-comparados, somados nem formatados. Podem apenas ser repassados a widgets, que o motor renderiza.
-Fora de combate os mesmos campos voltam a ser legíveis.
+During combat the session fields — including `name` — are **secret values**: they cannot be
+compared, summed or formatted. They can only be handed to widgets, which the engine renders.
+Out of combat the same fields become readable again.
 
-Na prática:
+In practice:
 
 ```lua
-bar:SetMinMaxValues(0, session.maxAmount)  -- aceita secret
-bar:SetValue(source.totalAmount)           -- aceita secret
-local texto = ns.Data.FormatAmount(source.totalAmount)
-row.right:SetText(texto or source.totalAmount)  -- formatado fora de combate, cru dentro
+bar:SetMinMaxValues(0, session.maxAmount)  -- accepts secret
+bar:SetValue(source.totalAmount)           -- accepts secret
+local text = ns.Data.FormatAmount(source.totalAmount)
+row.right:SetText(text or source.totalAmount)  -- formatted out of combat, raw inside
 ```
 
-Nada de ordenar a lista no Lua: a ordem vem pronta da API, porque comparar seria proibido.
+No sorting in Lua: the order comes ready from the API, because comparing would be forbidden.
 
-## A decisão de design: uma janela, várias colunas
+## The design decision: one window, many columns
 
-O Details! resolve "quero ver dano e cura ao mesmo tempo" mandando você abrir uma segunda janela.
-Depois uma terceira para interrupts. O Rocket Meter faz o contrário: **uma janela só**, em que
-cada métrica é uma **coluna** que você liga ou desliga.
+Details! answers "I want to see damage and healing at the same time" by making you open a second
+window. Then a third one for interrupts. Rocket Meter does the opposite: **a single window**,
+where each metric is a **column** you turn on or off.
 
 ```
-┌ Rocket Meter — Combate atual — 02:14 ─────────────────────────────┐
-│                   Dano    DPS    Cura    CPS  Interr Evitáv Mortes│
-│ ███████ Thalyra   1,2M  9,1k/s     —      —      3    820k    0   │
-│ █████   Brumm     980k  7,4k/s   12k    91/s     1    1,4M    1   │
-└───────────────────────────────────────────────────────────────────┘
+┌ Rocket Meter — Current fight — 02:14 ─────────────────────────────┐
+│                 Damage    DPS  Healing    HPS  Interr Avoid  Deaths│
+│ ███████ Thalyra   1.2M  9.1k/s      —      —       3   820k      0 │
+│ █████   Brumm     980k  7.4k/s    12k   91/s       1   1.4M      1 │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-Total e valor por segundo são **colunas separadas** — dano total, dano por segundo, cura total,
-cura por segundo. Quem só quer o ritmo liga DPS e CPS; quem quer a contribuição da corrida
-inteira liga os totais; quem quer os dois, liga os quatro.
+Total and per-second are **separate columns** — total damage, damage per second, total healing,
+healing per second. If you only want the rate, enable DPS and HPS; if you want the whole run's
+contribution, enable the totals; if you want both, enable all four.
 
-Clique no cabeçalho de uma coluna para ordenar por ela. Conjuntos prontos para **Mítico+**
-(dano, DPS, cura, CPS, interrupções, dano evitável, mortes) e **Raide** (o mesmo, com absorções
-no lugar das interrupções) — um clique troca tudo.
+Click a column header to sort by it. Ready-made presets for **Mythic+** (damage, DPS, healing,
+HPS, interrupts, avoidable damage, deaths) and **Raid** (the same, with absorbs instead of
+interrupts) — one click swaps everything.
 
-### Configurar: o painel de colunas
+### Configuring: the column panel
 
-A engrenagem na barra de título abre o **painel de colunas**, colado na janela: as onze métricas
-numa lista só, com caixa para ligar, setas para reordenar e a posição atual (1º, 2º…) ao lado.
-Cada clique se reflete na janela atrás, na hora — sem "aplicar", sem submenu, sem procurar.
+The gear in the title bar opens the **column panel**, attached to the window: all eleven metrics
+in one list, with a checkbox to enable, arrows to reorder and the current position (1st, 2nd…)
+beside each. Every click is reflected in the window behind it, immediately — no "apply", no
+submenu, nothing to hunt for.
 
-Em cima, os três conjuntos prontos como botões. Embaixo, um atalho para as opções do jogo, onde
-ficam escala, travar, linhas, perfil e o botão de minimapa.
+At the top, the three presets as buttons. At the bottom, a shortcut to the game options, where
+scale, lock, rows, profile and the minimap button live.
 
-O painel da Settings API continua existindo porque é onde o jogador espera achar as opções
-globais — mas não é preciso passar por ele para fazer o que se faz todo dia, que é mexer nas
-colunas.
+The Settings API panel still exists because that is where players expect to find global options
+— but you do not have to go through it to do the thing you do every day, which is changing
+columns.
 
-### Botão de minimapa
+### Minimap button
 
-Escrito à mão (~60 linhas) em vez de embutir LibDBIcon: guarda a posição como **ângulo**, então
-fica no lugar em qualquer tamanho de minimapa, e arrasta ao redor da borda.
+Hand-written (~60 lines) instead of embedding LibDBIcon: it stores the position as an **angle**,
+so it stays put at any minimap size, and drags around the edge.
 
-- **Clique**: mostra ou esconde o medidor
-- **Shift+clique**: placar da última corrida
-- **Clique direito**: opções
+- **Click**: show or hide the meter
+- **Shift+click**: last run's scoreboard
+- **Right-click**: options
 
-Pode ser escondido nas opções — quem usa o compartimento de addons não precisa dos dois.
+It can be hidden in the options — anyone using the addon compartment does not need both.
 
-### A visão segue o combate
+### The view follows combat
 
-O canto esquerdo do cabeçalho diz qual sessão está na tela — **Combate atual** ou **Geral** — e o
-clique alterna as duas (pelo chat: `/rm overall`).
+The left corner of the header says which session is on screen — **Current fight** or **Overall**
+— and clicking swaps the two (from chat: `/rm overall`).
 
-Por padrão isso é automático: **em combate a janela mostra a luta atual; assim que ela acaba,
-volta para o geral**. É a leitura que serve em cada momento — durante o pull a pergunta é "como
-estou agora", terminado ele a pergunta é "como foi a corrida até aqui". A caixa *"Acompanhar o
-combate"*, na seção **Sessão** da configuração, desliga isso para quem prefere escolher a visão
-na mão; trocar na mão continua funcionando com ela ligada, e a regra volta a valer na próxima
-transição de combate.
+By default this is automatic: **in combat the window shows the current fight; as soon as it ends,
+it goes back to overall**. That is the reading that serves each moment — during the pull the
+question is "how am I doing right now", after it the question is "how has the run gone so far".
+The *"Follow combat"* checkbox, in the **Session** section of the configuration, turns this off
+for anyone who prefers to pick the view by hand; switching by hand still works with it on, and
+the rule applies again at the next combat transition.
 
-### Ordenação
+### Sorting
 
-Clique no cabeçalho para ordenar por aquela coluna; clique de novo para **inverter a direção**
-(a seta ▼/▲ mostra qual está valendo). A inversão é feita percorrendo a lista da API de trás para
-frente — inverter não exige comparar nada, então funciona mesmo com os valores secret do combate.
+Click the header to sort by that column; click again to **reverse the direction** (the ▼/▲ arrow
+shows which is active). Reversing walks the API list backwards — reversing requires no
+comparison, so it works even with secret values during combat.
 
-**Shift+clique** move a coluna uma casa para a esquerda, **Ctrl+clique** para a direita. Pelo
-chat: `/rm move 3 left`.
+**Shift+click** moves the column one slot to the left, **Ctrl+click** to the right. From chat:
+`/rm move 3 left`.
 
-### Perfil por personagem
+### Per-character profile
 
-Por padrão a configuração é da conta inteira. A opção *"Configuração só deste personagem"*
-passa a guardar tudo em `SavedVariablesPerCharacter` — e ao ligar pela primeira vez o personagem
-**herda** o que estava valendo, em vez de recomeçar do zero. Desligar volta para a configuração
-da conta, sem perder a do personagem.
+By default the configuration belongs to the whole account. The *"Configuration for this character
+only"* option stores everything in `SavedVariablesPerCharacter` — and when first enabled the
+character **inherits** what was in effect, instead of starting from scratch. Turning it off goes
+back to the account configuration without losing the character's.
 
-`ns.db` é um proxy que aponta para o armazenamento ativo. Isso não é firula: a Settings API
-guarda a referência da tabela no momento do registro, então trocar `ns.db` por outra tabela
-faria o painel de opções continuar escrevendo na antiga.
+`ns.db` is a proxy pointing at the active storage. That is not decoration: the Settings API keeps
+the table reference from registration time, so replacing `ns.db` with another table would leave
+the options panel writing to the old one.
 
-Comandos: `/rm profile char`, `/rm profile account`, `/rm profile reset`.
+Commands: `/rm profile char`, `/rm profile account`, `/rm profile reset`.
 
-### Idiomas
+### Languages
 
-Português e inglês. As chaves de tradução **são** o texto em inglês, então um idioma sem arquivo
-cai no inglês em vez de mostrar chave crua. `Locales/ptBR.lua` só carrega quando
-`GetLocale() == "ptBR"`. Nomes de métrica que o próprio cliente já traduz continuam vindo dele.
+English and Brazilian Portuguese. The translation keys **are** the English text, so a language
+without a file falls back to English instead of showing raw keys. `Locales/ptBR.lua` only loads
+when `GetLocale() == "ptBR"`. Metric names the client already translates keep coming from it.
 
-### Aparência: o medidor nativo, com colunas
+### Look: the native meter, with columns
 
-O visual copia o medidor embutido do Midnight: cabeçalho com o atlas
-**`ui-damagemeters-header-bar`** (a mesma arte que a Blizzard usa), corpo escuro sem moldura
-pesada, linhas chapadas de 16px coloridas por classe. Nada de skin para configurar.
+The visuals copy Midnight's built-in meter: a header using the **`ui-damagemeters-header-bar`**
+atlas (the same art Blizzard uses), a dark body with no heavy frame, flat 16px rows colored by
+class. No skin to configure.
 
-E a janela **encolhe para o número de jogadores que existem**: solo é uma linha, grupo de cinco
-são cinco. Caixa vazia esperando gente é justamente o que deixava a janela com cara de painel
-solto — o medidor da Blizzard não faz isso, e agora o Rocket Meter também não.
+And the window **shrinks to the number of players that exist**: solo is one row, a party of five
+is five. An empty box waiting for people is exactly what made the window look like a stray panel
+— Blizzard's meter does not do that, and now Rocket Meter does not either.
 
-### O que da para cruzar em combate, e o que nao da
+### What can be cross-referenced in combat, and what cannot
 
-Cada metrica e uma consulta separada. Cruzar duas exige casar o mesmo jogador entre elas — e e
-aqui que o Midnight impoe um limite duro:
+Each metric is a separate query. Crossing two requires matching the same player between them —
+and this is where Midnight draws a hard line:
 
 > `GetCombatSessionSourceFromType(...)`: **Secret values are only allowed during untainted**
 
-Ou seja: em combate o `sourceGUID` e secret, e **addon nao pode devolver um secret value para a
-API**. So o codigo da Blizzard pode. Isso derruba a ideia obvia de cruzar metricas por GUID
-durante a luta.
+In combat the `sourceGUID` is secret, and **an addon may not hand a secret value back to the
+API**. Only Blizzard code may. That kills the obvious idea of crossing metrics by GUID during
+the fight.
 
-O que sobra, e o que o addon faz:
+What is left, and what the addon does:
 
-| Situacao | Como preenche as colunas |
+| Situation | How the columns are filled |
 |---|---|
-| **Fora de combate** | GUID e legivel: cruza tudo, todas as colunas para todos |
-| **Em combate, sua linha** | `isLocalPlayer` continua legivel: cruza tudo para voce |
-| **Em combate, os outros** | so a coluna de ordenacao; as demais mostram `-` |
+| **Out of combat** | GUID is readable: crosses everything, all columns for everyone |
+| **In combat, your row** | `isLocalPlayer` stays readable: crosses everything for you |
+| **In combat, others** | only the sorted column; the rest show `-` |
 
-Nao e limitacao de implementacao: e o que a API permite. Durante a luta voce ve o ranking da
-metrica ordenada com todo mundo, e o seu proprio detalhe completo; ao sair do combate a tabela
-inteira se completa.
+This is not an implementation limit: it is what the API allows. During the fight you see the
+ranking of the sorted metric for everyone plus your own full detail; leaving combat completes
+the whole table.
 
-## Detalhamento por magia
+## Per-spell breakdown
 
-**Clique numa linha** e abre o painel do jogador: o que ele fez, magia por magia, com ícone,
-nome, total, valor por segundo, percentual e uma barra proporcional atrás.
+**Click a row** and the player panel opens: what they did, spell by spell, with icon, name,
+total, per second, percentage and a proportional bar behind it.
 
-Três seções de uma vez, em vez de só a métrica da janela:
+Three sections at once, instead of only the window's metric:
 
-| Seção | Agrega |
+| Section | Aggregates |
 |---|---|
-| Dano | dano causado |
-| Cura | cura + absorções |
-| Controle | interrupções + dissipações |
+| Damage | damage done |
+| Healing | healing + absorbs |
+| Control | interrupts + dispels |
 
-No Details isso é um tooltip que some quando o mouse sai. Aqui é painel: fica aberto, dá para
-ler com calma e acompanha a janela enquanto a luta continua.
+In Details! this is a tooltip that vanishes when the mouse leaves. Here it is a panel: it stays
+open, you can read it at your own pace, and it follows the window while the fight continues.
 
-**Em combate só funciona para a sua própria linha** — o GUID dos outros vem *secret* e a API
-recusa recebê-lo de volta; o seu vem de `UnitGUID("player")`, que é legível. Ao sair do combate,
-todos ficam disponíveis.
+**In combat it only works for your own row** — other players' GUIDs come in *secret* and the API
+refuses to take them back; yours comes from `UnitGUID("player")`, which is readable. Out of
+combat, everyone is available.
 
-## Placar de fim de corrida
+## End-of-run scoreboard
 
-No fim de um Mítico+ (`CHALLENGE_MODE_COMPLETED`) ou de um encontro de raide vencido
-(`ENCOUNTER_END`), abre sozinho um painel com o grupo inteiro e **todas** as métricas de uma vez
-— dano, cura, interrupções, dissipações, dano recebido, dano evitável e mortes. É o equivalente
-ao scoreboard do `Details_MythicPlus`, mas nativo, sem addon extra.
+At the end of a Mythic+ (`CHALLENGE_MODE_COMPLETED`) or a won raid encounter (`ENCOUNTER_END`),
+a panel opens by itself with the whole group and **every** metric at once — damage, healing,
+interrupts, dispels, damage taken, avoidable damage and deaths. It is the equivalent of
+`Details_MythicPlus`'s scoreboard, but native, with no extra addon.
 
-O título traz masmorra e nível da chave (ou o nome do chefe), com tempo e se fechou no tempo.
-Em M+ os dados vêm da sessão **geral** (a corrida inteira); em raide, do combate que acabou.
-Reabre com `/rm score`; desliga nas opções.
+The title carries the dungeon and keystone level (or the boss name), with the time and whether it
+beat the timer. In M+ the data comes from the **overall** session (the whole run); in raid, from
+the fight that just ended. Reopen it with `/rm score`; turn it off in the options.
 
-### Comandos
+### Commands
 
-Os comandos e seus argumentos são **sempre em inglês**, independentemente do idioma do cliente —
-só as descrições da ajuda são traduzidas. Assim um comando copiado de um guia, de um vídeo ou de
-um colega funciona em qualquer instalação.
+Commands and their arguments are **always in English**, whatever the client language — only the
+help descriptions are translated. That way a command copied from a guide, a video or a friend
+works on any installation.
 
 ```
-/rm                             abre ou fecha a janela
-/rm col [n]                     lista as colunas ou liga/desliga uma
-/rm move <n> left|right         move uma coluna
-/rm preset mplus|raid|damage    troca o conjunto de colunas
-/rm score                       placar da última corrida
-/rm overall                     alterna combate atual / geral
-/rm profile char|account|reset  configuração da conta ou do personagem
-/rm reset                       zera as sessões
-/rm config                      abre as opções
+/rm                             show or hide the window
+/rm col [n]                     list the columns, or toggle one
+/rm move <n> left|right         move a column
+/rm preset mplus|raid|damage    switch the column preset
+/rm score                       last run's scoreboard
+/rm overall                     switch current fight / overall
+/rm profile char|account|reset  account or character configuration
+/rm reset                       clear the sessions
+/rm log                         the diagnostic diary
+/rm config                      open the options
 ```
 
-## Estado
+## Roadmap
 
-**0.15.0 — corrigido o bug que deixava a janela vazia em combate, textura de barra
-escolhível, contraste corrigido, log de diagnóstico, realce do líder por coluna, linhas em formato de barra, ícone de especialização,
-fonte e tamanhos configuráveis, redimensionamento, botão de limpar dados.**
+- [ ] Measure the cost of cross-referencing in a 20-player raid (rows × columns queries per refresh)
+- [ ] Segment history (`GetAvailableCombatSessions` / `GetCombatSessionFromID`)
+- [ ] M+ specific columns: damage on priority adds, defensive usage, missed dispels
+- [ ] Scoreboard: per-player M+ score and loot received (`ENCOUNTER_LOOT_RECEIVED`)
+- [ ] Scoreboard: history of the last runs (`GetAvailableCombatSessions`)
+- [ ] Chat report (out of combat only — the data is secret during)
 
-Confirmado in-game na 0.6.0: a leitura do `C_DamageMeter` funciona (dano, DPS, cura, CPS,
-interrupções e mortes com números reais), o `.toc` carrega e a ordenação responde. O que faltava
-era a casca, refeita nesta versão.
+## License
 
-## Roteiro
-
-- [ ] Validar in-game os campos de `C_DamageMeter` e o comportamento em combate
-- [ ] Medir o custo do cruzamento em raide de 20 (linhas × colunas consultas por refresh)
-- [ ] Drill-down: clicar num nome e ver as magias daquela métrica
-- [ ] Histórico de segmentos (`GetAvailableCombatSessions` / `GetCombatSessionFromID`)
-- [ ] Colunas específicas de M+: dano em adds prioritários, uso de defensivos, dispels perdidos
-- [ ] Placar: pontuação de M+ por jogador e loot recebido (`ENCOUNTER_LOOT_RECEIVED`)
-- [ ] Placar: histórico das últimas corridas (`GetAvailableCombatSessions`)
-- [ ] Relatório para o chat (só fora de combate — os dados são secret durante)
-
-## Licença
-
-MIT — ver `LICENSE`.
+MIT — see `LICENSE`.
