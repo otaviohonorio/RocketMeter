@@ -232,11 +232,14 @@ um colega funciona em qualquer instalação.
 
 ## Apoio
 
-Estes addons são gratuitos e vão continuar sendo. Se eles te poupam tempo toda sessão, dá para
-apoiar o trabalho em [github.com/sponsors/otaviohonorio](https://github.com/sponsors/otaviohonorio)
-— é o que paga as horas de manter tudo em dia a cada patch.
+Estes addons são gratuitos e vão continuar sendo. Se eles te poupam tempo toda sessão, há duas
+formas de ajudar, e as duas pagam a mesma coisa — as horas de manter tudo em dia a cada patch:
 
-Não apoiar não te custa nada aqui. Um bom relato de defeito vale o mesmo.
+- **[Ko-fi](https://ko-fi.com/ottorocket)** — uma contribuição avulsa, de qualquer valor, **sem
+  precisar de conta**.
+- **[GitHub Sponsors](https://github.com/sponsors/otaviohonorio)** — recorrente, se preferir.
+
+Não fazer nem uma coisa nem outra não te custa nada aqui. Um bom relato de defeito vale o mesmo.
 
 ## Licença
 

@@ -233,11 +233,14 @@ works on any installation.
 
 ## Support
 
-These addons are free and always will be. If they save you time every session, you can sponsor
-the work at [github.com/sponsors/otaviohonorio](https://github.com/sponsors/otaviohonorio) — it
-pays for the hours that go into keeping them current with each patch.
+These addons are free and always will be. If they save you time every session, there are two
+ways to help, and both pay for the same thing — the hours that go into keeping them current
+with each patch:
 
-Not sponsoring costs you nothing here. A good bug report is worth just as much.
+- **[Ko-fi](https://ko-fi.com/ottorocket)** — a one-off tip, any amount, **no account needed**.
+- **[GitHub Sponsors](https://github.com/sponsors/otaviohonorio)** — recurring, if you'd rather.
+
+Doing neither costs you nothing here. A good bug report is worth just as much.
 
 ## License
 

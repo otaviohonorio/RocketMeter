@@ -1,3 +1,8 @@
 # Draws the "Sponsor" button at the top of the repository. Kept out of the player's zip by
 # the `ignore: .github` line in .pkgmeta -- this is repository furniture, not addon code.
+#
+# Two destinations on purpose, because they reach different people: Ko-fi takes a one-off tip
+# with NO account needed, which is most of whoever arrives from CurseForge, and GitHub Sponsors
+# is recurring but requires a GitHub account, which is whoever arrives from here.
 github: otaviohonorio
+ko_fi: ottorocket
