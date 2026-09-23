@@ -10,7 +10,12 @@
 ## Author: Otto Rocket (Otávio Honório)
 ## Version: 0.87.1
 ## X-Curse-Project-ID: 1698580
+#@debug@
 ## SavedVariables: RocketMeterDB, RocketMeterLogDB
+#@end-debug@
+#@non-debug@
+# ## SavedVariables: RocketMeterDB
+#@end-non-debug@
 ## SavedVariablesPerCharacter: RocketMeterCharDB, RocketMeterRunsDB
 ## IconTexture: Interface\Icons\INV_Misc_MissileLarge_Red
 ## AllowAddOnTableAccess: 1
@@ -20,7 +25,9 @@ Locales\enUS.lua
 Locales\ptBR.lua
 Core.lua
 Profile.lua
+#@debug@
 Log.lua
+#@end-debug@
 Data.lua
 Party.lua
 Window.lua

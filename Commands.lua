@@ -151,6 +151,11 @@ commands["move"] = function(rest)
 end
 
 commands["log"] = function(rest)
+    -- So existe fora do pacote (ver Core.lua).
+    if not ns.Log.enabled then
+        ns.Print(L["the log only exists in development builds."])
+        return
+    end
     local arg = rest and rest:lower():match("^%S*")
     if arg == "clear" then
         ns.Log.Clear()
@@ -322,7 +327,9 @@ commands["help"] = function()
     print("  /rm config                      " .. L["opens the options"])
     print("  /rm fontes                      " .. L["lists who the API reports in each metric"])
     print("  /rm debug                       " .. L["prints what the API is returning"])
-    print("  /rm log [clear]                 " .. L["records a diagnostic snapshot"])
+    if ns.Log.enabled then
+        print("  /rm log [clear]                 " .. L["records a diagnostic snapshot"])
+    end
     print("  " .. L["(click a column header to sort by it)"])
 end
 

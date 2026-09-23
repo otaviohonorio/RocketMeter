@@ -12,7 +12,7 @@ local ADDON, ns = ...
 
 local L = ns.L
 
-local Log = {}
+local Log = { enabled = true }
 ns.Log = Log
 
 local MAX_ENTRIES = 300

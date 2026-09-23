@@ -128,6 +128,7 @@ L["error while drawing:"] = "erro ao desenhar:"
 -- Log de diagnostico (0.13.0)
 L["records a diagnostic snapshot"] = "grava uma foto de diagnóstico"
 L["log cleared."] = "log limpo."
+L["the log only exists in development builds."] = "o diário só existe na versão de desenvolvimento."
 L["snapshot saved (%d entries). Type /reload so the file is written."] =
     "foto gravada (%d entradas). Digite /reload para o arquivo ser escrito."
 
