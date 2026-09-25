@@ -4097,4 +4097,24 @@ do
     ns.Log = real
 end
 
+--------------------------------------------------------------------------------
+-- (!) O CLIQUE ESQUERDO NO MINIMAPA ABRE AS OPCOES (25/09): *"quero que o clique esquerdo do
+-- mouse no icone do minimapa abra a config dele e nao remova a janela de medicao"*.
+--------------------------------------------------------------------------------
+print("\n-- clique no botao do minimapa")
+do
+    local botao = ns.Minimap.Create()
+    local abriu, alternou = 0, 0
+    local realOpen, realToggle = ns.OpenOptions, ns.Window.Toggle
+    ns.OpenOptions = function() abriu = abriu + 1 end
+    ns.Window.Toggle = function() alternou = alternou + 1 end
+    botao.__scripts.OnClick(botao, "LeftButton")
+    check("clique esquerdo abre as opcoes", abriu, 1)
+    check("  e nao mexe na janela de medicao", alternou, 0)
+    botao.__scripts.OnClick(botao, "RightButton")
+    check("clique direito mostra ou esconde o medidor", alternou, 1)
+    check("  e nao abre as opcoes", abriu, 1)
+    ns.OpenOptions, ns.Window.Toggle = realOpen, realToggle
+end
+
 print("\nTudo carregou e rodou sem erro de Lua.")

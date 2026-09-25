@@ -58,22 +58,25 @@ function Minimap_.Create()
         self:SetScript("OnUpdate", nil)
     end)
 
+    -- LEFT CLICK OPENS THE OPTIONS (25/09). The user: *"quero que o clique esquerdo do mouse no
+    -- icone do minimapa abra a config dele e não remova a janela de medição"*. Showing and hiding
+    -- the meter moved to the right button (and stays on `/rm`), away from the everyday click.
     button:SetScript("OnClick", function(_, mouseButton)
         if mouseButton == "RightButton" then
-            ns.OpenOptions()
+            ns.Window.Toggle()
         elseif IsShiftKeyDown() then
             ns.Scoreboard.Toggle()
         else
-            ns.Window.Toggle()
+            ns.OpenOptions()
         end
     end)
 
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("|cffff6a00Rocket|r Meter", 1, 1, 1)
-        GameTooltip:AddLine(L["Left-click: show or hide the meter"], 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(L["Left-click: options"], 0.8, 0.8, 0.8)
         GameTooltip:AddLine(L["Shift-click: scoreboard of the last run"], 0.8, 0.8, 0.8)
-        GameTooltip:AddLine(L["Right-click: options"], 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(L["Right-click: show or hide the meter"], 0.8, 0.8, 0.8)
         GameTooltip:AddLine(L["Drag to move around the minimap."], 0.5, 0.5, 0.5)
         GameTooltip:Show()
     end)

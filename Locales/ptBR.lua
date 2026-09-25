@@ -58,9 +58,9 @@ L["Rows"] = "Linhas"
 -- Painel de colunas e minimapa
 L["Configure columns"] = "Configurar colunas"
 L["opens the column panel"] = "abre o painel de colunas"
-L["Left-click: show or hide the meter"] = "Clique: mostra ou esconde o medidor"
+L["Left-click: options"] = "Clique: opções"
 L["Shift-click: scoreboard of the last run"] = "Shift+clique: placar da última corrida"
-L["Right-click: options"] = "Clique direito: opções"
+L["Right-click: show or hide the meter"] = "Clique direito: mostra ou esconde o medidor"
 L["Drag to move around the minimap."] = "Arraste para mover ao redor do minimapa."
 
 -- Janela e combate

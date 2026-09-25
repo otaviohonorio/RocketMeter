@@ -93,9 +93,9 @@ columns.
 Hand-written (~60 lines) instead of embedding LibDBIcon: it stores the position as an **angle**,
 so it stays put at any minimap size, and drags around the edge.
 
-- **Click**: show or hide the meter
+- **Click**: options
 - **Shift+click**: last run's scoreboard
-- **Right-click**: options
+- **Right-click**: show or hide the meter (also `/rm`)
 
 It can be hidden in the options — anyone using the addon compartment does not need both.
 

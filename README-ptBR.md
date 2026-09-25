@@ -92,9 +92,9 @@ colunas.
 Escrito à mão (~60 linhas) em vez de embutir LibDBIcon: guarda a posição como **ângulo**, então
 fica no lugar em qualquer tamanho de minimapa, e arrasta ao redor da borda.
 
-- **Clique**: mostra ou esconde o medidor
+- **Clique**: opções
 - **Shift+clique**: placar da última corrida
-- **Clique direito**: opções
+- **Clique direito**: mostra ou esconde o medidor (também `/rm`)
 
 Pode ser escondido nas opções — quem usa o compartimento de addons não precisa dos dois.
 
