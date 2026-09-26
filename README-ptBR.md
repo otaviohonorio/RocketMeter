@@ -93,8 +93,8 @@ Escrito à mão (~60 linhas) em vez de embutir LibDBIcon: guarda a posição com
 fica no lugar em qualquer tamanho de minimapa, e arrasta ao redor da borda.
 
 - **Clique**: opções
-- **Shift+clique**: placar da última corrida
-- **Clique direito**: mostra ou esconde o medidor (também `/rm`)
+- **Shift+clique**: mostra ou esconde o medidor (também `/rm`)
+- **Clique direito**: placar da última corrida
 
 Pode ser escondido nas opções — quem usa o compartimento de addons não precisa dos dois.
 

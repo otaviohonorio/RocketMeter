@@ -4111,9 +4111,21 @@ do
     botao.__scripts.OnClick(botao, "LeftButton")
     check("clique esquerdo abre as opcoes", abriu, 1)
     check("  e nao mexe na janela de medicao", alternou, 0)
-    botao.__scripts.OnClick(botao, "RightButton")
-    check("clique direito mostra ou esconde o medidor", alternou, 1)
+    -- SHIFT esconde (*"deixa o shift clique esconder, geralmente ninguem esconde medidor de dano"*),
+    -- e o DIREITO abre o placar.
+    local realShift = IsShiftKeyDown
+    IsShiftKeyDown = function() return true end
+    botao.__scripts.OnClick(botao, "LeftButton")
+    IsShiftKeyDown = realShift
+    check("shift+clique mostra ou esconde o medidor", alternou, 1)
     check("  e nao abre as opcoes", abriu, 1)
+    local placar = 0
+    local realPlacar = ns.Scoreboard.Toggle
+    ns.Scoreboard.Toggle = function() placar = placar + 1 end
+    botao.__scripts.OnClick(botao, "RightButton")
+    check("clique direito abre o placar", placar, 1)
+    check("  e nao esconde o medidor", alternou, 1)
+    ns.Scoreboard.Toggle = realPlacar
     ns.OpenOptions, ns.Window.Toggle = realOpen, realToggle
 end
 

@@ -94,8 +94,8 @@ Hand-written (~60 lines) instead of embedding LibDBIcon: it stores the position 
 so it stays put at any minimap size, and drags around the edge.
 
 - **Click**: options
-- **Shift+click**: last run's scoreboard
-- **Right-click**: show or hide the meter (also `/rm`)
+- **Shift+click**: show or hide the meter (also `/rm`)
+- **Right-click**: last run's scoreboard
 
 It can be hidden in the options — anyone using the addon compartment does not need both.
 
