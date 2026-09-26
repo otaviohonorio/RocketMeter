@@ -4167,4 +4167,46 @@ do
     ns.OpenOptions, ns.Window.Toggle = realOpen, realToggle
 end
 
+--------------------------------------------------------------------------------
+-- (!) O PLACAR DA CHAVE ABRE AO FECHAR O BAU, como o Details (26/09): *"ele tem um delay para
+-- mostrar o scoreboard e mostra certinhos os itens e as keystones dos outros jogadores"*.
+--------------------------------------------------------------------------------
+print("\n-- placar espera o bau")
+do
+    local SB = ns.Scoreboard
+    local mostrou = 0
+    local realShow = SB.Show
+    SB.Show = function(run) mostrou = mostrou + 1; return realShow(run) end
+    ns.db.autoScoreboardMPlus = true
+    C_ChallengeMode.GetChallengeCompletionInfo = function()
+        return { mapChallengeModeID = 501, level = 12, time = 1500000, onTime = true, keystoneUpgradeLevels = 1 }
+    end
+    SB.OnChallengeCompleted()
+    check("fim da chave: o placar NAO abre ainda", mostrou, 0)
+    check("  espera o bau", SB.IsWaitingForChest(), true)
+    -- Um item chega antes do bau fechar: entra na corrida que vai abrir.
+    local run = SB.DebugContext()
+    local alvo = run and run.rows[1] and run.rows[1].name
+    if alvo then ns.Party.NoteLoot("|arma|[Item do Bau]", alvo) end
+    check("  e o item que chega antes entra na corrida da vez", run and run.rows[1] and run.rows[1].loot ~= nil, alvo ~= nil)
+    -- Fecha o bau: abre.
+    local f
+    for _, fr in ipairs(frames) do
+        if fr.__events and fr.__events.LOOT_CLOSED then f = fr end
+    end
+    check("  (alguem escuta o LOOT_CLOSED)", f ~= nil, true)
+    if f then f.__scripts.OnEvent(f, "LOOT_CLOSED") end
+    check("fechou o bau: o placar abre", mostrou, 1)
+    check("  e para de esperar", SB.IsWaitingForChest(), false)
+
+    -- Saiu da masmorra sem abrir o bau: nao abre sozinho depois.
+    SB.OnChallengeCompleted()
+    for _, fr in ipairs(frames) do
+        if fr.__events and fr.__events.PLAYER_ENTERING_WORLD and fr.__scripts.OnEvent then f = fr end
+    end
+    f.__scripts.OnEvent(f, "PLAYER_ENTERING_WORLD", false, false)
+    check("saiu sem abrir o bau: para de esperar", SB.IsWaitingForChest(), false)
+    SB.Show = realShow
+end
+
 print("\nTudo carregou e rodou sem erro de Lua.")

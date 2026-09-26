@@ -2024,6 +2024,9 @@ end
 local SafeDraw = Scoreboard.Refresh
 
 function Scoreboard.Show(newContext)
+    -- Opened by hand (or by the chest): nothing is waiting any more. Through the table: the wait
+    -- is declared further down the file, and a local named here would be a nil global.
+    if Scoreboard.CancelChestWait then Scoreboard.CancelChestWait() end
     context = newContext or context
     if not context then
         ns.Print(L["no run recorded in this session yet."])
@@ -2158,6 +2161,52 @@ local function Desde()
     return math.floor((GetTime() - t0) * 10 + 0.5) / 10
 end
 
+--------------------------------------------------------------------------------
+-- (!) THE KEYSTONE SCOREBOARD OPENS WHEN THE CHEST IS LOOTED, LIKE DETAILS (26/09)
+--
+-- The user: *"ele tem um delay para mostrar o scoreboard e mostra certinhos os itens e as keystones
+-- dos outros jogadores, isso que precisa melhorar"*. Ours opened 1.5 s after the key ended, before
+-- anyone had opened the chest -- so there was no loot and no NEW key yet for anybody.
+-- Details_MythicPlus captures at the end but SHOWS on `LOOT_CLOSED` (its default,
+-- `start.lua:22`; `scoreboard.lua:273-292`): by the time the player closes the chest the loot has
+-- been handed out and every key has changed and been announced. Same here: the run becomes the
+-- current one at once (so loot and keys stitch into it), and the panel appears on the first
+-- LOOT_CLOSED; leaving the instance first cancels, as in Details (`/rm score` still opens it).
+--------------------------------------------------------------------------------
+local pendente               -- the run waiting for the chest
+local esperaBau = CreateFrame("Frame")
+
+local function IniciarReencosto()
+    if ns.Party and ns.Party.RequestKeystones then pcall(ns.Party.RequestKeystones) end
+    ReencostarAteCompletar(JANELA_EXTERNA_SEGUNDOS)
+end
+
+esperaBau:SetScript("OnEvent", function(self, event, isLogin, isReload)
+    if event == "LOOT_CLOSED" then
+        self:UnregisterAllEvents()
+        local run = pendente
+        pendente = nil
+        if run and context == run then
+            pcall(Scoreboard.RefreshExternalColumns)
+            Scoreboard.Show(run)
+            if ns.Log then ns.Log.Add("placar", { fase = "aberto ao fechar o bau", segundos = Desde() }) end
+            IniciarReencosto()
+        end
+    elseif event == "PLAYER_ENTERING_WORLD" and not isLogin and not isReload then
+        self:UnregisterAllEvents()
+        if pendente and ns.Log then ns.Log.Add("placar", { fase = "saiu sem abrir o bau" }) end
+        pendente = nil
+    end
+end)
+
+---True while a finished key waits for its chest (for the harness and `/rm score`).
+function Scoreboard.IsWaitingForChest() return pendente ~= nil end
+
+function Scoreboard.CancelChestWait()
+    pendente = nil
+    esperaBau:UnregisterAllEvents()
+end
+
 local function CaptureAndShow(base, kind, auto)
     base.kind = kind
     if ns.Log then
@@ -2181,7 +2230,20 @@ local function CaptureAndShow(base, kind, auto)
         -- A automática obedece à caixa do tipo de conteúdo — são duas, porque quem quer o
         -- resumo de toda chave não necessariamente quer o de todo chefe de raide.
         local wanted = kind == "mplus" and ns.db.autoScoreboardMPlus or ns.db.autoScoreboardRaid
+        -- A KEY, opened by itself: wait for the chest (see above). The run is the current one
+        -- already, so what arrives before the panel stitches into it.
+        if kind == "mplus" and auto ~= false and wanted then
+            context = snapshot
+            pendente = snapshot
+            esperaBau:RegisterEvent("LOOT_CLOSED")
+            esperaBau:RegisterEvent("PLAYER_ENTERING_WORLD")
+            if ns.Log then ns.Log.Add("placar", { fase = "esperando o bau", segundos = Desde() }) end
+            IniciarReencosto()
+            return
+        end
+
         if auto == false or wanted then
+            pendente = nil
             Scoreboard.Show(snapshot)
             if ns.Log then ns.Log.Add("placar", { fase = "aberto", segundos = Desde() }) end
         end
@@ -2190,8 +2252,7 @@ local function CaptureAndShow(base, kind, auto)
         -- seguintes, conforme cada um abre o baú. Só em Mítico+ — num chefe de raide essas três
         -- colunas nem existem.
         if kind == "mplus" then
-            if ns.Party and ns.Party.RequestKeystones then pcall(ns.Party.RequestKeystones) end
-            ReencostarAteCompletar(JANELA_EXTERNA_SEGUNDOS)
+            IniciarReencosto()
         end
     end)
 end
