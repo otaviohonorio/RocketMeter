@@ -208,6 +208,86 @@ LibLookup = function(todasFn, umaFn, name)
     return nil
 end
 
+--------------------------------------------------------------------------------
+-- (!) THE KEYSTONE PROTOCOL OF DBM AND BIGWIGS (26/09)
+--
+-- The user: *"os itens ainda não aparecem e nem as keystone de outros players"*. The saved +12 of
+-- 26/09 had a keystone for ONE row -- the player's own. Cause, measured: every other keystone came
+-- from LibOpenRaid, which lives inside Details, and Details is no longer installed; no addon here
+-- loads it any more. So the column had no source at all.
+--
+-- LibKeystone (BigWigsMods; DBM and BigWigs both embed it -- `DBM-Core/Libs/LibKeystone`) has a
+-- one-line protocol, spoken here directly so nothing third-party has to be loaded:
+--   prefix "LibKS", channel PARTY; "level,challengeMapID,rating" announces a key; "R" asks for them.
+-- Everyone with DBM or BigWigs announces the NEW key on their own when they open the chest
+-- (LibKeystone.lua, ITEM_PUSH / ITEM_CHANGED after CHALLENGE_MODE_COMPLETED), and answers "R".
+-- When LibKeystone is loaded in THIS client it already answers for us, so we stay quiet then.
+--------------------------------------------------------------------------------
+local LKS_PREFIX = "LibKS"
+local LKS_THROTTLE = 3
+local lksKeys = {}               -- [short name] = { level, mapID, rating, at }
+local lksRequestedAt = -math.huge
+
+if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+    pcall(C_ChatInfo.RegisterAddonMessagePrefix, LKS_PREFIX)
+end
+
+local function LibKeystoneLoaded()
+    if not (LibStub and LibStub.GetLibrary) then return false end
+    local ok, lib = pcall(LibStub.GetLibrary, LibStub, "LibKeystone", true)
+    return ok and lib ~= nil
+end
+
+local function OwnKeystone()
+    local level = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneLevel and C_MythicPlus.GetOwnedKeystoneLevel() or 0
+    local mapID = C_MythicPlus and C_MythicPlus.GetOwnedKeystoneChallengeMapID
+        and C_MythicPlus.GetOwnedKeystoneChallengeMapID() or 0
+    local rating = 0
+    if C_PlayerInfo and C_PlayerInfo.GetPlayerMythicPlusRatingSummary then
+        local ok, s = pcall(C_PlayerInfo.GetPlayerMythicPlusRatingSummary, "player")
+        if ok and type(s) == "table" and type(s.currentSeasonScore) == "number" then rating = s.currentSeasonScore end
+    end
+    return level or 0, mapID or 0, rating
+end
+
+---Our own key on the LibKS channel -- only when no LibKeystone here would do it.
+local function AnnounceOwn(channel)
+    if LibKeystoneLoaded() then return false end
+    if not (C_ChatInfo and C_ChatInfo.SendAddonMessage and IsInGroup and IsInGroup()) then return false end
+    local level, mapID, rating = OwnKeystone()
+    local ok = pcall(C_ChatInfo.SendAddonMessage, LKS_PREFIX,
+        string.format("%d,%d,%d", level, mapID, math.floor(rating)), channel or "PARTY")
+    return ok
+end
+
+---A LibKS message arrived.
+function Party.OnLibKS(msg, channel, sender)
+    if type(msg) ~= "string" then return end
+    if msg == "R" then
+        if channel == "PARTY" then AnnounceOwn("PARTY") end
+        return
+    end
+    local l, m, r = msg:match("^(%-?%d+),(%-?%d+),(%-?%d+)$")
+    local nome = Readable(sender)
+    if not (l and nome) then return end
+    lksKeys[nome] = { level = tonumber(l), mapID = tonumber(m), rating = tonumber(r),
+                      at = GetTime and GetTime() or 0 }
+    if ns.Log then ns.Log.Add("pedra", { quem = nome, nivel = tonumber(l), mapa = tonumber(m), via = "LibKS" }) end
+    if ns.Scoreboard and ns.Scoreboard.RefreshExternalColumns then
+        pcall(ns.Scoreboard.RefreshExternalColumns)
+    end
+end
+
+---Ask the group for their keys on the LibKS channel (throttled like the library: 3 s).
+local function RequestLibKS()
+    if not (C_ChatInfo and C_ChatInfo.SendAddonMessage and IsInGroup and IsInGroup()) then return false end
+    local agora = GetTime and GetTime() or 0
+    if agora - lksRequestedAt < LKS_THROTTLE then return true end
+    lksRequestedAt = agora
+    local ok = pcall(C_ChatInfo.SendAddonMessage, LKS_PREFIX, "R", "PARTY")
+    return ok
+end
+
 ---@return number|nil nivel, number|nil mapID
 function Party.Keystone(name)
     name = Readable(name)
@@ -220,6 +300,10 @@ function Party.Keystone(name)
         if level and mapID then return level, mapID end
     end
 
+    -- LibKS first: it is what DBM and BigWigs users send, and it needs nothing loaded here.
+    local k = lksKeys[name]
+    if k and k.level and k.level > 0 then return k.level, k.mapID end
+
     local info = LibLookup("GetAllKeystonesInfo", "GetKeystoneInfo", name)
     if not info or not info.level or info.level <= 0 then return nil end
     return info.level, info.challengeMapID
@@ -231,17 +315,18 @@ end
 ---tabela pode estar vazia numa sessão em que ninguém mais perguntou — e a coluna some sem que
 ---nada esteja quebrado. Chamar não custa: é um `SendAddonMessage` para o grupo.
 function Party.RequestKeystones()
+    local pediuLKS = RequestLibKS()
     local lib = OpenRaid()
-    if not lib then return false end
+    if not lib then return pediuLKS end
 
     -- `RequestAllData` traz o EQUIPAMENTO junto, e e por isso que ele entra aqui: a mesma ida ao
     -- canal de addon que busca a pedra resolve o nivel de item dos outros, que a inspecao so
     -- consegue as vezes. Se ela nao existir, o pedido de pedra sozinho ainda vale.
     if lib.RequestAllData then pcall(lib.RequestAllData) end
 
-    if not lib.RequestKeystoneDataFromParty then return false end
+    if not lib.RequestKeystoneDataFromParty then return pediuLKS end
     local ok, enviou = pcall(lib.RequestKeystoneDataFromParty)
-    return ok and enviou or false
+    return (ok and enviou) or pediuLKS
 end
 
 ---Assina o aviso da lib: "a pedra de fulano mudou".
@@ -329,6 +414,8 @@ local listener = CreateFrame("Frame")
 listener:RegisterEvent("INSPECT_READY")
 listener:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
 listener:RegisterEvent("GROUP_ROSTER_UPDATE")
+listener:RegisterEvent("CHAT_MSG_ADDON")
+listener:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 
 listener:SetScript("OnEvent", function(_, event, ...)
     if event == "INSPECT_READY" then
@@ -366,6 +453,17 @@ listener:SetScript("OnEvent", function(_, event, ...)
             ns.Log.Add("saque cru", { link = itemLink, quinto = quinto, sexto = sexto })
         end
         Party.NoteLoot(itemLink, quinto)
+
+    elseif event == "CHAT_MSG_ADDON" then
+        local prefix, msg, channel, sender = ...
+        if prefix == LKS_PREFIX then Party.OnLibKS(msg, channel, sender) end
+
+    elseif event == "CHALLENGE_MODE_COMPLETED" then
+        -- Our NEW key, once the chest gives it, the way LibKeystone does it -- only when it is not
+        -- loaded here (then it does it itself). The key changes a moment after the chest.
+        if not LibKeystoneLoaded() and C_Timer and C_Timer.After then
+            for _, s in ipairs({ 5, 20, 60 }) do C_Timer.After(s, function() AnnounceOwn("PARTY") end) end
+        end
 
     elseif event == "GROUP_ROSTER_UPDATE" then
         Party.RefreshItemLevels()

@@ -3877,6 +3877,15 @@ do
     ns.Party.NoteLoot("|arma|[Segundo]", quem)
     check("segundo item nao sobrescreve o primeiro",
         corrida.rows[1].loot:find("Item de Teste", 1, true) ~= nil, true)
+
+    -- (!) JOGADOR DE OUTRO REINO (26/09): a linha guarda "Bizco-Quel'dorei" e o evento chega com o
+    -- mesmo nome, mas o `Party` o guarda curto. A comparacao exata deixava o item fora do placar.
+    local linha = corrida.rows[3]
+    if linha then
+        linha.name, linha.loot = "Bizco-Quel'dorei", nil
+        ns.Party.NoteLoot("|arma|[Item do Bizco]", "Bizco-Quel'dorei")
+        check("item de jogador de outro reino entra na linha dele", linha.loot ~= nil, true)
+    end
 end
 
 print("== pedra, saque e pontuacao continuam chegando DEPOIS do fim ==")
@@ -3973,6 +3982,35 @@ do
     -- E O PEDIDO EXISTE. A lib guarda o que os outros MANDAM, e eles mandam quando alguem
     -- pergunta; sem o pedido a tabela pode estar vazia e a coluna some sem nada estar quebrado.
     check("o addon sabe pedir os dados ao grupo", ns.Party.RequestKeystones(), true)
+
+    -- (!) O PROTOCOLO DO DBM/BIGWIGS (26/09): a LibOpenRaid saiu com o Details, e a coluna Pedra
+    -- ficou so com a linha do proprio jogador. "LibKS" no canal PARTY: "nivel,mapa,pontuacao".
+    local enviadas = {}
+    local realChat = C_ChatInfo
+    C_ChatInfo = {
+        RegisterAddonMessagePrefix = function() return 0 end,
+        SendAddonMessage = function(prefixo, msg, canal) enviadas[#enviadas + 1] = prefixo .. "|" .. msg .. "|" .. canal; return 0 end,
+    }
+    local realGroup = IsInGroup
+    IsInGroup = function() return true end
+    ns.PartyListener:GetScript("OnEvent")(ns.PartyListener, "CHAT_MSG_ADDON", "LibKS", "15,503,3089", "PARTY", "Bizco-Quel'dorei")
+    local n2, m2 = ns.Party.Keystone("Bizco")
+    check("pedra de quem tem DBM/BigWigs chega pelo LibKS", n2, 15)
+    check("  com a masmorra", m2, 503)
+    -- Sem LibKeystone carregada aqui, o addon responde o pedido "R" com a propria pedra.
+    local realKS = LibStub.libs["LibKeystone"]
+    LibStub.libs["LibKeystone"] = nil
+    ns.PartyListener:GetScript("OnEvent")(ns.PartyListener, "CHAT_MSG_ADDON", "LibKS", "R", "PARTY", "Bizco-Quel'dorei")
+    local respondeu = false
+    for _, e in ipairs(enviadas) do if e:match("^LibKS|%-?%d+,%-?%d+,%-?%d+|PARTY$") then respondeu = true end end
+    check("  e responde o pedido com a propria pedra", respondeu, true)
+    -- Com a LibKeystone carregada (DBM/BigWigs aqui), quem responde e ela: nada duplicado.
+    enviadas = {}
+    LibStub.libs["LibKeystone"] = {}
+    ns.PartyListener:GetScript("OnEvent")(ns.PartyListener, "CHAT_MSG_ADDON", "LibKS", "R", "PARTY", "Bizco-Quel'dorei")
+    check("  mas nao duplica a resposta se a LibKeystone estiver aqui", #enviadas, 0)
+    LibStub.libs["LibKeystone"] = realKS
+    C_ChatInfo, IsInGroup = realChat, realGroup
     check("  e pediu de verdade", pedida, true)
 
     -- ⚑ E ASSINA O AVISO DE MUDANCA. Observacao do usuario sobre o Details (10/09/2026):

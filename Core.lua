@@ -232,6 +232,11 @@ function handlers:PLAYER_ENTERING_WORLD()
 end
 
 function handlers:CHALLENGE_MODE_COMPLETED()
+    -- WHEN the scoreboard opens, measured (26/09): *"o scoreboard final dele demora um pouco para
+    -- aparecer"*, and nothing saved could say where the time went -- the 1.5 s below, or the wait
+    -- for the end of combat (`RunWhenSafe`). Scoreboard.lua logs the other two instants.
+    ns.scoreboardClock = GetTime and GetTime() or 0
+    ns.Log.Add("placar", { fase = "fim da chave", emCombate = InCombatLockdown() and true or false })
     RunCall("Stop")
     -- Idem: grava sempre, mostra conforme a preferência.
     -- Pequena espera: a sessão ainda está sendo fechada quando o evento dispara.

@@ -621,10 +621,15 @@ end
 function Scoreboard.OnLoot(name, itemLink)
     if not name or not itemLink then return end
 
+    -- (!) NOME SEM REINO DOS DOIS LADOS (26/09). `Party.NoteLoot` manda o nome curto ("Bizco"),
+    -- e a linha de quem e de OUTRO reino guarda "Bizco-Quel'dorei" (corrida salva de 26/09). A
+    -- comparacao exata deixava o item de todo jogador de outro reino fora do placar -- ele so
+    -- entrava se chegasse nos 2 minutos da janela de `RefreshExternalColumns`, que tira o reino.
+    local curto = ns.SplitName(name) or name
     Costura(function(run)
         local mudou = false
         for _, row in ipairs(run.rows) do
-            if row.name == name and row.loot == nil then
+            if (ns.SplitName(row.name) or row.name) == curto and row.loot == nil then
                 row.loot = itemLink
                 mudou = true
             end
@@ -2147,9 +2152,19 @@ local function ReencostarAteCompletar(restante)
     C_Timer.After(JANELA_EXTERNA_PASSO, function() ReencostarAteCompletar(restante) end)
 end
 
+local function Desde()
+    local t0 = ns.scoreboardClock
+    if not t0 or not GetTime then return nil end
+    return math.floor((GetTime() - t0) * 10 + 0.5) / 10
+end
+
 local function CaptureAndShow(base, kind, auto)
     base.kind = kind
+    if ns.Log then
+        ns.Log.Add("placar", { fase = "pedido", segundos = Desde(), emCombate = InCombatLockdown() and true or false })
+    end
     ns.RunWhenSafe(function()
+        if ns.Log then ns.Log.Add("placar", { fase = "captura", segundos = Desde() }) end
         -- A classe de cada morte entra ANTES do retrato, para viajar junto com ele para o disco:
         -- uma corrida reaberta na semana que vem não tem mais sessão de medidor para consultar.
         pcall(AttachDeathClasses, base)
@@ -2168,6 +2183,7 @@ local function CaptureAndShow(base, kind, auto)
         local wanted = kind == "mplus" and ns.db.autoScoreboardMPlus or ns.db.autoScoreboardRaid
         if auto == false or wanted then
             Scoreboard.Show(snapshot)
+            if ns.Log then ns.Log.Add("placar", { fase = "aberto", segundos = Desde() }) end
         end
 
         -- E a partir daqui o placar continua vivo: pedra, saque e pontuação chegam nos minutos
