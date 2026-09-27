@@ -1402,6 +1402,13 @@ local function CreatePanel()
     frame = CreateFrame("Frame", ADDON .. "Scoreboard", UIParent, "BackdropTemplate")
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
     frame:SetFrameStrata("HIGH")
+    -- IN FRONT WHEN OPENED OR CLICKED (27/09). Every Rocket window shares the HIGH strata, and
+    -- inside a strata the order is the frame LEVEL: without this, the rows of a window opened
+    -- earlier (deeper children, higher levels) drew over the background of the one opened on
+    -- top -- the user's print had RocketMount's list showing through RocketSwap. `toplevel`
+    -- raises on click; `Raise` on show. Same pair as Chattynator (`CustomiseDialog/Main.lua:841,846`).
+    frame:SetToplevel(true)
+    frame:HookScript("OnShow", function(self) self:Raise() end)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -1837,6 +1844,10 @@ end
 ---O que se trava com isto NÃO é "ficou bonito" — é que os números continuam sendo os do
 ---Details. Uma refatoração que mexa em qualquer um deles passa a reprovar, e é para isso que
 ---esta porta existe: o pedido foi copiar, e cópia sem conferência vira lembrança.
+function Scoreboard.__frame()
+    return frame
+end
+
 function Scoreboard.DebugLayout()
     local widths = {}
     for c = 1, #ALL_COLUMNS do

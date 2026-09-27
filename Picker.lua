@@ -500,6 +500,13 @@ function Picker.Create()
     frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "DefaultPanelTemplate")
     frame:SetSize(WIDTH, TOP + content + FOOTER)
     frame:SetFrameStrata("DIALOG")
+    -- IN FRONT WHEN OPENED OR CLICKED (27/09). Every Rocket window shares the HIGH strata, and
+    -- inside a strata the order is the frame LEVEL: without this, the rows of a window opened
+    -- earlier (deeper children, higher levels) drew over the background of the one opened on
+    -- top -- the user's print had RocketMount's list showing through RocketSwap. `toplevel`
+    -- raises on click; `Raise` on show. Same pair as Chattynator (`CustomiseDialog/Main.lua:841,846`).
+    frame:SetToplevel(true)
+    frame:HookScript("OnShow", function(self) self:Raise() end)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:EnableMouse(true)
