@@ -237,6 +237,7 @@ These addons are free and always will be. If they save you time every session, t
 ways to help, and both pay for the same thing — the hours that go into keeping them current
 with each patch:
 
+- **[PayPal](https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD)** — a one-off donation, any amount.
 - **[Ko-fi](https://ko-fi.com/ottorocket)** — a one-off tip, any amount, **no account needed**.
 - **[GitHub Sponsors](https://github.com/sponsors/otaviohonorio)** — recurring, if you'd rather.
 

@@ -20,10 +20,12 @@
 ## IconTexture: Interface\Icons\INV_Misc_MissileLarge_Red
 ## AllowAddOnTableAccess: 1
 ## AddonCompartmentFunc: RocketMeter_OnCompartmentClick
+## X-Donate: PayPal:https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD
 
 Locales\enUS.lua
 Locales\ptBR.lua
 Core.lua
+Donate.lua
 Profile.lua
 #@debug@
 Log.lua

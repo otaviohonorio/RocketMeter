@@ -6,3 +6,5 @@
 # is recurring but requires a GitHub account, which is whoever arrives from here.
 github: otaviohonorio
 ko_fi: ottorocket
+# PayPal donation link (26/09), the same one the in-game Donate button copies.
+custom: ["https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD"]

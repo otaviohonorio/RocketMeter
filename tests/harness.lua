@@ -4209,4 +4209,42 @@ do
     SB.Show = realShow
 end
 
+--------------------------------------------------------------------------------
+-- DOACAO (26/09): o link na caixa, BRL com o jogo em portugues, USD fora dele.
+--------------------------------------------------------------------------------
+print("\n-- doacao")
+do
+    local realLocale = GetLocale
+    GetLocale = function() return "ptBR" end
+    check("jogo em portugues: link em BRL", ns.DonateURL():sub(-3), "BRL")
+    GetLocale = function() return "enUS" end
+    check("jogo em ingles: link em USD", ns.DonateURL():sub(-3), "USD")
+    check("  e e o link do PayPal do autor", ns.DonateURL():find("business=HH4PHH48DPG9J", 1, true) ~= nil, true)
+
+    local caixa = { scripts = {} }
+    function caixa:SetText(t) self.text = t end
+    function caixa:GetText() return self.text end
+    function caixa:HighlightText() self.marcado = true end
+    function caixa:SetFocus() end
+    function caixa:SetScript(n, f) self.scripts[n] = f end
+    local dialogo = { GetEditBox = function() return caixa end, Hide = function() end }
+    local mostrou
+    local realDialogs, realShow = StaticPopupDialogs, StaticPopup_Show
+    StaticPopupDialogs = {}
+    StaticPopup_Show = function(id) mostrou = id; StaticPopupDialogs[id].OnShow(dialogo) end
+    ns.ShowDonate()
+    check("a janela de doacao abre", mostrou ~= nil, true)
+    check("  com o link na caixa", caixa.text, ns.DonateURL())
+    check("  ja selecionado para o Ctrl+C", caixa.marcado, true)
+    caixa.scripts.OnTextChanged(caixa, true)
+    check("  e digitar por cima nao estraga o link", caixa.text, ns.DonateURL())
+    mostrou = nil
+    SlashCmdList["ROCKETMETER"]("doar")
+    check("o comando doar abre a janela", mostrou ~= nil, true)
+    mostrou = nil
+    SlashCmdList["ROCKETMETER"]("donate")
+    check("  e donate tambem", mostrou ~= nil, true)
+    StaticPopupDialogs, StaticPopup_Show, GetLocale = realDialogs, realShow, realLocale
+end
+
 print("\nTudo carregou e rodou sem erro de Lua.")
