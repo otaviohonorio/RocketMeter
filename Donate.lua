@@ -81,15 +81,28 @@ end
 ---the game's disabled grey (`GameFontDisableSmall`) -- "Support the project", not
 ---"Donate" (the user, 27/09: *"doar é feio"*) -- that lights up on hover, with a tooltip saying
 ---what it does -- no button art, nothing competing with the addon's own controls.
+---The PayPal monogram (27/09, the user: *"poderia ter um logo do paypal"*). A PNG in the addon's
+---own `Textures/` -- the retail client loads PNG, as Details (`images/patreon_p_logo.png`) and
+---KagrokLauncherCore (`Media/Social/patreon.png`) already ship. The glyph is simple-icons' `paypal`
+---(CC0) in PayPal's two blues, rendered at 64x64.
+ns.PAYPAL_ICON = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\PayPal.png"
+local ICON = 14
+
 function ns.DonateLink(parent)
     local b = CreateFrame("Button", nil, parent)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetSize(ICON, ICON)
+    b.icon:SetPoint("LEFT")
+    b.icon:SetTexture(ns.PAYPAL_ICON)
+    b.icon:SetAlpha(0.8)                                 -- discreet until the mouse comes
     b.text = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    b.text:SetPoint("CENTER")
+    b.text:SetPoint("LEFT", b.icon, "RIGHT", 3, 0)
     b.text:SetText(L["Support the project"])
     local w = b.text.GetStringWidth and b.text:GetStringWidth()
     if type(w) ~= "number" or w <= 0 then w = 30 end     -- by TYPE: the harness answers a table
-    b:SetSize(w + 8, 14)
+    b:SetSize(ICON + 3 + w + 4, ICON)
     b:SetScript("OnEnter", function(self)
+        self.icon:SetAlpha(1)
         self.text:SetFontObject("GameFontHighlightSmall")
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText(L["Support the project"], 1, 1, 1)
@@ -97,6 +110,7 @@ function ns.DonateLink(parent)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function(self)
+        self.icon:SetAlpha(0.8)
         self.text:SetFontObject("GameFontDisableSmall")
         GameTooltip:Hide()
     end)

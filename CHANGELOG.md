@@ -12,6 +12,6 @@ items and the new keys, and keeps updating for two minutes for whoever loots lat
   in the first two minutes).
 - **Minimap button:** left-click opens the options, Shift-click shows or hides the meter (also
   `/rm`), right-click opens the last run's scoreboard.
-- **Support the project:** a small link in the corner of the options window opens the PayPal link ready to copy —
+- **Support the project:** a small link with the PayPal logo in the corner of the options window opens the PayPal link ready to copy —
   in reais when the game is in Portuguese, in dollars otherwise.
 - The published addon no longer writes a debug log to your disk.
