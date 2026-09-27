@@ -18,7 +18,6 @@
 #@end-non-debug@
 ## SavedVariablesPerCharacter: RocketMeterCharDB, RocketMeterRunsDB
 ## IconTexture: Interface\Icons\INV_Misc_MissileLarge_Red
-## AllowAddOnTableAccess: 1
 ## AddonCompartmentFunc: RocketMeter_OnCompartmentClick
 ## X-Donate: PayPal:https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD
 
