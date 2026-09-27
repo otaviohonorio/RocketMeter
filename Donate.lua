@@ -75,3 +75,30 @@ function ns.ShowDonate()
     end
     StaticPopup_Show(POPUP)
 end
+
+---THE DISCREET LINK (27/09). The user: *"os comandos não precisa (...) tem que ser na janela do addon
+---mesmo, em algum canto ou menu (...) um pouco mais discreto sem chamar atenção"*. A small word in
+---the game's disabled grey (`GameFontDisableSmall`) that lights up on hover, with a tooltip saying
+---what it does -- no button art, nothing competing with the addon's own controls.
+function ns.DonateLink(parent)
+    local b = CreateFrame("Button", nil, parent)
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    b.text:SetPoint("CENTER")
+    b.text:SetText(L["Donate"])
+    local w = b.text.GetStringWidth and b.text:GetStringWidth()
+    if type(w) ~= "number" or w <= 0 then w = 30 end     -- by TYPE: the harness answers a table
+    b:SetSize(w + 8, 14)
+    b:SetScript("OnEnter", function(self)
+        self.text:SetFontObject("GameFontHighlightSmall")
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L["Support the development"], 1, 1, 1)
+        GameTooltip:AddLine(L["Opens the donation link, ready to copy."], 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function(self)
+        self.text:SetFontObject("GameFontDisableSmall")
+        GameTooltip:Hide()
+    end)
+    b:SetScript("OnClick", function() ns.ShowDonate() end)
+    return b
+end

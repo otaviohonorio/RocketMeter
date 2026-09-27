@@ -512,16 +512,9 @@ function Picker.Create()
     close:SetPoint("TOPRIGHT", 2, 1)
     close:SetScript("OnClick", function() frame:Hide() end)
 
-    -- "Donate" (26/09): Donate.lua. The game's button, 22 high, text + 40 wide.
-    frame.donate = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    frame.donate:SetText(L["Donate"])
-    do
-        local w = frame.donate.GetTextWidth and frame.donate:GetTextWidth()
-        if type(w) ~= "number" or w <= 0 then w = 50 end    -- by TYPE: the harness answers a table
-        frame.donate:SetSize(w + 40, 20)
-    end
-    frame.donate:SetPoint("RIGHT", close, "LEFT", -2, 0)
-    frame.donate:SetScript("OnClick", function() ns.ShowDonate() end)
+    -- "Donate" (27/09): the small grey word in the bottom-right corner (Donate.lua, `DonateLink`).
+    frame.donate = ns.DonateLink(frame)
+    frame.donate:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 2)
 
     ---Uma coluna é um Frame de largura fixa. Todo controle é posicionado em relação a ELA, e
     ---nunca à janela — foi posicionar em relação à janela que fez o rótulo sair pela borda.

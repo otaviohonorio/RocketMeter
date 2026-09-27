@@ -308,10 +308,6 @@ commands["i18n"] = function()
     end
 end
 
--- `/rm doar` (or `donate`): the donation link (Donate.lua).
-commands["donate"] = function() ns.ShowDonate() end
-commands["doar"] = commands["donate"]
-
 commands["help"] = function()
     ns.Print(L["version"] .. " " .. ns.version .. " — " .. L["commands:"])
     print("  /rm                             " .. L["opens or closes the window"])
