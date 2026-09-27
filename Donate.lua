@@ -88,6 +88,13 @@ end
 ns.PAYPAL_ICON = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\PayPal.png"
 local ICON = 14
 
+---THE SUPPORT LINE (27/09), the standard for every Rocket window, current and future. The user:
+---*"esse item tem que ser padrão em todos os addons atuais e futuros, deixa ele numa linha sozinho no
+---final da janela"*. A line of its own at the very bottom, centred, below everything else: the
+---window grows by `DONATE_ROW` and whatever lived at the bottom moves up by the same amount.
+ns.DONATE_ROW = 22            -- 5 below + the 14 of the link + 3 above
+local DONATE_Y = 5
+
 function ns.DonateLink(parent)
     local b = CreateFrame("Button", nil, parent)
     b.icon = b:CreateTexture(nil, "ARTWORK")
@@ -115,5 +122,13 @@ function ns.DonateLink(parent)
         GameTooltip:Hide()
     end)
     b:SetScript("OnClick", function() ns.ShowDonate() end)
+    return b
+end
+
+---The link on its own line at the bottom of `window` (see `DONATE_ROW`). Every window uses this;
+---`DonateLink` alone is for a place that is not a window (none today).
+function ns.DonateFooter(window)
+    local b = ns.DonateLink(window)
+    b:SetPoint("BOTTOM", window, "BOTTOM", 0, DONATE_Y)
     return b
 end

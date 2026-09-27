@@ -46,7 +46,8 @@ local TOP = 36                  -- abaixo da barra de título
 -- Só a margem de baixo: o botão "Limpar dados" saiu daqui a pedido — os dados se limpam na
 -- própria janela do medidor, e um botão em largura cheia no rodapé de uma tela de configuração
 -- dava a ele um peso que ele não tem.
-local FOOTER = 14
+-- 14 of margin under the columns, plus the support line (Donate.lua, `DONATE_ROW`, 27/09).
+local FOOTER = 14 + (ns.DONATE_ROW or 0)
 
 -- RITMO VERTICAL. Todo número aqui foi lido na fonte do 12.1.0, e nenhum foi arredondado.
 --
@@ -512,9 +513,8 @@ function Picker.Create()
     close:SetPoint("TOPRIGHT", 2, 1)
     close:SetScript("OnClick", function() frame:Hide() end)
 
-    -- "Donate" (27/09): the small grey word in the bottom-right corner (Donate.lua, `DonateLink`).
-    frame.donate = ns.DonateLink(frame)
-    frame.donate:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 2)
+    -- "Support the project" (27/09): a line of its own at the very bottom (Donate.lua).
+    frame.donate = ns.DonateFooter(frame)
 
     ---Uma coluna é um Frame de largura fixa. Todo controle é posicionado em relação a ELA, e
     ---nunca à janela — foi posicionar em relação à janela que fez o rótulo sair pela borda.
@@ -725,6 +725,10 @@ end
 
 function Picker.__probe()
     return probes
+end
+
+function Picker.__frame()
+    return frame
 end
 
 function Picker.__frameHeight()
