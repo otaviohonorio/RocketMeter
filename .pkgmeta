@@ -6,6 +6,8 @@ ignore:
   - .luacheckrc
   - README.md
   - README-ptBR.md
+  - README.public.md
+  - .pubignore
   - tests
   - Log.lua
 
