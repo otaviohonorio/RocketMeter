@@ -1,17 +1,12 @@
-# Rocket Meter 0.88.0
+# Rocket Meter 0.89.0
 
-**The end-of-key scoreboard now waits for the chest, like Details.** It used to open a second and a
-half after the key ended — before anyone had opened the chest, so there was no loot and no new
-keystone for anybody yet. It now opens when you close the chest's loot window, already with the
-items and the new keys, and keeps updating for two minutes for whoever loots later.
-
-- **Other players' keystones show up again.** They came only from a library bundled with Details;
-  the scoreboard now also reads the keystone protocol used by DBM and BigWigs, so anyone running
-  one of those three shares their key.
-- **Loot from players of another realm** now appears on their row (it was missed unless it arrived
-  in the first two minutes).
-- **Minimap button:** left-click opens the options, Shift-click shows or hides the meter (also
-  `/rm`), right-click opens the last run's scoreboard.
-- **Support the project:** a small link with the PayPal logo, on its own line at the bottom of the options window, opens the PayPal link ready to copy —
-  in reais when the game is in Portuguese, in dollars otherwise.
-- The published addon no longer writes a debug log to your disk.
+- **Report a problem**: beside "Support the project", at the bottom of the options window, a link
+  that lets you choose GitHub or CurseForge and opens the address ready to copy, with the addon's
+  version in the dialog.
+- **Support the project** is now a small link with the PayPal logo, on a line of its own at the
+  bottom of the options window, in place of the Donate button at the top. It opens the PayPal
+  link ready to copy, in reais when the game is in Portuguese and in dollars otherwise. The chat
+  command for it is gone.
+- **Windows come to the front.** The options window and the scoreboard now rise above other
+  windows when they open and when you click them, instead of showing another window's rows
+  through their background.
