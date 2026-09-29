@@ -1,10 +1,6 @@
 # Draws the "Sponsor" button at the top of the repository. Kept out of the player's zip by
 # the `ignore: .github` line in .pkgmeta -- this is repository furniture, not addon code.
 #
-# Two destinations on purpose, because they reach different people: Ko-fi takes a one-off tip
-# with NO account needed, which is most of whoever arrives from CurseForge, and GitHub Sponsors
-# is recurring but requires a GitHub account, which is whoever arrives from here.
-github: otaviohonorio
-ko_fi: ottorocket
-# PayPal donation link (26/09), the same one the in-game Donate button copies.
+# PayPal only (the user, 29/09/2026: "o que vou usar agora é somente paypal"): the same link
+# the addon's own "Support the project" opens.
 custom: ["https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD"]
