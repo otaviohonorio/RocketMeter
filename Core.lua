@@ -100,7 +100,7 @@ ns.Log = setmetatable({ enabled = false }, {
 })
 
 function ns.Print(...)
-    print("|cffff6a00Rocket|rMeter:", ...)
+    print("|cffff6a00Rocket|r Meter:", ...)
 end
 
 --------------------------------------------------------------------------------
