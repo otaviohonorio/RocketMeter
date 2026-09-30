@@ -2122,6 +2122,7 @@ function Window.Create()
             tex:SetVertexColor(ICON_TINT[1], ICON_TINT[2], ICON_TINT[3])
         end
 
+        b.iconAtlas = spec.atlas   -- for the harness: which art the button asked for
         b.SetTint = function(_, color)
             local t = b:GetNormalTexture()
             if t then t:SetVertexColor(color[1], color[2], color[3]) end
@@ -2159,13 +2160,22 @@ function Window.Create()
         L["Clear the data"], function() ns.Data.RequestReset() end)
     frame.resetButton:SetPoint("RIGHT", frame.gearButton, "LEFT", -5, 0)
 
+    -- THE SESSION BOARD (30/09): the scoreboard's wide table, with the session the window is
+    -- on, without what only a finished key has. Magnifier: "see this larger".
+    frame.boardButton = HeaderButton(
+        { atlas = "common-icon-zoomin", texture = "Interface\\Buttons\\UI-Panel-ExpandButton-Up" },
+        L["Open the scoreboard of this session"], function()
+            if ns.Scoreboard and ns.Scoreboard.ShowSession then ns.Scoreboard.ShowSession(ns.db.sessionType) end
+        end)
+    frame.boardButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -5, 0)
+
     frame.lockButton = HeaderButton(
         { texture = LOCK_ICON },
         L["Lock position"], function()
             ns.db.locked = not ns.db.locked
             Window.ApplyLock()
         end)
-    frame.lockButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -5, 0)
+    frame.lockButton:SetPoint("RIGHT", frame.boardButton, "LEFT", -5, 0)
 
     if ns.db.pos then
         frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)

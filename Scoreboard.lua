@@ -46,7 +46,12 @@ local ROW_SPACING = 1            -- `-((index-1)*(lineHeight+1))` (:821)
 local LINE_INSET = 2             -- `lineOffset`                 (:129)
 local SIDE = 5                   -- `mainFramePaddingHorizontal` (:119)
 local HEADER_HEIGHT = 65         -- `headerY = -65`              (:125)
-local COLHEAD_HEIGHT = 20        -- `header_height`     (DF/header.lua:747)
+-- (!) TWO LINES (30/09): the Details header is one line of 20; ours carries the family's name
+-- on the first line and the part of each column on the second ("Damage" over "per s" and
+-- "total"), so 2 x 16. The user, on "Interr - Missed - CC" in one line: *"só errou na coluna
+-- é confuso (...) só se tu montar uma coluna com dois valores um titulo e sub titulo"*.
+local COLHEAD_HEIGHT = 32
+local COLHEAD_LINE = 16
 local COL_PADDING = 2            -- `padding`                    (:733)
 -- O RODAPÉ FECHA A CONTA DOS 452 do Details (`mainFrameHeight`, scoreboard.lua:117):
 --   65 (cabeçalho) + 20 (colunas) + 5 × 47 (linhas) + 132 = 452.
@@ -212,6 +217,10 @@ local ALL_COLUMNS = {
     { key = "hps",        width = 84 },
     { key = "healing",    width = 84 },
     { key = "interrupts", width = 60 },
+    -- The interrupts that missed, beside the hits (same family, same header); the crowd control
+    -- used, a group of its own (Casts.lua; 30/09).
+    { key = "missed",     width = 60 },
+    { key = "control",    width = 60 },
     { key = "dispels",    width = 60 },
     { key = "deaths",     width = 60 },
     { key = "avoidable",  width = 84 },
@@ -264,6 +273,26 @@ end
 local function ColumnLabel(column)
     if column.label then return column.label end
     return ns.Data.GetShortLabel(column.key)
+end
+
+---The header's groups: consecutive columns of the same family (`group` in the catalogue). A
+---custom column is a group by itself.
+---@return table[] { first, last, label }
+local function HeaderGroups()
+    local groups = {}
+    for c = 1, #columns do
+        local column = columns[c]
+        local def = not column.custom and ns.Data.GetColumn(column.key) or nil
+        local key = def and def.group or nil
+        local last = groups[#groups]
+        if key ~= nil and last and last.key == key and last.last == c - 1 then
+            last.last = c
+        else
+            groups[#groups + 1] = { first = c, last = c, key = key,
+                label = def and def.family or ColumnLabel(column) }
+        end
+    end
+    return groups
 end
 
 ---A borda ESQUERDA de cada coluna, e a largura total.
@@ -815,8 +844,11 @@ local function BuildColumnHeader()
                 bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
                 tileSize = 64, tile = true,
             })
+            -- The PART of the column, on the second line; the family goes on the first, over
+            -- the whole group (`headerRow.families`, below).
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            button.text:SetPoint("LEFT", COL_PADDING, 0)
+            button.text:SetPoint("BOTTOMLEFT", COL_PADDING, 0)
+            button.text:SetHeight(COLHEAD_LINE)
             button.text:SetJustifyH("LEFT")
             button.text:SetWordWrap(false)
             button:SetScript("OnClick", function(self)
@@ -857,14 +889,55 @@ local function BuildColumnHeader()
         -- Corpo 10, que é o `text_size` do framework dele (`DF/header.lua:730`), lido pela
         -- escada do addon para o seletor de fonte continuar valendo.
         ns.ApplyScoreboardFont(button.text, 10 - ns.Skin.scoreboardFontSize, "")
-        button.text:SetText(ColumnLabel(columns[c]))
-        button.text:SetTextColor(1, 1, 1, 1)
+        local def = not columns[c].custom and ns.Data.GetColumn(columns[c].key) or nil
+        button.text:SetText(def and def.part or "")
+        button.text:SetTextColor(0.62, 0.62, 0.66, 1)
         button:Show()
     end
 
     for c = #columns + 1, #headerRow.labels do
         headerRow.labels[c]:Hide()
     end
+
+    -- THE FIRST LINE: one label per group, over the group's columns. A group of one column has
+    -- no part, so its name takes the two lines: centred on them, and a long name ("Controle
+    -- coletivo") wraps into the second line instead of running over the next column.
+    headerRow.families = headerRow.families or {}
+    local groups = HeaderGroups()
+    for g = 1, #groups do
+        local group = groups[g]
+        local label = headerRow.families[g]
+        if not label then
+            label = headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            label:SetJustifyH("LEFT")
+            headerRow.families[g] = label
+        end
+        local width = offsets[group.last] - offsets[group.first] + columns[group.last].width
+        label:ClearAllPoints()
+        label:SetWidth(width - COL_PADDING)
+        ns.ApplyScoreboardFont(label, 10 - ns.Skin.scoreboardFontSize, "")
+        label:SetText(group.label)
+        label:SetTextColor(1, 1, 1, 1)
+        if group.last > group.first then
+            label:SetWordWrap(false)
+            label:SetHeight(COLHEAD_LINE)
+            label:SetPoint("TOPLEFT", headerRow, "TOPLEFT", offsets[group.first] + COL_PADDING, 0)
+        else
+            label:SetWordWrap(true)
+            label:SetHeight(COLHEAD_HEIGHT)
+            label:SetJustifyV("MIDDLE")
+            label:SetPoint("TOPLEFT", headerRow, "TOPLEFT", offsets[group.first] + COL_PADDING, 0)
+        end
+        label:SetShown(group.label ~= "")
+    end
+    for g = #groups + 1, #headerRow.families do
+        headerRow.families[g]:Hide()
+    end
+end
+
+---For the harness: the header's groups as drawn.
+function Scoreboard.__headerGroups()
+    return HeaderGroups(), headerRow and headerRow.families or {}
 end
 
 --------------------------------------------------------------------------------
@@ -1860,6 +1933,7 @@ function Scoreboard.DebugLayout()
         side = SIDE,
         headerHeight = HEADER_HEIGHT,
         colheadHeight = COLHEAD_HEIGHT,
+        colheadLine = COLHEAD_LINE,
         colPadding = COL_PADDING,
         footerHeight = FOOTER_HEIGHT,
         titleY = TITLE_Y,
@@ -2375,6 +2449,41 @@ local function DifficultyBadge(difficultyID)
         return name:sub(1, 1):upper(), name
     end
     return nil, name
+end
+
+-- (!) THE SESSION BOARD (30/09). The user: *"podemos por um icone na janela do medidor que abra
+-- o parcial da tela de scoreboard, sem a informação de chave e itens"*. The same board, with
+-- what the meter's window shows now (the session the window is on), and without what only a
+-- finished key has: keystone, score, loot, level, affixes, result, timeline. A snapshot, like
+-- the others: opening again takes a new one.
+function Scoreboard.ShowSession(sessionType)
+    sessionType = sessionType or (ns.db and ns.db.sessionType) or 1
+    local duration = ns.Data.GetDuration(sessionType)
+    local seconds = (duration and not issecretvalue(duration)) and duration or nil
+
+    -- The place: the key's dungeon when in one (with its art), else the instance or zone.
+    local title, mapID
+    if C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
+        local ok, id = pcall(C_ChallengeMode.GetActiveChallengeMapID)
+        if ok and id and id ~= 0 and C_ChallengeMode.GetMapUIInfo then
+            local okName, name = pcall(C_ChallengeMode.GetMapUIInfo, id)
+            if okName and name then title, mapID = name, id end
+        end
+    end
+    if not title and GetInstanceInfo then
+        local ok, name = pcall(GetInstanceInfo)
+        if ok and type(name) == "string" and name ~= "" then title = name end
+    end
+
+    CaptureAndShow({
+        title = title or L["Session"],
+        subtitle = sessionType == 0 and L["Current fight"] or L["Overall"],
+        durationSeconds = seconds,
+        result = sessionType == 0 and L["Current fight"] or L["Overall"],
+        sessionType = sessionType,
+        mapID = mapID,
+        rowCount = GroupRowCount(),
+    }, "session", false)
 end
 
 function Scoreboard.OnEncounterEnd(encounterName, difficultyID)

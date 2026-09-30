@@ -42,24 +42,31 @@ local function BuildColumns()
     local E = Enum.DamageMeterType
     if not E then return {}, {} end
 
+    -- `part` IS THE SECOND LINE OF THE SCOREBOARD'S HEADER (30/09): the family's name goes on top
+    -- ("Damage") and the part under each column ("total", "per s", "share"). The user, on the
+    -- one-line "Interr - Missed - CC": *"só errou na coluna é confuso, pode ser qualquer coisa,
+    -- só se tu montar uma coluna com dois valores um titulo e sub titulo"*. A family with one
+    -- column has no part: the name alone says it.
     local list = {
-        { key = "damage",     attr = E.DamageDone,           field = "total",     short = L["Dmg"],    label = L["Total damage"] },
-        { key = "dps",        attr = E.DamageDone,           field = "perSecond", short = L["DPS"],    label = L["Damage per second"] },
-        { key = "damagepct",  attr = E.DamageDone,           field = "percent",   short = L["Dmg%"],   label = L["Share of the group damage"] },
-        { key = "healing",    attr = E.HealingDone,          field = "total",     short = L["Heal"],   label = L["Total healing"] },
-        { key = "hps",        attr = E.HealingDone,          field = "perSecond", short = L["HPS"],    label = L["Healing per second"] },
-        { key = "healingpct", attr = E.HealingDone,          field = "percent",   short = L["Heal%"],  label = L["Share of the group healing"] },
+        { key = "damage",     attr = E.DamageDone,           field = "total",     short = L["Dmg"],    label = L["Total damage"],               part = L["total"] },
+        { key = "dps",        attr = E.DamageDone,           field = "perSecond", short = L["DPS"],    label = L["Damage per second"],          part = L["per s"] },
+        { key = "damagepct",  attr = E.DamageDone,           field = "percent",   short = L["Dmg%"],   label = L["Share of the group damage"],  part = L["share"] },
+        { key = "healing",    attr = E.HealingDone,          field = "total",     short = L["Heal"],   label = L["Total healing"],              part = L["total"] },
+        { key = "hps",        attr = E.HealingDone,          field = "perSecond", short = L["HPS"],    label = L["Healing per second"],         part = L["per s"] },
+        { key = "healingpct", attr = E.HealingDone,          field = "percent",   short = L["Heal%"],  label = L["Share of the group healing"], part = L["share"] },
         { key = "absorb",     attr = E.Absorbs,              field = "total",     short = L["Absorb"], label = L["Absorbs"] },
-        { key = "taken",      attr = E.DamageTaken,          field = "total",     short = L["Taken"],  label = L["Damage taken"] },
-        { key = "takenps",    attr = E.DamageTaken,          field = "perSecond", short = L["TPS"],    label = L["Damage taken per second"] },
+        { key = "taken",      attr = E.DamageTaken,          field = "total",     short = L["Taken"],  label = L["Damage taken"],               part = L["total"] },
+        { key = "takenps",    attr = E.DamageTaken,          field = "perSecond", short = L["TPS"],    label = L["Damage taken per second"],    part = L["per s"] },
         { key = "avoidable",  attr = E.AvoidableDamageTaken, field = "total",     short = L["Avoid"],  label = L["Avoidable damage"] },
-        { key = "interrupts", attr = E.Interrupts,           field = "total",     short = L["Interr"], label = L["Interrupts"] },
+        { key = "interrupts", attr = E.Interrupts,           field = "total",     short = L["Interr"], label = L["Interrupts"],                 part = L["hits"] },
         -- (!) TWO COLUMNS THAT ARE NOT THE METER'S (30/09): the interrupts that MISSED and the
-        -- crowd control USED, counted from casts (Casts.lua). Both live in the interrupts family:
-        -- the section is ordered by the interrupts the game credited, and the two go beside it.
-        -- `cast` says where the value comes from; `counts` comes with the family.
-        { key = "missed",     attr = E.Interrupts,           field = "missed",    cast = true, short = L["Missed"],  label = L["Interrupts that missed"] },
-        { key = "control",    attr = E.Interrupts,           field = "control",   cast = true, short = L["CC"],      label = L["Crowd control used"] },
+        -- crowd control USED, counted from casts (Casts.lua). Both live in the interrupts family
+        -- (the section is ordered by the interrupts the game credited), but the control is a
+        -- GROUP of its own in the headers (`group`), with a family name of its own: "CC used" is
+        -- what the game writes in its own interface ("Shared CC"). `cast` says where the value
+        -- comes from; `counts` comes with the family.
+        { key = "missed",     attr = E.Interrupts,           field = "missed",    cast = true, short = L["Misses"], label = L["Interrupts that missed"], part = L["misses"] },
+        { key = "control",    attr = E.Interrupts,           field = "control",   cast = true, short = L["CC"],     label = L["Crowd control used"], family = L["CC used"], group = "control" },
         { key = "dispels",    attr = E.Dispels,              field = "total",     short = L["Dispel"], label = L["Dispels"] },
         -- `count`, não `total`: na métrica de mortes cada entrada da lista é UMA MORTE, não um
         -- jogador com contagem. Ver a lição 3 no topo do arquivo.
@@ -94,7 +101,8 @@ local function BuildColumns()
     }
 
     for i = 1, #list do
-        list[i].family = FAMILY[list[i].attr] or list[i].short
+        list[i].family = list[i].family or FAMILY[list[i].attr] or list[i].short
+        list[i].group = list[i].group or list[i].attr
         list[i].counts = CONTAGEM[list[i].attr] or nil
     end
 
@@ -1215,10 +1223,12 @@ function Data.GroupColumns(columns)
     for c = 1, #columns do
         local def = Data.GetColumn(columns[c])
         if def then
-            local grupo = porAttr[def.attr]
+            -- By `group`, which is the metric unless the column asks for a group of its own
+            -- (the crowd control lives in the interrupts metric and is not an interrupt).
+            local grupo = porAttr[def.group]
             if not grupo then
                 grupo = { key = def.key, attr = def.attr, keys = {} }
-                porAttr[def.attr] = grupo
+                porAttr[def.group] = grupo
                 grupos[#grupos + 1] = grupo
             end
             grupo.keys[#grupo.keys + 1] = def.key
