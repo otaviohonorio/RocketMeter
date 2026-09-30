@@ -54,6 +54,12 @@ local function BuildColumns()
         { key = "takenps",    attr = E.DamageTaken,          field = "perSecond", short = L["TPS"],    label = L["Damage taken per second"] },
         { key = "avoidable",  attr = E.AvoidableDamageTaken, field = "total",     short = L["Avoid"],  label = L["Avoidable damage"] },
         { key = "interrupts", attr = E.Interrupts,           field = "total",     short = L["Interr"], label = L["Interrupts"] },
+        -- (!) TWO COLUMNS THAT ARE NOT THE METER'S (30/09): the interrupts that MISSED and the
+        -- crowd control USED, counted from casts (Casts.lua). Both live in the interrupts family:
+        -- the section is ordered by the interrupts the game credited, and the two go beside it.
+        -- `cast` says where the value comes from; `counts` comes with the family.
+        { key = "missed",     attr = E.Interrupts,           field = "missed",    cast = true, short = L["Missed"],  label = L["Interrupts that missed"] },
+        { key = "control",    attr = E.Interrupts,           field = "control",   cast = true, short = L["CC"],      label = L["Crowd control used"] },
         { key = "dispels",    attr = E.Dispels,              field = "total",     short = L["Dispel"], label = L["Dispels"] },
         -- `count`, não `total`: na métrica de mortes cada entrada da lista é UMA MORTE, não um
         -- jogador com contagem. Ver a lição 3 no topo do arquivo.
@@ -185,6 +191,7 @@ function Data.IsNegativeColumn(key)
     return def.attr == E.DamageTaken
         or def.attr == E.AvoidableDamageTaken
         or def.attr == E.Deaths
+        or def.field == "missed"
 end
 
 function Data.IsPercentColumn(key)
@@ -901,7 +908,30 @@ end
 
         for c = 1, #columns do
             local def = Data.GetColumn(columns[c])
-            if def then
+            if def and def.cast then
+                -- The casts of this player (Casts.lua). The row has to be NAMED: by name when it
+                -- can be read, by `isLocalPlayer` when it cannot. Others in combat stay empty.
+                local credits
+                if def.field == "missed" then
+                    local from = cache[def.attr]
+                    if from == nil then
+                        local hit, ok = MatchIn(def.attr, guid, guidReadable, identityKey)
+                        if not ok and isLocal then
+                            hit = Data.GetLocalPlayerSource(SessionFor(def.attr))
+                            ok = hit ~= nil
+                        end
+                        from = hit or false
+                        conclusive[def.attr] = ok
+                        cache[def.attr] = from
+                    end
+                    if from then
+                        credits = from.totalAmount
+                    elseif conclusive[def.attr] then
+                        credits = 0
+                    end
+                end
+                values[c] = Data.CastValue(def.field, sessionType, source, isLocal, credits)
+            elseif def then
                 if def.field == "count" then
                     -- Mortes: contagem de entradas, não soma de `totalAmount`.
                     local n, ok = CountIn(def.attr, guid, guidReadable, identityKey)
@@ -948,6 +978,28 @@ end
         built[position] = { source = source, values = values, percentOfTotal = percentOfTotal }
     end
 
+    -- A COLUMN OF CASTS ORDERS IN LUA, because the API cannot: its list is ordered by the
+    -- interrupts it credited, and "missed" or "control" is ours. Only when every value can be
+    -- read (out of combat); in combat the order stays the API's, which is the closest there is.
+    if sortDef.cast then
+        local c
+        for i = 1, #columns do if columns[i] == sortKey then c = i end end
+        local todos = c ~= nil
+        for i = 1, #built do
+            local v = built[i].values[c]
+            if v == nil or issecretvalue(v) then todos = false end
+        end
+        if todos then
+            for i = 1, #built do built[i].position = i end
+            table.sort(built, function(a, b)
+                local va, vb = a.values[c], b.values[c]
+                if va == vb then return a.position < b.position end
+                if ascending then return va < vb end
+                return va > vb
+            end)
+        end
+    end
+
     -- Marca sobre a lista COMPLETA: quem lidera não muda ao rolar nem ao trocar a ordenação.
     Data.MarkColumnLeaders(built, columns)
 
@@ -958,6 +1010,106 @@ end
     end
 
     return rows, session, total
+end
+
+--------------------------------------------------------------------------------
+-- The columns of casts
+--------------------------------------------------------------------------------
+---The value of a cast column for one row. `nil` is "cannot say", and the cell stays empty.
+---
+---`control`: how many crowd control casts were seen. A player with nothing seen is 0; a player
+---whose casts came SECRET and nothing readable is unknown, not 0.
+---`missed`: the casts of interrupt spells minus the interrupts the game credited (`credits`),
+---never below 0. Without readable credits (in combat) there is no subtraction to make.
+---@param credits number|nil the interrupts the meter credited to this row, readable or nil
+function Data.CastValue(field, sessionType, source, isLocal, credits)
+    if not ns.Casts then return nil end
+    local name = source and source.name
+    local nameReadable = name ~= nil and not issecretvalue(name)
+    if not isLocal and not nameReadable then return nil end
+
+    local which = ns.Casts.Which(sessionType)
+    local casts = ns.Casts.For(which, nameReadable and name or nil, isLocal)
+    local secret = casts and casts.secret or 0
+
+    if field == "control" then
+        local n = casts and casts.controlTotal or 0
+        if n == 0 and secret > 0 then return nil end
+        return n
+    end
+
+    if field == "missed" then
+        if credits == nil or issecretvalue(credits) or type(credits) ~= "number" then return nil end
+        local n = casts and casts.interruptTotal or 0
+        if n == 0 and secret > 0 then return nil end
+        local missed = n - credits
+        if missed < 0 then missed = 0 end
+        return missed
+    end
+    return nil
+end
+
+---What the breakdown panel shows of one player's casts: interrupts (credited and missed, by
+---spell) and crowd control used (by spell). Both lists ordered by the larger number first.
+---@return table[] interrupts { spellID, amount = credited, missed }
+---@return table[] control { spellID, amount = casts }
+function Data.GetCastBreakdown(sessionType, source, guid, creatureId)
+    local interrupts, control = {}, {}
+    if not ns.Casts or not source then return interrupts, control end
+
+    local isLocal = source.isLocalPlayer
+    isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
+    local name = source.name
+    local nameReadable = name ~= nil and not issecretvalue(name)
+    if not isLocal and not nameReadable then return interrupts, control end
+
+    local which = ns.Casts.Which(sessionType)
+    local casts = ns.Casts.For(which, nameReadable and name or nil, isLocal)
+
+    -- The interrupts the game credited, by spell. It also TEACHES the counter which spells are
+    -- interrupts (`Casts.Learn`): the table in Data/ cannot know every id of every patch.
+    local credited = {}
+    local E = Enum.DamageMeterType
+    if guid ~= nil and not issecretvalue(guid) then
+        local ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
+            Data.SessionValue(sessionType), E.Interrupts, guid, creatureId)
+        local spells = ok and type(container) == "table" and container.combatSpells or nil
+        for i = 1, (spells and #spells or 0) do
+            local id, n = spells[i].spellID, spells[i].totalAmount
+            if id ~= nil and not issecretvalue(id) and n ~= nil and not issecretvalue(n) then
+                credited[id] = (credited[id] or 0) + n
+                ns.Casts.Learn(id)
+            end
+        end
+    end
+
+    local seen = {}
+    for id, n in pairs(credited) do
+        local cast = casts and casts.interrupt[id] or 0
+        local missed = cast - n
+        if missed < 0 then missed = 0 end
+        interrupts[#interrupts + 1] = { spellID = id, amount = n, missed = missed }
+        seen[id] = true
+    end
+    if casts then
+        for id, n in pairs(casts.interrupt) do
+            if not seen[id] then
+                interrupts[#interrupts + 1] = { spellID = id, amount = 0, missed = n }
+            end
+        end
+        for id, n in pairs(casts.control) do
+            control[#control + 1] = { spellID = id, amount = n }
+        end
+    end
+    table.sort(interrupts, function(a, b)
+        if a.amount + a.missed == b.amount + b.missed then return a.spellID < b.spellID end
+        return a.amount + a.missed > b.amount + b.missed
+    end)
+    table.sort(control, function(a, b)
+        if a.amount == b.amount then return a.spellID < b.spellID end
+        return a.amount > b.amount
+    end)
+    return interrupts, control
 end
 
 ---Marca quem lidera **cada** coluna, não só a ordenada: o healer que cura mais fica realçado

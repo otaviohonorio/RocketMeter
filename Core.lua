@@ -134,6 +134,8 @@ function handlers:ADDON_LOADED(addon)
     -- O perfil decide se a configuração vem da conta ou deste personagem.
     ns.Profile.Init()
     ns.Log.Init()
+    -- Casts.lua is a NEW file in the .toc: nil until the client restarts (see RunCall).
+    if ns.Casts and ns.Casts.Init then ns.Casts.Init() end
 end
 
 function handlers:PLAYER_LOGIN()
