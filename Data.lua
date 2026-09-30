@@ -62,11 +62,13 @@ local function BuildColumns()
         -- (!) TWO COLUMNS THAT ARE NOT THE METER'S (30/09): the interrupts that MISSED and the
         -- crowd control USED, counted from casts (Casts.lua). Both live in the interrupts family
         -- (the section is ordered by the interrupts the game credited), but the control is a
-        -- GROUP of its own in the headers (`group`), with a family name of its own: "CC used" is
-        -- what the game writes in its own interface ("Shared CC"). `cast` says where the value
-        -- comes from; `counts` comes with the family.
+        -- GROUP of its own in the headers (`group`), with a family name of its own. The name is
+        -- "CC", the word every player uses (Details' column is "CC" too); the game's own
+        -- "Controle coletivo" was turned down by the user (30/09: *"prefiro só controle"*), so
+        -- the Portuguese is "Controle". `cast` says where the value comes from; `counts` comes
+        -- with the family.
         { key = "missed",     attr = E.Interrupts,           field = "missed",    cast = true, short = L["Misses"], label = L["Interrupts that missed"], part = L["misses"] },
-        { key = "control",    attr = E.Interrupts,           field = "control",   cast = true, short = L["CC"],     label = L["Crowd control used"], family = L["CC used"], group = "control" },
+        { key = "control",    attr = E.Interrupts,           field = "control",   cast = true, short = L["CC"],     label = L["Crowd control used"], family = L["CC"], group = "control" },
         { key = "dispels",    attr = E.Dispels,              field = "total",     short = L["Dispel"], label = L["Dispels"] },
         -- `count`, não `total`: na métrica de mortes cada entrada da lista é UMA MORTE, não um
         -- jogador com contagem. Ver a lição 3 no topo do arquivo.

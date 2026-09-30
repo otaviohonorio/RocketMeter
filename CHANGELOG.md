@@ -5,9 +5,9 @@
   finished key has: keystone, score, loot, level, affixes and timeline.
 - **The scoreboard's column header has two lines.** The family on top ("Damage",
   "Interrupts") and the part of each column under it ("total", "per s", "hits", "misses"). A
-  family with one column keeps its name alone.
+  family with one column keeps its name alone; a family of two has its name centred over both.
 - **Two new columns, counted from casts.** *Interrupts: misses* is the interrupts that cut
-  nothing (casts of an interrupt spell minus the interrupts the game credited). *CC used* is the
+  nothing (casts of an interrupt spell minus the interrupts the game credited). *CC* is the
   crowd control cast (stuns, fears, roots and the like), which counts the cast, not whether it
   landed. Both are on the scoreboard, and off by default in the meter's window.
 - **The pet counts for its owner.** The warlock's felhunter kick goes on the warlock's line.

@@ -919,10 +919,18 @@ local function BuildColumnHeader()
         label:SetText(group.label)
         label:SetTextColor(1, 1, 1, 1)
         if group.last > group.first then
+            -- (!) CENTRED OVER THE PAIR (30/09). Left-aligned, the family sat over its first
+            -- column and read as that column's own title, and the second column looked like a
+            -- stranger under a grey word; the user: *"tem coluna que é dupla mas no cabeçalho
+            -- do título estão separadas"*. Centred on the span of the group, the name belongs
+            -- to both columns, as in the meter window's header.
+            label:SetJustifyH("CENTER")
             label:SetWordWrap(false)
             label:SetHeight(COLHEAD_LINE)
             label:SetPoint("TOPLEFT", headerRow, "TOPLEFT", offsets[group.first] + COL_PADDING, 0)
         else
+            -- A family of one column sits over its numbers, which are left-aligned.
+            label:SetJustifyH("LEFT")
             label:SetWordWrap(true)
             label:SetHeight(COLHEAD_HEIGHT)
             label:SetJustifyV("MIDDLE")
