@@ -9,7 +9,7 @@
 - **Two new columns, counted from casts.** *Interrupts: misses* is the interrupts that cut
   nothing (casts of an interrupt spell minus the interrupts the game credited). *CC* is the
   crowd control cast (stuns, fears, roots and the like), which counts the cast, not whether it
-  landed. Both are on the scoreboard, and off by default in the meter's window.
+  landed; a shapeshift form is not control, whatever the game's flag says. Both are on the scoreboard, and off by default in the meter's window.
 - **The pet counts for its owner.** The warlock's felhunter kick goes on the warlock's line.
 - **The player panel** (click a row) gains two sections: the interrupts spell by spell, with how
   many were credited and how many missed, and the crowd control used, spell by spell.

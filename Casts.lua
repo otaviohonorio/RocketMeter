@@ -68,6 +68,14 @@ local function IsControl(spellID)
         local ok, answer = pcall(C_Spell.IsSpellCrowdControl, spellID)
         is = ok and Readable(answer) and answer == true
     end
+    -- (!) THE GAME CALLS A SHAPESHIFT "CROWD CONTROL" (30/09). Read in the diary of this
+    -- machine: Cat Form, Bear Form, Moonkin Form and Ghost Wolf were counted as control used.
+    -- `IsSpellCrowdControl` answers for the mechanic, and a form has one; what tells a form
+    -- from a stun is that control is cast ON AN ENEMY: the spell has to be harmful too.
+    if is and C_Spell.IsSpellHarmful then
+        local ok, harmful = pcall(C_Spell.IsSpellHarmful, spellID)
+        if not (ok and Readable(harmful) and harmful == true) then is = false end
+    end
     controlCache[spellID] = is
     return is
 end
