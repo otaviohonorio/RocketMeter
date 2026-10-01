@@ -31,6 +31,12 @@
   and the part of each column under it ("total", "per s"). A family with one column keeps its
   name alone; a family of two has its name centred over both, and the lighter shade of the
   sorted column covers the whole pair.
+- **A screen for the other players too.** Click the row of someone else: the same window as
+  "My run", with what the game lets an addon know about another player -- damage and healing
+  per second with the rank in the group, interrupts and dispels, deaths with the time of each,
+  the damage taken by spell (with the game's avoidable and deadly marks), the share of the
+  group's totals, and the Spells tab. Casts, cooldowns and the blows of a death are only
+  readable for your own character, and the screen says so.
 - **Your own interrupts and crowd control, in the Spells tab of "My run".** *Interrupts
   cast* lists each interrupt spell you cast, with how many of all of them cut nothing (casts
   minus the interrupts the game credited), and *Crowd control used* lists each control spell

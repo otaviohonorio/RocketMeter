@@ -1051,6 +1051,14 @@ function Win.Refresh()
 end
 function Win.Toggle() if Win.IsShown() then Win.Hide() else Win.Show() end end
 
+-- The pieces this window is made of, for the screen of the OTHER players (PlayerWindow.lua): the
+-- same boxes, bars, dropdown and colours, so the two windows cannot drift apart.
+Win.Kit = {
+    Text = Text, Block = Block, Tile = Tile, BarRow = BarRow, Dropdown = Dropdown, Colour = Colour,
+    SpellIcon = SpellIcon, SpellNameOf = SpellNameOf, Fmt = Fmt, Clock = Clock,
+    BarTexture = BarTexture, BarBrightness = BarBrightness,
+}
+
 -- For the harness.
 function Win.__frame() return frame end
 function Win.__view() return view end

@@ -1704,6 +1704,22 @@ local function BuildRow(index)
                 return
             end
 
+            -- (!) ANOTHER PLAYER OPENS THE PLAYER'S SCREEN (01/10): the same window as "My run",
+            -- with what the game gives of someone else (PlayerWindow.lua). In combat the row's
+            -- identity is secret and the spell panel's own message says so, as before.
+            local src = self.source
+            local mine = src.isLocalPlayer
+            mine = mine ~= nil and not issecretvalue(mine) and mine == true
+            local guid = src.sourceGUID
+            if not mine and guid ~= nil and not issecretvalue(guid) and ns.PlayerWindow and ns.PlayerWindow.Show then
+                local okP, shown = pcall(ns.PlayerWindow.Show, src, ns.db.sessionType)
+                if okP and shown then
+                    if ns.MyRunWindow and ns.MyRunWindow.Hide then ns.MyRunWindow.Hide() end
+                    return
+                end
+            end
+            if not mine and ns.PlayerWindow and ns.PlayerWindow.Hide then ns.PlayerWindow.Hide() end
+
             local ok, err = pcall(ns.Breakdown.Show, self.source, ns.db.sessionType, frame)
             if not ok then
                 ns.Print("|cffff5555" .. L["error while drawing:"] .. "|r " .. tostring(err))
@@ -2723,6 +2739,7 @@ function Window.Draw()
     if ns.Breakdown and ns.Breakdown.Refresh then
         ns.Breakdown.Refresh()
     end
+    if ns.PlayerWindow and ns.PlayerWindow.Refresh then pcall(ns.PlayerWindow.Refresh) end
 
 end
 

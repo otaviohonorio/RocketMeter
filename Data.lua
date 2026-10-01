@@ -770,7 +770,11 @@ function Data.GetDeathList(sessionType)
             -- the recap id to read the blow-by-blow. `isLocalPlayer` is never secret.
             local recap = src.deathRecapID
             if recap ~= nil and issecretvalue(recap) then recap = nil end
-            out[#out + 1] = { nome = nome, classe = classe, quando = quando,
+            -- (01/10) `guid`, for the screen of ONE player (PlayerWindow.lua): two players of
+            -- the same name on two realms are told apart by it.
+            local guid = src.sourceGUID
+            if guid ~= nil and issecretvalue(guid) then guid = nil end
+            out[#out + 1] = { nome = nome, classe = classe, quando = quando, guid = guid,
                 local_ = src.isLocalPlayer == true, recap = recap }
         end
     end

@@ -372,3 +372,10 @@ L["you died %d time in this stretch"] = "você morreu %d vez neste trecho"
 L["you died %d times in this stretch"] = "você morreu %d vezes neste trecho"
 L["The game's Cooldown Manager list. \"When needed\": resurrection, Bloodlust, interrupts and crowd control are not measured against how often they fitted."] =
     "A lista do Gerenciador de Recargas do jogo. \"Quando preciso\": ressurreição, Sede de Sangue, interrupções e controle não são medidos por quantas vezes cabiam."
+
+-- The screen of another player (01/10).
+L["Share of the group"] = "Parte do grupo"
+L["No death."] = "Nenhuma morte."
+L["time not given by the game"] = "hora não informada pelo jogo"
+L["Casts, cooldowns, rhythm and the blows of a death are only readable for your own character: the game hides them for other players."] =
+    "Lançamentos, recargas, ritmo e os golpes de uma morte só podem ser lidos do seu próprio personagem: o jogo os esconde para os outros jogadores."

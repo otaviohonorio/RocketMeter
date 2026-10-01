@@ -391,6 +391,7 @@ function Breakdown.Show(source, sessionType, anchorTo, raw)
     -- The spell panel of the own row is its "Spells" tab (`raw`).
     if isLocal and not raw and ns.MyRunWindow and ns.MyRunWindow.Show then
         if frame then frame:Hide() end
+        if ns.PlayerWindow and ns.PlayerWindow.Hide then ns.PlayerWindow.Hide() end
         ns.MyRunWindow.Show(anchorTo)
         return
     end
