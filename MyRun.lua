@@ -23,7 +23,10 @@
 --   * the game's own list of important spells of the spec, from the Cooldown Manager
 --     (C_CooldownViewer, categories Essential and Utility) with the base cooldown of each, for
 --     "used / fitted"; only spells with a cooldown of COOLDOWN_MIN or more count as a cooldown.
---   * at the end of the run and of each fight, the meter's numbers of the local player.
+--   * at the end of the run and of EACH FIGHT, the meter's numbers of the local player, kept in
+--     the fight itself (`f.m`, one second after the combat, when they can be read). The filter
+--     by boss and the chart by fight read from there, not from the meter's memory of old fights
+--     (01/10: what Warcraft Logs shows per pull, as far as the game lets an addon go).
 --
 -- WHAT IS NOT: anything of the other players beyond what the meter gives (their casts are
 -- secret), and a damage curve over time (the meter has no event stream).
@@ -41,6 +44,8 @@ local COOLDOWN_MIN = 45         -- a spell with a shorter base cooldown is rotat
 local HISTORY_SIZE = 8
 local HEALTHSTONE_ITEM = 5512
 local MAX_TAKEN_SPELLS = 12
+local MAX_FIGHT_SPELLS = 6      -- the damage taken by spell kept with each fight
+local METRIC_KEYS = { "damage", "healing", "absorbs", "taken", "avoidable", "interrupts", "dispels" }
 local MAX_RECAP_EVENTS = 10     -- what the game's recap holds (read in a real key)
 
 local run                       -- the run in progress (or the last one, until a new one starts)
@@ -215,6 +220,19 @@ function MyRun.OnCombatEnd()
     run.open = nil
     -- A death of the player in this fight, with its recap: read now, while it is fresh.
     pcall(MyRun.ReadDeaths)
+    -- The player's numbers of THIS fight, one second later: at the event itself the meter's
+    -- values can still be secret. A new fight inside that second leaves this one without them.
+    local doRun = run
+    local function Snapshot()
+        if run ~= doRun or doRun.open or doRun.fights[#doRun.fights] ~= f then return end
+        if InCombatLockdown and InCombatLockdown() then return end
+        local ok, m = pcall(MyRun.LiveMetrics, "current")
+        if ok and type(m) == "table" then
+            while m.takenSpells and #m.takenSpells > MAX_FIGHT_SPELLS do table.remove(m.takenSpells) end
+            f.m = m
+        end
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(1, Snapshot) else Snapshot() end
 end
 
 function MyRun.OnEncounterStart(encounterID, encounterName)
@@ -322,7 +340,7 @@ function MyRun.Stop(result)
     run.elapsed = Elapsed()
     run.result = result
     pcall(MyRun.ReadDeaths)
-    run.metrics = MyRun.Metrics("all")
+    run.metrics = MyRun.LiveMetrics("all")
     pcall(MyRun.Save)
 end
 
@@ -363,7 +381,7 @@ function MyRun.Scopes(r)
     r = r or run
     local out = { { key = "all", label = L["Whole run"] } }
     -- "Current fight" is the meter's live session: only the run in progress has one.
-    if r == run then out[#out + 1] = { key = "current", label = L["Current fight"] } end
+    if r == run then out[#out + 1] = { key = "current", label = L["This fight"] } end
     if r then
         local trash = false
         for i, f in ipairs(r.fights) do
@@ -492,10 +510,64 @@ end
 
 ---The meter's numbers of the local player for a scope, or nil when the meter cannot answer
 ---(in combat, or a fight the meter no longer keeps).
+---The numbers of several fights as one: totals summed, the rate over their combat time. No rank
+---(the others' numbers of each fight are not kept).
+local function SumFights(r, wanted)
+    local out, seconds, any = { takenSpells = {} }, 0, false
+    local bySpell = {}
+    for _, f in ipairs(r and r.fights or {}) do
+        if f.m and wanted(f) then
+            any = true
+            seconds = seconds + ((f.e or f.s) - f.s)
+            for _, key in ipairs(METRIC_KEYS) do
+                local x = f.m[key]
+                if x then
+                    out[key] = out[key] or { total = 0 }
+                    out[key].total = out[key].total + (x.total or 0)
+                end
+            end
+            for _, sp in ipairs(f.m.takenSpells or {}) do
+                local acc = bySpell[sp.spellID or 0]
+                if not acc then
+                    acc = { spellID = sp.spellID, amount = 0, creature = sp.creature }
+                    bySpell[sp.spellID or 0] = acc
+                    out.takenSpells[#out.takenSpells + 1] = acc
+                end
+                acc.amount = acc.amount + sp.amount
+                acc.avoidable = acc.avoidable or sp.avoidable
+                acc.deadly = acc.deadly or sp.deadly
+            end
+        end
+    end
+    if not any then return nil end
+    for _, key in ipairs(METRIC_KEYS) do
+        if out[key] then out[key].perSecond = seconds > 0 and out[key].total / seconds or 0 end
+    end
+    table.sort(out.takenSpells, function(a, b) return a.amount > b.amount end)
+    return out
+end
+
+---The meter's numbers of the local player for a scope, or nil when there is nothing to say.
+---A fight answers from what was kept at its end (`f.m`); the trash is the sum of the fights
+---without a boss; the whole run and the current fight are the meter's, read now (nil in
+---combat); a saved run has the numbers taken at its end.
 function MyRun.Metrics(scope, r)
     r = r or run
-    -- A saved run has only the numbers taken at its end, for the whole run.
-    if r and r ~= run then return scope == "all" and r.metrics or nil end
+    local saved = r ~= nil and r ~= run
+    if type(scope) == "number" then
+        local f = r and r.fights[scope]
+        if f and f.m then return f.m end
+        if saved then return nil end
+    elseif scope == "trash" then
+        return SumFights(r, function(f) return not f.boss end)
+    elseif saved then
+        return scope == "all" and r.metrics or nil
+    end
+    return MyRun.LiveMetrics(scope)
+end
+
+---The meter, asked now.
+function MyRun.LiveMetrics(scope)
     if not (ns.Data and ns.Data.IsAvailable and ns.Data.IsAvailable()) then return nil end
     if InCombatLockdown and InCombatLockdown() then return nil end
     local get = SessionGetter(scope)
@@ -685,6 +757,76 @@ function MyRun.Problems(scope, role, r)
 end
 
 --------------------------------------------------------------------------------
+-- What the screen draws beyond the totals (01/10, from the tabs of Warcraft Logs that the game
+-- lets an addon rebuild for the local player)
+--------------------------------------------------------------------------------
+---When each cooldown was used: { [spellID] = { t1, t2, ... } }, for the cooldowns of the list.
+---A saved run keeps this table; the run in memory has every cast.
+function MyRun.CooldownUses(r)
+    r = r or run
+    if not r then return {} end
+    if not r.casts then return r.cdCasts or {} end
+    local wanted, out = {}, {}
+    for _, cd in ipairs(r.cooldowns or {}) do
+        if cd.cooldown >= COOLDOWN_MIN then
+            wanted[cd.spellID] = cd.spellID
+            if cd.base then wanted[cd.base] = cd.spellID end
+        end
+    end
+    for _, c in ipairs(r.casts) do
+        local id = wanted[c[2]]
+        if id then
+            out[id] = out[id] or {}
+            out[id][#out[id] + 1] = c[1]
+        end
+    end
+    return out
+end
+
+---The casts of a scope as a list: each spell with its count, its share and its casts per minute.
+---@param own table what `MyRun.Own` gave
+function MyRun.CastList(own)
+    local list = {}
+    for id, n in pairs(own.bySpell or {}) do
+        list[#list + 1] = { spellID = id, count = n, share = own.casts > 0 and n / own.casts * 100 or 0,
+            perMinute = own.combatSeconds > 0 and n / (own.combatSeconds / 60) or nil }
+    end
+    table.sort(list, function(a, b)
+        if a.count == b.count then return a.spellID < b.spellID end
+        return a.count > b.count
+    end)
+    return list
+end
+
+---A death in three numbers: how many blows the game kept, over how many seconds, how much
+---damage in all; and the names of the last three blows, the killer first.
+function MyRun.DeathSummary(death)
+    local events = death and death.events or {}
+    local total, last = 0, {}
+    for i, ev in ipairs(events) do
+        total = total + (ev.amount or 0)
+        if i <= 3 and ev.spell then last[#last + 1] = ev.spell end
+    end
+    return { blows = #events, seconds = events[#events] and events[#events].before or nil,
+             total = total, last = last, oneShot = #events == 1 }
+end
+
+---One number per fight, for the chart: the rate that is the role's (damage, healing, taken).
+---@return table[] { s, e, boss, rate } and the largest rate
+function MyRun.FightRates(r, role)
+    r = r or run
+    local key = role == "HEALER" and "healing" or (role == "TANK" and "taken" or "damage")
+    local out, top = {}, 0
+    for _, f in ipairs(r and r.fights or {}) do
+        local x = f.m and f.m[key]
+        local rate = x and x.perSecond or nil
+        if rate and rate > top then top = rate end
+        out[#out + 1] = { s = f.s, e = f.e, boss = f.boss, rate = rate }
+    end
+    return out, top, key
+end
+
+--------------------------------------------------------------------------------
 -- History: the last runs, saved per character
 --------------------------------------------------------------------------------
 local function Store()
@@ -700,8 +842,9 @@ local function Compact(r)
                 fights = {}, gaps = r.gaps, items = r.items, deaths = r.deaths, cooldowns = r.cooldowns,
                 metrics = r.metrics, bySpell = {}, castCount = #r.casts, finished = true }
     for i, f in ipairs(r.fights) do
-        c.fights[i] = { s = f.s, e = f.e, boss = f.boss, enc = f.enc, success = f.success, bySpell = {} }
+        c.fights[i] = { s = f.s, e = f.e, boss = f.boss, enc = f.enc, success = f.success, bySpell = {}, m = f.m }
     end
+    c.cdCasts = MyRun.CooldownUses(r)
     for _, cast in ipairs(r.casts) do
         c.bySpell[cast[2]] = (c.bySpell[cast[2]] or 0) + 1
         for _, f in ipairs(c.fights) do

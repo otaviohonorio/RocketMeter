@@ -1,17 +1,22 @@
 # Rocket Meter 0.90.0
 
-- **"My run": your own screen.** Click your row and, instead of the spell panel, you get what
-  you did in the key or raid and what it cost: four headline numbers with your place in the
-  group, a ranked list of what cost (a death with what killed you, avoidable damage and the
-  spell that gave most of it, interrupts that cut nothing, a cooldown left idle, gaps without
-  casting, potions missed on bosses), the game's own cooldown list with "used / fitted", damage
-  taken by spell with the game's avoidable mark, a timeline of the run with your deaths, potions
-  and the uses of a cooldown, your rhythm, and the history of your last 8 runs in that dungeon.
-  Two combos pick the run (this one or a saved one) and the fight (whole run, current fight,
-  each boss, trash). What it shows follows your role: tank, healer or DPS. A **Deaths** tab
-  lists every death of yours: when, what killed you and from whom, the hardest blow when it is
-  another, and the blow by blow with the life left after each one. The spell panel is still
-  there, as the "Spells" tab.
+- **"My run": your own screen.** Click your row and, instead of the spell panel, a window in
+  the game's own style opens with what you did in the key or raid and what it cost. Five tabs:
+  - **Summary**: four headline numbers with your place in the group; a ranked list of what cost
+    (a death with what killed you, avoidable damage and the spell that gave most of it,
+    interrupts that cut nothing, a cooldown left idle, gaps without casting, potions missed on
+    bosses); the game's own cooldown list with "used / fitted"; damage taken by spell with the
+    game's avoidable mark; your rhythm; and a timeline with a chart by fight, the band of time
+    casting with its gaps, bosses, your deaths and potions, and one line per cooldown with every
+    use.
+  - **Casts**: every spell you cast, with count, share and casts per minute.
+  - **Deaths**: every death of yours: what killed you and from whom, the hardest blow when it is
+    another, in how many seconds and how much damage, and the blow by blow with the life left.
+  - **Spells**: the spell panel, in the same window.
+  - **History**: your last 8 runs; click one to open it.
+  Two combos pick the run and the fight (whole run, this fight, each boss, trash). The numbers
+  of each fight are kept when it ends, so a boss can be looked at later. What it shows follows
+  your role: tank, healer or DPS.
 - **The scoreboard opens from the meter.** A magnifier in the meter's title bar opens the
   scoreboard with the session the window is on (current fight or overall), without what only a
   finished key has: keystone, score, loot, level, affixes and timeline.
