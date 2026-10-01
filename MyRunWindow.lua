@@ -61,7 +61,19 @@ local MAX_EVENT_ROWS = 10
 local EVENT_ROW = 30
 local DEATH_LIST_WIDTH = 400
 local SCROLL_BAR = 24            -- kept free at the right of a page that scrolls
-local BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
+-- (!) THE BARS ARE THE METER'S OWN, FLAT (01/10). They were the game's status bar art, which
+-- carries a sheen from top to bottom, while the Spells tab -- the meter's spell panel, in the
+-- same window -- draws flat bars in the class colour darkened for the white text. The user:
+-- *"a skin do gráfico das outras abas poderia ser igual ao da aba magias, sem degradê"*. So
+-- every bar here takes the texture, the brightness and the row background from the same place
+-- the spell panel does (`ns.Skin`): change the skin, and the five tabs change together.
+local FLAT = "Interface\\Buttons\\WHITE8X8"
+local function BarTexture()
+    return (ns.Skin and ns.Skin.barTexture) or FLAT
+end
+local function BarBrightness()
+    return (ns.Skin and tonumber(ns.Skin.barBrightness)) or 0.7
+end
 local TABS = { "summary", "casts", "deaths", "spells", "history" }
 local TAB_LABEL = { summary = "Summary", casts = "Casts", deaths = "Deaths", spells = "Spells", history = "History" }
 
@@ -101,8 +113,11 @@ local function RunShown()
     return view.run or ns.MyRun.Current()
 end
 
+---The colour of a bar: the class colour at the skin's brightness, as the spell panel paints it.
 local function ClassRGB(r)
-    return ns.ClassColor(r and r.class or nil)
+    local cr, cg, cb = ns.ClassColor(r and r.class or nil)
+    local k = BarBrightness()
+    return (cr or 1) * k, (cg or 1) * k, (cb or 1) * k
 end
 
 --------------------------------------------------------------------------------
@@ -166,10 +181,16 @@ local function BarRow(parent, withIcon)
         r.icon:SetPoint("LEFT")
         left = BAR_HEIGHT + 2
     end
+    -- The row's own dark ground, as in the spell panel: the empty part of a bar is not a hole.
+    r.bg = r:CreateTexture(nil, "BACKGROUND")
+    r.bg:SetPoint("TOPLEFT", left, 0)
+    r.bg:SetPoint("BOTTOMRIGHT")
+    local bg = (ns.Skin and ns.Skin.panelRowBackground) or { 0, 0, 0, 0.25 }
+    r.bg:SetColorTexture(bg[1], bg[2], bg[3], bg[4])
     r.bar = CreateFrame("StatusBar", nil, r)
     r.bar:SetPoint("TOPLEFT", left, 0)
     r.bar:SetPoint("BOTTOMRIGHT")
-    r.bar:SetStatusBarTexture(BAR_TEXTURE)
+    r.bar:SetStatusBarTexture(BarTexture())
     r.bar:SetMinMaxValues(0, 1)
     r.text = CreateFrame("Frame", nil, r)
     r.text:SetAllPoints()
@@ -422,10 +443,10 @@ local function BuildDeaths(page)
         r.life = CreateFrame("StatusBar", nil, r)
         r.life:SetSize(80, 10)
         r.life:SetPoint("LEFT", 330, 0)
-        r.life:SetStatusBarTexture(BAR_TEXTURE)
+        r.life:SetStatusBarTexture(BarTexture())
         r.life:SetMinMaxValues(0, 1)
-        -- The green of every health bar of the game.
-        r.life:SetStatusBarColor(0, 1, 0)
+        -- The green of every health bar of the game, at the brightness of the other bars.
+        r.life:SetStatusBarColor(0, BarBrightness(), 0)
         r.pct = Text(r, "GameFontDisableSmall", "RIGHT")
         r.pct:SetPoint("LEFT", r.life, "RIGHT", 4, 0)
         r.pct:SetWidth(32)
@@ -734,7 +755,7 @@ local function DrawTimeline(r)
     for _, f in ipairs(rates) do
         if f.rate and top > 0 and f.e then
             local bar = tl.bars.Get()
-            bar:SetTexture(BAR_TEXTURE)
+            bar:SetTexture(BarTexture())
             bar:SetVertexColor(cr, cg, cb)
             bar:SetPoint("BOTTOMLEFT", tl, "TOPLEFT", X(f.s), -(tl.chartTop + CHART_HEIGHT))
             bar:SetSize(math.max(2, X(f.e) - X(f.s) - 1), math.max(1, f.rate / top * CHART_HEIGHT))
@@ -746,7 +767,7 @@ local function DrawTimeline(r)
     -- 2. The band of time casting: the fights filled, the gaps without casting as holes.
     for _, f in ipairs(fights) do
         local seg = tl.segments.Get()
-        seg:SetTexture(BAR_TEXTURE)
+        seg:SetTexture(BarTexture())
         seg:SetVertexColor(cr, cg, cb)
         seg:SetPoint("TOPLEFT", tl, "TOPLEFT", X(f.s), -tl.bandTop)
         seg:SetSize(math.max(1, X(f.e or total) - X(f.s)), 8)
