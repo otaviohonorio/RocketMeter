@@ -31,16 +31,21 @@ end
 --------------------------------------------------------------------------------
 -- (!) INTERRUPTS AND CROWD CONTROL HAVE SECTIONS OF THEIR OWN (30/09). The user: *"clicando na
 -- linha onde já mostra as magias usadas, tem que ter essas seções ali também mostrando quais e
--- quantas vezes deram as skills de controle e também de interrupt"*. The interrupts section
--- lists each spell with the interrupts the game credited and the casts that missed; the crowd
--- control section lists what was USED, which is what a cast can tell (Casts.lua). Dispels keep
--- the old "Control" section, alone.
+-- quantas vezes deram as skills de controle e também de interrupt"*. "Interrupts" is the game's
+-- credit, and lists what was interrupted; "Interrupts cast" lists the player's own interrupt
+-- spells, with how many of all the casts missed in the title; "Crowd control used" lists what
+-- the player cast (Casts.lua). The casts are the player's own: the others' arrive secret.
+-- Dispels keep the old "Control" section, alone.
 local function SectionSpecs()
     local E = Enum.DamageMeterType
     return {
         { key = "damage",     title = L["Damage"],  attrs = { E.DamageDone } },
         { key = "healing",    title = L["Healing"], attrs = { E.HealingDone, E.Absorbs } },
-        { key = "interrupts", title = L["Interrupts"], casts = "interrupts" },
+        -- The game's credit, for everyone: it lists what was INTERRUPTED (the enemy's spells).
+        { key = "interrupts", title = L["Interrupts"], attrs = { E.Interrupts } },
+        -- The player's own casts (Casts.lua): the others' arrive secret, so these two sections
+        -- only ever show on the player's own line.
+        { key = "casts",      title = L["Interrupts cast"], casts = "interrupts" },
         { key = "cc",         title = L["Crowd control used"], casts = "control" },
         { key = "control",    title = L["Dispels"], attrs = { E.Dispels } },
     }
@@ -49,12 +54,12 @@ end
 ---The rows of a section of casts, in the shape of the others: `amount`, plus `missed` for the
 ---interrupts. The total is what the percent is of: interrupts credited + missed, or the casts.
 local function CastRows(kind)
-    local interrupts, control = ns.Data.GetCastBreakdown(current.sessionType, current.source,
+    local interrupts, control, missed = ns.Data.GetCastBreakdown(current.sessionType, current.source,
         current.guid, current.creatureId)
     local list = kind == "interrupts" and interrupts or control
     local total = 0
-    for _, row in ipairs(list) do total = total + row.amount + (row.missed or 0) end
-    return list, total
+    for _, row in ipairs(list) do total = total + row.amount end
+    return list, total, kind == "interrupts" and missed or nil
 end
 
 --------------------------------------------------------------------------------
@@ -133,15 +138,17 @@ end
 ---Desenha uma seção e devolve a altura ocupada.
 local function DrawSection(section, spec)
     local skin = Skin()
-    local spells, total
+    local spells, total, missed
     if spec.casts then
-        spells, total = CastRows(spec.casts)
+        spells, total, missed = CastRows(spec.casts)
     else
         spells, total = ns.Data.GetSpellBreakdown(current.sessionType, spec.attrs,
             current.guid, current.creatureId, MAX_PER_SECTION)
     end
 
-    section.title:SetText(spec.title)
+    -- The casts of interrupts carry, in the title, how many of them missed (casts minus the
+    -- interrupts the game credited), when that can be known.
+    section.title:SetText(missed and format(L["%s (%d missed)"], spec.title, missed) or spec.title)
 
     -- Seção sem nada não aparece: "Controle — nada aqui" ocupa espaço para dizer que não há
     -- informação. Quem não interrompeu simplesmente não tem a seção.
@@ -156,7 +163,7 @@ local function DrawSection(section, spec)
     -- A barra usa a cor da classe do jogador, como as linhas da janela.
     local r, g, b = ns.ClassColor(current.classFilename)
     local k = skin.barBrightness
-    local maximum = spells[1] and (spells[1].amount + (spells[1].missed or 0)) or 1
+    local maximum = spells[1] and spells[1].amount or 1
     if maximum <= 0 then maximum = 1 end
 
     for i = 1, MAX_PER_SECTION do
@@ -179,12 +186,7 @@ local function DrawSection(section, spec)
             row.amount:SetTextColor(skin.cream[1], skin.cream[2], skin.cream[3])
 
             local share
-            if spec.casts == "interrupts" then
-                -- Credited, then how many missed, then how much of the total was credited.
-                row.rate:SetText(spell.missed > 0 and format(L["%d missed"], spell.missed) or "")
-                local tried = spell.amount + spell.missed
-                share = tried > 0 and (spell.amount / tried * 100) or nil
-            elseif spec.casts then
+            if spec.casts then
                 row.rate:SetText("")
                 share = total and total > 0 and (spell.amount / total * 100) or nil
             else
@@ -196,7 +198,7 @@ local function DrawSection(section, spec)
             row.percent:SetTextColor(skin.dim[1], skin.dim[2], skin.dim[3])
 
             row.bar:SetMinMaxValues(0, maximum)
-            row.bar:SetValue(spell.amount + (spell.missed or 0))
+            row.bar:SetValue(spell.amount)
             row.bar:SetStatusBarColor(r * k, g * k, b * k)
             row.bar:SetWidth(WIDTH - SIDE * 2)
 

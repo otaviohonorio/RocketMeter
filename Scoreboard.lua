@@ -217,10 +217,6 @@ local ALL_COLUMNS = {
     { key = "hps",        width = 84 },
     { key = "healing",    width = 84 },
     { key = "interrupts", width = 60 },
-    -- The interrupts that missed, beside the hits (same family, same header); the crowd control
-    -- used, a group of its own (Casts.lua; 30/09).
-    { key = "missed",     width = 60 },
-    { key = "control",    width = 60 },
     { key = "dispels",    width = 60 },
     { key = "deaths",     width = 60 },
     { key = "avoidable",  width = 84 },

@@ -20,8 +20,14 @@
 --
 -- WHICH SPELLS. Crowd control is the game's word: `C_Spell.IsSpellCrowdControl`. Interrupts have
 -- no such question, so the table `Data/InterruptSpells.lua` (generated from the game's spell
--- tables) says which casts are interrupts, and the meter TEACHES the rest: a spell the game
--- credited an interrupt to is an interrupt spell (`Casts.Learn`, from Data.lua).
+-- tables) says which casts are interrupts. (!) The meter cannot teach it: its interrupt list
+-- names the spells that were INTERRUPTED, not the ones that interrupted -- read in the diary
+-- of a real key, 30/09.
+--
+-- (!) WHOSE CASTS ARRIVE. Read in the diary of a real key (30/09): the local player's casts are
+-- readable (6,665 of 6,665); the four others' are secret, every one (1,335 / 650 / 204 / 846).
+-- So what is counted here is the PLAYER'S OWN, and the panel says so; a column of it in the
+-- scoreboard filled for one line and was taken out.
 --
 -- WHO. A cast names a unit token ("party2"), and the meter's rows are named. The token is
 -- resolved to a name when the name can be read (out of combat it can); until then the casts
@@ -44,7 +50,6 @@ local OWNER_OF = {
 }
 local TOKENS = { "player", "party1", "party2", "party3", "party4" }
 
-local learned = {}           -- [spellID] = true, taught by the meter
 local controlCache = {}      -- [spellID] = true/false, the game's answer
 local names = {}             -- [token] = name (short) once it could be read
 local tallies = { current = {}, overall = {} }   -- [which][name or token] = { control = {}, interrupt = {} }
@@ -81,16 +86,11 @@ local function IsControl(spellID)
 end
 
 local function IsInterrupt(spellID)
-    return (ns.InterruptSpells and ns.InterruptSpells[spellID]) or learned[spellID] or false
+    return (ns.InterruptSpells and ns.InterruptSpells[spellID]) or false
 end
 
 function Casts.IsInterruptSpell(spellID)
     return Readable(spellID) and IsInterrupt(spellID) or false
-end
-
----The meter credited an interrupt to this spell: from now on its casts count as interrupts.
-function Casts.Learn(spellID)
-    if Readable(spellID) and type(spellID) == "number" then learned[spellID] = true end
 end
 
 local function Bucket(which, key)
@@ -235,6 +235,5 @@ function Casts.__tallies() return tallies end
 function Casts.__reset()
     tallies = { current = {}, overall = {} }
     names = {}
-    learned = {}
     controlCache = {}
 end
