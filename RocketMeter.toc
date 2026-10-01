@@ -38,6 +38,7 @@ Minimap.lua
 Breakdown.lua
 Run.lua
 MyRun.lua
+MyRunWindow.lua
 Demo.lua
 Scoreboard.lua
 Picker.lua

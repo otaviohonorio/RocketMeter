@@ -306,21 +306,22 @@ end
 --------------------------------------------------------------------------------
 ---The fights a scope covers. `scope`: "all", "current", "trash", or a fight index.
 ---@return table[] fights, number combatSeconds
-local function FightsOf(scope)
-    if not run then return {}, 0 end
+local function FightsOf(scope, r)
+    r = r or run
+    if not r then return {}, 0 end
     local list = {}
     if scope == "current" then
-        if run.open then list[1] = run.open elseif #run.fights > 0 then list[1] = run.fights[#run.fights] end
+        if r.open then list[1] = r.open elseif #r.fights > 0 then list[1] = r.fights[#r.fights] end
     elseif type(scope) == "number" then
-        if run.fights[scope] then list[1] = run.fights[scope] end
+        if r.fights[scope] then list[1] = r.fights[scope] end
     else
-        for _, f in ipairs(run.fights) do
+        for _, f in ipairs(r.fights) do
             if scope ~= "trash" or not f.boss then list[#list + 1] = f end
         end
-        if run.open and (scope ~= "trash" or not run.open.boss) then list[#list + 1] = run.open end
+        if r.open and (scope ~= "trash" or not r.open.boss) then list[#list + 1] = r.open end
     end
     local seconds = 0
-    for _, f in ipairs(list) do seconds = seconds + ((f.e or Elapsed() or f.s) - f.s) end
+    for _, f in ipairs(list) do seconds = seconds + ((f.e or (r == run and Elapsed()) or f.s) - f.s) end
     return list, seconds
 end
 
@@ -333,14 +334,17 @@ end
 
 ---The scopes the combos offer: whole run, current fight, each boss, the trash.
 ---@return table[] { key, label }
-function MyRun.Scopes()
-    local out = { { key = "all", label = L["Whole run"] }, { key = "current", label = L["Current fight"] } }
-    if run then
+function MyRun.Scopes(r)
+    r = r or run
+    local out = { { key = "all", label = L["Whole run"] } }
+    -- "Current fight" is the meter's live session: only the run in progress has one.
+    if r == run then out[#out + 1] = { key = "current", label = L["Current fight"] } end
+    if r then
         local trash = false
-        for i, f in ipairs(run.fights) do
+        for i, f in ipairs(r.fights) do
             if f.boss then out[#out + 1] = { key = i, label = f.boss } else trash = true end
         end
-        if trash and run.kind == "key" then out[#out + 1] = { key = "trash", label = L["Trash"] } end
+        if trash and r.kind == "key" then out[#out + 1] = { key = "trash", label = L["Trash"] } end
     end
     return out
 end
@@ -349,27 +353,40 @@ end
 -- The player's own numbers of a scope (casts, gaps, items, deaths, cooldowns)
 --------------------------------------------------------------------------------
 ---@return table { casts, perMinute, combatSeconds, gaps = {count,total,longest,longestAt}, potions, healthstones, deaths = {...}, cooldowns = {...}, bossCount }
-function MyRun.Own(scope)
-    local fights, seconds = FightsOf(scope)
+function MyRun.Own(scope, r)
+    r = r or run
+    local fights, seconds = FightsOf(scope, r)
     local out = { combatSeconds = seconds, casts = 0, bySpell = {}, gaps = { count = 0, total = 0, longest = 0 },
                   potions = 0, healthstones = 0, deaths = {}, cooldowns = {}, bossCount = 0, potionBosses = 0 }
-    if not run then return out end
+    if not r then return out end
     local inScope = scope == "all" and function() return true end or function(t) return Within(t, fights) end
-    for _, c in ipairs(run.casts) do
-        if inScope(c[1]) then
-            out.casts = out.casts + 1
-            out.bySpell[c[2]] = (out.bySpell[c[2]] or 0) + 1
+    if r.casts then
+        for _, c in ipairs(r.casts) do
+            if inScope(c[1]) then
+                out.casts = out.casts + 1
+                out.bySpell[c[2]] = (out.bySpell[c[2]] or 0) + 1
+            end
+        end
+    else
+        -- A saved run: the casts are counts per spell, for the run and for each fight.
+        local tables = scope == "all" and { r.bySpell or {} } or {}
+        if scope ~= "all" then for _, f in ipairs(fights) do tables[#tables + 1] = f.bySpell or {} end end
+        for _, t in ipairs(tables) do
+            for id, n in pairs(t) do
+                out.casts = out.casts + n
+                out.bySpell[id] = (out.bySpell[id] or 0) + n
+            end
         end
     end
     out.perMinute = seconds > 0 and out.casts / (seconds / 60) or nil
-    for _, g in ipairs(run.gaps) do
+    for _, g in ipairs(r.gaps or {}) do
         if inScope(g[1]) then
             out.gaps.count = out.gaps.count + 1
             out.gaps.total = out.gaps.total + g[2]
             if g[2] > out.gaps.longest then out.gaps.longest, out.gaps.longestAt = g[2], g[1] end
         end
     end
-    for _, it in ipairs(run.items) do
+    for _, it in ipairs(r.items or {}) do
         if inScope(it[1]) then
             if it[2] == "potion" then out.potions = out.potions + 1 else out.healthstones = out.healthstones + 1 end
         end
@@ -377,17 +394,17 @@ function MyRun.Own(scope)
     for _, f in ipairs(fights) do
         if f.boss then
             out.bossCount = out.bossCount + 1
-            for _, it in ipairs(run.items) do
+            for _, it in ipairs(r.items or {}) do
                 if it[2] == "potion" and it[1] >= f.s and it[1] <= (f.e or math.huge) then out.potionBosses = out.potionBosses + 1; break end
             end
         end
     end
-    for _, d in ipairs(run.deaths) do
+    for _, d in ipairs(r.deaths or {}) do
         if inScope(d.t) then out.deaths[#out.deaths + 1] = d end
     end
     -- Cooldowns: used = casts of the spell in the scope; fitted = how many the combat time of
     -- the scope allows, charges counted. Never fewer than used.
-    for _, cd in ipairs(run.cooldowns or {}) do
+    for _, cd in ipairs(r.cooldowns or {}) do
         if cd.cooldown >= COOLDOWN_MIN then
             local used = (out.bySpell[cd.spellID] or 0) + (cd.base and cd.base ~= cd.spellID and out.bySpell[cd.base] or 0)
             local fitted = math.floor(seconds / cd.cooldown) + (cd.charges or 1)
@@ -450,7 +467,10 @@ end
 
 ---The meter's numbers of the local player for a scope, or nil when the meter cannot answer
 ---(in combat, or a fight the meter no longer keeps).
-function MyRun.Metrics(scope)
+function MyRun.Metrics(scope, r)
+    r = r or run
+    -- A saved run has only the numbers taken at its end, for the whole run.
+    if r and r ~= run then return scope == "all" and r.metrics or nil end
     if not (ns.Data and ns.Data.IsAvailable and ns.Data.IsAvailable()) then return nil end
     if InCombatLockdown and InCombatLockdown() then return nil end
     local get = SessionGetter(scope)
@@ -503,9 +523,10 @@ local function Clock(seconds)
 end
 MyRun.Clock = Clock
 
-local function BossAt(t)
-    if not run then return nil end
-    for _, f in ipairs(run.fights) do
+local function BossAt(t, r)
+    r = r or run
+    if not r then return nil end
+    for _, f in ipairs(r.fights) do
         if f.boss and t >= f.s and t <= (f.e or math.huge) then return f.boss end
     end
     return nil
@@ -521,10 +542,11 @@ end
 
 ---The ranked list of what cost, for the role. Each item: { kind, severity (1 worst..3), spellID,
 ---atlas, title, detail, number }. Empty when nothing was found; `checked` says what was looked at.
-function MyRun.Problems(scope, role)
-    role = role or (run and run.role) or "DAMAGER"
-    local own = MyRun.Own(scope)
-    local m = MyRun.Metrics(scope)
+function MyRun.Problems(scope, role, r)
+    r = r or run
+    role = role or (r and r.role) or "DAMAGER"
+    local own = MyRun.Own(scope, r)
+    local m = MyRun.Metrics(scope, r)
     local out, checked = {}, {}
 
     -- 1. Deaths: every one, worst first.
@@ -537,7 +559,7 @@ function MyRun.Problems(scope, role)
         if d.hardest then detail[#detail + 1] = format(L["hardest: %s"], d.hardest .. (d.hardestSource and (" · " .. d.hardestSource) or "")) end
         out[#out + 1] = { kind = "death", severity = 1, atlas = "deathrecap-icon-tombstone", spellID = d.killerSpell,
             title = format(L["Died at %s — %s"], Clock(d.t), what), detail = table.concat(detail, " · "),
-            number = BossAt(d.t) or L["trash"], t = d.t, recap = d.recap }
+            number = BossAt(d.t, r) or L["trash"], t = d.t, recap = d.recap }
     end
 
     -- 2. Avoidable damage: the share of what was taken, and the spell that gave most of it.
@@ -612,7 +634,7 @@ function MyRun.Problems(scope, role)
     end
 
     -- Healer: the group's deaths are the healer's problem too.
-    if role == "HEALER" and ns.Data and ns.Data.GetDeathList and scope == "all" then
+    if role == "HEALER" and r == run and ns.Data and ns.Data.GetDeathList and scope == "all" then
         checked[#checked + 1] = L["deaths of the group"]
         local list = ns.Data.GetDeathList(1)
         local others = 0

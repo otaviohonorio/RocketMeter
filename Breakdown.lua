@@ -330,7 +330,7 @@ function Breakdown.Draw()
 end
 
 ---Abre o detalhamento de um jogador.
-function Breakdown.Show(source, sessionType, anchorTo)
+function Breakdown.Show(source, sessionType, anchorTo, raw)
     if not source then return end
 
     local guid = source.sourceGUID
@@ -338,6 +338,14 @@ function Breakdown.Show(source, sessionType, anchorTo)
 
     local isLocal = source.isLocalPlayer
     isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
+
+    -- (!) THE PLAYER'S OWN ROW OPENS "MINHA CORRIDA" (01/10): the user, *"substitui o painel"*.
+    -- The spell panel of the own row is its "Spells" tab (`raw`).
+    if isLocal and not raw and ns.MyRunWindow and ns.MyRunWindow.Show then
+        if frame then frame:Hide() end
+        ns.MyRunWindow.Show(anchorTo)
+        return
+    end
 
     if not readable then
         if isLocal then
@@ -381,6 +389,19 @@ function Breakdown.Show(source, sessionType, anchorTo)
 
     Breakdown.Draw()
     frame:Show()
+end
+
+---The spell panel of the player's own row, as the "Spells" tab of "Minha corrida" opens it.
+function Breakdown.ShowOwn(anchorTo)
+    local class
+    if UnitClassBase then
+        local ok, c = pcall(UnitClassBase, "player")
+        if ok and type(c) == "string" then class = c end
+    end
+    local source = { isLocalPlayer = true, sourceGUID = UnitGUID and UnitGUID("player") or nil,
+                     name = UnitName and UnitName("player") or nil, classFilename = class, sourceCreatureID = 0 }
+    local sessionType = ns.db and ns.db.sessionType or 1
+    Breakdown.Show(source, sessionType, anchorTo, true)
 end
 
 function Breakdown.IsShown()
