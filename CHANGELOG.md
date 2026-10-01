@@ -12,7 +12,8 @@
   - **Casts**: every spell you cast, with count, share and casts per minute.
   - **Deaths**: every death of yours: what killed you and from whom, the hardest blow when it is
     another, in how many seconds and how much damage, and the blow by blow with the life left.
-  - **Spells**: the spell panel, in the same window.
+  - **Spells**: the spell panel, in the same window, with a scroll bar when it is taller than
+    the window.
   - **History**: your last 8 runs; click one to open it.
   Two combos pick the run and the fight (whole run, this fight, each boss, trash). The numbers
   of each fight are kept when it ends, so a boss can be looked at later. What it shows follows
@@ -22,8 +23,9 @@
   finished key has: keystone, score, loot, level, affixes and timeline.
 - **The scoreboard's column header has two lines.** The family on top ("Damage", "Healing")
   and the part of each column under it ("total", "per s"). A family with one column keeps its
-  name alone; a family of two has its name centred over both.
-- **Your own interrupts and crowd control, in the player panel.** Click your row: *Interrupts
+  name alone; a family of two has its name centred over both, and the lighter shade of the
+  sorted column covers the whole pair.
+- **Your own interrupts and crowd control, in the Spells tab of "My run".** *Interrupts
   cast* lists each interrupt spell you cast, with how many of all of them cut nothing (casts
   minus the interrupts the game credited), and *Crowd control used* lists each control spell
   (stuns, fears, roots and the like) with the times you cast it, whether or not it landed. A

@@ -115,6 +115,16 @@ local function ScanBags()
     end
 end
 
+---A potion the player carries, for the icon of "potion not used": the item id, or nil.
+function MyRun.KnownPotion()
+    if bagsDirty then pcall(ScanBags) end
+    local best
+    for _, item in pairs(itemSpells) do
+        if item.kind == "potion" and (not best or item.itemID < best) then best = item.itemID end
+    end
+    return best
+end
+
 ---For the harness: pretend the bags hold these.
 function MyRun.__setItemSpells(t) itemSpells = t or {}; bagsDirty = false end
 
@@ -431,7 +441,12 @@ function MyRun.Own(scope, r)
     end
     for _, it in ipairs(r.items or {}) do
         if inScope(it[1]) then
-            if it[2] == "potion" then out.potions = out.potions + 1 else out.healthstones = out.healthstones + 1 end
+            if it[2] == "potion" then
+                out.potions = out.potions + 1
+                out.potionItem = out.potionItem or it[3]
+            else
+                out.healthstones = out.healthstones + 1
+            end
         end
     end
     for _, f in ipairs(fights) do
@@ -726,7 +741,9 @@ function MyRun.Problems(scope, role, r)
     -- 6. Potions and the healthstone.
     checked[#checked + 1] = L["potions"]
     if own.bossCount > 0 and own.potionBosses < own.bossCount then
+        -- The icon is the potion's own: the one used in the scope, else one in the bags.
         out[#out + 1] = { kind = "potion", severity = 3, item = true,
+            itemID = own.potionItem or (r == run and MyRun.KnownPotion() or nil),
             title = format(L["Potion in %d of %d bosses"], own.potionBosses, own.bossCount),
             detail = own.healthstones == 0 and L["the healthstone was not used"] or format(L["healthstone used %d times"], own.healthstones),
             number = format("%d/%d", own.potionBosses, own.bossCount) }

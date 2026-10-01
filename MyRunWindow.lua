@@ -81,6 +81,15 @@ local function SpellIcon(spellID)
     return ok and tex or 134400
 end
 
+---The icon of an item, from the game; the question mark only when the item is not known.
+local function ItemIcon(itemID)
+    if itemID and C_Item and C_Item.GetItemIconByID then
+        local ok, tex = pcall(C_Item.GetItemIconByID, itemID)
+        if ok and tex then return tex end
+    end
+    return 134400
+end
+
 local function SpellNameOf(spellID)
     if not spellID or not (C_Spell and C_Spell.GetSpellName) then return "" end
     local ok, name = pcall(C_Spell.GetSpellName, spellID)
@@ -634,7 +643,7 @@ local function DrawProblems(r, scope)
             if p.atlas then
                 row.icon:SetAtlas(p.atlas)
             elseif p.item then
-                row.icon:SetTexture(134400)
+                row.icon:SetTexture(ItemIcon(p.itemID))
             else
                 row.icon:SetTexture(SpellIcon(p.spellID))
             end
@@ -761,7 +770,7 @@ local function DrawTimeline(r)
     end
     for _, d in ipairs(r.deaths or {}) do Mark(d.t, 16, "deathrecap-icon-tombstone") end
     for _, it in ipairs(r.items or {}) do
-        if it[2] == "potion" then Mark(it[1], 12, nil, 134400) end
+        if it[2] == "potion" then Mark(it[1], 12, nil, ItemIcon(it[3])) end
     end
 
     -- 4. One line per cooldown: its icon at the left, and an icon at every use.
