@@ -766,7 +766,12 @@ function Data.GetDeathList(sessionType)
             if issecretvalue(classe) then classe = nil end
             local quando = src.deathTimeSeconds
             if quando ~= nil and issecretvalue(quando) then quando = nil end
-            out[#out + 1] = { nome = nome, classe = classe, quando = quando }
+            -- (01/10) `local_` and `recap` are for "Minha corrida": the player's own deaths, and
+            -- the recap id to read the blow-by-blow. `isLocalPlayer` is never secret.
+            local recap = src.deathRecapID
+            if recap ~= nil and issecretvalue(recap) then recap = nil end
+            out[#out + 1] = { nome = nome, classe = classe, quando = quando,
+                local_ = src.isLocalPlayer == true, recap = recap }
         end
     end
     return out
