@@ -14,6 +14,8 @@
     another, in how many seconds and how much damage, and the blow by blow with the life left.
   - **Spells**: the spell panel, in the same window, with a scroll bar when it is taller than
     the window.
+  - Every bar of the window is drawn the same way: flat, in your class colour, as in the
+    Spells tab.
   - **History**: your last 8 runs; click one to open it.
   Two combos pick the run and the fight (whole run, this fight, each boss, trash). The numbers
   of each fight are kept when it ends, so a boss can be looked at later. What it shows follows
