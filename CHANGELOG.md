@@ -16,6 +16,10 @@
     the window.
   - Every bar of the window is drawn the same way: flat, in your class colour, as in the
     Spells tab.
+  - Cooldowns are judged by what they are for. A combat resurrection, Bloodlust, an interrupt
+    or a crowd control is listed with how many times you used it, and is never "left idle":
+    you press those when something asks for them. A defensive you never pressed only counts
+    against you (unless you are the tank) when you died in that stretch.
   - **History**: your last 8 runs; click one to open it.
   Two combos pick the run and the fight (whole run, this fight, each boss, trash). The numbers
   of each fight are kept when it ends, so a boss can be looked at later. What it shows follows

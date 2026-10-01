@@ -406,6 +406,32 @@ end
 -- The player's own numbers of a scope (casts, gaps, items, deaths, cooldowns)
 --------------------------------------------------------------------------------
 ---@return table { casts, perMinute, combatSeconds, gaps = {count,total,longest,longestAt}, potions, healthstones, deaths = {...}, cooldowns = {...}, bossCount }
+---(!) WHAT A COOLDOWN IS FOR DECIDES HOW IT IS JUDGED (01/10). Every cooldown of the game's list
+---was measured the same way: how many times it fitted in the fight against how many it was
+---pressed. That is right for a damage or a healing cooldown, and wrong for what is pressed only
+---when something asks for it. The user: *"sobre skills de reviver em combate, poderia ter usado
+---7 vezes, mas talvez não precisasse ou não tem 7 mortes (...) tem que ser mais analítico"*.
+---
+---So a cooldown is SITUATIONAL when it is a combat resurrection or a Bloodlust
+---(`Data/SituationalSpells.lua`), an interrupt (`Data/InterruptSpells.lua`) or a crowd control
+---(the game's own word, `C_Spell.IsSpellCrowdControl`). Those are listed with how many times
+---they were used and nothing else: no "fitted", no red, never a problem, and out of the sums.
+---@return string|nil "rez", "haste", "interrupt", "control"
+function MyRun.Situational(spellID, base)
+    for _, id in ipairs({ spellID, base }) do
+        if type(id) == "number" then
+            local s = type(ns.SituationalSpells) == "table" and ns.SituationalSpells[id]
+            if s then return s end
+            if type(ns.InterruptSpells) == "table" and ns.InterruptSpells[id] then return "interrupt" end
+            if C_Spell and C_Spell.IsSpellCrowdControl then
+                local ok, answer = pcall(C_Spell.IsSpellCrowdControl, id)
+                if ok and answer == true then return "control" end
+            end
+        end
+    end
+    return nil
+end
+
 function MyRun.Own(scope, r)
     r = r or run
     local fights, seconds = FightsOf(scope, r)
@@ -468,12 +494,17 @@ function MyRun.Own(scope, r)
             local fitted = math.floor(seconds / cd.cooldown) + (cd.charges or 1)
             if seconds <= 0 then fitted = 0 end
             if fitted < used then fitted = used end
+            -- Pressed only when something asks for it: there is no "fitted" to be behind of.
+            local situational = MyRun.Situational(cd.spellID, cd.base)
+            if situational then fitted = used end
             out.cooldowns[#out.cooldowns + 1] = { spellID = cd.spellID, name = cd.name, cooldown = cd.cooldown,
-                used = used, fitted = fitted, category = cd.category,
+                used = used, fitted = fitted, category = cd.category, situational = situational,
                 idle = fitted > used and (fitted - used) * cd.cooldown or 0 }
         end
     end
     table.sort(out.cooldowns, function(a, b)
+        -- the ones that are judged first; the situational ones after them
+        if (a.situational ~= nil) ~= (b.situational ~= nil) then return a.situational == nil end
         local ra, rb = a.fitted > 0 and a.used / a.fitted or 1, b.fitted > 0 and b.used / b.fitted or 1
         if ra == rb then return a.cooldown > b.cooldown end
         return ra < rb
@@ -719,12 +750,20 @@ function MyRun.Problems(scope, role, r)
         local ratio = cd.fitted > 0 and cd.used / cd.fitted or 1
         local defensive = cd.category == "utility"
         -- The tank is judged by the defensives; the others by the offensive cooldowns, and by a
-        -- defensive only when it was never pressed at all.
-        local matters = defensive and (role == "TANK" or cd.used == 0) or (not defensive and role ~= "TANK")
-        if matters and cd.fitted >= 2 and ratio < 0.7 then
+        -- defensive only when it was never pressed at all AND IT WAS NEEDED: the player died in
+        -- this stretch. A defensive left alone in a fight nobody was in danger in is not a
+        -- mistake (01/10: "tem que ser mais analítico").
+        local died = #own.deaths
+        local matters = defensive and (role == "TANK" or (cd.used == 0 and died > 0)) or (not defensive and role ~= "TANK")
+        if matters and not cd.situational and cd.fitted >= 2 and ratio < 0.7 then
+            local detail = format(L["cooldown of %s · idle %s in total"], Clock(cd.cooldown), Clock(cd.idle))
+            if defensive and role ~= "TANK" then
+                detail = format(died == 1 and L["you died %d time in this stretch"] or L["you died %d times in this stretch"], died)
+                    .. " · " .. detail
+            end
             out[#out + 1] = { kind = defensive and "defensive" or "cooldown", severity = ratio < 0.5 and 2 or 3, spellID = cd.spellID,
                 title = format(L["%s: used %d times; %d fitted"], cd.name, cd.used, cd.fitted),
-                detail = format(L["cooldown of %s · idle %s in total"], Clock(cd.cooldown), Clock(cd.idle)),
+                detail = detail,
                 number = format("%d%%", math.floor(ratio * 100 + 0.5)) }
         end
     end

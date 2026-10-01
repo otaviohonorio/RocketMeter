@@ -364,3 +364,11 @@ L["one shot · %s"] = "um golpe só · %s"
 L["%s in %.1f s · %s"] = "%s em %.1f s · %s"
 L["This fight's numbers were not kept."] = "Os números desta luta não foram guardados."
 L["The game's Cooldown Manager list, with the cooldown of each."] = "A lista do Gerenciador de Recargas do jogo, com a recarga de cada uma."
+
+-- Cooldowns used only when needed (01/10).
+L["(when needed)"] = "(quando preciso)"
+L["used %d×"] = "usada %d×"
+L["you died %d time in this stretch"] = "você morreu %d vez neste trecho"
+L["you died %d times in this stretch"] = "você morreu %d vezes neste trecho"
+L["The game's Cooldown Manager list. \"When needed\": resurrection, Bloodlust, interrupts and crowd control are not measured against how often they fitted."] =
+    "A lista do Gerenciador de Recargas do jogo. \"Quando preciso\": ressurreição, Sede de Sangue, interrupções e controle não são medidos por quantas vezes cabiam."

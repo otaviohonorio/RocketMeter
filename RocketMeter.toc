@@ -30,6 +30,7 @@ Profile.lua
 Log.lua
 #@end-debug@
 Data\InterruptSpells.lua
+Data\SituationalSpells.lua
 Data.lua
 Casts.lua
 Party.lua

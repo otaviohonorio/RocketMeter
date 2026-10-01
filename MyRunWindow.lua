@@ -681,21 +681,34 @@ end
 local function DrawCooldowns(r, own)
     local b = frame.cooldowns
     local cr, cg, cb = ClassRGB(r)
+    local situational = false
     for i, row in ipairs(b.rows) do
         local cd = own.cooldowns[i]
         if not cd then row:Hide() else
             row:Show()
             row.icon:SetTexture(SpellIcon(cd.spellID))
-            row.name:SetText(cd.name .. (cd.category == "utility" and (" " .. L["(defensive)"]) or ""))
-            row.value:SetText(format("%d / %d", cd.used, cd.fitted))
-            row.bar:SetMinMaxValues(0, math.max(1, cd.fitted))
-            row.bar:SetValue(cd.used)
+            if cd.situational then
+                -- Pressed only when something asks for it (a combat resurrection, Bloodlust, an
+                -- interrupt, a crowd control): how many times, and no judgement.
+                situational = true
+                row.name:SetText(cd.name .. " " .. L["(when needed)"])
+                row.value:SetText(format(L["used %d×"], cd.used))
+                row.bar:SetMinMaxValues(0, 1)
+                row.bar:SetValue(0)
+                Colour(row.value, cd.used > 0 and HIGHLIGHT_FONT_COLOR or DISABLED_FONT_COLOR)
+            else
+                row.name:SetText(cd.name .. (cd.category == "utility" and (" " .. L["(defensive)"]) or ""))
+                row.value:SetText(format("%d / %d", cd.used, cd.fitted))
+                row.bar:SetMinMaxValues(0, math.max(1, cd.fitted))
+                row.bar:SetValue(cd.used)
+                -- Used less than half of what fitted: the number in the game's red.
+                Colour(row.value, (cd.fitted > 0 and cd.used / cd.fitted < 0.5) and RED_FONT_COLOR or HIGHLIGHT_FONT_COLOR)
+            end
             row.bar:SetStatusBarColor(cr, cg, cb)
-            -- Used less than half of what fitted: the number in the game's red.
-            Colour(row.value, (cd.fitted > 0 and cd.used / cd.fitted < 0.5) and RED_FONT_COLOR or HIGHLIGHT_FONT_COLOR)
         end
     end
     b.note:SetText(#own.cooldowns == 0 and L["The game's Cooldown Manager lists no cooldown for this spec."]
+        or (situational and L["The game's Cooldown Manager list. \"When needed\": resurrection, Bloodlust, interrupts and crowd control are not measured against how often they fitted."])
         or L["The game's Cooldown Manager list, with the cooldown of each."])
 end
 
@@ -952,7 +965,10 @@ local function DrawHistory()
             local key = saved.role == "HEALER" and "healing" or (saved.role == "TANK" and "taken" or "damage")
             local share = m and m.taken and m.avoidable and m.taken.total > 0 and math.floor(m.avoidable.total / m.taken.total * 100 + 0.5) or nil
             local used, fitted = 0, 0
-            for _, cd in ipairs(own.cooldowns) do used, fitted = used + cd.used, fitted + cd.fitted end
+            -- only the cooldowns that are measured: the situational ones would count as "all used"
+            for _, cd in ipairs(own.cooldowns) do
+                if not cd.situational then used, fitted = used + cd.used, fitted + cd.fitted end
+            end
             local cells = row.cells
             cells[1]:SetText((saved.date or "") .. " · " .. (saved.name or "?") .. (saved.level and (" +" .. saved.level) or ""))
             cells[2]:SetText(L[saved.role or "DAMAGER"])
