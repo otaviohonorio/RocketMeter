@@ -60,6 +60,7 @@ local DEATH_ROW = 46
 local MAX_EVENT_ROWS = 10
 local EVENT_ROW = 30
 local DEATH_LIST_WIDTH = 400
+local SCROLL_BAR = 24            -- kept free at the right of a page that scrolls
 local BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 local TABS = { "summary", "casts", "deaths", "spells", "history" }
 local TAB_LABEL = { summary = "Summary", casts = "Casts", deaths = "Deaths", spells = "Spells", history = "History" }
@@ -527,6 +528,16 @@ local function CreatePanel()
         page:Hide()
         frame.pages[key] = page
     end
+    -- The Spells page scrolls: the spell panel has one section per kind of thing, and a player
+    -- with every section full is taller than the window. The game's own scroll frame.
+    local sp = frame.pages.spells
+    sp.scroll = CreateFrame("ScrollFrame", nil, sp, "ScrollFrameTemplate")
+    sp.scroll:SetPoint("TOPLEFT")
+    sp.scroll:SetPoint("BOTTOMRIGHT", -SCROLL_BAR, 0)
+    sp.child = CreateFrame("Frame", nil, sp.scroll)
+    sp.child:SetSize(INNER - SCROLL_BAR, 10)
+    sp.scroll:SetScrollChild(sp.child)
+
     local bodyHeight = BuildSummary(frame.pages.summary)
     BuildCasts(frame.pages.casts)
     BuildDeaths(frame.pages.deaths)
@@ -565,7 +576,8 @@ function Win.SetTab(tab)
     frame.fightCombo:SetShown(scoped)
     frame.runCombo:SetShown(scoped)
     if tab == "spells" then
-        if ns.Breakdown and ns.Breakdown.ShowOwn then ns.Breakdown.ShowOwn(nil, frame.pages.spells) end
+        if ns.Breakdown and ns.Breakdown.ShowOwn then ns.Breakdown.ShowOwn(nil, frame.pages.spells.child) end
+        if frame.pages.spells.scroll.SetVerticalScroll then frame.pages.spells.scroll:SetVerticalScroll(0) end
     else
         if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
         Win.Draw()

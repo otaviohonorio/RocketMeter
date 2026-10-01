@@ -328,7 +328,10 @@ function Breakdown.Draw()
         offset = offset + DrawSection(section, spec)
     end
 
-    if not frame.embedded then frame:SetHeight(offset + 4) end
+    frame:SetHeight(offset + 4)
+    -- Embedded, the container is the child of a scroll frame: it takes the panel's height, and
+    -- what does not fit in the window is reached by scrolling.
+    if frame.embedded and frame.embedContainer then frame.embedContainer:SetHeight(offset + 4) end
 end
 
 ---(!) THE SPELL PANEL INSIDE "MINHA CORRIDA" (01/10). The user: *"quando clica no magias ele muda
@@ -346,9 +349,14 @@ function Breakdown.Embed(container, source, sessionType)
     frame:SetBackdropBorderColor(0, 0, 0, 0)
     frame:EnableMouse(false)
     frame.header:Hide()
+    -- (!) AS TALL AS ITS CONTENT, NOT AS THE WINDOW (01/10). Anchored to the four corners of the
+    -- page, the sections ran out under the window: the user, in the game, *"tá saindo conteúdo
+    -- pra fora da janela para baixo"*. The panel hangs from the top of the container, sets its
+    -- own height, and the container (a scroll child) follows it.
+    frame.embedContainer = container
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-    frame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+    frame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
     Breakdown.Show(source, sessionType, nil, true)
 end
 
@@ -357,6 +365,7 @@ function Breakdown.Unembed()
     if not frame or not frame.embedded then return end
     local skin = Skin()
     frame.embedded = nil
+    frame.embedContainer = nil
     frame:Hide()
     frame:SetParent(UIParent)
     frame:SetFrameStrata("DIALOG")
