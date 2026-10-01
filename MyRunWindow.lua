@@ -30,7 +30,7 @@ local MAX_HISTORY = 8
 local TIMELINE_HEIGHT = 76
 
 local frame
-local view = { scope = "all", run = nil, cooldown = nil }   -- run = nil: the one in memory
+local view = { scope = "all", run = nil, cooldown = nil, tab = "summary" }   -- run = nil: the one in memory
 
 local function Skin() return ns.Skin end
 local function Fmt(v) return ns.Data.FormatAmount(v) or "-" end
@@ -171,11 +171,18 @@ local function CreatePanel()
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    -- (!) THE SCREEN STAYS WHERE IT WAS PUT (01/10): the user, *"falta muita usabilidade"*. The
+    -- position is saved on drop and used on every open; Esc closes it, as the game's own.
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, relPoint, x, y = self:GetPoint()
+        if ns.db and type(point) == "string" then ns.db.myRunPos = { point = point, relPoint = relPoint, x = x, y = y } end
+    end)
     frame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
     frame:SetBackdropColor(0.03, 0.03, 0.04, skin.panelAlpha)
     frame:SetBackdropBorderColor(0, 0, 0, 1)
     frame:Hide()
+    if UISpecialFrames and tinsert then tinsert(UISpecialFrames, frame:GetName()) end
 
     -- Header: the same art as the meter's.
     local header = CreateFrame("Frame", nil, frame)
@@ -209,12 +216,12 @@ local function CreatePanel()
     frame.tabSummary:SetSize(80, 22)
     frame.tabSummary:SetPoint("TOPLEFT", SIDE, -y)
     frame.tabSummary:SetText(L["Summary"])
-    frame.tabSummary:Disable()
+    frame.tabSummary:SetScript("OnClick", function() Win.SetTab("summary") end)
     frame.tabSpells = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     frame.tabSpells:SetSize(80, 22)
     frame.tabSpells:SetPoint("LEFT", frame.tabSummary, "RIGHT", 4, 0)
     frame.tabSpells:SetText(L["Spells"])
-    frame.tabSpells:SetScript("OnClick", function() Win.OpenSpells() end)
+    frame.tabSpells:SetScript("OnClick", function() Win.SetTab("spells") end)
 
     -- The combos: which run, which fight.
     frame.fightCombo = Dropdown(frame, 170)
@@ -352,7 +359,33 @@ local function CreatePanel()
 
     frame:SetHeight(math.max(left, right) + ns.DONATE_ROW + 4)
     ns.DonateFooter(frame)
+
+    -- The body: everything between the tabs and the footer. The "Spells" tab fills it with the
+    -- spell panel, in the same place and size; the summary's blocks hide meanwhile.
+    frame.body = CreateFrame("Frame", nil, frame)
+    frame.body:SetPoint("TOPLEFT", SIDE, -y)
+    frame.body:SetPoint("BOTTOMRIGHT", -SIDE, ns.DONATE_ROW + 4)
+    frame.blocks = { frame.problems, frame.timeline, frame.rhythm, frame.cooldowns, frame.taken, frame.history }
     return frame
+end
+
+---Which tab is on: the summary, or the spell panel inside the same screen.
+function Win.SetTab(tab)
+    if not frame then return end
+    view.tab = tab
+    local summary = tab ~= "spells"
+    frame.tabSummary:SetEnabled(not summary)
+    frame.tabSpells:SetEnabled(summary)
+    for _, t in ipairs(frame.tiles) do t:SetShown(summary) end
+    for _, b in ipairs(frame.blocks) do b:SetShown(summary) end
+    frame.fightCombo:SetShown(summary)
+    frame.runCombo:SetShown(summary)
+    if summary then
+        if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
+        Win.Draw()
+    elseif ns.Breakdown and ns.Breakdown.ShowOwn then
+        ns.Breakdown.ShowOwn(nil, frame.body)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -596,7 +629,7 @@ local function DrawHistory(r)
 end
 
 function Win.Draw()
-    if not frame then return end
+    if not frame or view.tab == "spells" then return end
     local r = RunShown()
     local scope = view.scope
     local own = ns.MyRun.Own(scope, r)
@@ -635,7 +668,12 @@ function Win.Show(anchorTo)
     if not valid then view.scope = "all" end
     frame:ClearAllPoints()
     local placed = false
-    if anchorTo and anchorTo.GetRight and UIParent and UIParent.GetWidth then
+    local saved = ns.db and ns.db.myRunPos
+    if type(saved) == "table" and type(saved.point) == "string" then
+        frame:SetPoint(saved.point, UIParent, saved.relPoint or saved.point, saved.x or 0, saved.y or 0)
+        placed = true
+    end
+    if not placed and anchorTo and anchorTo.GetRight and UIParent and UIParent.GetWidth then
         local right, screen = anchorTo:GetRight(), UIParent:GetWidth()
         if type(right) == "number" and type(screen) == "number" then
             if right + WIDTH + 6 <= screen then frame:SetPoint("TOPLEFT", anchorTo, "TOPRIGHT", 6, 0)
@@ -645,21 +683,24 @@ function Win.Show(anchorTo)
     end
     if not placed then frame:SetPoint("CENTER") end
     frame.anchorTo = anchorTo
-    Win.Draw()
     frame:Show()
+    Win.SetTab(view.tab or "summary")
 end
 
----The "Spells" tab: the spell panel of the player's own row, in this window's place.
-function Win.OpenSpells()
+function Win.Hide()
     if not frame then return end
-    local anchor = frame.anchorTo
+    if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
     frame:Hide()
-    if ns.Breakdown and ns.Breakdown.ShowOwn then ns.Breakdown.ShowOwn(anchor) end
 end
-
-function Win.Hide() if frame then frame:Hide() end end
 function Win.IsShown() return frame ~= nil and frame:IsShown() end
-function Win.Refresh() if Win.IsShown() then Win.Draw() end end
+function Win.Refresh()
+    if not Win.IsShown() then return end
+    if view.tab == "spells" then
+        if ns.Breakdown and ns.Breakdown.Refresh then ns.Breakdown.Refresh() end
+    else
+        Win.Draw()
+    end
+end
 function Win.Toggle(anchorTo) if Win.IsShown() then Win.Hide() else Win.Show(anchorTo) end end
 
 -- For the harness.

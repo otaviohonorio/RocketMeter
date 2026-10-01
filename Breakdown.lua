@@ -242,6 +242,7 @@ local function CreatePanel()
     header:SetPoint("TOPLEFT", 0, 0)
     header:SetPoint("TOPRIGHT", 0, 0)
     header:SetHeight(HEADER_HEIGHT)
+    frame.header = header
 
     header.bg = header:CreateTexture(nil, "BACKGROUND")
     header.bg:SetAllPoints()
@@ -310,7 +311,8 @@ function Breakdown.Draw()
 
     ns.ApplyRowIcon(frame.icon, frame.iconClass, current.source)
 
-    local offset = HEADER_HEIGHT + 4
+    -- Embedded in "Minha corrida" there is no header of its own: the sections start at the top.
+    local offset = (frame.embedded and 0 or HEADER_HEIGHT) + 4
     for _, spec in ipairs(SectionSpecs()) do
         local section = sections[spec.key]
 
@@ -326,7 +328,44 @@ function Breakdown.Draw()
         offset = offset + DrawSection(section, spec)
     end
 
-    frame:SetHeight(offset + 4)
+    if not frame.embedded then frame:SetHeight(offset + 4) end
+end
+
+---(!) THE SPELL PANEL INSIDE "MINHA CORRIDA" (01/10). The user: *"quando clica no magias ele muda
+---o quadro de posição e tamanho e depois não consigo voltar"*. The "Spells" tab no longer opens
+---this panel beside the window: the panel is drawn INSIDE the screen, in the same place and
+---size, without its header, backdrop or close button; the screen's tabs bring the summary back.
+---@param container Frame the area of the screen the panel fills
+function Breakdown.Embed(container, source, sessionType)
+    CreatePanel()
+    frame.embedded = true
+    frame:SetParent(container)
+    frame:SetFrameStrata(container:GetFrameStrata())
+    frame:SetFrameLevel(container:GetFrameLevel() + 1)
+    frame:SetBackdropColor(0, 0, 0, 0)
+    frame:SetBackdropBorderColor(0, 0, 0, 0)
+    frame:EnableMouse(false)
+    frame.header:Hide()
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+    frame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+    Breakdown.Show(source, sessionType, nil, true)
+end
+
+---Back to a panel of its own, beside the meter's rows.
+function Breakdown.Unembed()
+    if not frame or not frame.embedded then return end
+    local skin = Skin()
+    frame.embedded = nil
+    frame:Hide()
+    frame:SetParent(UIParent)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetBackdropColor(0.03, 0.03, 0.04, skin.panelAlpha)
+    frame:SetBackdropBorderColor(0, 0, 0, 1)
+    frame:EnableMouse(true)
+    frame.header:Show()
+    frame:ClearAllPoints()
+    frame:SetSize(WIDTH, 400)
 end
 
 ---Abre o detalhamento de um jogador.
@@ -367,6 +406,12 @@ function Breakdown.Show(source, sessionType, anchorTo, raw)
         source = source,
     }
 
+    if frame.embedded then
+        Breakdown.Draw()
+        frame:Show()
+        return
+    end
+
     -- Abre do lado que tiver espaço: ancorar sempre à direita jogava o painel para fora da
     -- tela quando a janela está encostada na borda.
     frame:ClearAllPoints()
@@ -392,7 +437,7 @@ function Breakdown.Show(source, sessionType, anchorTo, raw)
 end
 
 ---The spell panel of the player's own row, as the "Spells" tab of "Minha corrida" opens it.
-function Breakdown.ShowOwn(anchorTo)
+function Breakdown.ShowOwn(anchorTo, container)
     local class
     if UnitClassBase then
         local ok, c = pcall(UnitClassBase, "player")
@@ -401,7 +446,11 @@ function Breakdown.ShowOwn(anchorTo)
     local source = { isLocalPlayer = true, sourceGUID = UnitGUID and UnitGUID("player") or nil,
                      name = UnitName and UnitName("player") or nil, classFilename = class, sourceCreatureID = 0 }
     local sessionType = ns.db and ns.db.sessionType or 1
-    Breakdown.Show(source, sessionType, anchorTo, true)
+    if container then
+        Breakdown.Embed(container, source, sessionType)
+    else
+        Breakdown.Show(source, sessionType, anchorTo, true)
+    end
 end
 
 function Breakdown.IsShown()
@@ -409,6 +458,7 @@ function Breakdown.IsShown()
 end
 
 ---For the harness: the sections as drawn (`sections[key]`, with `rows` and `title`).
+function Breakdown.__frame() return frame end
 function Breakdown.__sections()
     return sections
 end
