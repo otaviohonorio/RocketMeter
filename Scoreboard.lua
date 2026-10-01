@@ -831,6 +831,19 @@ local function BuildColumnHeader()
 
     local offsets = ColumnOffsets()
 
+    -- (!) A PAIR IS ONE BLOCK (01/10). The sorted column's header is a shade lighter, and in a
+    -- family of two columns ("Damage": per s, total) only the sorted half was: the user, *"nas
+    -- colunas duplas fica estranho (...) a coluna dupla tem que ficar igual"*. The shade is now
+    -- the FAMILY's: every column of the group the sorted one is in. And the columns of a group
+    -- have no seam between them: each but the last reaches the next one.
+    local groupOf, sortedGroup = {}, nil
+    for g, group in ipairs(HeaderGroups()) do
+        for c = group.first, group.last do
+            groupOf[c] = group
+            if columns[c].key == sortBy then sortedGroup = group end
+        end
+    end
+
     for c = 1, #columns do
         local button = headerRow.labels[c]
         if not button then
@@ -875,11 +888,12 @@ local function BuildColumnHeader()
         end
 
         button.columnIndex = c
-        button:SetWidth(columns[c].width)
+        local group = groupOf[c]
+        button:SetWidth(columns[c].width + ((group and c < group.last) and COL_PADDING or 0))
         button:ClearAllPoints()
         button:SetPoint("TOPLEFT", headerRow, "TOPLEFT", offsets[c], 0)
 
-        local sorted = columns[c].key == sortBy
+        local sorted = group ~= nil and group == sortedGroup
         button:SetBackdropColor(unpack(sorted and COLHEAD_TINT_SORTED or COLHEAD_TINT))
 
         -- Corpo 10, que é o `text_size` do framework dele (`DF/header.lua:730`), lido pela
@@ -941,7 +955,7 @@ end
 
 ---For the harness: the header's groups as drawn.
 function Scoreboard.__headerGroups()
-    return HeaderGroups(), headerRow and headerRow.families or {}
+    return HeaderGroups(), headerRow and headerRow.families or {}, headerRow and headerRow.labels or {}
 end
 
 --------------------------------------------------------------------------------
