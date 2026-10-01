@@ -8,8 +8,10 @@
   taken by spell with the game's avoidable mark, a timeline of the run with your deaths, potions
   and the uses of a cooldown, your rhythm, and the history of your last 8 runs in that dungeon.
   Two combos pick the run (this one or a saved one) and the fight (whole run, current fight,
-  each boss, trash). What it shows follows your role: tank, healer or DPS. The spell panel is
-  still there, as the "Spells" tab.
+  each boss, trash). What it shows follows your role: tank, healer or DPS. A **Deaths** tab
+  lists every death of yours: when, what killed you and from whom, the hardest blow when it is
+  another, and the blow by blow with the life left after each one. The spell panel is still
+  there, as the "Spells" tab.
 - **The scoreboard opens from the meter.** A magnifier in the meter's title bar opens the
   scoreboard with the session the window is on (current fight or overall), without what only a
   finished key has: keystone, score, loot, level, affixes and timeline.

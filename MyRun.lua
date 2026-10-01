@@ -41,6 +41,7 @@ local COOLDOWN_MIN = 45         -- a spell with a shorter base cooldown is rotat
 local HISTORY_SIZE = 8
 local HEALTHSTONE_ITEM = 5512
 local MAX_TAKEN_SPELLS = 12
+local MAX_RECAP_EVENTS = 10     -- what the game's recap holds (read in a real key)
 
 local run                       -- the run in progress (or the last one, until a new one starts)
 local itemSpells = {}           -- [spellID] = { itemID, kind } from the bags
@@ -279,7 +280,31 @@ function MyRun.ReadDeaths()
                     if hardest and hardest ~= first then
                         death.hardest = Readable(hardest.spellName) and hardest.spellName or nil
                         death.hardestSource = Readable(hardest.sourceName) and hardest.sourceName or nil
+                        death.hardestSpell = Num(hardest.spellId)
                         death.hardestAmount = hi
+                    end
+                    -- (!) THE BLOW BY BLOW IS KEPT (01/10). The user: *"um quadro onde eu pudesse ver
+                    -- todas as minhas mortes, para quem, qual skill deu mais dano em mim e qual skill
+                    -- matou"*. The recap holds up to 10 events (read in a real key); each is kept with
+                    -- the seconds before the death (the first event is the death itself).
+                    local deathStamp = Num(first.timestamp)
+                    death.events = {}
+                    for i = 1, math.min(#events, MAX_RECAP_EVENTS) do
+                        local ev = events[i]
+                        local stamp = Num(ev.timestamp)
+                        death.events[#death.events + 1] = {
+                            before = deathStamp and stamp and (deathStamp - stamp) or nil,
+                            spell = Readable(ev.spellName) and ev.spellName or nil,
+                            spellId = Num(ev.spellId),
+                            source = Readable(ev.sourceName) and ev.sourceName or nil,
+                            amount = Num(ev.amount), overkill = Num(ev.overkill), absorbed = Num(ev.absorbed),
+                            hp = Num(ev.currentHP),
+                            avoidable = ev.avoidable == true, deadly = ev.deadly == true,
+                        }
+                    end
+                    if C_DeathRecap.GetRecapMaxHealth then
+                        local okM, maxHealth = pcall(C_DeathRecap.GetRecapMaxHealth, d.recap)
+                        death.maxHealth = okM and Num(maxHealth) or nil
                     end
                 end
             end
@@ -532,6 +557,8 @@ local function BossAt(t, r)
     return nil
 end
 
+MyRun.BossAt = BossAt
+
 local function NextBossAfter(t)
     if not run then return nil end
     for _, f in ipairs(run.fights) do
@@ -551,7 +578,7 @@ function MyRun.Problems(scope, role, r)
 
     -- 1. Deaths: every one, worst first.
     checked[#checked + 1] = L["deaths"]
-    for _, d in ipairs(own.deaths) do
+    for index, d in ipairs(own.deaths) do
         local what = d.killer and (d.killer .. (d.killerSource and (" · " .. d.killerSource) or "")) or L["cause unknown"]
         local detail = {}
         if d.avoidable then detail[#detail + 1] = L["avoidable"] end
@@ -559,7 +586,7 @@ function MyRun.Problems(scope, role, r)
         if d.hardest then detail[#detail + 1] = format(L["hardest: %s"], d.hardest .. (d.hardestSource and (" · " .. d.hardestSource) or "")) end
         out[#out + 1] = { kind = "death", severity = 1, atlas = "deathrecap-icon-tombstone", spellID = d.killerSpell,
             title = format(L["Died at %s — %s"], Clock(d.t), what), detail = table.concat(detail, " · "),
-            number = BossAt(d.t, r) or L["trash"], t = d.t, recap = d.recap }
+            number = BossAt(d.t, r) or L["trash"], t = d.t, recap = d.recap, index = index }
     end
 
     -- 2. Avoidable damage: the share of what was taken, and the spell that gave most of it.

@@ -28,6 +28,11 @@ local MAX_COOLDOWNS = 6
 local MAX_TAKEN = 5
 local MAX_HISTORY = 8
 local TIMELINE_HEIGHT = 76
+local MAX_DEATH_ROWS = 10
+local DEATH_ROW = 34
+local MAX_EVENT_ROWS = 10
+local EVENT_ROW = 30
+local DEATH_LIST_WIDTH = 380
 
 local frame
 local view = { scope = "all", run = nil, cooldown = nil, tab = "summary" }   -- run = nil: the one in memory
@@ -217,9 +222,14 @@ local function CreatePanel()
     frame.tabSummary:SetPoint("TOPLEFT", SIDE, -y)
     frame.tabSummary:SetText(L["Summary"])
     frame.tabSummary:SetScript("OnClick", function() Win.SetTab("summary") end)
+    frame.tabDeaths = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.tabDeaths:SetSize(80, 22)
+    frame.tabDeaths:SetPoint("LEFT", frame.tabSummary, "RIGHT", 4, 0)
+    frame.tabDeaths:SetText(L["Deaths"])
+    frame.tabDeaths:SetScript("OnClick", function() Win.SetTab("deaths") end)
     frame.tabSpells = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     frame.tabSpells:SetSize(80, 22)
-    frame.tabSpells:SetPoint("LEFT", frame.tabSummary, "RIGHT", 4, 0)
+    frame.tabSpells:SetPoint("LEFT", frame.tabDeaths, "RIGHT", 4, 0)
     frame.tabSpells:SetText(L["Spells"])
     frame.tabSpells:SetScript("OnClick", function() Win.SetTab("spells") end)
 
@@ -263,6 +273,11 @@ local function CreatePanel()
         local r = ProblemRow(frame.problems)
         r:SetPoint("TOPLEFT", 0, -(TITLE + (i - 1) * (ITEM_HEIGHT + 2)))
         r:SetPoint("RIGHT")
+        r:EnableMouse(true)
+        r:SetScript("OnMouseUp", function(self)
+            local p = self.problem
+            if p and p.kind == "death" then view.death = p.index; Win.SetTab("deaths") end
+        end)
         frame.problems.rows[i] = r
     end
     frame.problems.empty = Text(frame.problems, "GameFontDisableSmall")
@@ -366,6 +381,98 @@ local function CreatePanel()
     frame.body:SetPoint("TOPLEFT", SIDE, -y)
     frame.body:SetPoint("BOTTOMRIGHT", -SIDE, ns.DONATE_ROW + 4)
     frame.blocks = { frame.problems, frame.timeline, frame.rhythm, frame.cooldowns, frame.taken, frame.history }
+
+    -- (!) THE DEATHS TAB (01/10). The user: *"um quadro onde eu pudesse ver todas as minhas mortes,
+    -- para quem, qual skill deu mais dano em mim e qual skill matou (pode ser a mesma ou
+    -- diferente)"*. Left, one row per death: when, what killed and from whom, the hardest blow
+    -- when it is another, the game's marks. Right, the chosen death blow by blow, with the life
+    -- left after each one. Same shape as the preview of 30/09 (PREVIA tela de mortes).
+    local deaths = CreateFrame("Frame", nil, frame.body)
+    deaths:SetAllPoints()
+    deaths:Hide()
+    frame.deaths = deaths
+    deaths.listTitle = Text(deaths, "GameFontNormalSmall")
+    deaths.listTitle:SetPoint("TOPLEFT", 2, -1)
+    deaths.rows = {}
+    for i = 1, MAX_DEATH_ROWS do
+        local r = CreateFrame("Button", nil, deaths)
+        r:SetSize(DEATH_LIST_WIDTH, DEATH_ROW)
+        r:SetPoint("TOPLEFT", 0, -(TITLE + (i - 1) * (DEATH_ROW + 2)))
+        r.bg = r:CreateTexture(nil, "BACKGROUND")
+        r.bg:SetAllPoints()
+        r.bg:SetColorTexture(0, 0, 0, 0.3)
+        r:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+        r.when = Text(r, "GameFontDisableSmall", "RIGHT")
+        r.when:SetPoint("TOPLEFT", 4, -4)
+        r.when:SetWidth(36)
+        r.icon = r:CreateTexture(nil, "ARTWORK")
+        r.icon:SetSize(22, 22)
+        r.icon:SetPoint("LEFT", 46, 0)
+        r.killer = Text(r, "GameFontHighlightSmall")
+        r.killer:SetPoint("TOPLEFT", 74, -3)
+        r.killer:SetPoint("RIGHT", -30, 0)
+        r.hardest = Text(r, "GameFontDisableSmall")
+        r.hardest:SetPoint("BOTTOMLEFT", 74, 3)
+        r.hardest:SetPoint("RIGHT", -30, 0)
+        r.mark = r:CreateTexture(nil, "OVERLAY")
+        r.mark:SetSize(14, 14)
+        r.mark:SetPoint("RIGHT", -8, 0)
+        r:SetScript("OnClick", function(self) view.death = self.index; Win.Draw() end)
+        deaths.rows[i] = r
+    end
+    deaths.empty = Text(deaths, "GameFontDisableSmall")
+    deaths.empty:SetPoint("TOPLEFT", 4, -TITLE)
+
+    local detail = CreateFrame("Frame", nil, deaths)
+    detail:SetPoint("TOPLEFT", DEATH_LIST_WIDTH + GAP, 0)
+    detail:SetPoint("BOTTOMRIGHT")
+    deaths.detail = detail
+    detail.title = Text(detail, "GameFontNormalSmall")
+    detail.title:SetPoint("TOPLEFT", 2, -1)
+    detail.sub = Text(detail, "GameFontDisableSmall")
+    detail.sub:SetPoint("TOPLEFT", 2, -TITLE)
+    detail.rows = {}
+    for i = 1, MAX_EVENT_ROWS do
+        local r = CreateFrame("Frame", nil, detail)
+        r:SetHeight(EVENT_ROW)
+        r:SetPoint("TOPLEFT", 0, -(TITLE + 14 + (i - 1) * (EVENT_ROW + 1)))
+        r:SetPoint("RIGHT")
+        r.bg = r:CreateTexture(nil, "BACKGROUND")
+        r.bg:SetAllPoints()
+        r.bg:SetColorTexture(0, 0, 0, 0.3)
+        r.before = Text(r, "GameFontDisableSmall", "RIGHT")
+        r.before:SetPoint("LEFT", 4, 0)
+        r.before:SetWidth(44)
+        r.icon = r:CreateTexture(nil, "ARTWORK")
+        r.icon:SetSize(24, 24)
+        r.icon:SetPoint("LEFT", 54, 0)
+        r.spell = Text(r, "GameFontNormalSmall")
+        r.spell:SetPoint("TOPLEFT", 84, -3)
+        r.spell:SetWidth(190)
+        r.source = Text(r, "GameFontDisableSmall")
+        r.source:SetPoint("BOTTOMLEFT", 84, 3)
+        r.source:SetWidth(190)
+        r.amount = Text(r, "GameFontHighlightSmall", "RIGHT")
+        r.amount:SetPoint("LEFT", 276, 0)
+        r.amount:SetWidth(60)
+        r.life = CreateFrame("StatusBar", nil, r)
+        r.life:SetSize(90, 10)
+        r.life:SetPoint("LEFT", 346, 0)
+        r.life:SetStatusBarTexture(Skin().barTexture)
+        r.life:SetMinMaxValues(0, 1)
+        r.lifeBg = r.life:CreateTexture(nil, "BACKGROUND")
+        r.lifeBg:SetAllPoints()
+        r.lifeBg:SetColorTexture(0.1, 0.1, 0.12, 1)
+        r.pct = Text(r, "GameFontDisableSmall", "RIGHT")
+        r.pct:SetPoint("LEFT", r.life, "RIGHT", 4, 0)
+        r.pct:SetWidth(34)
+        r.mark = r:CreateTexture(nil, "OVERLAY")
+        r.mark:SetSize(12, 12)
+        r.mark:SetPoint("LEFT", r.pct, "RIGHT", 4, 0)
+        detail.rows[i] = r
+    end
+    detail.empty = Text(detail, "GameFontDisableSmall")
+    detail.empty:SetPoint("TOPLEFT", 4, -TITLE)
     return frame
 end
 
@@ -373,18 +480,20 @@ end
 function Win.SetTab(tab)
     if not frame then return end
     view.tab = tab
-    local summary = tab ~= "spells"
+    local summary = tab == "summary"
     frame.tabSummary:SetEnabled(not summary)
-    frame.tabSpells:SetEnabled(summary)
+    frame.tabDeaths:SetEnabled(tab ~= "deaths")
+    frame.tabSpells:SetEnabled(tab ~= "spells")
     for _, t in ipairs(frame.tiles) do t:SetShown(summary) end
     for _, b in ipairs(frame.blocks) do b:SetShown(summary) end
-    frame.fightCombo:SetShown(summary)
-    frame.runCombo:SetShown(summary)
-    if summary then
+    frame.deaths:SetShown(tab == "deaths")
+    frame.fightCombo:SetShown(tab ~= "spells")
+    frame.runCombo:SetShown(tab ~= "spells")
+    if tab == "spells" then
+        if ns.Breakdown and ns.Breakdown.ShowOwn then ns.Breakdown.ShowOwn(nil, frame.body) end
+    else
         if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
         Win.Draw()
-    elseif ns.Breakdown and ns.Breakdown.ShowOwn then
-        ns.Breakdown.ShowOwn(nil, frame.body)
     end
 end
 
@@ -628,11 +737,90 @@ local function DrawHistory(r)
     end
 end
 
+local function DrawDeaths(r, own)
+    local d = frame.deaths
+    local list = own.deaths
+    d.listTitle:SetText(format("%s (%d)", L["My deaths"], #list))
+    if not view.death or not list[view.death] then view.death = list[1] and 1 or nil end
+    for i, row in ipairs(d.rows) do
+        local death = list[i]
+        if not death then row:Hide() else
+            row:Show()
+            row.index = i
+            row.when:SetText(Clock(death.t))
+            if row.icon.SetAtlas and not death.killerSpell then row.icon:SetAtlas("deathrecap-icon-tombstone")
+            else row.icon:SetTexture(SpellIcon(death.killerSpell)) end
+            local killer = (death.killer or L["cause unknown"]) .. (death.killerSource and (" · " .. death.killerSource) or "")
+            if death.hardest then
+                row.killer:SetText(format("%s: %s", L["Killed"], killer))
+                row.hardest:SetText(format("%s: %s", L["Hardest"], death.hardest .. (death.hardestSource and (" · " .. death.hardestSource) or "")))
+            else
+                row.killer:SetText(format("%s: %s", L["Killed and hardest"], killer))
+                row.hardest:SetText(ns.MyRun.BossAt and ns.MyRun.BossAt(death.t, r) or "")
+            end
+            if death.avoidable and row.mark.SetAtlas then row.mark:SetAtlas("damagemeters-avoidabledamage-icon"); row.mark:Show()
+            else row.mark:Hide() end
+            if view.death == i then row.bg:SetColorTexture(1, 1, 1, 0.08) else row.bg:SetColorTexture(0, 0, 0, 0.3) end
+        end
+    end
+    d.empty:SetShown(#list == 0)
+    d.empty:SetText(L["No death in this scope."])
+
+    local det = d.detail
+    local death = view.death and list[view.death]
+    for _, row in ipairs(det.rows) do row:Hide() end
+    if not death then
+        det.title:SetText(L["Blow by blow"])
+        det.sub:SetText("")
+        det.empty:SetShown(#list > 0)
+        det.empty:SetText(L["Click a death."])
+        return
+    end
+    det.empty:Hide()
+    det.title:SetText(format("%s — %s", L["Blow by blow"], Clock(death.t)))
+    local events = death.events or {}
+    local covers = events[#events] and events[#events].before
+    det.sub:SetText(#events > 0 and format(L["%d blows, the last %s s before the death · %s of life"], #events,
+        covers and format("%.1f", covers) or "?", death.maxHealth and Fmt(death.maxHealth) or "?") or L["The game kept no blow of this death."])
+    local maxHealth = death.maxHealth
+    for i, row in ipairs(det.rows) do
+        local ev = events[i]
+        if not ev then row:Hide() else
+            row:Show()
+            row.before:SetText(ev.before and format("-%.1fs", ev.before) or "")
+            row.icon:SetTexture(SpellIcon(ev.spellId))
+            row.spell:SetText(ev.spell or L["cause unknown"])
+            if i == 1 then row.spell:SetTextColor(1, 0.3, 0.3) else row.spell:SetTextColor(1, 0.82, 0) end
+            row.source:SetText(ev.source or "")
+            local amount = ev.amount and Fmt(ev.amount) or "-"
+            if ev.absorbed and ev.absorbed > 0 then amount = amount .. format(" (%s %s)", Fmt(ev.absorbed), L["absorbed"]) end
+            row.amount:SetText(amount)
+            row.amount:SetTextColor(1, 0.3, 0.3)
+            local hp = ev.hp
+            local share = maxHealth and maxHealth > 0 and hp and math.max(0, math.min(1, hp / maxHealth)) or nil
+            row.life:SetValue(share or 0)
+            if share and share < 0.2 then row.life:SetStatusBarColor(0.78, 0.23, 0.1)
+            elseif share and share < 0.5 then row.life:SetStatusBarColor(0.78, 0.64, 0.1)
+            else row.life:SetStatusBarColor(0.23, 0.66, 0.23) end
+            row.pct:SetText(share and format("%d%%", math.floor(share * 100 + 0.5)) or "")
+            if ev.deadly and row.mark.SetAtlas then row.mark:SetAtlas("icons_16x16_deadly"); row.mark:Show()
+            elseif ev.avoidable and row.mark.SetAtlas then row.mark:SetAtlas("damagemeters-avoidabledamage-icon"); row.mark:Show()
+            else row.mark:Hide() end
+        end
+    end
+end
+
 function Win.Draw()
     if not frame or view.tab == "spells" then return end
     local r = RunShown()
     local scope = view.scope
     local own = ns.MyRun.Own(scope, r)
+    if view.tab == "deaths" then
+        DrawDeaths(r, own)
+        if frame.fightCombo.GenerateMenu then frame.fightCombo:GenerateMenu() end
+        if frame.runCombo.GenerateMenu then frame.runCombo:GenerateMenu() end
+        return
+    end
     local m = ns.MyRun.Metrics(scope, r)
 
     if r then
