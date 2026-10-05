@@ -1092,6 +1092,25 @@ local function BuildRow(index)
         row = CreateFrame("Frame", nil, frame)
         row:SetHeight(ROW_HEIGHT)
         row:EnableMouse(false)
+        -- (!) THE PLAYER'S OWN ROW OPENS "MY RUN" (05/10). The user: *"poder clicar na linha e
+        -- ver sua performance individual"*. Only that row takes the mouse (`DrawRows` turns it
+        -- on when there is something to open), and it still drags the panel: the drag is
+        -- handed to the frame, which is why the row could not be a Button before.
+        row:RegisterForDrag("LeftButton")
+        row:SetScript("OnDragStart", function(self) self.dragged = true; frame:StartMoving() end)
+        row:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
+        row:SetScript("OnMouseDown", function(self) self.dragged = nil end)
+        row:SetScript("OnMouseUp", function(self, button)
+            if button == "LeftButton" and not self.dragged and self.open then self.open() end
+        end)
+        row:SetScript("OnEnter", function(self)
+            if not self.open then return end
+            GameTooltip:SetOwner(self, "ANCHOR_CURSOR_RIGHT")
+            GameTooltip_SetTitle(GameTooltip, L["My run"])
+            GameTooltip_AddInstructionLine(GameTooltip, L["Click: your own performance in this run"])
+            GameTooltip:Show()
+        end)
+        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
@@ -1902,6 +1921,34 @@ function CellPainters.value(cell, entry, index)
     end
 end
 
+---The saved "My run" of the key on the board: same dungeon, same level, the newest one.
+local function MyRunOf(ctx)
+    if not (ctx and ns.MyRun and ns.MyRun.History) then return nil end
+    for _, saved in ipairs(ns.MyRun.History()) do
+        if type(saved) == "table" and saved.name ~= nil and saved.name == ctx.title
+            and (ctx.level == nil or saved.level == nil or saved.level == ctx.level) then
+            return saved
+        end
+    end
+    return nil
+end
+
+---What a click on this row opens, or nil. Only the player's own row: of the others the game
+---keeps nothing once the session is gone, and the board itself is all there is.
+local function RowAction(entry)
+    local mine = entry and entry.row and entry.row.isLocalPlayer
+    if mine ~= true or not (ns.MyRunWindow and ns.MyRunWindow.Show) then return nil end
+    if context and context.kind == "session" then
+        return function() ns.MyRunWindow.Show() end
+    end
+    local saved = MyRunOf(context)
+    if saved and ns.MyRunWindow.ShowRun then
+        return function() ns.MyRunWindow.ShowRun(saved) end
+    end
+    return nil
+end
+Scoreboard.__rowAction = RowAction
+
 local function DrawRows(list, rowCount)
     for i = 1, rowCount do
         local row = BuildRow(i)
@@ -1921,6 +1968,8 @@ local function DrawRows(list, rowCount)
                 if painter then painter(cell, entry, c) end
             end
 
+            row.open = RowAction(entry)
+            row:EnableMouse(row.open ~= nil)
             row:Show()
         end
     end
@@ -2502,6 +2551,28 @@ function Scoreboard.ShowSession(sessionType)
         mapID = mapID,
         rowCount = GroupRowCount(),
     }, "session", false)
+end
+
+---The meter window's button. With something measured: the board of the session. With nothing
+---measured (never fought, or the data was cleared): the last key, as its final board.
+---
+---(!) The user, 05/10: *"o botão do quadro parcial se não houver medição ou for resetado, faz
+---ele mostrar a última pedra como se fosse o quadro final"*. An empty board answers nothing;
+---the last key is what the player wants to look at when the meter has nothing to show.
+function Scoreboard.ShowSessionOrLast(sessionType)
+    sessionType = sessionType or (ns.db and ns.db.sessionType) or 1
+    local duration = ns.Data.GetDuration(sessionType)
+    -- A secret duration is a fight going on: there is something measured.
+    local vazio = duration == nil or (not issecretvalue(duration) and (tonumber(duration) or 0) <= 0)
+    if vazio then
+        local ultima = Scoreboard.GetRun("mplus")
+        if ultima then
+            Scoreboard.Show(ultima)
+            return "last"
+        end
+    end
+    Scoreboard.ShowSession(sessionType)
+    return "session"
 end
 
 function Scoreboard.OnEncounterEnd(encounterName, difficultyID)

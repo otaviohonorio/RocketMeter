@@ -1035,6 +1035,14 @@ function Win.Show()
     Win.SetTab(view.tab or "summary")
 end
 
+---Opens the screen on a SAVED run (a click on the player's row of the scoreboard of that key).
+function Win.ShowRun(saved)
+    Win.Show()
+    if type(saved) ~= "table" then return end
+    view.run, view.scope, view.death = saved, "all", nil
+    Win.Draw()
+end
+
 function Win.Hide()
     if not frame then return end
     if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end

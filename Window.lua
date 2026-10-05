@@ -2181,7 +2181,12 @@ function Window.Create()
     frame.boardButton = HeaderButton(
         { atlas = "common-icon-zoomin", texture = "Interface\\Buttons\\UI-Panel-ExpandButton-Up" },
         L["Open the scoreboard of this session"], function()
-            if ns.Scoreboard and ns.Scoreboard.ShowSession then ns.Scoreboard.ShowSession(ns.db.sessionType) end
+            -- Nothing measured (or cleared): the last key, as its final board (05/10).
+            if ns.Scoreboard and ns.Scoreboard.ShowSessionOrLast then
+                ns.Scoreboard.ShowSessionOrLast(ns.db.sessionType)
+            elseif ns.Scoreboard and ns.Scoreboard.ShowSession then
+                ns.Scoreboard.ShowSession(ns.db.sessionType)
+            end
         end)
     frame.boardButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -5, 0)
 
