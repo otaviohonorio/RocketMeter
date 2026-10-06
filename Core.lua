@@ -6,6 +6,10 @@ local ADDON, ns = ...
 -- the rocket of the three addons with this addon's badge. One file serves every place: the
 -- addon list (`## IconTexture`), the minimap button (masked round) and the window's portrait.
 ns.LOGO = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\Logo.png"
+-- The minimap button is some 20 points wide: there the rocket would be a smudge, so it takes
+-- the BADGE alone, large (06/10: "no icone do minimap tem que ficar apenas o redondo que fica
+-- no canto sem o foguete, pq e muito pequeno pra ver qual e").
+ns.LOGO_MINIMAP = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\Minimap.png"
 local L = ns.L
 
 ns.version = C_AddOns.GetAddOnMetadata(ADDON, "Version") or "0.0.0"

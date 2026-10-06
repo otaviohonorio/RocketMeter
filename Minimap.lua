@@ -40,7 +40,7 @@ function Minimap_.Create()
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetSize(19, 19)
     icon:SetPoint("CENTER", -1, 1)
-    icon:SetTexture(ns.LOGO)
+    icon:SetTexture(ns.LOGO_MINIMAP)
     icon:SetTexCoord(0, 1, 0, 1)
     icon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
 
