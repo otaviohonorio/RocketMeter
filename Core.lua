@@ -1,5 +1,11 @@
 -- RocketMeter | Core.lua
 local ADDON, ns = ...
+
+-- (!) THE ADDON'S OWN ICON (06/10/2026). The three addons had the game's icons (two of them the
+-- SAME one, so the list of addons showed them alike). The art is ours and ships in `Textures/`:
+-- the rocket of the three addons with this addon's badge. One file serves every place: the
+-- addon list (`## IconTexture`), the minimap button (masked round) and the window's portrait.
+ns.LOGO = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\Logo.png"
 local L = ns.L
 
 ns.version = C_AddOns.GetAddOnMetadata(ADDON, "Version") or "0.0.0"
