@@ -37,17 +37,31 @@ function Minimap_.Create()
     button:RegisterForDrag("LeftButton")
     button:SetMovable(true)
 
+    -- (!) THE GAME'S RING AND THE ICON, AT THE NUMBERS EVERY OTHER BUTTON USES (06/10). Reported
+    -- with a screenshot: our drawing sat off-centre inside the gold ring. The button had the ring
+    -- at 53 and the icon at 19, shifted (-1, 1) -- numbers of the OLD clients. On retail the
+    -- minimap-button library the other addons ship (LibDBIcon-1.0, `WOW_PROJECT_MAINLINE`
+    -- branch) draws the ring at 50 from the top left, the game's dark disc at 24 and the icon at
+    -- 18, both at the button's very centre. With the game's square icons nobody saw the 1.5
+    -- points; with a ring of our own inside the gold one, it shows.
+    local disc = button:CreateTexture(nil, "BACKGROUND")
+    disc:SetSize(24, 24)
+    disc:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    disc:SetPoint("CENTER", button, "CENTER")
+
     local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(19, 19)
-    icon:SetPoint("CENTER", -1, 1)
+    icon:SetSize(18, 18)
+    icon:SetPoint("CENTER", button, "CENTER")
     icon:SetTexture(ns.LOGO_MINIMAP)
+    button.icon, button.disc = icon, disc
     icon:SetTexCoord(0, 1, 0, 1)
     icon:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
 
     local border = button:CreateTexture(nil, "OVERLAY")
-    border:SetSize(53, 53)
+    border:SetSize(50, 50)
     border:SetPoint("TOPLEFT")
     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    button.border = border
 
     button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
