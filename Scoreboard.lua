@@ -71,6 +71,11 @@ local ILVL_BG_INSET = 7
 local SPEC_ICON = 20             -- `specIcon:SetSize(20, 20)`   (:363)
 local KEYSTONE_ICON = 45         -- `keystoneTextureSize`  (scoreboard_layout.lua:13)
 local KEYSTONE_FONT = 12
+-- The game's own: icon of 50 in a frame of 52 (Blizzard_ChallengesUI.xml), at our 45.
+local KEYSTONE_INNER = math.floor(KEYSTONE_ICON * 50 / 52 + 0.5)
+local KEYSTONE_FRAME_ATLAS = "ChallengeMode-DungeonIconFrame"
+-- What the game shows for a dungeon with no icon (Blizzard_ChallengesUI.lua, `SetUp`).
+local KEYSTONE_NO_ART = "Interface\\Icons\\achievement_bg_wineos_underxminutes"
 local LOOT_ICON = 32             -- `frame.LootIcon:SetSize(32, 32)` (:695)
 
 -- Fundo alternado das linhas (:131-133). Branco a 5% e a 10% SOBRE o fundo do painel — não é
@@ -1014,15 +1019,23 @@ end
 
 ---Ícone da masmorra da pedra + nível (`scoreboard_layout.lua:515-560`).
 function CellBuilders.keystone(cell)
+    -- (!) THE GAME'S OWN DUNGEON ICON, DRAWN AS THE GAME DRAWS IT (05/10). The user: *"as pedras
+    -- (keystone) a imagem ta bem zoada, mal da pra entender que pedra e"*. The image is the 4th
+    -- return of `C_ChallengeMode.GetMapUIInfo`, the icon of the Mythic+ tab -- and it was being
+    -- cut with the numbers Details uses (36..375 by 50..290 of 512), which were measured for
+    -- ANOTHER image: the Adventure Guide's painting of the instance (`iconLore`, Details'
+    -- `dummytails.lua`). On the game's icon that cut is two thirds of the width by half of the
+    -- height, stretched into a square. The game shows this icon WHOLE, 50 inside a frame of 52
+    -- (`ChallengesDungeonIconFrameTemplate`, Blizzard_ChallengesUI.xml): here the same, at 45.
     cell.icon = cell:CreateTexture(nil, "ARTWORK")
-    cell.icon:SetSize(KEYSTONE_ICON, KEYSTONE_ICON)
-    cell.icon:SetPoint("LEFT", COL_PADDING, 0)
-    -- O recorte tira a moldura da arte da masmorra e deixa só a cena.
-    cell.icon:SetTexCoord(36 / 512, 375 / 512, 50 / 512, 290 / 512)
-    cell.icon:SetAlpha(0.932)
-    if cell.icon.SetMask then
-        pcall(cell.icon.SetMask, cell.icon, "Interface\\FrameGeneral\\UIFrameIconMask")
-    end
+    cell.icon:SetSize(KEYSTONE_INNER, KEYSTONE_INNER)
+    cell.icon:SetPoint("LEFT", COL_PADDING + (KEYSTONE_ICON - KEYSTONE_INNER) / 2, 0)
+    cell.icon:SetTexCoord(0, 1, 0, 1)
+
+    cell.frameArt = cell:CreateTexture(nil, "ARTWORK", nil, 2)
+    cell.frameArt:SetAtlas(KEYSTONE_FRAME_ATLAS)
+    cell.frameArt:SetSize(KEYSTONE_ICON, KEYSTONE_ICON)
+    cell.frameArt:SetPoint("CENTER", cell.icon, "CENTER", 0, 0)
 
     cell.levelBg = cell:CreateTexture(nil, "ARTWORK", nil, 6)
     cell.levelBg:SetTexture("Interface\\Cooldown\\LoC-ShadowBG")
@@ -1850,7 +1863,10 @@ function CellPainters.keystone(cell, entry)
     if mapID and C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
         local ok, _, _, _, texture = pcall(C_ChallengeMode.GetMapUIInfo, mapID)
         if ok and texture then
+            -- 0 is the game's "this dungeon has no icon": its own fallback, as its own tab does.
+            if texture == 0 then texture = KEYSTONE_NO_ART end
             cell.icon:SetTexture(texture)
+            cell.icon:SetTexCoord(0, 1, 0, 1)
             drew = true
         end
     end
@@ -1860,6 +1876,7 @@ function CellPainters.keystone(cell, entry)
     -- na tela: o jogador pode não ter pedra, ou o RocketMeter pode não ter como saber
     -- (ver `KeystoneFor`). Desenhar um ícone nos dois casos afirmaria a primeira.
     cell.icon:SetShown(drew)
+    if cell.frameArt then cell.frameArt:SetShown(drew) end
     cell.levelBg:SetShown(drew and level ~= nil and level > 0)
     if drew and level and level > 0 then
         cell.level:SetText("+" .. level)
@@ -1868,6 +1885,8 @@ function CellPainters.keystone(cell, entry)
         cell.level:Hide()
     end
 end
+
+Scoreboard.__paintKeystone = CellPainters.keystone
 
 function CellPainters.score(cell, entry, index)
     cell.text:SetText(ScoreText(entry, index))
