@@ -8,7 +8,7 @@
 ## Category-ptBR: Combate
 
 ## Author: Otto Rocket (Otávio Honório)
-## Version: 0.91.2
+## Version: 0.92.0
 ## X-Curse-Project-ID: 1698580
 #@debug@
 ## SavedVariables: RocketMeterDB, RocketMeterLogDB
@@ -36,6 +36,7 @@ Casts.lua
 Party.lua
 Window.lua
 Minimap.lua
+Talents.lua
 Breakdown.lua
 Run.lua
 MyRun.lua

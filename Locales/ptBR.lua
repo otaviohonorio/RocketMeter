@@ -271,6 +271,14 @@ L["Rocket Meter %s — report a problem on %s.|n|nPress Ctrl+C to copy the link,
 
 -- Minha corrida (01/10): a tela individual do jogador.
 L["Whole run"] = "Todo o combate"
+L["Open world"] = "Mundo aberto"
+L["Delve"] = "Imersão"
+L["Tier %d"] = "Grau %d"
+L["Nothing recorded yet: it starts at your next fight."] = "Nada gravado ainda: a gravação começa na sua próxima luta."
+L["%d%% of all you took"] = "%d%% de tudo que você recebeu"
+L["Your talents: direct damage"] = "Seus talentos: dano direto"
+L["Your talents: direct healing"] = "Seus talentos: cura direta"
+L["%s (%d%% of the total)"] = "%s (%d%% do total)"
 L["This fight"] = "Luta atual"
 L["Trash"] = "Pacotes"
 L["trash"] = "pacotes"

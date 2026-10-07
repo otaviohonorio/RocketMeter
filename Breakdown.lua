@@ -19,7 +19,8 @@ local HEADER_HEIGHT = 25
 local SECTION_TITLE = 16
 local SECTION_GAP = 8
 local SIDE = 4
-local MAX_PER_SECTION = 6
+local MAX_PER_SECTION = 8       -- 6 until 07/10: "quais skills" asks for more than the top six
+local ALL_SPELLS = 200          -- the whole breakdown, to find the talents in it
 
 local frame, sections
 local current
@@ -41,6 +42,10 @@ local function SectionSpecs()
     return {
         { key = "damage",     title = L["Damage"],  attrs = { E.DamageDone } },
         { key = "healing",    title = L["Healing"], attrs = { E.HealingDone, E.Absorbs } },
+        -- (07/10) Of those two lists, the lines a talent of the player's own build answers for
+        -- (Talents.lua). Only on the player's own line: the build of the others is not ours to read.
+        { key = "talentDamage",  title = L["Your talents: direct damage"], talents = { E.DamageDone } },
+        { key = "talentHealing", title = L["Your talents: direct healing"], talents = { E.HealingDone, E.Absorbs } },
         -- The game's credit, for everyone: it lists what was INTERRUPTED (the enemy's spells).
         { key = "interrupts", title = L["Interrupts"], attrs = { E.Interrupts } },
         -- The player's own casts (Casts.lua): the others' arrive secret, so these two sections
@@ -138,8 +143,21 @@ end
 ---Desenha uma seção e devolve a altura ocupada.
 local function DrawSection(section, spec)
     local skin = Skin()
-    local spells, total, missed
-    if spec.casts then
+    local spells, total, missed, share
+    if spec.talents then
+        -- Only the player's own build can be read; the share in the title is of ALL the damage
+        -- (or healing), so the line says how much of it the talents answer for directly.
+        local mine = current.source and current.source.isLocalPlayer
+        mine = mine ~= nil and not issecretvalue(mine) and mine == true
+        if mine and ns.Talents then
+            local all, sum = ns.Data.GetSpellBreakdown(current.sessionType, spec.talents,
+                current.guid, current.creatureId, ALL_SPELLS)
+            local part
+            spells, part = ns.Talents.Of(all)
+            total = sum
+            if sum and sum > 0 and part > 0 then share = math.floor(part / sum * 100 + 0.5) end
+        end
+    elseif spec.casts then
         spells, total, missed = CastRows(spec.casts)
     else
         spells, total = ns.Data.GetSpellBreakdown(current.sessionType, spec.attrs,
@@ -148,7 +166,8 @@ local function DrawSection(section, spec)
 
     -- The casts of interrupts carry, in the title, how many of them missed (casts minus the
     -- interrupts the game credited), when that can be known.
-    section.title:SetText(missed and format(L["%s (%d missed)"], spec.title, missed) or spec.title)
+    section.title:SetText(missed and format(L["%s (%d missed)"], spec.title, missed)
+        or (share and format(L["%s (%d%% of the total)"], spec.title, share)) or spec.title)
 
     -- Seção sem nada não aparece: "Controle — nada aqui" ocupa espaço para dizer que não há
     -- informação. Quem não interrompeu simplesmente não tem a seção.

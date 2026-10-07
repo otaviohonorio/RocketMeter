@@ -48,6 +48,30 @@ local MAX_FIGHT_SPELLS = 6      -- the damage taken by spell kept with each figh
 local METRIC_KEYS = { "damage", "healing", "absorbs", "taken", "avoidable", "interrupts", "dispels" }
 local MAX_RECAP_EVENTS = 10     -- what the game's recap holds (read in a real key)
 
+-- (!) EVERY KIND OF CONTENT IS RECORDED (07/10). The screen only had something to say in a key
+-- or a raid: `Start` was called by CHALLENGE_MODE_START and by the first boss of a raid, and
+-- nowhere else. The user: *"quando não estamos em DG a informação é bem pobre, seria legal
+-- tentar chegar perto do que aparece nas DGs (...) delve, mundo aberto"*. Out of those two the
+-- screen said "start a key or a raid", or showed the last key as if it were now.
+--
+-- So a run now starts BY ITSELF at the first fight wherever the player is, and is named by
+-- where that is (`MyRun.Context`):
+--   delve      `C_PartyInfo.IsDelveInProgress`, with its tier (`C_DelvesUI.GetActiveDelveTier`)
+--   dungeon    a party instance that is not a key (normal, heroic, mythic, follower, timewalking)
+--   scenario   any other scenario
+--   pvp        a battleground or an arena
+--   world      everywhere else, one session per ZONE
+-- It ends when the player leaves that place (another zone, another instance), and an open-world
+-- session also after WORLD_IDLE without a fight: the next fight is another session. A key or a
+-- raid still starts as before and is never interrupted by this.
+--
+-- The numbers of such a run are the SUM OF ITS FIGHTS (`f.m`, kept at the end of each), not the
+-- meter's "overall": the meter's overall runs from its last reset, which out of a key is
+-- whenever the player last cleared it, and would not be this session.
+local AUTO = { delve = true, dungeon = true, scenario = true, pvp = true, world = true }
+local WORLD_IDLE = 600          -- an open-world session ends after this long without a fight
+local MAX_WORLD_SAVED = 3       -- open-world sessions kept in the history, so they do not push the keys out
+
 local run                       -- the run in progress (or the last one, until a new one starts)
 local itemSpells = {}           -- [spellID] = { itemID, kind } from the bags
 local bagsDirty = true
@@ -184,8 +208,100 @@ local function NewestSessionID()
     return best
 end
 
----Starts a run. `kind` is "key" or "raid"; `name` the dungeon or raid; `level` the key level.
+---Where the player is, as the kind of run it would be.
+---@return string kind "key", "raid", "delve", "dungeon", "scenario", "pvp" or "world"
+---@return string|nil name the instance, or the zone
+---@return number|nil tier the delve's tier
+---@return string|nil detail the difficulty's name (a dungeon)
+function MyRun.Context()
+    local name, instanceType, difficultyName
+    if GetInstanceInfo then
+        local ok, n, t, _, dn = pcall(GetInstanceInfo)
+        if ok then
+            name = type(n) == "string" and n ~= "" and n or nil
+            instanceType = type(t) == "string" and t or nil
+            difficultyName = type(dn) == "string" and dn ~= "" and dn or nil
+        end
+    end
+    if C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive then
+        local ok, active = pcall(C_ChallengeMode.IsChallengeModeActive)
+        if ok and active == true then return "key", name end
+    end
+    if C_PartyInfo and C_PartyInfo.IsDelveInProgress then
+        local ok, delve = pcall(C_PartyInfo.IsDelveInProgress)
+        if ok and delve == true then
+            local tier
+            if C_DelvesUI and C_DelvesUI.GetActiveDelveTier then
+                local okT, info = pcall(C_DelvesUI.GetActiveDelveTier)
+                if okT then tier = type(info) == "table" and Num(info.tier) or Num(info) end
+            end
+            return "delve", name, (tier and tier > 0) and tier or nil
+        end
+    end
+    if instanceType == "raid" then return "raid", name end
+    if instanceType == "party" then return "dungeon", name, nil, difficultyName end
+    if instanceType == "scenario" then return "scenario", name end
+    if instanceType == "pvp" or instanceType == "arena" then return "pvp", name end
+    local zone
+    if GetRealZoneText then
+        local ok, z = pcall(GetRealZoneText)
+        if ok and type(z) == "string" and z ~= "" then zone = z end
+    end
+    return "world", zone
+end
+
+---Is this kind of run one that starts and ends by itself?
+function MyRun.IsAuto(kind) return AUTO[kind] == true end
+
+---Where a run was, as the screen writes it: the key with its level, the delve with its tier,
+---the dungeon with its difficulty, the open world with its zone.
+function MyRun.Where(r)
+    if type(r) ~= "table" then return "" end
+    local name = r.name or ""
+    if r.kind == "world" then
+        return name ~= "" and format("%s · %s", L["Open world"], name) or L["Open world"]
+    elseif r.kind == "delve" then
+        return (name ~= "" and name or L["Delve"]) .. (r.tier and (" · " .. format(L["Tier %d"], r.tier)) or "")
+    elseif r.kind == "dungeon" then
+        return name .. (r.detail and (" · " .. r.detail) or "")
+    end
+    return name .. (r.level and (" +" .. r.level) or "")
+end
+
+---Called when a fight starts: opens a run for where the player is, when none is open, and
+---closes the one that was open somewhere else (or an open-world one left idle).
+function MyRun.AutoStart()
+    local kind, name, tier, detail = MyRun.Context()
+    if not AUTO[kind] then return false end
+    if run and not run.finished then
+        -- A key or a raid in progress owns the recording.
+        if not AUTO[run.kind] then return false end
+        local last = run.fights[#run.fights]
+        local idle = run.kind == "world" and not run.open and last and last.e
+            and (Elapsed() - last.e) > WORLD_IDLE
+        if run.kind == kind and run.name == name and not idle then return false end
+        MyRun.Stop(nil)
+    end
+    MyRun.Start(kind, name, nil)
+    run.tier, run.detail = tier, detail
+    return true
+end
+
+---Called when the player changes place out of combat: a run that belongs to another place ends.
+function MyRun.AutoStop()
+    if not run or run.finished or not AUTO[run.kind] or run.open then return false end
+    if InCombatLockdown and InCombatLockdown() then return false end
+    local kind, name = MyRun.Context()
+    if kind == run.kind and name == run.name then return false end
+    MyRun.Stop(nil)
+    return true
+end
+
+---Starts a run. `kind` is "key", "raid" or one of the kinds that start by themselves
+---(`MyRun.Context`); `name` the dungeon, raid or zone; `level` the key level.
 function MyRun.Start(kind, name, level)
+    -- A session that was being recorded by itself ends here, with what it had.
+    if run and not run.finished and AUTO[run.kind] then pcall(MyRun.Stop, nil) end
     local class
     if UnitClassBase then
         local ok, c = pcall(UnitClassBase, "player")
@@ -350,7 +466,11 @@ function MyRun.Stop(result)
     run.elapsed = Elapsed()
     run.result = result
     pcall(MyRun.ReadDeaths)
-    run.metrics = MyRun.LiveMetrics("all")
+    if AUTO[run.kind] then
+        run.metrics = MyRun.Metrics("all", run)
+    else
+        run.metrics = MyRun.LiveMetrics("all")
+    end
     pcall(MyRun.Save)
 end
 
@@ -608,6 +728,9 @@ function MyRun.Metrics(scope, r)
         return SumFights(r, function(f) return not f.boss end)
     elseif saved then
         return scope == "all" and r.metrics or nil
+    elseif scope == "all" and r and AUTO[r.kind] then
+        -- A session that started by itself: the sum of its own fights (see AUTO).
+        return SumFights(r, function() return true end)
     end
     return MyRun.LiveMetrics(scope)
 end
@@ -722,8 +845,11 @@ function MyRun.Problems(scope, role, r)
                 if worst.creature then title = title .. " · " .. worst.creature end
             end
             out[#out + 1] = { kind = "avoidable", severity = sev, atlas = "damagemeters-avoidabledamage-icon", spellID = worst and worst.spellID,
-                title = title, detail = format(L["%d%% of all you took · %s of the group"], math.floor(share + 0.5),
-                    m.avoidable.rank and format(L["%dº"], m.avoidable.rank) or "?"),
+                -- (The place in the group only when there is one: a session summed from its
+                -- fights, and anything played alone, has none.)
+                title = title, detail = m.avoidable.rank
+                    and format(L["%d%% of all you took · %s of the group"], math.floor(share + 0.5), format(L["%dº"], m.avoidable.rank))
+                    or format(L["%d%% of all you took"], math.floor(share + 0.5)),
                 number = format("%d%%", math.floor(share + 0.5)) }
         end
     end
@@ -893,7 +1019,8 @@ end
 
 ---Compacts the run for the saved file: casts become counts per spell per fight.
 local function Compact(r)
-    local c = { kind = r.kind, name = r.name, level = r.level, date = r.date, role = r.role, class = r.class,
+    local c = { kind = r.kind, name = r.name, level = r.level, tier = r.tier, detail = r.detail,
+                date = r.date, role = r.role, class = r.class,
                 spec = r.spec, specIcon = r.specIcon, player = r.player, elapsed = r.elapsed, result = r.result,
                 fights = {}, gaps = r.gaps, items = r.items, deaths = r.deaths, cooldowns = r.cooldowns,
                 metrics = r.metrics, bySpell = {}, castCount = #r.casts, finished = true }
@@ -912,8 +1039,20 @@ end
 
 function MyRun.Save()
     if not run or not run.finished then return end
+    -- A session that started by itself and had no fight is nothing to keep.
+    if AUTO[run.kind] and #run.fights == 0 then return end
     local list = Store()
     table.insert(list, 1, Compact(run))
+    -- The open world gives a session per zone: only the newest few stay, so that walking around
+    -- does not push the keys and the delves out of the history.
+    local world = 0
+    for i = 1, #list do
+        if list[i] and list[i].kind == "world" then
+            world = world + 1
+            if world > MAX_WORLD_SAVED then list[i] = false end
+        end
+    end
+    for i = #list, 1, -1 do if list[i] == false then table.remove(list, i) end end
     while #list > HISTORY_SIZE do table.remove(list) end
 end
 
@@ -950,10 +1089,12 @@ function MyRun.Init()
     frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
     frame:RegisterEvent("BAG_UPDATE_DELAYED")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     frame:SetScript("OnEvent", function(_, event, a, b, c, d, e)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             pcall(MyRun.OnCast, a, c)
         elseif event == "PLAYER_REGEN_DISABLED" then
+            pcall(MyRun.AutoStart)
             pcall(MyRun.OnCombatStart)
         elseif event == "PLAYER_REGEN_ENABLED" then
             pcall(MyRun.OnCombatEnd)
@@ -981,6 +1122,9 @@ function MyRun.Init()
                 local _, instanceType = GetInstanceInfo()
                 if instanceType ~= "raid" then pcall(MyRun.Stop, nil) end
             end
+            pcall(MyRun.AutoStop)
+        elseif event == "ZONE_CHANGED_NEW_AREA" then
+            pcall(MyRun.AutoStop)
         end
     end)
 end
@@ -988,4 +1132,5 @@ end
 -- For the harness.
 function MyRun.__reset() run = nil; itemSpells = {}; bagsDirty = true end
 function MyRun.__run() return run end
-function MyRun.__constants() return { GAP_SECONDS = GAP_SECONDS, COOLDOWN_MIN = COOLDOWN_MIN, HISTORY_SIZE = HISTORY_SIZE } end
+function MyRun.__constants() return { GAP_SECONDS = GAP_SECONDS, COOLDOWN_MIN = COOLDOWN_MIN, HISTORY_SIZE = HISTORY_SIZE,
+    WORLD_IDLE = WORLD_IDLE, MAX_WORLD_SAVED = MAX_WORLD_SAVED } end

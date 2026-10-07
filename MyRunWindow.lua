@@ -970,7 +970,8 @@ local function DrawHistory()
                 if not cd.situational then used, fitted = used + cd.used, fitted + cd.fitted end
             end
             local cells = row.cells
-            cells[1]:SetText((saved.date or "") .. " · " .. (saved.name or "?") .. (saved.level and (" +" .. saved.level) or ""))
+            local onde = ns.MyRun.Where(saved)
+            cells[1]:SetText((saved.date or "") .. " · " .. (onde ~= "" and onde or "?"))
             cells[2]:SetText(L[saved.role or "DAMAGER"])
             cells[3]:SetText(m and m[key] and Fmt(m[key].perSecond) or "-")
             cells[4]:SetText(share and (share .. "%") or "-")
@@ -995,12 +996,12 @@ function Win.Draw()
         local parts = {}
         if r.player then parts[#parts + 1] = r.player end
         if r.spec then parts[#parts + 1] = r.spec end
-        local where = (r.name or "") .. (r.level and (" +" .. r.level) or "")
+        local where = ns.MyRun.Where(r)
         if where ~= "" then parts[#parts + 1] = where end
         if r.elapsed then parts[#parts + 1] = Clock(r.elapsed) end
         frame.context:SetText(table.concat(parts, " · "))
     else
-        frame.context:SetText(L["No run recorded yet: start a key or a raid."])
+        frame.context:SetText(L["Nothing recorded yet: it starts at your next fight."])
     end
     frame.fightCombo:GenerateMenu()
     frame.runCombo:GenerateMenu()
