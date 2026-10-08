@@ -603,7 +603,10 @@ local function DrawTiles(r, own, m)
     local function Rank(x) return x and x.rank and format(L["%dº of the group"], x.rank) or "" end
     local function Total(x) return x and (Fmt(x.total) .. " " .. L["in total"]) or L["out of combat only"] end
     if role == "HEALER" then
-        Set(tiles[1], m and m.healing and Fmt(m.healing.perSecond), L["Healing per second"], Total(m and m.healing), Rank(m and m.healing))
+        -- Healing without the shields (08/10); what was absorbed is said beside it.
+        local h = m and m.healing
+        local absorbed = h and h.absorbed and h.absorbed > 0 and format(L["+ %s absorbed"], Fmt(h.absorbed)) or nil
+        Set(tiles[1], h and Fmt(h.perSecond), L["Healing per second"], Total(h), absorbed or Rank(h))
         Set(tiles[2], m and m.damage and Fmt(m.damage.perSecond), L["Damage per second"], m and Total(m.damage) or "", Rank(m and m.damage))
     elseif role == "TANK" then
         Set(tiles[1], m and m.taken and Fmt(m.taken.perSecond), L["Damage taken per second"], Total(m and m.taken), Rank(m and m.taken))

@@ -676,13 +676,27 @@ end
 
 ---The meter's numbers of the local player for a scope, or nil when the meter cannot answer
 ---(in combat, or a fight the meter no longer keeps).
+---(!) HEALING WITHOUT THE SHIELDS, in every number of this screen (08/10; Data.PureHealingMetric).
+---Done once per table of numbers and marked (`pure`): the numbers of a fight are kept and summed,
+---and a run saved before this still has the game's number -- it is put right when it is read.
+local function Purify(m)
+    if type(m) == "table" and not m.pure then
+        if m.healing and m.absorbs and ns.Data.PureHealingMetric then
+            m.healing = ns.Data.PureHealingMetric(m.healing, m.absorbs)
+        end
+        m.pure = true
+    end
+    return m
+end
+
 ---The numbers of several fights as one: totals summed, the rate over their combat time. No rank
 ---(the others' numbers of each fight are not kept).
 local function SumFights(r, wanted)
-    local out, seconds, any = { takenSpells = {} }, 0, false
+    local out, seconds, any = { takenSpells = {}, pure = true }, 0, false
     local bySpell = {}
     for _, f in ipairs(r and r.fights or {}) do
         if f.m and wanted(f) then
+            Purify(f.m)
             any = true
             seconds = seconds + ((f.e or f.s) - f.s)
             for _, key in ipairs(METRIC_KEYS) do
@@ -722,12 +736,12 @@ function MyRun.Metrics(scope, r)
     local saved = r ~= nil and r ~= run
     if type(scope) == "number" then
         local f = r and r.fights[scope]
-        if f and f.m then return f.m end
+        if f and f.m then return Purify(f.m) end
         if saved then return nil end
     elseif scope == "trash" then
         return SumFights(r, function(f) return not f.boss end)
     elseif saved then
-        return scope == "all" and r.metrics or nil
+        return scope == "all" and Purify(r.metrics) or nil
     elseif scope == "all" and r and AUTO[r.kind] then
         -- A session that started by itself: the sum of its own fights (see AUTO).
         return SumFights(r, function() return true end)
@@ -748,6 +762,7 @@ function MyRun.LiveMetrics(scope)
         interrupts = Metric(get, E.Interrupts), dispels = Metric(get, E.Dispels),
     }
     if not out.damage then return nil end
+    Purify(out)
     -- Damage taken by spell, with the game's marks: the top ones.
     local session = get(E.DamageTaken)
     local mine

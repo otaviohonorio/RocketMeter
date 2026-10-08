@@ -20,5 +20,8 @@
   druid's Matted Fur or Ursoc's Fury, Power Word: Shield or Ignore Pain read as heals. The lists
   by spell now show under "Healing" only what healed, and the shields under "Absorbs". In combat
   the two cannot be told apart and the tooltip names that section "Healing and absorbs".
+  The same in the numbers of the two player screens: healing per second is without the shields,
+  with what was absorbed said beside it. The meter's own window is unchanged: its healing
+  column counts the shields, as the game and Details do.
 - Fixed: the Spells tab did not scroll when it had more than fitted in the window (the bar moved
   and the page stayed).

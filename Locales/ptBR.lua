@@ -284,6 +284,7 @@ L["Click: the full screen of this player"] = "Clique: a tela completa deste joga
 L["In combat the game only lets your own spells be read."] = "Em combate o jogo só deixa ler as suas próprias magias."
 L["No spell to show yet."] = "Nenhuma magia para mostrar ainda."
 L["Healing and absorbs"] = "Cura e absorção"
+L["+ %s absorbed"] = "+ %s absorvido"
 L["Delve"] = "Imersão"
 L["Tier %d"] = "Grau %d"
 L["Nothing recorded yet: it starts at your next fight."] = "Nada gravado ainda: a gravação começa na sua próxima luta."

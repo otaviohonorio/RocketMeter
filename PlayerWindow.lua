@@ -40,7 +40,7 @@ local TABS = { "summary", "spells" }
 local TAB_LABEL = { summary = "Summary", spells = "Spells" }
 -- The share of the group, one bar each: what the number is, and the key of `Win.Numbers`.
 local SHARES = {
-    { key = "damage", label = "Damage" }, { key = "healing", label = "Healing" },
+    { key = "damage", label = "Damage" }, { key = "healing", label = "Healing" }, { key = "absorbs", label = "Absorbs" },
     { key = "taken", label = "Damage taken" }, { key = "avoidable", label = "Avoidable damage" },
 }
 
@@ -101,6 +101,10 @@ function Win.Numbers(source, sessionType)
         interrupts = Metric(sessionType, E.Interrupts, guid), dispels = Metric(sessionType, E.Dispels, guid),
     }
     if not out.damage then return nil end
+    -- (08/10) Healing without the shields, and the shields as a number of their own: the game's
+    -- healing done carries them (Data.PureHealingMetric).
+    out.absorbs = Metric(sessionType, E.Absorbs, guid)
+    out.healing = ns.Data.PureHealingMetric(out.healing, out.absorbs)
 
     -- The damage taken, by spell, with the game's own marks (avoidable, deadly).
     out.takenSpells = {}
@@ -333,7 +337,9 @@ function Win.Draw()
     local function Rank(x) return x and x.rank and format(L["%dº of the group"], x.rank) or "" end
     local function Total(x) return x and (K.Fmt(x.total) .. " " .. L["in total"]) or L["out of combat only"] end
     Set(frame.tiles[1], m and K.Fmt(m.damage.perSecond), L["Damage per second"], Total(m and m.damage), Rank(m and m.damage))
-    Set(frame.tiles[2], m and m.healing and K.Fmt(m.healing.perSecond), L["Healing per second"], Total(m and m.healing), Rank(m and m.healing))
+    local h = m and m.healing
+    local absorbed = h and h.absorbed and h.absorbed > 0 and format(L["+ %s absorbed"], K.Fmt(h.absorbed)) or nil
+    Set(frame.tiles[2], h and K.Fmt(h.perSecond), L["Healing per second"], Total(h), absorbed or Rank(h))
     local i, d = m and m.interrupts, m and m.dispels
     Set(frame.tiles[3], i and tostring(i.total), L["Interrupts"], Rank(i),
         d and d.total > 0 and format("%d %s", d.total, L["Dispels"]) or "")

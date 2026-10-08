@@ -1357,6 +1357,32 @@ function Data.GetPureHealing(sessionType, guid, creatureId, limit)
     return list, total
 end
 
+---The same for a TOTAL (08/10): one player's healing metric with the absorbs metric taken out.
+---The user, told that the game's healing done carries the shields: *"na janela de medir padrão,
+---segue como é no details mesmo, mas nas popups, no detalhamento, se conseguir separar,
+---melhor"*. So the meter's own window keeps the game's number (healing with shields, as Details
+---has it), and the detail screens show the two apart: this is what they call.
+---@param healing table|nil `{ total, perSecond, rank, of, groupTotal }` of healing done
+---@param absorbs table|nil the same of absorbs
+---@return table|nil healing without the shields; `absorbed` is what was taken out. The place in
+---the group is kept only when nobody in the group absorbed anything (it was worked out on the
+---game's number, and would be the place by healing PLUS shields).
+function Data.PureHealingMetric(healing, absorbs)
+    if type(healing) ~= "table" then return healing end
+    local off = type(absorbs) == "table" and absorbs.total or 0
+    local groupOff = type(absorbs) == "table" and absorbs.groupTotal or 0
+    if (off or 0) <= 0 and (groupOff or 0) <= 0 then return healing end
+    off = off or 0
+    local offRate = type(absorbs) == "table" and absorbs.perSecond or 0
+    return {
+        total = math.max(0, (healing.total or 0) - off),
+        perSecond = math.max(0, (healing.perSecond or 0) - (offRate or 0)),
+        of = healing.of, rank = nil,
+        groupTotal = healing.groupTotal and math.max(0, healing.groupTotal - (groupOff or 0)) or nil,
+        absorbed = off,
+    }
+end
+
 --------------------------------------------------------------------------------
 -- Formatação
 --------------------------------------------------------------------------------
