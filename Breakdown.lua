@@ -361,6 +361,13 @@ end
 function Breakdown.Embed(container, source, sessionType)
     CreatePanel()
     frame.embedded = true
+    -- (!) NOT CLAMPED WHILE EMBEDDED (08/10). The user: *"na aba de magias o scroll tá
+    -- funcionando, mas a tela não rola"*. The panel is created clamped to the screen, for when
+    -- it floats beside the meter. Inside the scroll frame it is as tall as its content -- with
+    -- every section full, some 1,000 points, taller than the screen (768) -- and a clamped frame
+    -- that does not fit the screen is held in place by the game: the bar moved and the page
+    -- stayed. The scroll frame is what keeps it in sight here.
+    frame:SetClampedToScreen(false)
     frame:SetParent(container)
     frame:SetFrameStrata(container:GetFrameStrata())
     frame:SetFrameLevel(container:GetFrameLevel() + 1)
@@ -387,6 +394,7 @@ function Breakdown.Unembed()
     frame.embedContainer = nil
     frame:Hide()
     frame:SetParent(UIParent)
+    frame:SetClampedToScreen(true)
     frame:SetFrameStrata("DIALOG")
     frame:SetBackdropColor(0.03, 0.03, 0.04, skin.panelAlpha)
     frame:SetBackdropBorderColor(0, 0, 0, 1)
@@ -463,6 +471,82 @@ function Breakdown.Show(source, sessionType, anchorTo, raw)
 
     Breakdown.Draw()
     frame:Show()
+end
+
+--------------------------------------------------------------------------------
+-- (!) THE MOUSE OVER A ROW SAYS WHAT THE PLAYER CAST (08/10). The user: *"ao passar o mouse em
+-- cima da linha, ele faz igual o details, mostra o que o usuário lançou (...) e no clique sim,
+-- mantém o que temos"*. What Details shows there was read (`class_damage.lua`, its
+-- `ToolTip_DamageDone`): the player's spells, largest first, each with its icon, its amount and
+-- its share. The idea is taken; the box is the game's own tooltip, with the game's helpers and
+-- colours, not a skin of ours. Damage first, then healing when there is any; the click keeps
+-- opening the full screen, and the last line says so.
+--
+-- In combat the game hides every number (and the others' identity): the tooltip then says only
+-- that, instead of an empty box.
+local TOOLTIP_DAMAGE, TOOLTIP_HEALING = 6, 4
+
+local function TooltipSection(tip, title, sessionType, attrs, guid, creatureId, limit)
+    local spells, total = ns.Data.GetSpellBreakdown(sessionType, attrs, guid, creatureId, limit)
+    if not spells or #spells == 0 or not total or total <= 0 then return false end
+    GameTooltip_AddBlankLineToTooltip(tip)
+    GameTooltip_AddNormalLine(tip, format("%s: %s", title, ns.Data.FormatAmount(total) or "-"))
+    for _, spell in ipairs(spells) do
+        local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spell.spellID)
+        local name = info and info.name or ("#" .. tostring(spell.spellID))
+        local icon = info and info.iconID or 134400
+        tip:AddDoubleLine(format("|T%s:14:14:0:0:64:64:5:59:5:59|t %s", tostring(icon), name),
+            format("%s  %d%%", ns.Data.FormatAmount(spell.amount) or "-", math.floor(spell.amount / total * 100 + 0.5)),
+            HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b,
+            HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+    end
+    return true
+end
+
+---The tooltip of a row of the meter.
+---@param owner Frame the row
+---@param source table the row's source, as the meter gives it
+---@return boolean shown
+function Breakdown.Tooltip(owner, source, sessionType)
+    if not (owner and source and GameTooltip) then return false end
+    local tip = GameTooltip
+    local guid = source.sourceGUID
+    local isLocal = source.isLocalPlayer
+    isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
+    if (guid == nil or issecretvalue(guid)) and isLocal and UnitGUID then guid = UnitGUID("player") end
+    local readable = guid ~= nil and not issecretvalue(guid)
+
+    -- Beside the row, on the side that has room (the same rule as the panel).
+    tip:SetOwner(owner, "ANCHOR_NONE")
+    tip:ClearAllPoints()
+    local right = owner.GetRight and owner:GetRight()
+    local screen = UIParent and UIParent.GetWidth and UIParent:GetWidth()
+    if type(right) == "number" and type(screen) == "number" and right + 300 > screen then
+        tip:SetPoint("TOPRIGHT", owner, "TOPLEFT", -4, 0)
+    else
+        tip:SetPoint("TOPLEFT", owner, "TOPRIGHT", 4, 0)
+    end
+
+    local name = source.name
+    if name == nil or issecretvalue(name) then name = isLocal and UnitName and UnitName("player") or nil end
+    local r, g, b = ns.ClassColor(source.classFilename)
+    tip:SetText(name or L["Player"], r, g, b)
+
+    local any = false
+    if readable then
+        local E = Enum.DamageMeterType
+        local creature = source.sourceCreatureID
+        any = TooltipSection(tip, L["Damage"], sessionType, { E.DamageDone }, guid, creature, TOOLTIP_DAMAGE) or any
+        any = TooltipSection(tip, L["Healing"], sessionType, { E.HealingDone, E.Absorbs }, guid, creature, TOOLTIP_HEALING) or any
+    end
+    if any then
+        GameTooltip_AddBlankLineToTooltip(tip)
+        GameTooltip_AddInstructionLine(tip, L["Click: the full screen of this player"])
+    else
+        GameTooltip_AddNormalLine(tip, L["The spells can only be read out of combat."], true)
+    end
+    tip:Show()
+    return true
 end
 
 ---The spell panel of the player's own row, as the "Spells" tab of "Minha corrida" opens it.

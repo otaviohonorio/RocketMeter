@@ -1726,13 +1726,18 @@ local function BuildRow(index)
             end
         end)
 
-        -- Realce ao passar o mouse, no lugar de tooltip: mostra que a linha é clicável sem
-        -- cobrir a tela com uma caixa de texto.
+        -- Realce ao passar o mouse: mostra que a linha é clicável.
+        -- (08/10) And the tooltip with what the player cast, as Details has (Breakdown.Tooltip):
+        -- the highlight alone said "clickable" and nothing of the player.
         row:SetScript("OnEnter", function(self)
             if self.hover then self.hover:Show() end
+            if self.source and ns.Breakdown and ns.Breakdown.Tooltip then
+                pcall(ns.Breakdown.Tooltip, self, self.source, ns.db.sessionType)
+            end
         end)
         row:SetScript("OnLeave", function(self)
             if self.hover then self.hover:Hide() end
+            if GameTooltip and GameTooltip.GetOwner and GameTooltip:GetOwner() == self then GameTooltip:Hide() end
         end)
         row:SetBackdrop({
             edgeFile = "Interface\\Buttons\\WHITE8X8",

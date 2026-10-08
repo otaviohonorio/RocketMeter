@@ -272,6 +272,9 @@ L["Rocket Meter %s — report a problem on %s.|n|nPress Ctrl+C to copy the link,
 -- Minha corrida (01/10): a tela individual do jogador.
 L["Whole run"] = "Todo o combate"
 L["Open world"] = "Mundo aberto"
+L["Player"] = "Jogador"
+L["Click: the full screen of this player"] = "Clique: a tela completa deste jogador"
+L["The spells can only be read out of combat."] = "As magias só podem ser lidas fora de combate."
 L["Delve"] = "Imersão"
 L["Tier %d"] = "Grau %d"
 L["Nothing recorded yet: it starts at your next fight."] = "Nada gravado ainda: a gravação começa na sua próxima luta."
