@@ -114,6 +114,22 @@ function Page.Model(ctx)
     -- (08/10, Matted Fur listed as healing on a druid; see Breakdown.lua).
     local healing, healingTotal = Amounts("healing", L["Healing"], { E.HealingDone }, MAX.healing)
     local absorbs, absorbsTotal = Amounts("absorbs", L["Absorbs"], { E.Absorbs }, MAX.absorbs)
+    -- For the diary (development only): a spell the game lists under BOTH. The client names the
+    -- storage of healing "HealingAndAbsorbs" (DamageMeterConstantsDocumentation.lua), so its
+    -- healing list may carry the shields too; one line here, read after a session, settles it.
+    if healing and absorbs and ns.Log and ns.Log.Add then
+        local now = GetTime and GetTime() or 0
+        if now - (Page.lastOverlapLog or -60) >= 60 then
+            local inHealing = {}
+            for _, sp in ipairs(healing) do inHealing[sp.spellID] = sp.amount end
+            for _, sp in ipairs(absorbs) do
+                if inHealing[sp.spellID] then
+                    Page.lastOverlapLog = now
+                    ns.Log.Add("healabs", { spell = sp.spellID, healing = inHealing[sp.spellID], absorbs = sp.amount })
+                end
+            end
+        end
+    end
 
     -- 3. What was cast and gave no damage or healing of its own. Without any amount at all (in
     -- combat, a boss of the run, a run of the history) this is the whole list of casts.

@@ -12,9 +12,10 @@
 - **Your talents in the Spells tab.** Two new sections on your own row: of your damage and of
   your healing, how much came from spells that a talent of your build teaches. A talent that
   only makes another spell stronger cannot be measured and is not listed.
-- **Hover a row to see what that player cast.** The game's tooltip opens beside the row with the
-  player's top spells, each a bar with its amount and its share: damage first, then healing. The click
-  still opens the full screen.
+- **Hover a row to see what that player cast.** A box opens beside the row with the player's top
+  spells by damage, healing and damage absorbed, each a bar with its amount and its share. It
+  works in combat for your own row (without the share, which the game does not let an addon
+  work out in combat). The click still opens the full screen.
 - **Healing and absorbs are listed apart.** The lists by spell added the two under "Healing", so
   a shield (a druid's Matted Fur, Power Word: Shield, Ignore Pain) read as a heal. Each has its
   own section now, with the game's own name.

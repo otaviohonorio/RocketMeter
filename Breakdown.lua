@@ -485,147 +485,273 @@ end
 --------------------------------------------------------------------------------
 -- (!) THE MOUSE OVER A ROW SAYS WHAT THE PLAYER CAST (08/10). The user: *"ao passar o mouse em
 -- cima da linha, ele faz igual o details, mostra o que o usuário lançou (...) e no clique sim,
--- mantém o que temos"*. What Details shows there was read (`class_damage.lua`, its
--- `ToolTip_DamageDone`): the player's spells, largest first, each with its icon, its amount and
--- its share. The idea is taken; the box is the game's own tooltip, with the game's helpers and
--- colours, not a skin of ours. Damage first, then healing when there is any; the click keeps
--- opening the full screen, and the last line says so.
+-- mantém o que temos"*, then *"falta as barras"*, then *"pode ser vista em combate"*.
 --
--- In combat the game hides every number (and the others' identity): the tooltip then says only
--- that, instead of an empty box.
-local TOOLTIP_DAMAGE, TOOLTIP_HEALING, TOOLTIP_ABSORBS = 6, 4, 3
-local TOOLTIP_WIDTH = 260       -- the least the tooltip is wide, so a bar has a length to read
-local TOOLTIP_BAR_ALPHA = 0.7
+-- What Details shows there was read (`class_damage.lua`, its `ToolTip_DamageDone`): the player's
+-- spells, largest first, each a bar with its icon, its amount and its share. The idea is taken.
+--
+-- WHY IT IS A BOX OF OURS AND NOT THE GAME'S TOOLTIP. It began as `GameTooltip`, and that cannot
+-- do the last two things asked:
+--   * bars: the game's tooltip bars (`GameTooltip_AddStatusBar`) are a framed line of their own
+--     between the text lines, not something behind a line;
+--   * combat: in combat every number of the meter is a SECRET value (the client's own notes,
+--     `DamageMeterDocumentation.lua`: `SecretWhenInCombat`), which may only be handed to a
+--     widget -- `FontString:SetText`, `Texture:SetTexture`, `StatusBar:SetValue` take it,
+--     `GameTooltip:AddDoubleLine` does not.
+-- So the box is a frame with the game's tooltip border (`TooltipBackdropTemplate`) and the
+-- game's tooltip fonts, with one status bar per spell -- the meter's own flat bar, in the
+-- player's class colour.
+--
+-- IN COMBAT, WHAT THE GAME ALLOWS (same notes):
+--   * the player's OWN spells: the list comes with secret ids and amounts. The name and the icon
+--     are asked with the secret id (`C_Spell.GetSpellName` and `GetSpellTexture` take a secret
+--     from an addon), the amount is written by the client, and the bar is the amount against
+--     the largest, both handed over as they came. No share: that is a division, and a secret
+--     cannot be divided. The order is the game's own.
+--   * the spells of ANOTHER player: not at all. The row's identity is secret in combat, and the
+--     call that lists the spells refuses a secret argument from an addon. The box says so.
+local TIP = {
+    WIDTH = 290, PAD = 10, ROW = 18, STEP = 19, HEAD = 18, TITLE = 20, GAP = 6,
+    LIMITS = { 6, 4, 4 },          -- damage, healing, absorbs (as many as healing, at the user's word)
+    REFRESH = 0.5,                 -- while the mouse stays on the row (the fight goes on)
+}
+Breakdown.TooltipGeometry = TIP
+local tipFrame
 
--- (!) A BAR BEHIND EACH SPELL (08/10). The first tooltip had the numbers and no bars; the user:
--- *"no passar ao mouse por cima, falta as barras"* -- in Details each line of the tooltip is a
--- bar, as long as the spell's share of the largest. The game's own tooltip bars
--- (`GameTooltip_AddStatusBar`) are a framed line of their OWN between the text lines, not
--- something behind a line, so the bars are ours: the meter's flat bar, in the player's class
--- colour, the same one the rows of the window are made of. They are textures of the tooltip
--- itself, one layer under its text (a child frame would cover the text), put behind the lines
--- once the tooltip has laid itself out, and hidden when it hides or is cleared for another use.
-local tipBars, tipHooked = {}, {}
-
-local function HideTooltipBars()
-    for _, bar in ipairs(tipBars) do bar:Hide() end
+local function TipRow(index)
+    local f = tipFrame
+    local row = f.rows[index]
+    if row then return row end
+    local skin = Skin()
+    row = CreateFrame("Frame", nil, f)
+    row:SetHeight(TIP.ROW)
+    row.bar = CreateFrame("StatusBar", nil, row)
+    row.bar:SetAllPoints()
+    row.bar:SetStatusBarTexture(skin and skin.barTexture or "Interface\\Buttons\\WHITE8X8")
+    row.bar:SetMinMaxValues(0, 1)
+    row.text = CreateFrame("Frame", nil, row)
+    row.text:SetAllPoints()
+    row.text:SetFrameLevel(row.bar:GetFrameLevel() + 2)
+    row.icon = row.text:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(TIP.ROW - 2, TIP.ROW - 2)
+    row.icon:SetPoint("LEFT", 1, 0)
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.share = row.text:CreateFontString(nil, "OVERLAY", "GameTooltipTextSmall")
+    row.share:SetPoint("RIGHT", -4, 0)
+    row.share:SetWidth(34)
+    row.share:SetJustifyH("RIGHT")
+    row.amount = row.text:CreateFontString(nil, "OVERLAY", "GameTooltipTextSmall")
+    row.amount:SetPoint("RIGHT", row.share, "LEFT", -4, 0)
+    row.amount:SetWidth(56)
+    row.amount:SetJustifyH("RIGHT")
+    row.name = row.text:CreateFontString(nil, "OVERLAY", "GameTooltipTextSmall")
+    row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, 0)
+    row.name:SetPoint("RIGHT", row.amount, "LEFT", -4, 0)
+    row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
+    f.rows[index] = row
+    return row
 end
 
-local function TooltipLine(tip, n)
-    if tip.GetLeftLine then
-        local ok, line = pcall(tip.GetLeftLine, tip, n)
-        if ok and line then return line end
-    end
-    local name = tip.GetName and tip:GetName()
-    return name and _G[name .. "TextLeft" .. n] or nil
+local function TipHead(index)
+    local f = tipFrame
+    local head = f.heads[index]
+    if head then return head end
+    head = CreateFrame("Frame", nil, f)
+    head:SetHeight(TIP.HEAD)
+    head.title = head:CreateFontString(nil, "OVERLAY", "GameTooltipText")
+    head.title:SetPoint("LEFT", 0, 0)
+    head.total = head:CreateFontString(nil, "OVERLAY", "GameTooltipText")
+    head.total:SetPoint("RIGHT", -4, 0)
+    f.heads[index] = head
+    return head
 end
 
----Puts a bar behind each of `marks` (`{ line = n, share = 0..1 }`), in the colour given.
-local function LayTooltipBars(tip, marks, r, g, b)
-    if not tipHooked[tip] and tip.HookScript then
-        tipHooked[tip] = true
-        tip:HookScript("OnHide", HideTooltipBars)
-        tip:HookScript("OnTooltipCleared", HideTooltipBars)
+local function CreateTip()
+    if tipFrame then return tipFrame end
+    local f = CreateFrame("Frame", ADDON .. "RowTooltip", UIParent, "TooltipBackdropTemplate")
+    f:SetFrameStrata("TOOLTIP")
+    f:SetClampedToScreen(true)
+    f:SetWidth(TIP.WIDTH)
+    f:Hide()
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameTooltipHeaderText")
+    f.title:SetPoint("TOPLEFT", TIP.PAD, -TIP.PAD)
+    f.foot = f:CreateFontString(nil, "OVERLAY", "GameTooltipText")
+    f.foot:SetWidth(TIP.WIDTH - TIP.PAD * 2)
+    f.foot:SetJustifyH("LEFT")
+    f.rows, f.heads = {}, {}
+    -- The fight goes on while the mouse rests on the row: the box follows it.
+    f:SetScript("OnUpdate", function(self, elapsed)
+        self.wait = (self.wait or 0) + (elapsed or 0)
+        if self.wait < TIP.REFRESH then return end
+        self.wait = 0
+        if self.source then pcall(Breakdown.FillTooltip) end
+    end)
+    tipFrame = f
+    return f
+end
+
+---Writes a number of the meter on a font string: ours when it can be read, the client's own
+---text when it is secret (`ns.Data.FormatSecretAmount`), the value itself as a last resort.
+local function WriteAmount(fs, value)
+    local text = ns.Data.FormatAmount(value)
+    if text == nil and value ~= nil then
+        text = ns.Data.FormatSecretAmount and ns.Data.FormatSecretAmount(value)
+        if text == nil then text = value end
     end
-    local width = (tip.GetWidth and tip:GetWidth() or TOOLTIP_WIDTH) - 20
+    fs:SetText(text ~= nil and text or "")
+end
+
+---The spells of one metric, as the game lists them. nil when the game does not answer.
+local function TipSpells(sessionType, attr, guid, creatureId)
+    if not (C_DamageMeter and C_DamageMeter.GetCombatSessionSourceFromType) then return nil end
+    local ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
+        ns.Data.SessionValue(sessionType), attr, guid, creatureId)
+    local spells = ok and type(container) == "table" and container.combatSpells or nil
+    if type(spells) ~= "table" or #spells == 0 then return nil end
+    -- A total that can be read and is nothing: no section. A secret one is shown as it is.
+    local total = container.totalAmount
+    if total ~= nil and not issecretvalue(total) and type(total) == "number" and total <= 0 then return nil end
+    return spells, container
+end
+
+local lastTipLog = 0
+
+---Fills the box for the row it is on. Returns whether any spell was listed.
+function Breakdown.FillTooltip()
+    local f = tipFrame
+    if not (f and f.source) then return false end
+    local source, sessionType = f.source, f.sessionType
+    local isLocal = source.isLocalPlayer
+    isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
+    local guid = source.sourceGUID
+    if isLocal and UnitGUID then guid = UnitGUID("player") end
+    local readable = guid ~= nil and not issecretvalue(guid)
+
+    local name = source.name
+    if isLocal and (name == nil or issecretvalue(name)) and UnitName then name = UnitName("player") end
+    local r, g, b = ns.ClassColor(source.classFilename)
+    f.title:SetText(name ~= nil and name or L["Player"])
+    f.title:SetTextColor(r or 1, g or 1, b or 1)
+
     local skin = Skin()
     local k = skin and skin.barBrightness or 1
-    local used = 0
-    for _, mark in ipairs(marks) do
-        local line = TooltipLine(tip, mark.line)
-        if line then
-            used = used + 1
-            local bar = tipBars[used]
-            if not bar then
-                bar = tip:CreateTexture(nil, "BORDER")
-                tipBars[used] = bar
+    local y = TIP.PAD + TIP.TITLE
+    local rows, heads, secret = 0, 0, false
+    if readable then
+        local E = Enum.DamageMeterType
+        local specs = { { L["Damage"], E.DamageDone }, { L["Healing"], E.HealingDone }, { L["Absorbs"], E.Absorbs } }
+        for index, spec in ipairs(specs) do
+            local spells, container = TipSpells(sessionType, spec[2], guid, source.sourceCreatureID)
+            if spells then
+                heads = heads + 1
+                local head = TipHead(heads)
+                head:ClearAllPoints()
+                head:SetPoint("TOPLEFT", TIP.PAD, -y)
+                head:SetPoint("RIGHT", f, "RIGHT", -TIP.PAD, 0)
+                head.title:SetText(spec[1])
+                head.title:SetTextColor(NORMAL_FONT_COLOR:GetRGB())
+                WriteAmount(head.total, container.totalAmount)
+                head.total:SetTextColor(NORMAL_FONT_COLOR:GetRGB())
+                head:Show()
+                y = y + TIP.HEAD
+
+                local total, top = container.totalAmount, container.maxAmount
+                local totalReadable = total ~= nil and not issecretvalue(total) and type(total) == "number" and total > 0
+                for i = 1, math.min(#spells, TIP.LIMITS[index]) do
+                    local spell = spells[i]
+                    local id, amount = spell.spellID, spell.totalAmount
+                    rows = rows + 1
+                    local row = TipRow(rows)
+                    row:ClearAllPoints()
+                    row:SetPoint("TOPLEFT", TIP.PAD, -y)
+                    row:SetPoint("RIGHT", f, "RIGHT", -TIP.PAD, 0)
+                    -- The name and the icon are asked with the id as it came, secret or not.
+                    local okN, spellName = pcall(C_Spell.GetSpellName, id)
+                    local okT, texture = pcall(C_Spell.GetSpellTexture, id)
+                    row.name:SetText(okN and spellName ~= nil and spellName or "?")
+                    row.icon:SetTexture(okT and texture ~= nil and texture or 134400)
+                    WriteAmount(row.amount, amount)
+                    local amountReadable = amount ~= nil and not issecretvalue(amount) and type(amount) == "number"
+                    if amountReadable and totalReadable then
+                        row.share:SetText(format("%d%%", math.floor(amount / total * 100 + 0.5)))
+                    else
+                        row.share:SetText("")
+                        secret = true
+                    end
+                    -- The bar: the amount against the largest, both handed over as they came.
+                    local okB = pcall(function()
+                        row.bar:SetMinMaxValues(0, top)
+                        row.bar:SetValue(amount)
+                    end)
+                    if not okB then row.bar:SetMinMaxValues(0, 1); row.bar:SetValue(0) end
+                    row.bar:SetStatusBarColor((r or 1) * k, (g or 1) * k, (b or 1) * k)
+                    row:Show()
+                    y = y + TIP.STEP
+                end
+                y = y + TIP.GAP
             end
-            bar:SetTexture(skin and skin.barTexture or "Interface\\Buttons\\WHITE8X8")
-            bar:SetVertexColor((r or 1) * k, (g or 1) * k, (b or 1) * k, TOOLTIP_BAR_ALPHA)
-            bar:ClearAllPoints()
-            bar:SetPoint("TOPLEFT", line, "TOPLEFT", -2, 1)
-            bar:SetPoint("BOTTOMLEFT", line, "BOTTOMLEFT", -2, -1)
-            bar:SetWidth(math.max(1, width * math.min(1, math.max(0, mark.share))))
-            bar:Show()
         end
     end
-    for i = used + 1, #tipBars do tipBars[i]:Hide() end
-    return used
-end
-function Breakdown.__tooltipBars() return tipBars end
+    for i = rows + 1, #f.rows do f.rows[i]:Hide() end
+    for i = heads + 1, #f.heads do f.heads[i]:Hide() end
 
-local function TooltipSection(tip, marks, title, sessionType, attrs, guid, creatureId, limit)
-    local spells, total = ns.Data.GetSpellBreakdown(sessionType, attrs, guid, creatureId, limit)
-    if not spells or #spells == 0 or not total or total <= 0 then return false end
-    GameTooltip_AddBlankLineToTooltip(tip)
-    GameTooltip_AddNormalLine(tip, format("%s: %s", title, ns.Data.FormatAmount(total) or "-"))
-    for _, spell in ipairs(spells) do
-        local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spell.spellID)
-        local name = info and info.name or ("#" .. tostring(spell.spellID))
-        local icon = info and info.iconID or 134400
-        tip:AddDoubleLine(format("|T%s:14:14:0:0:64:64:5:59:5:59|t %s", tostring(icon), name),
-            format("%s  %d%%", ns.Data.FormatAmount(spell.amount) or "-", math.floor(spell.amount / total * 100 + 0.5)),
-            HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b,
-            HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
-        -- The bar of this line: its share of the LARGEST of the section, as in the window.
-        if tip.NumLines and spells[1].amount > 0 then
-            marks[#marks + 1] = { line = tip:NumLines(), share = spell.amount / spells[1].amount }
+    local combat = InCombatLockdown and InCombatLockdown() and true or false
+    if rows > 0 then
+        f.foot:SetText(L["Click: the full screen of this player"])
+        f.foot:SetTextColor(GREEN_FONT_COLOR:GetRGB())
+    elseif not readable then
+        f.foot:SetText(L["In combat the game only lets your own spells be read."])
+        f.foot:SetTextColor(NORMAL_FONT_COLOR:GetRGB())
+    else
+        f.foot:SetText(L["No spell to show yet."])
+        f.foot:SetTextColor(NORMAL_FONT_COLOR:GetRGB())
+    end
+    f.foot:ClearAllPoints()
+    f.foot:SetPoint("TOPLEFT", TIP.PAD, -y)
+    f:SetHeight(y + 30 + TIP.PAD)
+
+    -- What the game gave in combat, for the diary: this path cannot be tried out of the game.
+    if combat and ns.Log and ns.Log.Add then
+        local now = GetTime and GetTime() or 0
+        if now - lastTipLog >= 10 then
+            lastTipLog = now
+            ns.Log.Add("rowtip", { own = isLocal, readable = readable, rows = rows, secret = secret })
         end
     end
-    return true
+    return rows > 0
 end
 
----The tooltip of a row of the meter.
+---The box of a row of the meter: what that player cast.
 ---@param owner Frame the row
 ---@param source table the row's source, as the meter gives it
 ---@return boolean shown
 function Breakdown.Tooltip(owner, source, sessionType)
-    if not (owner and source and GameTooltip) then return false end
-    local tip = GameTooltip
-    local guid = source.sourceGUID
-    local isLocal = source.isLocalPlayer
-    isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
-    if (guid == nil or issecretvalue(guid)) and isLocal and UnitGUID then guid = UnitGUID("player") end
-    local readable = guid ~= nil and not issecretvalue(guid)
-
+    if not (owner and source) then return false end
+    local f = CreateTip()
+    f.source, f.sessionType, f.owner, f.wait = source, sessionType, owner, 0
     -- Beside the row, on the side that has room (the same rule as the panel).
-    tip:SetOwner(owner, "ANCHOR_NONE")
-    tip:ClearAllPoints()
+    f:ClearAllPoints()
     local right = owner.GetRight and owner:GetRight()
     local screen = UIParent and UIParent.GetWidth and UIParent:GetWidth()
-    if type(right) == "number" and type(screen) == "number" and right + 300 > screen then
-        tip:SetPoint("TOPRIGHT", owner, "TOPLEFT", -4, 0)
+    if type(right) == "number" and type(screen) == "number" and right + TIP.WIDTH + 8 > screen then
+        f:SetPoint("TOPRIGHT", owner, "TOPLEFT", -4, 0)
     else
-        tip:SetPoint("TOPLEFT", owner, "TOPRIGHT", 4, 0)
+        f:SetPoint("TOPLEFT", owner, "TOPRIGHT", 4, 0)
     end
-
-    local name = source.name
-    if name == nil or issecretvalue(name) then name = isLocal and UnitName and UnitName("player") or nil end
-    local r, g, b = ns.ClassColor(source.classFilename)
-    tip:SetText(name or L["Player"], r, g, b)
-
-    local any = false
-    local marks = {}
-    HideTooltipBars()
-    if readable then
-        local E = Enum.DamageMeterType
-        local creature = source.sourceCreatureID
-        any = TooltipSection(tip, marks, L["Damage"], sessionType, { E.DamageDone }, guid, creature, TOOLTIP_DAMAGE) or any
-        any = TooltipSection(tip, marks, L["Healing"], sessionType, { E.HealingDone }, guid, creature, TOOLTIP_HEALING) or any
-        any = TooltipSection(tip, marks, L["Absorbs"], sessionType, { E.Absorbs }, guid, creature, TOOLTIP_ABSORBS) or any
-    end
-    if any then
-        GameTooltip_AddBlankLineToTooltip(tip)
-        GameTooltip_AddInstructionLine(tip, L["Click: the full screen of this player"])
-    else
-        GameTooltip_AddNormalLine(tip, L["The spells can only be read out of combat."], true)
-    end
-    if #marks > 0 and tip.SetMinimumWidth then tip:SetMinimumWidth(TOOLTIP_WIDTH) end
-    tip:Show()
-    -- After `Show`: only then has the tooltip its width and its lines their places.
-    if #marks > 0 and tip.CreateTexture then pcall(LayTooltipBars, tip, marks, r, g, b) end
+    Breakdown.FillTooltip()
+    f:Show()
     return true
 end
+
+---Closes the box, when it is the one of this row (or of any, without a row given).
+function Breakdown.HideTooltip(owner)
+    if not tipFrame then return end
+    if owner ~= nil and tipFrame.owner ~= owner then return end
+    tipFrame.source, tipFrame.owner = nil, nil
+    tipFrame:Hide()
+end
+function Breakdown.__tooltip() return tipFrame end
 
 ---The spell panel of the player's own row, as the "Spells" tab of "Minha corrida" opens it.
 function Breakdown.ShowOwn(anchorTo, container)

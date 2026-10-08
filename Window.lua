@@ -1737,7 +1737,7 @@ local function BuildRow(index)
         end)
         row:SetScript("OnLeave", function(self)
             if self.hover then self.hover:Hide() end
-            if GameTooltip and GameTooltip.GetOwner and GameTooltip:GetOwner() == self then GameTooltip:Hide() end
+            if ns.Breakdown and ns.Breakdown.HideTooltip then ns.Breakdown.HideTooltip(self) end
         end)
         row:SetBackdrop({
             edgeFile = "Interface\\Buttons\\WHITE8X8",
