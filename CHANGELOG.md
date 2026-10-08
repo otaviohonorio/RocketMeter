@@ -15,5 +15,8 @@
 - **Hover a row to see what that player cast.** The game's tooltip opens beside the row with the
   player's top spells, each a bar with its amount and its share: damage first, then healing. The click
   still opens the full screen.
+- **Healing and absorbs are listed apart.** The lists by spell added the two under "Healing", so
+  a shield (a druid's Matted Fur, Power Word: Shield, Ignore Pain) read as a heal. Each has its
+  own section now, with the game's own name.
 - Fixed: the Spells tab did not scroll when it had more than fitted in the window (the bar moved
   and the page stayed).

@@ -36,7 +36,7 @@ local STEP = BAR + 2
 local GAP = 10
 local SCROLL_BAR = 24
 local ALL = 200                 -- the whole breakdown: the casts and the talents are looked up in it
-local MAX = { damage = 12, healing = 8, casts = 12, castsAlone = 24, talent = 8, small = 6 }
+local MAX = { damage = 12, healing = 8, absorbs = 8, casts = 12, castsAlone = 24, talent = 8, small = 6 }
 -- The number columns, from the right edge inwards.
 local COLS = {
     { key = "share", width = 40 }, { key = "rate", width = 64 }, { key = "amount", width = 64 },
@@ -110,7 +110,10 @@ function Page.Model(ctx)
         return all, total
     end
     local damage, damageTotal = Amounts("damage", L["Damage"], { E.DamageDone }, MAX.damage)
-    local healing, healingTotal = Amounts("healing", L["Healing"], { E.HealingDone, E.Absorbs }, MAX.healing)
+    -- Healing and absorption apart, each with the game's own name: a shield does not heal
+    -- (08/10, Matted Fur listed as healing on a druid; see Breakdown.lua).
+    local healing, healingTotal = Amounts("healing", L["Healing"], { E.HealingDone }, MAX.healing)
+    local absorbs, absorbsTotal = Amounts("absorbs", L["Absorbs"], { E.Absorbs }, MAX.absorbs)
 
     -- 3. What was cast and gave no damage or healing of its own. Without any amount at all (in
     -- combat, a boss of the run, a run of the history) this is the whole list of casts.
@@ -128,7 +131,7 @@ function Page.Model(ctx)
             return a.casts > b.casts
         end)
         if #list > 0 then
-            local alone = not damage and not healing
+            local alone = not damage and not healing and not absorbs
             local limit = alone and MAX.castsAlone or MAX.casts
             while #list > limit do table.remove(list) end
             local K = Kit()
@@ -153,6 +156,7 @@ function Page.Model(ctx)
     end
     TalentRows("talentDamage", L["Your talents: direct damage"], damage, damageTotal)
     TalentRows("talentHealing", L["Your talents: direct healing"], healing, healingTotal)
+    TalentRows("talentAbsorbs", L["Your talents: damage absorbed"], absorbs, absorbsTotal)
 
     -- 5. Counts: the interrupts the game credited, the interrupts and the control cast, dispels.
     local function Counts(key, title, list)

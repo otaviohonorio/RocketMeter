@@ -288,6 +288,7 @@ L["Nothing recorded yet: it starts at your next fight."] = "Nada gravado ainda: 
 L["%d%% of all you took"] = "%d%% de tudo que você recebeu"
 L["Your talents: direct damage"] = "Seus talentos: dano direto"
 L["Your talents: direct healing"] = "Seus talentos: cura direta"
+L["Your talents: damage absorbed"] = "Seus talentos: dano absorvido"
 L["%s (%d%% of the total)"] = "%s (%d%% do total)"
 L["This fight"] = "Luta atual"
 L["Trash"] = "Pacotes"

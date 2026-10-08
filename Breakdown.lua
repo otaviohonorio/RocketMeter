@@ -37,15 +37,24 @@ end
 -- spells, with how many of all the casts missed in the title; "Crowd control used" lists what
 -- the player cast (Casts.lua). The casts are the player's own: the others' arrive secret.
 -- Dispels keep the old "Control" section, alone.
+-- (!) HEALING IS NOT ABSORPTION (08/10). The lists by spell added the game's two numbers --
+-- healing done and damage absorbed -- under the one title "Healing", and the user, on a
+-- druid, read that Matted Fur had HEALED: *"Pelagem Embaraçada curou, mas ela apenas absorve
+-- dano, certo?"*. Right: the spell's own text is "absorb ... damage", and the game counts it
+-- under Absorbs, a metric of its own. It was this addon that put the two together. They are
+-- two sections now, each with the game's own name, for every class alike (Power Word: Shield,
+-- Ignore Pain, Ice Barrier and the rest land in the same place).
 local function SectionSpecs()
     local E = Enum.DamageMeterType
     return {
         { key = "damage",     title = L["Damage"],  attrs = { E.DamageDone } },
-        { key = "healing",    title = L["Healing"], attrs = { E.HealingDone, E.Absorbs } },
+        { key = "healing",    title = L["Healing"], attrs = { E.HealingDone } },
+        { key = "absorbs",    title = L["Absorbs"], attrs = { E.Absorbs } },
         -- (07/10) Of those two lists, the lines a talent of the player's own build answers for
         -- (Talents.lua). Only on the player's own line: the build of the others is not ours to read.
         { key = "talentDamage",  title = L["Your talents: direct damage"], talents = { E.DamageDone } },
-        { key = "talentHealing", title = L["Your talents: direct healing"], talents = { E.HealingDone, E.Absorbs } },
+        { key = "talentHealing", title = L["Your talents: direct healing"], talents = { E.HealingDone } },
+        { key = "talentAbsorbs", title = L["Your talents: damage absorbed"], talents = { E.Absorbs } },
         -- The game's credit, for everyone: it lists what was INTERRUPTED (the enemy's spells).
         { key = "interrupts", title = L["Interrupts"], attrs = { E.Interrupts } },
         -- The player's own casts (Casts.lua): the others' arrive secret, so these two sections
@@ -484,7 +493,7 @@ end
 --
 -- In combat the game hides every number (and the others' identity): the tooltip then says only
 -- that, instead of an empty box.
-local TOOLTIP_DAMAGE, TOOLTIP_HEALING = 6, 4
+local TOOLTIP_DAMAGE, TOOLTIP_HEALING, TOOLTIP_ABSORBS = 6, 4, 3
 local TOOLTIP_WIDTH = 260       -- the least the tooltip is wide, so a bar has a length to read
 local TOOLTIP_BAR_ALPHA = 0.7
 
@@ -602,7 +611,8 @@ function Breakdown.Tooltip(owner, source, sessionType)
         local E = Enum.DamageMeterType
         local creature = source.sourceCreatureID
         any = TooltipSection(tip, marks, L["Damage"], sessionType, { E.DamageDone }, guid, creature, TOOLTIP_DAMAGE) or any
-        any = TooltipSection(tip, marks, L["Healing"], sessionType, { E.HealingDone, E.Absorbs }, guid, creature, TOOLTIP_HEALING) or any
+        any = TooltipSection(tip, marks, L["Healing"], sessionType, { E.HealingDone }, guid, creature, TOOLTIP_HEALING) or any
+        any = TooltipSection(tip, marks, L["Absorbs"], sessionType, { E.Absorbs }, guid, creature, TOOLTIP_ABSORBS) or any
     end
     if any then
         GameTooltip_AddBlankLineToTooltip(tip)
