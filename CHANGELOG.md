@@ -13,7 +13,7 @@
   your healing, how much came from spells that a talent of your build teaches. A talent that
   only makes another spell stronger cannot be measured and is not listed.
 - **Hover a row to see what that player cast.** The game's tooltip opens beside the row with the
-  player's top spells, each with its amount and its share: damage first, then healing. The click
+  player's top spells, each a bar with its amount and its share: damage first, then healing. The click
   still opens the full screen.
 - Fixed: the Spells tab did not scroll when it had more than fitted in the window (the bar moved
   and the page stayed).

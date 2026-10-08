@@ -485,8 +485,67 @@ end
 -- In combat the game hides every number (and the others' identity): the tooltip then says only
 -- that, instead of an empty box.
 local TOOLTIP_DAMAGE, TOOLTIP_HEALING = 6, 4
+local TOOLTIP_WIDTH = 260       -- the least the tooltip is wide, so a bar has a length to read
+local TOOLTIP_BAR_ALPHA = 0.7
 
-local function TooltipSection(tip, title, sessionType, attrs, guid, creatureId, limit)
+-- (!) A BAR BEHIND EACH SPELL (08/10). The first tooltip had the numbers and no bars; the user:
+-- *"no passar ao mouse por cima, falta as barras"* -- in Details each line of the tooltip is a
+-- bar, as long as the spell's share of the largest. The game's own tooltip bars
+-- (`GameTooltip_AddStatusBar`) are a framed line of their OWN between the text lines, not
+-- something behind a line, so the bars are ours: the meter's flat bar, in the player's class
+-- colour, the same one the rows of the window are made of. They are textures of the tooltip
+-- itself, one layer under its text (a child frame would cover the text), put behind the lines
+-- once the tooltip has laid itself out, and hidden when it hides or is cleared for another use.
+local tipBars, tipHooked = {}, {}
+
+local function HideTooltipBars()
+    for _, bar in ipairs(tipBars) do bar:Hide() end
+end
+
+local function TooltipLine(tip, n)
+    if tip.GetLeftLine then
+        local ok, line = pcall(tip.GetLeftLine, tip, n)
+        if ok and line then return line end
+    end
+    local name = tip.GetName and tip:GetName()
+    return name and _G[name .. "TextLeft" .. n] or nil
+end
+
+---Puts a bar behind each of `marks` (`{ line = n, share = 0..1 }`), in the colour given.
+local function LayTooltipBars(tip, marks, r, g, b)
+    if not tipHooked[tip] and tip.HookScript then
+        tipHooked[tip] = true
+        tip:HookScript("OnHide", HideTooltipBars)
+        tip:HookScript("OnTooltipCleared", HideTooltipBars)
+    end
+    local width = (tip.GetWidth and tip:GetWidth() or TOOLTIP_WIDTH) - 20
+    local skin = Skin()
+    local k = skin and skin.barBrightness or 1
+    local used = 0
+    for _, mark in ipairs(marks) do
+        local line = TooltipLine(tip, mark.line)
+        if line then
+            used = used + 1
+            local bar = tipBars[used]
+            if not bar then
+                bar = tip:CreateTexture(nil, "BORDER")
+                tipBars[used] = bar
+            end
+            bar:SetTexture(skin and skin.barTexture or "Interface\\Buttons\\WHITE8X8")
+            bar:SetVertexColor((r or 1) * k, (g or 1) * k, (b or 1) * k, TOOLTIP_BAR_ALPHA)
+            bar:ClearAllPoints()
+            bar:SetPoint("TOPLEFT", line, "TOPLEFT", -2, 1)
+            bar:SetPoint("BOTTOMLEFT", line, "BOTTOMLEFT", -2, -1)
+            bar:SetWidth(math.max(1, width * math.min(1, math.max(0, mark.share))))
+            bar:Show()
+        end
+    end
+    for i = used + 1, #tipBars do tipBars[i]:Hide() end
+    return used
+end
+function Breakdown.__tooltipBars() return tipBars end
+
+local function TooltipSection(tip, marks, title, sessionType, attrs, guid, creatureId, limit)
     local spells, total = ns.Data.GetSpellBreakdown(sessionType, attrs, guid, creatureId, limit)
     if not spells or #spells == 0 or not total or total <= 0 then return false end
     GameTooltip_AddBlankLineToTooltip(tip)
@@ -499,6 +558,10 @@ local function TooltipSection(tip, title, sessionType, attrs, guid, creatureId, 
             format("%s  %d%%", ns.Data.FormatAmount(spell.amount) or "-", math.floor(spell.amount / total * 100 + 0.5)),
             HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b,
             HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b)
+        -- The bar of this line: its share of the LARGEST of the section, as in the window.
+        if tip.NumLines and spells[1].amount > 0 then
+            marks[#marks + 1] = { line = tip:NumLines(), share = spell.amount / spells[1].amount }
+        end
     end
     return true
 end
@@ -533,11 +596,13 @@ function Breakdown.Tooltip(owner, source, sessionType)
     tip:SetText(name or L["Player"], r, g, b)
 
     local any = false
+    local marks = {}
+    HideTooltipBars()
     if readable then
         local E = Enum.DamageMeterType
         local creature = source.sourceCreatureID
-        any = TooltipSection(tip, L["Damage"], sessionType, { E.DamageDone }, guid, creature, TOOLTIP_DAMAGE) or any
-        any = TooltipSection(tip, L["Healing"], sessionType, { E.HealingDone, E.Absorbs }, guid, creature, TOOLTIP_HEALING) or any
+        any = TooltipSection(tip, marks, L["Damage"], sessionType, { E.DamageDone }, guid, creature, TOOLTIP_DAMAGE) or any
+        any = TooltipSection(tip, marks, L["Healing"], sessionType, { E.HealingDone, E.Absorbs }, guid, creature, TOOLTIP_HEALING) or any
     end
     if any then
         GameTooltip_AddBlankLineToTooltip(tip)
@@ -545,7 +610,10 @@ function Breakdown.Tooltip(owner, source, sessionType)
     else
         GameTooltip_AddNormalLine(tip, L["The spells can only be read out of combat."], true)
     end
+    if #marks > 0 and tip.SetMinimumWidth then tip:SetMinimumWidth(TOOLTIP_WIDTH) end
     tip:Show()
+    -- After `Show`: only then has the tooltip its width and its lines their places.
+    if #marks > 0 and tip.CreateTexture then pcall(LayTooltipBars, tip, marks, r, g, b) end
     return true
 end
 
