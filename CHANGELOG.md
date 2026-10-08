@@ -16,8 +16,9 @@
   spells by damage, healing and damage absorbed, each a bar with its amount and its share. It
   works in combat for your own row (without the share, which the game does not let an addon
   work out in combat). The click still opens the full screen.
-- **Healing and absorbs are listed apart.** The lists by spell added the two under "Healing", so
-  a shield (a druid's Matted Fur, Power Word: Shield, Ignore Pain) read as a heal. Each has its
-  own section now, with the game's own name.
+- **Healing and absorbs are listed apart.** The game counts a shield as healing done, so a
+  druid's Matted Fur or Ursoc's Fury, Power Word: Shield or Ignore Pain read as heals. The lists
+  by spell now show under "Healing" only what healed, and the shields under "Absorbs". In combat
+  the two cannot be told apart and the tooltip names that section "Healing and absorbs".
 - Fixed: the Spells tab did not scroll when it had more than fitted in the window (the bar moved
   and the page stayed).

@@ -48,12 +48,13 @@ local function SectionSpecs()
     local E = Enum.DamageMeterType
     return {
         { key = "damage",     title = L["Damage"],  attrs = { E.DamageDone } },
-        { key = "healing",    title = L["Healing"], attrs = { E.HealingDone } },
+        -- Without the shields: the game's healing done carries them too (Data.GetPureHealing).
+        { key = "healing",    title = L["Healing"], attrs = { E.HealingDone }, pure = true },
         { key = "absorbs",    title = L["Absorbs"], attrs = { E.Absorbs } },
         -- (07/10) Of those two lists, the lines a talent of the player's own build answers for
         -- (Talents.lua). Only on the player's own line: the build of the others is not ours to read.
         { key = "talentDamage",  title = L["Your talents: direct damage"], talents = { E.DamageDone } },
-        { key = "talentHealing", title = L["Your talents: direct healing"], talents = { E.HealingDone } },
+        { key = "talentHealing", title = L["Your talents: direct healing"], talents = { E.HealingDone }, pure = true },
         { key = "talentAbsorbs", title = L["Your talents: damage absorbed"], talents = { E.Absorbs } },
         -- The game's credit, for everyone: it lists what was INTERRUPTED (the enemy's spells).
         { key = "interrupts", title = L["Interrupts"], attrs = { E.Interrupts } },
@@ -159,8 +160,13 @@ local function DrawSection(section, spec)
         local mine = current.source and current.source.isLocalPlayer
         mine = mine ~= nil and not issecretvalue(mine) and mine == true
         if mine and ns.Talents then
-            local all, sum = ns.Data.GetSpellBreakdown(current.sessionType, spec.talents,
-                current.guid, current.creatureId, ALL_SPELLS)
+            local all, sum
+            if spec.pure then
+                all, sum = ns.Data.GetPureHealing(current.sessionType, current.guid, current.creatureId, ALL_SPELLS)
+            else
+                all, sum = ns.Data.GetSpellBreakdown(current.sessionType, spec.talents,
+                    current.guid, current.creatureId, ALL_SPELLS)
+            end
             local part
             spells, part = ns.Talents.Of(all)
             total = sum
@@ -168,6 +174,8 @@ local function DrawSection(section, spec)
         end
     elseif spec.casts then
         spells, total, missed = CastRows(spec.casts)
+    elseif spec.pure then
+        spells, total = ns.Data.GetPureHealing(current.sessionType, current.guid, current.creatureId, MAX_PER_SECTION)
     else
         spells, total = ns.Data.GetSpellBreakdown(current.sessionType, spec.attrs,
             current.guid, current.creatureId, MAX_PER_SECTION)
@@ -643,13 +651,31 @@ function Breakdown.FillTooltip()
         local specs = { { L["Damage"], E.DamageDone }, { L["Healing"], E.HealingDone }, { L["Absorbs"], E.Absorbs } }
         for index, spec in ipairs(specs) do
             local spells, container = TipSpells(sessionType, spec[2], guid, source.sourceCreatureID)
+            local title = spec[1]
+            -- (!) HEALING WITHOUT THE SHIELDS (Data.GetPureHealing): the game's healing done
+            -- carries them. Out of combat they are taken out; in combat the numbers are secret
+            -- and cannot be subtracted, so the section is named for what it then holds.
+            if spells and spec[2] == E.HealingDone then
+                local first = spells[1].totalAmount
+                if first ~= nil and not issecretvalue(first) then
+                    local list, sum = ns.Data.GetPureHealing(sessionType, guid, source.sourceCreatureID, TIP.LIMITS[index])
+                    if list then
+                        spells, container = {}, { totalAmount = sum, maxAmount = list[1].amount }
+                        for i, sp in ipairs(list) do spells[i] = { spellID = sp.spellID, totalAmount = sp.amount } end
+                    else
+                        spells = nil
+                    end
+                else
+                    title = L["Healing and absorbs"]
+                end
+            end
             if spells then
                 heads = heads + 1
                 local head = TipHead(heads)
                 head:ClearAllPoints()
                 head:SetPoint("TOPLEFT", TIP.PAD, -y)
                 head:SetPoint("RIGHT", f, "RIGHT", -TIP.PAD, 0)
-                head.title:SetText(spec[1])
+                head.title:SetText(title)
                 head.title:SetTextColor(NORMAL_FONT_COLOR:GetRGB())
                 WriteAmount(head.total, container.totalAmount)
                 head.total:SetTextColor(NORMAL_FONT_COLOR:GetRGB())

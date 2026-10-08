@@ -1302,6 +1302,62 @@ function Data.GetSpellBreakdown(sessionType, attributes, guid, creatureId, limit
 end
 
 --------------------------------------------------------------------------------
+-- (!) THE GAME'S "HEALING DONE" CARRIES THE SHIELDS (08/10, read in the diary of a real
+-- session). The user, on a guardian druid: *"Pelagem Embaraçada curou, mas ela apenas absorve
+-- dano"* and, after healing and absorbs were split into two sections, *"ainda me parece tudo
+-- errado (...) gerar uns logs para ter certeza"*. The log was there (`healabs`, 15:52:01):
+--
+--     Ursoc's Fury (372505)   healing 1,347,697   absorbs 1,347,697
+--     Matted Fur   (385787)   healing   412,041   absorbs   412,041
+--     Brambles     (203953)   healing    47,043   absorbs    47,043
+--
+-- Three shields, each listed by the game under healing done AND under absorbs, with the same
+-- number to the unit. The client says as much in its own names: the storage behind healing is
+-- `HealingAndAbsorbs` (DamageMeterConstantsDocumentation.lua). So "healing done", in the game's
+-- meter as in every meter before it, is healing PLUS damage absorbed; splitting the two lists
+-- left every shield in both.
+--
+-- What really healed is therefore healing done MINUS absorbs, spell by spell: a spell that only
+-- shields comes to nothing and leaves the list; a spell that does both keeps what is left.
+-- Only out of combat: in combat both numbers are secret and cannot be subtracted.
+---@return table[]|nil spells `{ spellID, amount, perSecond }`, largest first: healing without the shields
+---@return number|nil total
+function Data.GetPureHealing(sessionType, guid, creatureId, limit)
+    local E = Enum.DamageMeterType
+    local healing, healingTotal = Data.GetSpellBreakdown(sessionType, { E.HealingDone }, guid, creatureId)
+    if not healing then return nil, nil end
+    local absorbs, absorbsTotal = Data.GetSpellBreakdown(sessionType, { E.Absorbs }, guid, creatureId)
+    local shield = {}
+    for _, sp in ipairs(absorbs or {}) do shield[sp.spellID] = sp.amount end
+    local list, total, both = {}, 0, 0
+    for _, sp in ipairs(healing) do
+        local off = shield[sp.spellID] or 0
+        if off > 0 then both = both + 1 end
+        local rest = sp.amount - off
+        -- Under one point is rounding between the two lists, not healing.
+        if rest >= 1 then
+            list[#list + 1] = { spellID = sp.spellID, amount = rest,
+                perSecond = sp.amount > 0 and (sp.perSecond or 0) * rest / sp.amount or 0 }
+            total = total + rest
+        end
+    end
+    -- For the diary (development only): the two totals of the game and what is left, so that
+    -- the rule above can be checked against any class after a session.
+    if ns.Log and ns.Log.Add then
+        local now = GetTime and GetTime() or 0
+        if now - (Data.lastHealingLog or -60) >= 60 then
+            Data.lastHealingLog = now
+            ns.Log.Add("healing", { gameHealing = healingTotal, gameAbsorbs = absorbsTotal or 0, pure = total,
+                spells = #healing, inBoth = both, left = #list })
+        end
+    end
+    if #list == 0 then return nil, nil end
+    table.sort(list, function(a, b) return a.amount > b.amount end)
+    if limit then for i = #list, limit + 1, -1 do list[i] = nil end end
+    return list, total
+end
+
+--------------------------------------------------------------------------------
 -- Formatação
 --------------------------------------------------------------------------------
 function Data.IsSessionSecret(session)
