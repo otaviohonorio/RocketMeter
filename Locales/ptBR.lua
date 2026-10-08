@@ -272,6 +272,13 @@ L["Rocket Meter %s — report a problem on %s.|n|nPress Ctrl+C to copy the link,
 -- Minha corrida (01/10): a tela individual do jogador.
 L["Whole run"] = "Todo o combate"
 L["Open world"] = "Mundo aberto"
+L["Other casts"] = "Outros lançamentos"
+L["/min"] = "/min"
+L["Total"] = "Total"
+L["%"] = "%"
+L["Damage and healing by spell exist only for \"This fight\" and \"Whole run\" of the run in progress: the game's meter keeps no list by spell of a past fight."] = "Dano e cura por magia só existem para \"Luta atual\" e \"Todo o combate\" do combate em andamento: o medidor do jogo não guarda a lista por magia de uma luta passada."
+L["Damage and healing by spell are the meter's \"overall\": everything since the meter was last cleared. The casts are of this run."] = "Dano e cura por magia são o \"geral\" do medidor: tudo desde a última vez em que ele foi limpo. Os lançamentos são deste combate."
+L["Damage and healing by spell are of the meter's current fight; in combat the game hides them and only the casts show."] = "Dano e cura por magia são da luta atual do medidor; em combate o jogo os esconde e só os lançamentos aparecem."
 L["Player"] = "Jogador"
 L["Click: the full screen of this player"] = "Clique: a tela completa deste jogador"
 L["The spells can only be read out of combat."] = "As magias só podem ser lidas fora de combate."

@@ -190,13 +190,9 @@ local function CreatePanel()
         page:Hide()
         frame.pages[key] = page
     end
-    local sp = frame.pages.spells
-    sp.scroll = CreateFrame("ScrollFrame", nil, sp, "ScrollFrameTemplate")
-    sp.scroll:SetPoint("TOPLEFT")
-    sp.scroll:SetPoint("BOTTOMRIGHT", -SCROLL_BAR, 0)
-    sp.child = CreateFrame("Frame", nil, sp.scroll)
-    sp.child:SetSize(INNER - SCROLL_BAR, 10)
-    sp.scroll:SetScrollChild(sp.child)
+    -- (08/10) The same Spells page as "My run" (SpellsPage.lua), without the casts: the game
+    -- hides the casts of another player.
+    ns.SpellsPage.Build(frame.pages.spells, INNER)
 
     -- The summary: four boxes, the damage taken at the left, the share of the group and the
     -- deaths at the right, and at the foot what the game does not tell.
@@ -292,13 +288,8 @@ function Win.SetTab(tab)
         frame.pages[key]:SetShown(key == tab)
         if key == tab then PanelTemplates_SetTab(frame, i) end
     end
-    if tab == "spells" then
-        if ns.Breakdown and ns.Breakdown.Embed and view.source then
-            ns.Breakdown.Embed(frame.pages.spells.child, view.source, view.sessionType)
-        end
-        if frame.pages.spells.scroll.SetVerticalScroll then frame.pages.spells.scroll:SetVerticalScroll(0) end
-    else
-        if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
+    if tab == "spells" and frame.pages.spells.scroll.SetVerticalScroll then
+        frame.pages.spells.scroll:SetVerticalScroll(0)
     end
     Win.Draw()
 end
@@ -316,7 +307,16 @@ function Win.Draw()
     local class = Readable(s.classFilename) and LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[s.classFilename] or nil
     frame.context:SetText((class and (class .. " · ") or "") .. where)
     frame.sessionCombo:GenerateMenu()
-    if view.tab == "spells" then return end
+    if view.tab == "spells" then
+        local class = Readable(s.classFilename) and s.classFilename or nil
+        ns.SpellsPage.Draw(frame.pages.spells, {
+            source = s, guid = Readable(s.sourceGUID) and s.sourceGUID or nil, creatureId = s.sourceCreatureID,
+            classFilename = class, sessionType = view.sessionType, mine = false,
+            note = L["Casts, cooldowns, rhythm and the blows of a death are only readable for your own character: the game hides them for other players."],
+            empty = L["In combat the meter's numbers are hidden; they come back when it ends."],
+        })
+        return
+    end
 
     local m = Win.Numbers(s, view.sessionType)
     local cr, cg, cb = ns.ClassColor(Readable(s.classFilename) and s.classFilename or nil)

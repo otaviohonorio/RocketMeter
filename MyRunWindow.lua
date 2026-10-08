@@ -54,7 +54,6 @@ local MAX_CD_LINES = 5
 local CD_LINE = 16
 local CHART_HEIGHT = 40
 local GUTTER = 20                -- left of the timeline: the icon of each cooldown line
-local MAX_CAST_ROWS = 16         -- per column, two columns
 local MAX_DEATH_ROWS = 8
 local DEATH_ROW = 46
 local MAX_EVENT_ROWS = 10
@@ -74,7 +73,8 @@ end
 local function BarBrightness()
     return (ns.Skin and tonumber(ns.Skin.barBrightness)) or 0.7
 end
-local TABS = { "summary", "casts", "deaths", "spells", "history" }
+-- (08/10) Four tabs: "Casts" and "Spells" became one (SpellsPage.lua).
+local TABS = { "summary", "spells", "deaths", "history" }
 local TAB_LABEL = { summary = "Summary", casts = "Casts", deaths = "Deaths", spells = "Spells", history = "History" }
 
 local frame
@@ -355,24 +355,6 @@ local function BuildSummary(page)
     return math.max(left, right)
 end
 
-local function BuildCasts(page)
-    page.title = Text(page, "GameFontNormalSmall")
-    page.title:SetPoint("TOPLEFT", 2, -1)
-    page.rows = {}
-    local colWidth = (INNER - GAP) / 2
-    for i = 1, MAX_CAST_ROWS * 2 do
-        local col = i > MAX_CAST_ROWS and 1 or 0
-        local line = (i - 1) % MAX_CAST_ROWS
-        local r = BarRow(page)
-        r:SetPoint("TOPLEFT", col * (colWidth + GAP), -(TITLE + line * (BAR_HEIGHT + 2)))
-        r:SetWidth(colWidth)
-        page.rows[i] = r
-    end
-    page.empty = Text(page, "GameFontDisableSmall")
-    page.empty:SetPoint("TOPLEFT", 4, -TITLE)
-    frame.casts = page
-end
-
 local function BuildDeaths(page)
     page.listTitle = Text(page, "GameFontNormalSmall")
     page.listTitle:SetPoint("TOPLEFT", 2, -1)
@@ -560,16 +542,9 @@ local function CreatePanel()
     end
     -- The Spells page scrolls: the spell panel has one section per kind of thing, and a player
     -- with every section full is taller than the window. The game's own scroll frame.
-    local sp = frame.pages.spells
-    sp.scroll = CreateFrame("ScrollFrame", nil, sp, "ScrollFrameTemplate")
-    sp.scroll:SetPoint("TOPLEFT")
-    sp.scroll:SetPoint("BOTTOMRIGHT", -SCROLL_BAR, 0)
-    sp.child = CreateFrame("Frame", nil, sp.scroll)
-    sp.child:SetSize(INNER - SCROLL_BAR, 10)
-    sp.scroll:SetScrollChild(sp.child)
+    ns.SpellsPage.Build(frame.pages.spells, INNER)
 
     local bodyHeight = BuildSummary(frame.pages.summary)
-    BuildCasts(frame.pages.casts)
     BuildDeaths(frame.pages.deaths)
     BuildHistory(frame.pages.history)
 
@@ -602,16 +577,14 @@ function Win.SetTab(tab)
         frame.pages[key]:SetShown(key == tab)
         if key == tab then PanelTemplates_SetTab(frame, i) end
     end
-    local scoped = tab ~= "spells" and tab ~= "history"
+    -- The Spells tab follows the two combos like the others (08/10): its casts are of the run.
+    local scoped = tab ~= "history"
     frame.fightCombo:SetShown(scoped)
     frame.runCombo:SetShown(scoped)
-    if tab == "spells" then
-        if ns.Breakdown and ns.Breakdown.ShowOwn then ns.Breakdown.ShowOwn(nil, frame.pages.spells.child) end
-        if frame.pages.spells.scroll.SetVerticalScroll then frame.pages.spells.scroll:SetVerticalScroll(0) end
-    else
-        if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
-        Win.Draw()
+    if tab == "spells" and frame.pages.spells.scroll.SetVerticalScroll then
+        frame.pages.spells.scroll:SetVerticalScroll(0)
     end
+    Win.Draw()
 end
 
 --------------------------------------------------------------------------------
@@ -846,27 +819,34 @@ local function DrawRhythm(r, own)
     Set(rows[3], L["Potion / healthstone"], format("%d / %d", own.potions, own.healthstones), math.min(1, own.potions / math.max(1, own.bossCount)))
 end
 
-local function DrawCasts(r, own)
-    local page = frame.casts
-    local cr, cg, cb = ClassRGB(r)
-    local list = ns.MyRun.CastList(own)
-    page.title:SetText(format(L["Casts — %d in %s of combat"], own.casts, Clock(own.combatSeconds)))
-    local top = list[1] and list[1].count or 1
-    for i, row in ipairs(page.rows) do
-        local c = list[i]
-        if not c then row:Hide() else
-            row:Show()
-            row.icon:SetTexture(SpellIcon(c.spellID))
-            row.name:SetText(SpellNameOf(c.spellID))
-            row.value:SetText(c.perMinute and format(L["%d · %d%% · %.1f/min"], c.count, math.floor(c.share + 0.5), c.perMinute)
-                or format("%d · %d%%", c.count, math.floor(c.share + 0.5)))
-            row.bar:SetMinMaxValues(0, top)
-            row.bar:SetValue(c.count)
-            row.bar:SetStatusBarColor(cr, cg, cb)
-        end
+---The Spells tab: each spell with how many times it was cast and what it gave (SpellsPage.lua).
+---The casts are the run's, for the scope chosen. The amounts are the game's meter, which lists
+---the spells of a player only for its current fight and its overall: "This fight" and "Whole
+---run" of the run in progress have them, a boss of the run or a run of the history does not.
+local function DrawSpells(r, own, scope)
+    local live = r == nil or r == ns.MyRun.Current()
+    local sessionType = nil
+    if live and scope == "current" then sessionType = 0 elseif live and scope == "all" then sessionType = 1 end
+    local class = r and r.class or nil
+    if not class and UnitClassBase then
+        local ok, c = pcall(UnitClassBase, "player")
+        if ok and type(c) == "string" then class = c end
     end
-    page.empty:SetShown(#list == 0)
-    page.empty:SetText(L["No cast in this scope."])
+    local guid = UnitGUID and UnitGUID("player") or nil
+    local note
+    if sessionType == nil then
+        note = L["Damage and healing by spell exist only for \"This fight\" and \"Whole run\" of the run in progress: the game's meter keeps no list by spell of a past fight."]
+    elseif sessionType == 1 then
+        note = L["Damage and healing by spell are the meter's \"overall\": everything since the meter was last cleared. The casts are of this run."]
+    else
+        note = L["Damage and healing by spell are of the meter's current fight; in combat the game hides them and only the casts show."]
+    end
+    ns.SpellsPage.Draw(frame.pages.spells, {
+        source = { isLocalPlayer = true, sourceGUID = guid, name = UnitName and UnitName("player") or nil,
+                   classFilename = class, sourceCreatureID = 0 },
+        guid = guid, creatureId = 0, classFilename = class, sessionType = sessionType,
+        own = own, mine = true, note = note, empty = L["No cast in this scope."],
+    })
 end
 
 local function DrawDeaths(r, own)
@@ -985,7 +965,7 @@ local function DrawHistory()
 end
 
 function Win.Draw()
-    if not frame or view.tab == "spells" then return end
+    if not frame then return end
     local r = RunShown()
     local valid = false
     for _, s in ipairs(ns.MyRun.Scopes(r)) do if s.key == view.scope then valid = true end end
@@ -1009,7 +989,7 @@ function Win.Draw()
     if view.tab == "history" then DrawHistory(); return end
     local own = ns.MyRun.Own(scope, r)
     if view.tab == "deaths" then DrawDeaths(r, own); return end
-    if view.tab == "casts" then DrawCasts(r, own); return end
+    if view.tab == "spells" then DrawSpells(r, own, scope); return end
 
     local m = ns.MyRun.Metrics(scope, r)
     DrawTiles(r, own, m)
@@ -1046,17 +1026,12 @@ end
 
 function Win.Hide()
     if not frame then return end
-    if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
     frame:Hide()
 end
 function Win.IsShown() return frame ~= nil and frame:IsShown() end
 function Win.Refresh()
     if not Win.IsShown() then return end
-    if view.tab == "spells" then
-        if ns.Breakdown and ns.Breakdown.Refresh then ns.Breakdown.Refresh() end
-    else
-        Win.Draw()
-    end
+    Win.Draw()
 end
 function Win.Toggle() if Win.IsShown() then Win.Hide() else Win.Show() end end
 

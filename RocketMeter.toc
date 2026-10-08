@@ -41,6 +41,7 @@ Breakdown.lua
 Run.lua
 MyRun.lua
 MyRunWindow.lua
+SpellsPage.lua
 PlayerWindow.lua
 Demo.lua
 Scoreboard.lua
