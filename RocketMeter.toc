@@ -1,0 +1,49 @@
+## Interface: 120100, 120105
+
+## Title: |cffff6a00Rocket|r Meter
+## Notes: Damage meter built on the official C_DamageMeter API — good-looking by default, easy to set up.
+## Category: Combat
+
+## Notes-ptBR: Medidor de dano e estatísticas sobre a API oficial C_DamageMeter — bonito por padrão e fácil de configurar.
+## Category-ptBR: Combate
+
+## Author: Otto Rocket (Otávio Honório)
+## Version: 0.92.2
+## X-Curse-Project-ID: 1698580
+#@debug@
+## SavedVariables: RocketMeterDB, RocketMeterLogDB
+#@end-debug@
+#@non-debug@
+# ## SavedVariables: RocketMeterDB
+#@end-non-debug@
+## SavedVariablesPerCharacter: RocketMeterCharDB, RocketMeterRunsDB
+## IconTexture: Interface\AddOns\RocketMeter\Textures\Logo.png
+## AddonCompartmentFunc: RocketMeter_OnCompartmentClick
+## X-Donate: PayPal:https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD
+
+Locales\enUS.lua
+Locales\ptBR.lua
+Core.lua
+Donate.lua
+Profile.lua
+#@debug@
+Log.lua
+#@end-debug@
+Data\InterruptSpells.lua
+Data\SituationalSpells.lua
+Data.lua
+Casts.lua
+Party.lua
+Window.lua
+Minimap.lua
+Talents.lua
+Breakdown.lua
+Run.lua
+MyRun.lua
+MyRunWindow.lua
+SpellsPage.lua
+PlayerWindow.lua
+Demo.lua
+Scoreboard.lua
+Picker.lua
+Commands.lua

@@ -1,0 +1,25 @@
+# Release: cada tag `v*` empacota o addon e sobe para o CurseForge.
+#
+# O ID do projeto vem de `## X-Curse-Project-ID` no .toc e o token de `CF_API_KEY`
+# (Settings → Secrets). Sem os dois, o packager só gera a release no GitHub.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # a release no GitHub
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # o changelog sai do histórico
+
+      - uses: BigWigsMods/packager@v2
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

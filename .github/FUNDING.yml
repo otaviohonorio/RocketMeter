@@ -1,0 +1,6 @@
+# Draws the "Sponsor" button at the top of the repository. Kept out of the player's zip by
+# the `ignore: .github` line in .pkgmeta -- this is repository furniture, not addon code.
+#
+# PayPal only (the user, 29/09/2026: "o que vou usar agora é somente paypal"): the same link
+# the addon's own "Support the project" opens.
+custom: ["https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD"]

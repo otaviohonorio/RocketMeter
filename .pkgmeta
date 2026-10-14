@@ -1,0 +1,19 @@
+package-as: RocketMeter
+
+# Nada daqui é código do addon: tudo isto fica fora do zip que o jogador baixa.
+ignore:
+  - .github
+  - .luacheckrc
+  - README.md
+  - README-ptBR.md
+  - README.public.md
+  - .pubignore
+  - tests
+  - Log.lua
+
+# O changelog do CurseForge sai DESTE arquivo, e não dos commits. Sem isto o packager lista as
+# mensagens de commit desde a última tag — em português, longas e escritas para quem mantém.
+# O arquivo guarda SÓ a versão que está saindo: cada publicação o reescreve.
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
