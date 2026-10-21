@@ -183,13 +183,9 @@ function Data.GetFamilyLabel(key)
     return def and def.family or "?"
 end
 
-function Data.IsRateColumn(key)
-    local def = Data.GetColumn(key)
-    return def ~= nil and def.field == "perSecond"
-end
-
----Métricas em que liderar é ruim: quem mais tomou dano, quem mais morreu.
----O realce existe do mesmo jeito, mas em vermelho — a informação é útil mesmo sendo má notícia.
+---Metrics where the most is the worst: damage taken, avoidable damage, deaths.
+---(14/10) Nobody "leads" them: the highlight of the leader (the scoreboard's cream) went to whoever
+---died most, the same as to the top damage.
 function Data.IsNegativeColumn(key)
     local def = Data.GetColumn(key)
     if not def then return false end
@@ -225,7 +221,7 @@ function Data.MigrateColumns(saved)
         [E.EnemyDamageTaken] = "enemies",
     }
 
-    local out, changed = {}, false
+    local out, changed, dropped = {}, false, false
     for _, entry in ipairs(saved) do
         if type(entry) == "number" then
             changed = true
@@ -234,11 +230,13 @@ function Data.MigrateColumns(saved)
         elseif Data.GetColumn(entry) then
             out[#out + 1] = entry
         else
-            changed = true
+            -- (14/10) A column that no longer exists is not "the old format": it is dropped, and
+            -- said apart (third value), without throwing away the chosen sort.
+            dropped = true
         end
     end
 
-    if #out == 0 then return nil end
+    if #out == 0 then return nil, changed, dropped end
 
     -- E A ORDEM TRAVADA VALE PARA A LISTA SALVA. Uma lista de antes desta versao pode ter cura
     -- entre dano e DPS, ou o total sem a taxa -- e as duas coisas quebram a barra que atravessa o
@@ -253,7 +251,7 @@ function Data.MigrateColumns(saved)
     -- Por isso o segundo valor volta a significar SO "havia formato antigo". A lista
     -- normalizada e devolvida sempre, e o perfil a adota sem cerimonia.
     local normal = Data.NormalizeColumns(out)
-    return normal, changed
+    return normal, changed, dropped
 end
 
 --------------------------------------------------------------------------------
@@ -456,23 +454,6 @@ function Data.DescribeSources(sessionType, attributeId)
         typeCount, tostring(id), idCount)
 end
 
----O `guid` pode ser secret em combate — a API aceita de volta o valor opaco que ela mesma
----produziu, e é isso que torna possível cruzar métricas.
----Dados de um ator dentro de outra métrica.
----
----Só funciona com GUID **legível**: passar um secret de volta para a API é recusado. O `pcall`
----é rede de segurança para o dia em que outra restrição aparecer — um erro aqui não pode
----derrubar o desenho da janela inteira.
-function Data.GetSource(sessionType, attributeId, guid, creatureId)
-    if not Data.IsAvailable() or guid == nil then return nil end
-    if issecretvalue(guid) then return nil end
-
-    local ok, result = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
-        Data.SessionValue(sessionType), attributeId, guid, creatureId)
-    if ok then return result end
-    return nil
-end
-
 ---O próprio jogador dentro de uma métrica.
 ---
 ---`isLocalPlayer` continua legível em combate, então é o único jeito de casar uma linha com
@@ -491,6 +472,73 @@ function Data.GetLocalPlayerSource(session)
     return nil
 end
 
+---Esta entrada da métrica de mortes é uma morte de verdade?
+---
+---**É `deathRecapID` que decide, e não a presença na lista.** O medidor da própria Blizzard trata
+---a entrada como óbito só quando `deathRecapID ~= 0`, e faz essa mesma pergunta em QUATRO lugares
+---antes de desenhar — no nome, no valor, e nos dois limites da barra
+---(`DamageMeterEntry.lua:563,572,580,594`). Entrada com recapião zero ele desenha como linha
+---comum; nós contávamos como morte.
+---
+---O relato que expôs isso: um caçador apareceu com **19 mortes** numa mítica+ sem ter morrido —
+---ele usou "Fingir-se de Morto" muitas vezes. **Não está confirmado** que é o fingir que produz
+---as entradas extras; o que está confirmado é que existem entradas na lista que o jogo NÃO conta
+---como morte, e que nós contávamos. `/rm fontes` mostra o `recap` de cada entrada.
+---
+---`deathRecapID` é **`NeverSecret`** (`DamageMeterDocumentation.lua:207`), então comparar é
+---seguro mesmo em combate e durante a chave inteira — que é justamente quando isso aparece.
+-- (14/10) Was declared INSIDE Data.GetRows, so Data.GetDeathList only existed after the meter
+-- window drew once: with the window hidden, "My run" lost the deaths without a word.
+local function IsRealDeath(source)
+    local recap = source.deathRecapID
+    if recap == nil or issecretvalue(recap) then return false end
+    return recap ~= 0
+end
+
+---Os óbitos da sessão, um por entrada, com QUEM morreu e QUANDO.
+---
+---⚑ ISTO EXISTE PORQUE O `Run.lua` SÓ SABE O "QUANDO". Está escrito lá, como limite aceito: o
+---`CHALLENGE_MODE_DEATH_COUNT_UPDATED` dá o instante e o contador, nunca o nome. Pedido de
+---10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"* — e a
+---resposta estava na outra ponta, na métrica de mortes do medidor, onde **cada entrada é um
+---óbito** e traz `classFilename` junto.
+---
+---`deathTimeSeconds` vai junto, mas ele é para **conferência**, não para posicionar: não dá para
+---confirmar daqui qual é a origem do relógio dele (sessão? combate? chave?), e chutar isso
+---colocaria caveira no minuto errado. Quem posiciona continua sendo o `Run`.
+---@return table lista `{ { nome, classe, quando }, ... }`, já filtrada por `deathRecapID ~= 0`
+function Data.GetDeathList(sessionType)
+    local out = {}
+    if not Enum or not Enum.DamageMeterType then return out end
+
+    local session = Data.GetSession(sessionType, Enum.DamageMeterType.Deaths)
+    local sources = session and session.combatSources
+    if not sources then return out end
+
+    for i = 1, #sources do
+        local src = sources[i]
+        if IsRealDeath(src) then
+            local nome = src.name
+            if issecretvalue(nome) then nome = nil end
+            local classe = src.classFilename
+            if issecretvalue(classe) then classe = nil end
+            local quando = src.deathTimeSeconds
+            if quando ~= nil and issecretvalue(quando) then quando = nil end
+            -- (01/10) `local_` and `recap` are for "Minha corrida": the player's own deaths, and
+            -- the recap id to read the blow-by-blow. `isLocalPlayer` is never secret.
+            local recap = src.deathRecapID
+            if recap ~= nil and issecretvalue(recap) then recap = nil end
+            -- (01/10) `guid`, for the screen of ONE player (PlayerWindow.lua): two players of
+            -- the same name on two realms are told apart by it.
+            local guid = src.sourceGUID
+            if guid ~= nil and issecretvalue(guid) then guid = nil end
+            out[#out + 1] = { nome = nome, classe = classe, quando = quando, guid = guid,
+                local_ = src.isLocalPlayer == true, recap = recap }
+        end
+    end
+    return out
+end
+
 ---Quantas entradas o próprio jogador tem nesta métrica.
 ---
 ---Existe por causa das mortes, onde a lista tem uma entrada por óbito. `isLocalPlayer` é
@@ -503,7 +551,8 @@ function Data.CountLocalPlayerEntries(session)
     local n = 0
     for i = 1, #list do
         local flag = list[i].isLocalPlayer
-        if flag ~= nil and not issecretvalue(flag) and flag == true then
+        -- (14/10) Only real deaths: an entry with recap 0 is not one (the "19 deaths" hunter).
+        if flag ~= nil and not issecretvalue(flag) and flag == true and IsRealDeath(list[i]) then
             n = n + 1
         end
     end
@@ -657,14 +706,23 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     do
         local uniao, vistoGuid, vistoIdentidade = {}, {}, {}
 
+        -- (14/10) Sorted by DEATHS, the base list has one entry per death, not per player: whoever
+        -- died 3 times had 3 lines. Then each player once (the count is the column's value), and
+        -- an entry that is no death (recap 0) is no line.
+        local porObito = sortDef.field == "count"
         for i = 1, #sources do
             local source = sources[i]
-            uniao[i] = source
-
             local guid = source.sourceGUID
-            if guid ~= nil and not issecretvalue(guid) then vistoGuid[guid] = true end
+            local guidLegivel = guid ~= nil and not issecretvalue(guid)
             local key = IdentityKey(source)
-            if key then vistoIdentidade[key] = true end
+            local repetido = porObito and ((guidLegivel and vistoGuid[guid]) or (not guidLegivel and key and vistoIdentidade[key]))
+            if not (porObito and (repetido or not IsRealDeath(source))) then
+                uniao[#uniao + 1] = source
+                -- Seen only when it became a line: a player whose only entry is no death (recap 0)
+                -- still comes in from the other metrics, with no deaths.
+                if guidLegivel then vistoGuid[guid] = true end
+                if key then vistoIdentidade[key] = true end
+            end
         end
 
         for c = 1, #columns do
@@ -715,71 +773,6 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
             end
         end
     end
-
----Esta entrada da métrica de mortes é uma morte de verdade?
----
----**É `deathRecapID` que decide, e não a presença na lista.** O medidor da própria Blizzard trata
----a entrada como óbito só quando `deathRecapID ~= 0`, e faz essa mesma pergunta em QUATRO lugares
----antes de desenhar — no nome, no valor, e nos dois limites da barra
----(`DamageMeterEntry.lua:563,572,580,594`). Entrada com recapião zero ele desenha como linha
----comum; nós contávamos como morte.
----
----O relato que expôs isso: um caçador apareceu com **19 mortes** numa mítica+ sem ter morrido —
----ele usou "Fingir-se de Morto" muitas vezes. **Não está confirmado** que é o fingir que produz
----as entradas extras; o que está confirmado é que existem entradas na lista que o jogo NÃO conta
----como morte, e que nós contávamos. `/rm fontes` mostra o `recap` de cada entrada.
----
----`deathRecapID` é **`NeverSecret`** (`DamageMeterDocumentation.lua:207`), então comparar é
----seguro mesmo em combate e durante a chave inteira — que é justamente quando isso aparece.
-local function IsRealDeath(source)
-    local recap = source.deathRecapID
-    if recap == nil or issecretvalue(recap) then return false end
-    return recap ~= 0
-end
-
----Os óbitos da sessão, um por entrada, com QUEM morreu e QUANDO.
----
----⚑ ISTO EXISTE PORQUE O `Run.lua` SÓ SABE O "QUANDO". Está escrito lá, como limite aceito: o
----`CHALLENGE_MODE_DEATH_COUNT_UPDATED` dá o instante e o contador, nunca o nome. Pedido de
----10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"* — e a
----resposta estava na outra ponta, na métrica de mortes do medidor, onde **cada entrada é um
----óbito** e traz `classFilename` junto.
----
----`deathTimeSeconds` vai junto, mas ele é para **conferência**, não para posicionar: não dá para
----confirmar daqui qual é a origem do relógio dele (sessão? combate? chave?), e chutar isso
----colocaria caveira no minuto errado. Quem posiciona continua sendo o `Run`.
----@return table lista `{ { nome, classe, quando }, ... }`, já filtrada por `deathRecapID ~= 0`
-function Data.GetDeathList(sessionType)
-    local out = {}
-    if not Enum or not Enum.DamageMeterType then return out end
-
-    local session = Data.GetSession(sessionType, Enum.DamageMeterType.Deaths)
-    local sources = session and session.combatSources
-    if not sources then return out end
-
-    for i = 1, #sources do
-        local src = sources[i]
-        if IsRealDeath(src) then
-            local nome = src.name
-            if issecretvalue(nome) then nome = nil end
-            local classe = src.classFilename
-            if issecretvalue(classe) then classe = nil end
-            local quando = src.deathTimeSeconds
-            if quando ~= nil and issecretvalue(quando) then quando = nil end
-            -- (01/10) `local_` and `recap` are for "Minha corrida": the player's own deaths, and
-            -- the recap id to read the blow-by-blow. `isLocalPlayer` is never secret.
-            local recap = src.deathRecapID
-            if recap ~= nil and issecretvalue(recap) then recap = nil end
-            -- (01/10) `guid`, for the screen of ONE player (PlayerWindow.lua): two players of
-            -- the same name on two realms are told apart by it.
-            local guid = src.sourceGUID
-            if guid ~= nil and issecretvalue(guid) then guid = nil end
-            out[#out + 1] = { nome = nome, classe = classe, quando = quando, guid = guid,
-                local_ = src.isLocalPlayer == true, recap = recap }
-        end
-    end
-    return out
-end
 
     -- Índice por métrica: ator por GUID, ator por identidade, e CONTAGEM por ambos.
     --
@@ -955,19 +948,35 @@ end
             end
         end
 
-        -- Fatia do total, para o formato `734K (28.2K, 100%)`. Só fora de combate.
-        local percentOfTotal
-        local sessionTotal = session.totalAmount
-        local own = source.totalAmount
-        if own ~= nil and sessionTotal ~= nil
-            and not issecretvalue(own) and not issecretvalue(sessionTotal)
-            and sessionTotal > 0 then
-            percentOfTotal = own / sessionTotal * 100
-        end
-
-        built[position] = { source = source, values = values, percentOfTotal = percentOfTotal }
+        built[position] = { source = source, values = values }
     end
 
+
+    -- (14/10) THE ORDER IS THE CLICKED COLUMN'S whenever its numbers can be read. The API's list
+    -- comes in the order of its TOTAL: "DPS" gilded on the header with the rows by damage done
+    -- (the log: two players with total and per-second in opposite orders), and Deaths in the
+    -- order the deaths happened. In combat the values are secret: then the API's order stays.
+    local sortCol
+    for c = 1, #columns do if columns[c] == sortKey then sortCol = c end end
+    if sortCol then
+        local legivel = true
+        for i = 1, total do
+            local v = built[i].values[sortCol]
+            if v ~= nil and (issecretvalue(v) or type(v) ~= "number") then legivel = false; break end
+        end
+        if legivel then
+            local pos = {}
+            for i = 1, total do pos[built[i]] = i end
+            table.sort(built, function(x, y)
+                local a, b = x.values[sortCol] or -1, y.values[sortCol] or -1
+                if a ~= b then
+                    if ascending then return a < b end
+                    return a > b
+                end
+                return pos[x] < pos[y]
+            end)
+        end
+    end
 
     -- Marca sobre a lista COMPLETA: quem lidera não muda ao rolar nem ao trocar a ordenação.
     Data.MarkColumnLeaders(built, columns)
@@ -976,6 +985,22 @@ end
     local rows = {}
     for i = 1, count do
         rows[i] = built[offset + i]
+    end
+
+    -- (14/10) THE LARGEST READABLE VALUE OF EACH COLUMN, over the whole list (not the page): the
+    -- ruler of a bar that fills with what the API has no `maxAmount` for — deaths (a count; the
+    -- game's maxAmount is 0 there), a share, a per-second the list is sorted by.
+    rows.readMax = {}
+    for c = 1, #columns do
+        local max, ok = nil, true
+        for i = 1, total do
+            local v = built[i].values[c]
+            if v ~= nil then
+                if issecretvalue(v) or type(v) ~= "number" then ok = false; break end
+                if max == nil or v > max then max = v end
+            end
+        end
+        if ok and max then rows.readMax[c] = max end
     end
 
     return rows, session, total
@@ -1162,10 +1187,9 @@ function Data.GroupColumns(columns)
             end
             grupo.keys[#grupo.keys + 1] = def.key
 
-            -- QUEM ORDENA O GRUPO E O TOTAL, mesmo que a taxa tenha sido marcada primeiro:
-            -- ordenar por DPS e por dano da a mesma lista (a taxa e o total dividido pelo mesmo
-            -- tempo), mas o numero que o jogador ve em destaque e o total, e a coluna ordenada
-            -- fica dourada -- dourar "DPS" e ordenar por dano seria contar duas historias.
+            -- The group's own column is the TOTAL, even when the rate was ticked first: it is
+            -- the one with a ruler in combat (`maxAmount`). (14/10) Not "the same list" as the
+            -- rate: the log showed two players with total and per-second in opposite orders.
             if def.field == "total" then grupo.key = def.key end
         end
     end
@@ -1214,8 +1238,9 @@ function Data.MarkColumnLeaders(rows, columns)
 
     for c = 1, #columns do
         local bestIndex, bestValue
+        local negative = Data.IsNegativeColumn(columns[c])
 
-        for i = 1, #rows do
+        for i = 1, negative and 0 or #rows do
             local value = rows[i].values[c]
             if value ~= nil and not issecretvalue(value) and type(value) == "number" then  -- luacheck: ignore
                 if bestValue == nil or value > bestValue then
@@ -1251,8 +1276,16 @@ function Data.GetSpellBreakdown(sessionType, attributes, guid, creatureId, limit
     local bySpell, total = {}, 0
 
     for _, attribute in ipairs(attributes) do
-        local ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
-            Data.SessionValue(sessionType), attribute, guid, creatureId)
+        -- (20/10) `sessionType` may be `{ id = <sessionID> }`: one PAST session of the meter, by its id ("My run"
+        -- keeps each fight's spells; GetCombatSessionSourceFromID answered in all 43 readings of RocketLab's probe)
+        local ok, container
+        if type(sessionType) == "table" then
+            if not C_DamageMeter.GetCombatSessionSourceFromID then return nil, nil end
+            ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromID, sessionType.id, attribute, guid, creatureId)
+        else
+            ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromType,
+                Data.SessionValue(sessionType), attribute, guid, creatureId)
+        end
 
         local spells = ok and container and container.combatSpells or nil
         if spells then
@@ -1384,11 +1417,6 @@ end
 --------------------------------------------------------------------------------
 -- Formatação
 --------------------------------------------------------------------------------
-function Data.IsSessionSecret(session)
-    if not session then return false end
-    local first = session.combatSources and session.combatSources[1]
-    return first ~= nil and issecretvalue(first.name)
-end
 
 ---@return string|nil texto pronto, ou nil se o valor for secret (aí use SetText direto)
 ---Formato compacto: `2.9M`, `112K`, `847`.
@@ -1418,9 +1446,9 @@ function Data.FormatAmount(value)
         return format("%.1fB", value / 1000000000)      -- 1.2B
     elseif absolute >= 99950000 then
         return format("%.0fM", value / 1000000)         -- 339M
-    elseif absolute >= 1000000 then
+    elseif absolute >= 999500 then                      -- (14/10) 999.600 was "1000K"
         return format("%.1fM", value / 1000000)         -- 33.9M
-    elseif absolute >= 9995 then
+    elseif absolute >= 9950 then                        -- (14/10) 9.994 was "10.0K"
         return format("%.0fK", value / 1000)            -- 786K
     elseif absolute >= 1000 then
         return format("%.1fK", value / 1000)            -- 9.6K
@@ -1550,41 +1578,6 @@ function Data.GetFormatterName()
     if chosenStrategy == nil then return "not probed yet" end
     if chosenStrategy == false then return "none (raw value)" end
     return STRATEGIES[chosenStrategy].name
-end
-
----Formato do medidor nativo: `734K (28.2K, 100%)` — total, e entre parênteses o valor por
----segundo e a fatia do grupo. É o que a imagem de referência mostra.
----
----Concatenação com secret é permitida (`string.format`), mas o percentual exige divisão e por
----isso só existe fora de combate; nesse caso o parêntese sai com o que houver.
-function Data.FormatMeterStyle(total, perSecond, percent)
-    local totalText = Data.FormatAmount(total)
-    if totalText == nil then
-        totalText = Data.FormatSecretAmount(total)
-    end
-
-    local parts = {}
-    local rateText = Data.FormatAmount(perSecond)
-    if rateText == nil then
-        rateText = Data.FormatSecretAmount(perSecond)
-    end
-    if rateText ~= nil then
-        parts[#parts + 1] = rateText
-    end
-
-    local percentText = Data.FormatPercent(percent)
-    if percentText ~= nil then
-        parts[#parts + 1] = percentText
-    end
-
-    if totalText == nil then
-        return nil          -- nem o total deu para formatar: o chamador usa o valor cru
-    end
-
-    if #parts == 0 then
-        return totalText
-    end
-    return totalText .. "  |cffb0b0b0(" .. table.concat(parts, ", ") .. ")|r"
 end
 
 function Data.FormatPercent(value)

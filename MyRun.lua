@@ -40,11 +40,12 @@ local MyRun = {}
 ns.MyRun = MyRun
 
 local GAP_SECONDS = 5           -- a gap between casts in combat longer than this is "standing there"
+local PREPULL_SECONDS = 3       -- a cast or potion this close before a fight belongs to it (pre-cast, pre-pot)
 local COOLDOWN_MIN = 45         -- a spell with a shorter base cooldown is rotation, not a cooldown
 local HISTORY_SIZE = 8
 local HEALTHSTONE_ITEM = 5512
-local MAX_TAKEN_SPELLS = 12
-local MAX_FIGHT_SPELLS = 6      -- the damage taken by spell kept with each fight
+local MAX_TAKEN_SPELLS = 25
+local MAX_FIGHT_SPELLS = 12     -- the damage taken by spell kept with each fight (20/10: 6 -> 12, Warcraft Logs' tab)
 local METRIC_KEYS = { "damage", "healing", "absorbs", "taken", "avoidable", "interrupts", "dispels" }
 local MAX_RECAP_EVENTS = 10     -- what the game's recap holds (read in a real key)
 
@@ -315,14 +316,73 @@ function MyRun.Start(kind, name, level)
     run = {
         kind = kind or "key", name = name, level = level,
         startedAt = Now(), date = date and date("%Y-%m-%d %H:%M") or "",
+        -- (20/10) the second on the clock, for tools/meter_timeline.py to find the run in the game's combat log
+        at = time and time() or nil,
         role = MyRun.Role(), class = class, spec = spec, specIcon = specIcon,
         player = UnitName and UnitName("player") or "",
-        fights = {}, casts = {}, items = {}, gaps = {}, deaths = {},
+        fights = {}, casts = {}, items = {}, gaps = {}, deaths = {}, kinds = true,
         cooldowns = MyRun.ReadCooldowns(),
         lastCast = nil, open = nil, encounter = nil, finished = false,
     }
+    -- (14/10) The meter's overall only clears when the player clears it: the deaths already in it
+    -- are of the runs before (a 6 s scenario saved with the 3 deaths of the delve before it).
+    run.oldRecaps = {}
+    if ns.Data and ns.Data.GetDeathList then
+        local ok, list = pcall(ns.Data.GetDeathList, 1)
+        for _, d in ipairs(ok and list or {}) do
+            if d.local_ and d.recap then run.oldRecaps[d.recap] = true end
+        end
+    end
     if bagsDirty then pcall(ScanBags) end
+    -- (20/10) the character sheet and the gear at the start, as Warcraft Logs' summary shows them
+    local okS, stats = pcall(MyRun.ReadStats)
+    run.stats = okS and stats or nil
+    local okG, gear = pcall(MyRun.ReadGear)
+    run.gear = okG and gear or nil
     if InCombatLockdown() then MyRun.OnCombatStart() end
+end
+
+-- The gear slots, in the order of the character sheet's two columns and the weapons (shirt and tabard left out).
+local GEAR_SLOTS = { 1, 2, 3, 15, 5, 9, 10, 6, 7, 8, 11, 12, 13, 14, 16, 17 }
+MyRun.GEAR_SLOTS = GEAR_SLOTS
+
+---The character sheet: the primary stat (the highest of strength, agility and intellect), stamina, and the
+---rating of each secondary with its percent. Read the way RocketLab reads it (Snapshot.lua, checked in game).
+function MyRun.ReadStats()
+    local function N(v) return Readable(v) and type(v) == "number" and v or nil end
+    local s = {}
+    local best, which = -1, nil
+    for _, index in ipairs({ 1, 2, 4 }) do
+        local v = N(select(2, UnitStat("player", index)))
+        if v and v > best then best, which = v, index end
+    end
+    s.primary, s.primaryStat = which and best or nil, which
+    s.stamina = N(select(2, UnitStat("player", 3)))
+    s.crit, s.critPct = N(GetCombatRating(CR_CRIT_SPELL)), N(GetCritChance())
+    s.haste, s.hastePct = N(GetCombatRating(CR_HASTE_SPELL)), N(GetHaste())
+    s.mastery, s.masteryPct = N(GetCombatRating(CR_MASTERY)), N(GetMasteryEffect())
+    local versBonus = N(GetCombatRatingBonus(CR_VERSATILITY_DAMAGE_DONE))
+    local versExtra = N(GetVersatilityBonus(CR_VERSATILITY_DAMAGE_DONE))
+    s.versatility, s.versatilityPct = N(GetCombatRating(CR_VERSATILITY_DAMAGE_DONE)), versBonus and (versBonus + (versExtra or 0)) or nil
+    s.avoidance = N(GetCombatRating(CR_AVOIDANCE))
+    s.leech = N(GetCombatRating(CR_LIFESTEAL))
+    s.speed = N(GetCombatRating(CR_SPEED))
+    if GetAverageItemLevel then s.ilvl = N(select(2, GetAverageItemLevel())) end
+    return s
+end
+
+---The items worn: `{ slot, link, ilvl }` in the order of GEAR_SLOTS. The link carries the enchant and the gems; the
+---screen asks the game's tooltip for them.
+function MyRun.ReadGear()
+    local out = {}
+    for _, slot in ipairs(GEAR_SLOTS) do
+        local link = GetInventoryItemLink("player", slot)
+        if Readable(link) and type(link) == "string" then
+            local ilvl = C_Item and C_Item.GetDetailedItemLevelInfo and C_Item.GetDetailedItemLevelInfo(link)
+            out[#out + 1] = { slot = slot, link = link, ilvl = Readable(ilvl) and ilvl or nil }
+        end
+    end
+    return out
 end
 
 ---Is a run being recorded?
@@ -350,13 +410,33 @@ function MyRun.OnCombatEnd()
     -- values can still be secret. A new fight inside that second leaves this one without them.
     local doRun = run
     local function Snapshot()
+        -- (20/10) development only: every session the meter lists, by id (Log.NoteSessions), also when a new
+        -- fight has begun and this one goes without its reading
+        if ns.Log and ns.Log.NoteSessions then pcall(ns.Log.NoteSessions) end
         if run ~= doRun or doRun.open or doRun.fights[#doRun.fights] ~= f then return end
         if InCombatLockdown and InCombatLockdown() then return end
         local ok, m = pcall(MyRun.LiveMetrics, "current")
+        -- (15/10) THE LAST BOSS OF A KEY. Its fight was saved with every number at 0 in the three keys
+        -- of 14/10 (Charonus, Rei Dazar, Nalorakk; read in RocketMeterRunsDB): one second after it the
+        -- meter's "current" was ANOTHER session -- the key's end opens one -- with the player not in it
+        -- (of = 0, or 260 of healing from 3 others). The fight's own session, by the id kept at its end
+        -- (f.sid), still has it: read from there when "current" does not have the player. A fight read
+        -- so has no damage taken by spell (the meter gives that by session type only).
+        local mine = ok and type(m) == "table" and m.damage and m.damage.rank ~= nil
+        if not mine and f.sid then
+            local okId, byId = pcall(MyRun.LiveMetrics, #doRun.fights)
+            if okId and type(byId) == "table" and byId.damage and byId.damage.rank ~= nil then
+                ok, m = true, byId
+                if ns.Log and ns.Log.Add then ns.Log.Add("luta-por-id", { luta = #doRun.fights, sid = f.sid, dano = byId.damage.total }) end
+            end
+        end
         if ok and type(m) == "table" then
             while m.takenSpells and #m.takenSpells > MAX_FIGHT_SPELLS do table.remove(m.takenSpells) end
             f.m = m
         end
+        -- (14/10) "My run" open shows the fight that just ended (nothing redrew it before): once
+        -- per fight, when its numbers are in, and not every frame — a redraw remakes the menus.
+        if ns.MyRunWindow and ns.MyRunWindow.Refresh then pcall(ns.MyRunWindow.Refresh) end
     end
     if C_Timer and C_Timer.After then C_Timer.After(1, Snapshot) else Snapshot() end
 end
@@ -377,12 +457,63 @@ function MyRun.OnEncounterEnd(encounterID, encounterName, success)
 end
 
 ---A cast of the player: counted with its second of the run; the gap before it, if long.
+---(14/10) WHAT A CAST IS. The user: *"do que se trata cada magia/lançamento (...) "Abrindo" (...)
+---skills que não conhecia que surgiu da delve"*. Read in every saved run (14 characters): the
+---player's casts mix three things — the buttons pressed; effects the game TRIGGERS and reports as
+---casts (Infliction of Sorrow: 2,722 on a blood DK, more than any button); and the world (an aura
+---of the zone, a campfire, a delve's power, a mount, "[DNT]" spells). The game says which is
+---which: a button is in the player's spellbook (`C_SpellBook`, other specs included, the base
+---spell of an override), an item's spell is the item's. The rest is "not pressed".
+---@return string "book" | "general" (the spellbook's General tab: racials) | "item" | "other"
+local castKinds = {}
+function MyRun.CastKind(spellID)
+    local kind = castKinds[spellID]
+    if kind then return kind end
+    kind = "book"   -- a client without the API: everything counts, as before
+    if itemSpells[spellID] then
+        kind = "item"
+    elseif C_SpellBook and C_SpellBook.FindSpellBookSlotForSpell then
+        kind = "other"
+        local ids = { spellID }
+        if C_SpellBook.FindBaseSpellByID then
+            local ok, base = pcall(C_SpellBook.FindBaseSpellByID, spellID)
+            if ok and type(base) == "number" and base ~= spellID then ids[2] = base end
+        end
+        for _, id in ipairs(ids) do
+            local ok, slot, bank = pcall(C_SpellBook.FindSpellBookSlotForSpell, id, true, true, false, true)
+            if ok and slot then
+                kind = "book"
+                local okInfo, info = pcall(C_SpellBook.GetSpellBookItemInfo, slot, bank)
+                local general = Enum and Enum.SpellBookSkillLineIndex and Enum.SpellBookSkillLineIndex.General or 1
+                if okInfo and type(info) == "table" and info.skillLineIndex == general then kind = "general" end
+                break
+            end
+        end
+        if kind == "other" and GetInventoryItemID and C_Item and C_Item.GetItemSpell then
+            for _, slotID in ipairs({ 13, 14 }) do
+                local itemID = GetInventoryItemID("player", slotID)
+                local ok, _, itemSpell = pcall(C_Item.GetItemSpell, itemID or 0)
+                if itemID and ok and itemSpell == spellID then kind = "item" end
+            end
+        end
+    end
+    castKinds[spellID] = kind
+    -- The diary (development only): each spell once, to check the sorting against a real session.
+    if ns.Log and ns.Log.Add then ns.Log.Add("castkind", { spellID = spellID, kind = kind }) end
+    return kind
+end
+function MyRun.__castKinds() castKinds = {} end
+
 function MyRun.OnCast(unit, spellID)
     if not run or run.finished then return end
     if unit ~= "player" or not Readable(spellID) or type(spellID) ~= "number" then return end
+    -- Opening a chest, a door or a mechanic object is a cast for the game, not an ability (14/10).
+    if ns.OpenSpells and ns.OpenSpells[spellID] then return end
     local t = Elapsed()
-    run.casts[#run.casts + 1] = { t, spellID }
-    if run.open then
+    -- Not pressed (a triggered effect, the world): kept apart, with a 0, and no gap is closed by it.
+    local pressed = MyRun.CastKind(spellID) ~= "other"
+    run.casts[#run.casts + 1] = pressed and { t, spellID } or { t, spellID, 0 }
+    if pressed and run.open then
         if run.lastCast and t - run.lastCast > GAP_SECONDS then
             run.gaps[#run.gaps + 1] = { t, t - run.lastCast }
         end
@@ -400,6 +531,7 @@ function MyRun.ReadDeaths()
     if not run or not (ns.Data and ns.Data.GetDeathList) then return end
     local list = ns.Data.GetDeathList(1)   -- overall: every death of the run so far
     local seen = {}
+    for recap in pairs(run.oldRecaps or {}) do seen[recap] = true end
     for _, d in ipairs(run.deaths) do seen[d.recap] = true end
     for _, d in ipairs(list) do
         if d.local_ and d.recap and not seen[d.recap] then
@@ -498,9 +630,11 @@ local function FightsOf(scope, r)
     return list, seconds
 end
 
-local function Within(t, fights)
+---`grace`: seconds before a fight that still belong to it (the pre-cast, the pre-potion).
+local function Within(t, fights, grace)
+    grace = grace or 0
     for _, f in ipairs(fights) do
-        if t >= f.s and t <= (f.e or math.huge) then return true end
+        if t >= f.s - grace and t <= (f.e or math.huge) then return true end
     end
     return false
 end
@@ -552,28 +686,55 @@ function MyRun.Situational(spellID, base)
     return nil
 end
 
+---Is "used N of M fitted" a judgement for this cooldown and this role? ONE answer for the three
+---places that judge (the "what cost" list, the red in the cooldown list, the history's share).
+---(14/10) What the logs of real Mythic+ tanks showed: Barkskin active 13-23% of the key, used
+---when health drops, never "on cooldown"; healers press their big cooldowns for a moment of
+---damage. And the game's Utility category is mobility and tricks (Wild Charge, Camouflage,
+---Stampeding Roar), never a "defensive". So only a damage dealer's essential cooldowns are
+---judged by how many times they fitted; the rest is listed with how many times it was used.
+function MyRun.Judged(cd, role)
+    if cd.situational then return false end
+    if cd.category == "utility" then return false end
+    return (role or "DAMAGER") == "DAMAGER"
+end
+
 function MyRun.Own(scope, r)
     r = r or run
     local fights, seconds = FightsOf(scope, r)
-    local out = { combatSeconds = seconds, casts = 0, bySpell = {}, gaps = { count = 0, total = 0, longest = 0 },
+    local out = { combatSeconds = seconds, casts = 0, bySpell = {}, notPressed = {}, gaps = { count = 0, total = 0, longest = 0 },
                   potions = 0, healthstones = 0, deaths = {}, cooldowns = {}, bossCount = 0, potionBosses = 0 }
     if not r then return out end
     local inScope = scope == "all" and function() return true end or function(t) return Within(t, fights) end
+    -- (14/10) Casts and items count only inside the fights of the scope, "all" included: between
+    -- packs the player mounts, opens chests, swaps talents, and those were counted as casts and
+    -- divided by the combat time only (the saved runs had 1,106 casts of one aura outside fights).
+    local inFight = function(t) return Within(t, fights, PREPULL_SECONDS) end
+    local open = ns.OpenSpells or {}
+    -- (14/10) Only what was PRESSED counts (MyRun.CastKind); the rest goes to `notPressed`. A run
+    -- recorded before that (no `kinds`) is sorted now, by the spellbook of today.
+    local function Add(id, n, notPressed)
+        if notPressed == nil then notPressed = not r.kinds and MyRun.CastKind(id) == "other" end
+        if notPressed then
+            out.notPressed[id] = (out.notPressed[id] or 0) + n
+        else
+            out.casts = out.casts + n
+            out.bySpell[id] = (out.bySpell[id] or 0) + n
+        end
+    end
     if r.casts then
         for _, c in ipairs(r.casts) do
-            if inScope(c[1]) then
-                out.casts = out.casts + 1
-                out.bySpell[c[2]] = (out.bySpell[c[2]] or 0) + 1
-            end
+            if inFight(c[1]) and not open[c[2]] then Add(c[2], 1, r.kinds and c[3] == 0 or nil) end
         end
     else
-        -- A saved run: the casts are counts per spell, for the run and for each fight.
-        local tables = scope == "all" and { r.bySpell or {} } or {}
-        if scope ~= "all" then for _, f in ipairs(fights) do tables[#tables + 1] = f.bySpell or {} end end
-        for _, t in ipairs(tables) do
-            for id, n in pairs(t) do
-                out.casts = out.casts + n
-                out.bySpell[id] = (out.bySpell[id] or 0) + n
+        -- A saved run: the casts are counts per spell for each fight (the run's own count also
+        -- has what was cast between fights, and is not read).
+        for _, f in ipairs(fights) do
+            for id, n in pairs(f.bySpell or {}) do
+                if not open[id] then Add(id, n, r.kinds and false or nil) end
+            end
+            for id, n in pairs(f.other or {}) do
+                if not open[id] then Add(id, n, true) end
             end
         end
     end
@@ -586,7 +747,7 @@ function MyRun.Own(scope, r)
         end
     end
     for _, it in ipairs(r.items or {}) do
-        if inScope(it[1]) then
+        if inFight(it[1]) then
             if it[2] == "potion" then
                 out.potions = out.potions + 1
                 out.potionItem = out.potionItem or it[3]
@@ -595,31 +756,49 @@ function MyRun.Own(scope, r)
             end
         end
     end
+    -- (14/10) Per BOSS, not per pull (three wipes on one boss were three "bosses"), and the
+    -- potion of the pre-pull counts like everywhere else.
+    local bosses = {}
     for _, f in ipairs(fights) do
         if f.boss then
-            out.bossCount = out.bossCount + 1
+            local key = f.enc or f.boss
+            if bosses[key] == nil then bosses[key] = false; out.bossCount = out.bossCount + 1 end
             for _, it in ipairs(r.items or {}) do
-                if it[2] == "potion" and it[1] >= f.s and it[1] <= (f.e or math.huge) then out.potionBosses = out.potionBosses + 1; break end
+                if it[2] == "potion" and it[1] >= f.s - PREPULL_SECONDS and it[1] <= (f.e or math.huge) then
+                    if not bosses[key] then bosses[key] = true; out.potionBosses = out.potionBosses + 1 end
+                    break
+                end
             end
         end
     end
     for _, d in ipairs(r.deaths or {}) do
         if inScope(d.t) then out.deaths[#out.deaths + 1] = d end
     end
-    -- Cooldowns: used = casts of the spell in the scope; fitted = how many the combat time of
-    -- the scope allows, charges counted. Never fewer than used.
+    -- Cooldowns: used = casts of the spell in the scope; fitted = how many times it was ready in
+    -- the fights of the scope, used as soon as ready, charges counted. Never fewer than used.
+    -- (14/10) The cooldown RUNS BETWEEN THE FIGHTS too: ten packs of 30 s with a 2 min cooldown
+    -- gave "fitted 3" from the summed combat time, when it was ready in all ten.
+    local role = r.role
     for _, cd in ipairs(r.cooldowns or {}) do
         if cd.cooldown >= COOLDOWN_MIN then
             local used = (out.bySpell[cd.spellID] or 0) + (cd.base and cd.base ~= cd.spellID and out.bySpell[cd.base] or 0)
-            local fitted = math.floor(seconds / cd.cooldown) + (cd.charges or 1)
+            local fitted, readyAt = (cd.charges or 1) - 1, -math.huge
+            for _, f in ipairs(fights) do
+                local e = f.e or ((r == run and Elapsed()) or f.s)
+                local t = math.max(f.s, readyAt)
+                while t <= e do fitted = fitted + 1; t = t + cd.cooldown end
+                readyAt = t
+            end
             if seconds <= 0 then fitted = 0 end
             if fitted < used then fitted = used end
             -- Pressed only when something asks for it: there is no "fitted" to be behind of.
             local situational = MyRun.Situational(cd.spellID, cd.base)
             if situational then fitted = used end
-            out.cooldowns[#out.cooldowns + 1] = { spellID = cd.spellID, name = cd.name, cooldown = cd.cooldown,
+            local entry = { spellID = cd.spellID, name = cd.name, cooldown = cd.cooldown,
                 used = used, fitted = fitted, category = cd.category, situational = situational,
                 idle = fitted > used and (fitted - used) * cd.cooldown or 0 }
+            entry.judged = MyRun.Judged(entry, role)
+            out.cooldowns[#out.cooldowns + 1] = entry
         end
     end
     table.sort(out.cooldowns, function(a, b)
@@ -689,24 +868,114 @@ local function Purify(m)
     return m
 end
 
+-- (!) ONE SESSION OF THE METER, SEVERAL OF OUR FIGHTS (20/10). The meter does not open a session at every drop out of
+-- combat: fights a few seconds apart are ONE session, and its reading at the end of each is the total SINCE THE
+-- SESSION BEGAN. Read in the 720 readings saved on this machine: a gap of up to 3.0 s joins, 3.1 s or more does not
+-- (Temja, 00:05: fight 2 read 3,427,929 = fights 1 and 2 of the combat log, 3,428,199). Summed as they were, the
+-- delve of 01:00 said 247.0M for 224.7M. Where a reading starts: its total over its rate is the session's length
+-- (whole seconds, from 0 to 1 s over the fight's own); checked against the combat log, 54 of 55 readings named the
+-- same fights the log did. So a reading that the next one of the same session covers is the earlier part of it, and
+-- each reading's OWN numbers are it minus the reading before it in its session.
+local MERGE_SLACK = 1.5         -- s: the session's start against the end of the fight before (a real gap is 3.1 s or more)
+
+---How long the meter's session of a reading lasted: total over rate, of the first metric that has both.
+local function SessionSeconds(m)
+    for _, key in ipairs({ "damage", "taken", "healing", "absorbs" }) do
+        local x = m[key]
+        if x and (x.total or 0) > 0 and (x.perSecond or 0) > 0 then return x.total / x.perSecond end
+    end
+    return nil
+end
+
+---The reading `a` minus the reading `b` before it in the same session, over `seconds`.
+local function Minus(a, b, seconds)
+    local out = { takenSpells = {}, pure = true }
+    for _, key in ipairs(METRIC_KEYS) do
+        local x, y = a[key], b[key]
+        if x then
+            local total = math.max(0, (x.total or 0) - (y and y.total or 0))
+            out[key] = { total = total, of = x.of, rank = nil,
+                         perSecond = seconds and seconds > 0 and total / seconds or nil,
+                         groupTotal = x.groupTotal and y and y.groupTotal and math.max(0, x.groupTotal - y.groupTotal) or nil,
+                         absorbed = x.absorbed and math.max(0, x.absorbed - (y and y.absorbed or 0)) or nil }
+        end
+    end
+    local before = {}
+    for _, sp in ipairs(b.takenSpells or {}) do before[sp.spellID or 0] = sp.amount end
+    for _, sp in ipairs(a.takenSpells or {}) do
+        local amount = sp.amount - (before[sp.spellID or 0] or 0)
+        if amount > 0 then
+            out.takenSpells[#out.takenSpells + 1] = { spellID = sp.spellID, amount = amount, creature = sp.creature,
+                                                      avoidable = sp.avoidable, deadly = sp.deadly }
+        end
+    end
+    -- (20/10) the lists by spell the same way (MyRun.ReadSpells)
+    if a.spells then
+        out.spells = {}
+        for key, list in pairs(a.spells) do
+            local prior = {}
+            for _, sp in ipairs(b.spells and b.spells[key] or {}) do prior[sp.spellID or 0] = sp.amount end
+            local rows = {}
+            for _, sp in ipairs(list) do
+                local amount = sp.amount - (prior[sp.spellID or 0] or 0)
+                if amount > 0 then rows[#rows + 1] = { spellID = sp.spellID, amount = amount } end
+            end
+            table.sort(rows, function(x, y) return x.amount > y.amount end)
+            out.spells[key] = rows
+        end
+    end
+    return out
+end
+
+---Each reading's own numbers: [i] = { m = what fight i's reading adds, from = the first fight it covers }, for the
+---fights that have a reading. A fight inside a later reading's session has none of its own.
+local function OwnReadings(r)
+    local fights, out, prev = r and r.fights or {}, {}, nil
+    for i, f in ipairs(fights) do
+        if f.m then
+            Purify(f.m)
+            local seconds, from = SessionSeconds(f.m), i
+            if seconds and f.e then
+                local start = f.e - seconds
+                while from > 1 and fights[from - 1].e and fights[from - 1].e > start - MERGE_SLACK do from = from - 1 end
+            end
+            if prev and prev >= from then
+                local before = SessionSeconds(fights[prev].m)
+                local own = seconds and before and seconds - before or nil
+                if not (own and own > 0) then
+                    own = 0
+                    for k = prev + 1, i do own = own + ((fights[k].e or fights[k].s) - fights[k].s) end
+                end
+                out[i] = { m = Minus(f.m, fights[prev].m, own), from = prev + 1 }
+            else
+                out[i] = { m = f.m, from = from }
+            end
+            prev = i
+        end
+    end
+    return out
+end
+
 ---The numbers of several fights as one: totals summed, the rate over their combat time. No rank
----(the others' numbers of each fight are not kept).
+---(the others' numbers of each fight are not kept). Each reading counts once, by its own numbers
+---(OwnReadings), with the combat time of every fight it covers.
 local function SumFights(r, wanted)
     local out, seconds, any = { takenSpells = {}, pure = true }, 0, false
     local bySpell = {}
-    for _, f in ipairs(r and r.fights or {}) do
-        if f.m and wanted(f) then
-            Purify(f.m)
+    local fights, own = r and r.fights or {}, OwnReadings(r)
+    for i, f in ipairs(fights) do
+        local o = own[i]
+        if o and wanted(f) then
             any = true
-            seconds = seconds + ((f.e or f.s) - f.s)
+            for k = o.from, i do seconds = seconds + ((fights[k].e or fights[k].s) - fights[k].s) end
             for _, key in ipairs(METRIC_KEYS) do
-                local x = f.m[key]
+                local x = o.m[key]
                 if x then
                     out[key] = out[key] or { total = 0 }
                     out[key].total = out[key].total + (x.total or 0)
                 end
             end
-            for _, sp in ipairs(f.m.takenSpells or {}) do
+            for _, sp in ipairs(o.m.takenSpells or {}) do
                 local acc = bySpell[sp.spellID or 0]
                 if not acc then
                     acc = { spellID = sp.spellID, amount = 0, creature = sp.creature }
@@ -717,6 +986,21 @@ local function SumFights(r, wanted)
                 acc.avoidable = acc.avoidable or sp.avoidable
                 acc.deadly = acc.deadly or sp.deadly
             end
+            -- (20/10) the lists by spell (MyRun.ReadSpells), summed the same way
+            for key, list in pairs(o.m.spells or {}) do
+                out.spells = out.spells or {}
+                local into = out.spells[key] or { index = {} }
+                out.spells[key] = into
+                for _, sp in ipairs(list) do
+                    local acc = into.index[sp.spellID or 0]
+                    if not acc then
+                        acc = { spellID = sp.spellID, amount = 0 }
+                        into.index[sp.spellID or 0] = acc
+                        into[#into + 1] = acc
+                    end
+                    acc.amount = acc.amount + sp.amount
+                end
+            end
         end
     end
     if not any then return nil end
@@ -724,6 +1008,11 @@ local function SumFights(r, wanted)
         if out[key] then out[key].perSecond = seconds > 0 and out[key].total / seconds or 0 end
     end
     table.sort(out.takenSpells, function(a, b) return a.amount > b.amount end)
+    for _, list in pairs(out.spells or {}) do
+        list.index = nil
+        table.sort(list, function(a, b) return a.amount > b.amount end)
+    end
+    out.combatSeconds = seconds
     return out
 end
 
@@ -735,13 +1024,17 @@ function MyRun.Metrics(scope, r)
     r = r or run
     local saved = r ~= nil and r ~= run
     if type(scope) == "number" then
-        local f = r and r.fights[scope]
-        if f and f.m then return Purify(f.m) end
+        local own = r and OwnReadings(r)[scope]
+        if own then return own.m end
         if saved then return nil end
     elseif scope == "trash" then
         return SumFights(r, function(f) return not f.boss end)
     elseif saved then
-        return scope == "all" and Purify(r.metrics) or nil
+        if scope ~= "all" then return nil end
+        -- (20/10) a run that started by itself was saved with the sum of its readings, the earlier part of a
+        -- session counted again (OwnReadings): summed again from its fights, it comes out right
+        if AUTO[r.kind] then return SumFights(r, function() return true end) or Purify(r.metrics) end
+        return Purify(r.metrics)
     elseif scope == "all" and r and AUTO[r.kind] then
         -- A session that started by itself: the sum of its own fights (see AUTO).
         return SumFights(r, function() return true end)
@@ -770,11 +1063,22 @@ function MyRun.LiveMetrics(scope)
         if Readable(s.isLocalPlayer) and s.isLocalPlayer == true then mine = s; break end
     end
     out.takenSpells = {}
-    -- A past fight has no list by spell: the meter answers the spells of a source only for a
-    -- session TYPE (current, overall), not by id. The screen says so for a boss.
-    if mine and Readable(mine.sourceGUID) and C_DamageMeter.GetCombatSessionSourceFromType and type(scope) ~= "number" then
-        local sessionValue = scope == "current" and ns.Data.SessionValue(0) or ns.Data.SessionValue(1)
-        local ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromType, sessionValue, E.DamageTaken, mine.sourceGUID, mine.sourceCreatureID)
+    -- (20/10) A past fight answers by its id too: GetCombatSessionSourceFromID gave the player's spells in all 43
+    -- readings of RocketLab's probe (until then this said the meter answered by session TYPE only).
+    local st = scope == "current" and 0 or scope == "all" and 1 or nil
+    if type(scope) == "number" then
+        local f = run and run.fights[scope]
+        st = f and f.sid and { id = f.sid } or nil
+    end
+    if mine and Readable(mine.sourceGUID) and st ~= nil then
+        local ok, container
+        if type(st) == "table" then
+            if C_DamageMeter.GetCombatSessionSourceFromID then
+                ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromID, st.id, E.DamageTaken, mine.sourceGUID, mine.sourceCreatureID)
+            end
+        elseif C_DamageMeter.GetCombatSessionSourceFromType then
+            ok, container = pcall(C_DamageMeter.GetCombatSessionSourceFromType, ns.Data.SessionValue(st), E.DamageTaken, mine.sourceGUID, mine.sourceCreatureID)
+        end
         local spells = ok and type(container) == "table" and container.combatSpells or nil
         for i = 1, (spells and #spells or 0) do
             local sp = spells[i]
@@ -792,7 +1096,39 @@ function MyRun.LiveMetrics(scope)
         table.sort(out.takenSpells, function(a, b) return a.amount > b.amount end)
         while #out.takenSpells > MAX_TAKEN_SPELLS do table.remove(out.takenSpells) end
     end
+    -- (20/10) WHAT EACH SPELL GAVE, kept with the numbers (the tabs of "My run", after Warcraft Logs'): the user,
+    -- *"replicar a informação que tem no warcraftlogs dentro das informações detalhadas do meter"*. Until now the
+    -- meter was asked live, so a boss of the run and a run of the history had casts and no amounts.
+    out.spells = MyRun.ReadSpells(st, mine)
     return out
+end
+
+-- How many spells each list keeps: enough for the tabs, small enough for the saved file (a delve has 100 fights).
+local SPELL_LIMITS = { damage = 25, healing = 16, absorbs = 8, interrupts = 8, dispels = 8 }
+MyRun.SPELL_LIMITS = SPELL_LIMITS
+
+---The player's spells of a session (0 current, 1 overall, `{ id = sessionID }` one by its id): per kind, a list of
+---`{ spellID, amount }`, largest first. Healing without the shields (Data.GetPureHealing). nil when unreadable.
+function MyRun.ReadSpells(st, mine)
+    if st == nil or not (ns.Data and ns.Data.GetSpellBreakdown) then return nil end
+    local guid = mine and Readable(mine.sourceGUID) and mine.sourceGUID or (UnitGUID and UnitGUID("player"))
+    if guid == nil or issecretvalue(guid) then return nil end
+    local creature = mine and Readable(mine.sourceCreatureID) and mine.sourceCreatureID or nil
+    local E = Enum.DamageMeterType
+    local function Keep(list)
+        local out = {}
+        -- the meter's own rate of the spell is kept: a scope of one session shows it as the game does
+        for _, sp in ipairs(list or {}) do out[#out + 1] = { spellID = sp.spellID, amount = sp.amount, perSecond = sp.perSecond } end
+        return out
+    end
+    local okH, healing = pcall(ns.Data.GetPureHealing, st, guid, creature, SPELL_LIMITS.healing)
+    return {
+        damage = Keep((ns.Data.GetSpellBreakdown(st, { E.DamageDone }, guid, creature, SPELL_LIMITS.damage))),
+        healing = Keep(okH and healing or nil),
+        absorbs = Keep((ns.Data.GetSpellBreakdown(st, { E.Absorbs }, guid, creature, SPELL_LIMITS.absorbs))),
+        interrupts = Keep((ns.Data.GetSpellBreakdown(st, { E.Interrupts }, guid, creature, SPELL_LIMITS.interrupts))),
+        dispels = Keep((ns.Data.GetSpellBreakdown(st, { E.Dispels }, guid, creature, SPELL_LIMITS.dispels))),
+    }
 end
 
 --------------------------------------------------------------------------------
@@ -846,7 +1182,8 @@ function MyRun.Problems(scope, role, r)
     end
 
     -- 2. Avoidable damage: the share of what was taken, and the spell that gave most of it.
-    checked[#checked + 1] = L["avoidable damage"]
+    -- (14/10) "Looked at" only when there were numbers to look at.
+    if m and m.avoidable then checked[#checked + 1] = L["avoidable damage"] end
     if m and m.avoidable and m.taken and m.taken.total > 0 and m.avoidable.total > 0 then
         local share = m.avoidable.total / m.taken.total * 100
         local worst
@@ -862,15 +1199,15 @@ function MyRun.Problems(scope, role, r)
             out[#out + 1] = { kind = "avoidable", severity = sev, atlas = "damagemeters-avoidabledamage-icon", spellID = worst and worst.spellID,
                 -- (The place in the group only when there is one: a session summed from its
                 -- fights, and anything played alone, has none.)
-                title = title, detail = m.avoidable.rank
-                    and format(L["%d%% of all you took · %s of the group"], math.floor(share + 0.5), format(L["%dº"], m.avoidable.rank))
-                    or format(L["%d%% of all you took"], math.floor(share + 0.5)),
+                -- (14/10) No place in the group: "1st of the group" in avoidable damage read as
+                -- first place, when it was the most avoidable damage taken.
+                title = title, detail = format(L["%d%% of all you took"], math.floor(share + 0.5)),
                 number = format("%d%%", math.floor(share + 0.5)) }
         end
     end
 
     -- 3. Interrupts cast that cut nothing (casts of interrupt spells minus the meter's credit).
-    checked[#checked + 1] = L["interrupts"]
+    if m and m.interrupts then checked[#checked + 1] = L["interrupts"] end
     if m and m.interrupts and ns.Casts and ns.InterruptSpells then
         local cast, spellID = 0, nil
         for id, n in pairs(own.bySpell) do
@@ -885,33 +1222,23 @@ function MyRun.Problems(scope, role, r)
         end
     end
 
-    -- 4. Cooldowns left idle (DPS and healer: essentials; tank: the defensives first).
-    checked[#checked + 1] = L["cooldowns"]
+    -- 4. Damage cooldowns left idle (MyRun.Judged: a damage dealer's essential cooldowns only).
+    if role == "DAMAGER" then checked[#checked + 1] = L["cooldowns"] end
     for _, cd in ipairs(own.cooldowns) do
         local ratio = cd.fitted > 0 and cd.used / cd.fitted or 1
-        local defensive = cd.category == "utility"
-        -- The tank is judged by the defensives; the others by the offensive cooldowns, and by a
-        -- defensive only when it was never pressed at all AND IT WAS NEEDED: the player died in
-        -- this stretch. A defensive left alone in a fight nobody was in danger in is not a
-        -- mistake (01/10: "tem que ser mais analítico").
-        local died = #own.deaths
-        local matters = defensive and (role == "TANK" or (cd.used == 0 and died > 0)) or (not defensive and role ~= "TANK")
-        if matters and not cd.situational and cd.fitted >= 2 and ratio < 0.7 then
+        if MyRun.Judged(cd, role) and cd.fitted >= 2 and ratio < 0.7 then
             local detail = format(L["cooldown of %s · idle %s in total"], Clock(cd.cooldown), Clock(cd.idle))
-            if defensive and role ~= "TANK" then
-                detail = format(died == 1 and L["you died %d time in this stretch"] or L["you died %d times in this stretch"], died)
-                    .. " · " .. detail
-            end
-            out[#out + 1] = { kind = defensive and "defensive" or "cooldown", severity = ratio < 0.5 and 2 or 3, spellID = cd.spellID,
+            out[#out + 1] = { kind = "cooldown", severity = ratio < 0.5 and 2 or 3, spellID = cd.spellID,
                 title = format(L["%s: used %d times; %d fitted"], cd.name, cd.used, cd.fitted),
                 detail = detail,
                 number = format("%d%%", math.floor(ratio * 100 + 0.5)) }
         end
     end
 
-    -- 5. Standing there: gaps between casts in combat.
-    checked[#checked + 1] = L["gaps without casting"]
-    if own.gaps.count >= 3 and own.gaps.total >= 30 then
+    -- 5. Standing there: gaps between casts in combat. (14/10) Not for a healer: standing still
+    -- with the group at full health is not a mistake.
+    if role ~= "HEALER" then checked[#checked + 1] = L["gaps without casting"] end
+    if role ~= "HEALER" and own.gaps.count >= 3 and own.gaps.total >= 30 then
         out[#out + 1] = { kind = "gaps", severity = own.gaps.total >= 90 and 2 or 3, atlas = "worldquest-icon-clock",
             title = format(L["%d gaps without casting of more than %d s in combat"], own.gaps.count, GAP_SECONDS),
             detail = format(L["%s idle in total · the longest: %d s at %s"], Clock(own.gaps.total), math.floor(own.gaps.longest + 0.5), Clock(own.gaps.longestAt or 0)),
@@ -970,9 +1297,12 @@ function MyRun.CooldownUses(r)
             if cd.base then wanted[cd.base] = cd.spellID end
         end
     end
+    local fights = FightsOf("all", r)
     for _, c in ipairs(r.casts) do
         local id = wanted[c[2]]
-        if id then
+        -- (14/10) Only inside the fights, like every other count (the timeline drew the uses
+        -- made travelling between packs).
+        if id and Within(c[1], fights, PREPULL_SECONDS) then
             out[id] = out[id] or {}
             out[id][#out[id] + 1] = c[1]
         end
@@ -1010,15 +1340,20 @@ end
 
 ---One number per fight, for the chart: the rate that is the role's (damage, healing, taken).
 ---@return table[] { s, e, boss, rate } and the largest rate
-function MyRun.FightRates(r, role)
+function MyRun.FightRates(r, role, key)
     r = r or run
-    local key = role == "HEALER" and "healing" or (role == "TANK" and "taken" or "damage")
+    key = key or (role == "HEALER" and "healing" or (role == "TANK" and "taken" or "damage"))
     local out, top = {}, 0
-    for _, f in ipairs(r and r.fights or {}) do
-        local x = f.m and f.m[key]
-        local rate = x and x.perSecond or nil
+    local fights, own = r and r.fights or {}, OwnReadings(r)
+    for i, f in ipairs(fights) do
+        -- a reading that covers the fights before it (one session of the meter) draws over all of them
+        local o = own[i]
+        local x = o and o.m[key]
+        local s = o and fights[o.from].s or f.s
+        -- a reading without its rate (a sum of readings) is its total over the time it covers
+        local rate = x and (x.perSecond or (x.total and f.e and f.e > s and x.total / (f.e - s))) or nil
         if rate and rate > top then top = rate end
-        out[#out + 1] = { s = f.s, e = f.e, boss = f.boss, rate = rate }
+        out[#out + 1] = { s = s, e = f.e, boss = f.boss, rate = rate }
     end
     return out, top, key
 end
@@ -1035,21 +1370,64 @@ end
 ---Compacts the run for the saved file: casts become counts per spell per fight.
 local function Compact(r)
     local c = { kind = r.kind, name = r.name, level = r.level, tier = r.tier, detail = r.detail,
-                date = r.date, role = r.role, class = r.class,
+                date = r.date, at = r.at, role = r.role, class = r.class,
                 spec = r.spec, specIcon = r.specIcon, player = r.player, elapsed = r.elapsed, result = r.result,
                 fights = {}, gaps = r.gaps, items = r.items, deaths = r.deaths, cooldowns = r.cooldowns,
-                metrics = r.metrics, bySpell = {}, castCount = #r.casts, finished = true }
+                metrics = r.metrics, bySpell = {}, castCount = #r.casts, finished = true, kinds = r.kinds,
+                stats = r.stats, gear = r.gear, castLog = MyRun.PackCasts(r.casts) }
     for i, f in ipairs(r.fights) do
         c.fights[i] = { s = f.s, e = f.e, boss = f.boss, enc = f.enc, success = f.success, bySpell = {}, m = f.m }
     end
     c.cdCasts = MyRun.CooldownUses(r)
     for _, cast in ipairs(r.casts) do
-        c.bySpell[cast[2]] = (c.bySpell[cast[2]] or 0) + 1
+        -- Not pressed (MyRun.CastKind) apart, in `other`, fight by fight.
+        local key = cast[3] == 0 and "other" or "bySpell"
+        if key == "bySpell" then c.bySpell[cast[2]] = (c.bySpell[cast[2]] or 0) + 1 end
         for _, f in ipairs(c.fights) do
-            if cast[1] >= f.s and cast[1] <= (f.e or math.huge) then f.bySpell[cast[2]] = (f.bySpell[cast[2]] or 0) + 1; break end
+            if cast[1] >= f.s - PREPULL_SECONDS and cast[1] <= (f.e or math.huge) then
+                f[key] = f[key] or {}
+                f[key][cast[2]] = (f[key][cast[2]] or 0) + 1
+                break
+            end
         end
     end
     return c
+end
+
+-- (20/10) WHAT IS KEPT OF THE CASTS. A saved run had the casts as counts per spell per fight, enough for every count
+-- and not for a chart in time (Warcraft Logs' "Casts"). Kept as text, "tenths:spell", which is small: a key of 30
+-- minutes has 2,000 to 7,000 casts.
+local function PackPairs(list, fmt)
+    local parts = {}
+    for _, p in ipairs(list or {}) do parts[#parts + 1] = format(fmt, p[1], p[2]) end
+    return table.concat(parts, ",")
+end
+local function UnpackPairs(text, scale)
+    local out = {}
+    if type(text) ~= "string" then return out end
+    for a, b in text:gmatch("(%-?[%d%.]+):(%d+)") do out[#out + 1] = { tonumber(a) / (scale or 1), tonumber(b) } end
+    return out
+end
+
+---The casts of a run as text (pressed only: what was not pressed has a 0 in the third place).
+function MyRun.PackCasts(casts)
+    local list = {}
+    for _, c in ipairs(casts or {}) do
+        if c[3] ~= 0 then list[#list + 1] = { math.floor(c[1] * 10 + 0.5), c[2] } end
+    end
+    return PackPairs(list, "%d:%d")
+end
+
+---The pressed casts of a run with their second: { { t, spellID }, ... }, live or saved.
+function MyRun.CastTimes(r)
+    r = r or run
+    if not r then return {} end
+    if r.casts then
+        local out = {}
+        for _, c in ipairs(r.casts) do if c[3] ~= 0 then out[#out + 1] = c end end
+        return out
+    end
+    return UnpackPairs(r.castLog, 10)
 end
 
 function MyRun.Save()
@@ -1092,6 +1470,40 @@ local function KeyName()
     return name, level
 end
 
+--------------------------------------------------------------------------------
+-- The game's combat log
+--------------------------------------------------------------------------------
+-- (!) ON BY ITSELF INSIDE AN INSTANCE (20/10). The user: *"liga o combatlog sozinho, ambos addons"*, and then, for
+-- the published addon, *"Ligada"* by default: whoever uploads to Warcraft Logs has the file without remembering
+-- /combatlog (the addon only turns the game's log on: it cannot read the file nor send it -- the site's own app
+-- does). On in a dungeon (key or not), a raid or a scenario (a delve is one), with the game's own call
+-- (LoggingCombat(true); /combatlog is the same call); off when leaving --
+-- only the log this addon turned on: the player's own /combatlog, or another addon's, is left alone. Not in the open world
+-- nor in PvP. The option off (`combatLog`) turns off what it had turned on, and touches nothing else.
+local LOG_INSTANCES = { party = true, raid = true, scenario = true }
+local combatLogOwned = false
+
+function MyRun.CombatLogByPlace()
+    if type(LoggingCombat) ~= "function" or not GetInstanceInfo then return end
+    local okI, _, instanceType = pcall(GetInstanceInfo)
+    local wanted = ns.db and ns.db.combatLog and okI and LOG_INSTANCES[instanceType]
+    if wanted then
+        if combatLogOwned then return end
+        local ok, on = pcall(LoggingCombat)
+        if not ok or on then return end
+        if pcall(LoggingCombat, true) then
+            combatLogOwned = true
+            ns.Print(COMBATLOGENABLED)
+            ns.Log.Add("combatlog", { on = true, where = instanceType })
+        end
+    elseif combatLogOwned then
+        combatLogOwned = false
+        pcall(LoggingCombat, false)
+        ns.Print(COMBATLOGDISABLED)
+        ns.Log.Add("combatlog", { on = false, where = tostring(instanceType) })
+    end
+end
+
 function MyRun.Init()
     local frame = CreateFrame("Frame", ADDON .. "MyRunFrame")
     frame:RegisterEvent("CHALLENGE_MODE_START")
@@ -1105,6 +1517,7 @@ function MyRun.Init()
     frame:RegisterEvent("BAG_UPDATE_DELAYED")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+    frame:RegisterEvent("PLAYER_LOGOUT")
     frame:SetScript("OnEvent", function(_, event, a, b, c, d, e)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             pcall(MyRun.OnCast, a, c)
@@ -1127,19 +1540,40 @@ function MyRun.Init()
         elseif event == "CHALLENGE_MODE_START" or event == "CHALLENGE_MODE_RESET" then
             local name, level = KeyName()
             pcall(MyRun.Start, "key", name, level)
+            pcall(MyRun.CombatLogByPlace)
         elseif event == "CHALLENGE_MODE_COMPLETED" then
             C_Timer.After(2, function() pcall(MyRun.Stop, nil) end)
         elseif event == "BAG_UPDATE_DELAYED" then
             MyRun.OnBagsChanged()
         elseif event == "PLAYER_ENTERING_WORLD" then
-            -- Leaving the instance ends a raid run that is still open.
-            if run and not run.finished and run.kind == "raid" and GetInstanceInfo then
+            -- Leaving the instance ends a raid run that is still open; and (14/10) a key too: an
+            -- abandoned key has no CHALLENGE_MODE_COMPLETED, and its run swallowed every fight
+            -- after it, out in the world.
+            if run and not run.finished and (run.kind == "raid" or run.kind == "key") and GetInstanceInfo then
                 local _, instanceType = GetInstanceInfo()
-                if instanceType ~= "raid" then pcall(MyRun.Stop, nil) end
+                local still = (run.kind == "raid" and instanceType == "raid") or (run.kind == "key" and instanceType == "party")
+                if not still then pcall(MyRun.Stop, nil) end
+            end
+            -- (14/10) A /reload in the middle of a key: the run is in memory only, and no
+            -- CHALLENGE_MODE_START comes again; it starts again here, from now on.
+            if not MyRun.IsActive() and C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive then
+                local ok, active = pcall(C_ChallengeMode.IsChallengeModeActive)
+                if ok and active == true then
+                    local name, level = KeyName()
+                    pcall(MyRun.Start, "key", name, level)
+                end
             end
             pcall(MyRun.AutoStop)
+            pcall(MyRun.CombatLogByPlace)
+        elseif event == "PLAYER_LOGOUT" then
+            -- (20/10) A session that started by itself (the world, a delve, a dungeon) ended only on a change of zone or
+            -- after WORLD_IDLE: a /reload or leaving the game threw it away. The user's dummies of 20/10 (18:0x, in the
+            -- city) never reached the history: the /reload of 18:15 came first. PLAYER_LOGOUT comes on a /reload too,
+            -- and the saved variables are written after it.
+            if run and not run.finished and AUTO[run.kind] then pcall(MyRun.Stop, nil) end
         elseif event == "ZONE_CHANGED_NEW_AREA" then
             pcall(MyRun.AutoStop)
+            pcall(MyRun.CombatLogByPlace)
         end
     end)
 end
@@ -1147,5 +1581,6 @@ end
 -- For the harness.
 function MyRun.__reset() run = nil; itemSpells = {}; bagsDirty = true end
 function MyRun.__run() return run end
+function MyRun.__compact(r) return Compact(r) end
 function MyRun.__constants() return { GAP_SECONDS = GAP_SECONDS, COOLDOWN_MIN = COOLDOWN_MIN, HISTORY_SIZE = HISTORY_SIZE,
     WORLD_IDLE = WORLD_IDLE, MAX_WORLD_SAVED = MAX_WORLD_SAVED } end

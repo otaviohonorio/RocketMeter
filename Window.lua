@@ -5,16 +5,17 @@
 -- nativo do jogo. As métricas extras entram como colunas à direita, que é o ganho sobre abrir
 -- uma janela por métrica.
 --
--- Fonte, tamanho, altura de linha e largura são configuráveis; a janela redimensiona pela alça
--- do canto. Fecha só no X — nunca no ESC.
+-- Fonte, tamanho e contorno de cada texto, distâncias e largura são configuráveis; a janela
+-- redimensiona pela alça do canto. Não há X: esconde pelo `/rm`, pelo minimapa ou pelo
+-- compartimento de addons — e nunca no ESC.
 local ADDON, ns = ...
 local L = ns.L
 
 local Window = {}
 ns.Window = Window
 
--- APARENCIA FIXA. Nada aqui e configuravel: primeiro o padrao precisa estar certo.
--- Os valores seguem o medidor nativo do jogo.
+-- (14/10) The constants below are the skin (it follows the game's own meter); the player's
+-- choices (font, sizes, outline, distances) live in `ns.db` and `ROLE_DEFAULTS`.
 -- A FONTE DO CHAT DO JOGO, porque foi a referência que o usuário deu: *"olha na primeira
 -- imagem como tá o meu chat, como fica bem legível ele"*.
 --
@@ -61,7 +62,8 @@ ns.OUTLINE_CHOICES = {
 --
 -- A busca foi 16 -> 14 -> 13 -> 12 -> **13**, cada degrau visto in-game. O 12 foi testado e o
 -- usuário voltou: "aumenta para 13px, acho que fica melhor o tamanho do texto para a janela de
--- combate". 13 é o valor final desta janela.
+-- combate". (14/10: depois disso o padrão do corpo virou 16, `ROLE_DEFAULTS.body`, com Arial
+-- Narrow; o 13 vale como história da busca, não como o número de hoje.)
 --
 -- Vale para a linha INTEIRA: nome e todas as células, com ou sem realce, na coluna ordenada ou
 -- não. Isso tira o corpo de fonte da lista de sinais de realce — o que sobra para marcar o
@@ -358,7 +360,6 @@ end
 ---Lê da configuração a cada chamada em vez de guardar numa constante: assim o passo do
 ---configurador aparece na tela sem `/reload`.
 local FontSize
-function ns.FontSize() return FontSize() end
 
 ---O corpo das LINHAS. Ficou como atalho para `ns.RoleSize("body")` porque metade do arquivo já
 ---o chamava, e trocar tudo por um nome mais longo só faria diferença de digitação.
@@ -494,7 +495,6 @@ local BAR_GRADIENT_MAX = 0.84
 -- cada linha é meio-termo — aparece como um retângulo cinza flutuando sobre o cenário. Quem
 -- sustenta a leitura é a sombra do texto, e a separação entre linhas vem da faixa de progresso.
 local ROW_BG_ALPHA = 0
-local ROW_BG_TINT = 0.22            -- quanto da cor da classe entra nesse fundo
 
 -- Fundo invisível: a variante "No Background" aprovada pelo usuário, como o medidor nativo.
 -- Quem sustenta a leitura é a sombra do texto; a separação vem da faixa de progresso.
@@ -929,15 +929,6 @@ function ns.ClassColor(classFilename)
     return 0.45, 0.5, 0.62
 end
 
----Cor do preenchimento da barra.
----
----A cor pura da classe é clara demais atrás de texto branco — no medidor da Blizzard a barra
----é uma versão **escurecida** dela. `barBrightness` controla o quanto.
-function ns.BarColor(classFilename)
-    local r, g, b = ns.ClassColor(classFilename)
-    return r * BAR_BRIGHTNESS, g * BAR_BRIGHTNESS, b * BAR_BRIGHTNESS
-end
-
 ---Pinta a faixa fina com o degradê horizontal do medidor nativo.
 ---
 ---A faixa dele escurece para a esquerda: 52% da cor da classe no início, 84% no fim. Chapar em
@@ -1018,28 +1009,45 @@ function ns.RowBackdropColor()
     return 0, 0, 0, ROW_BG_ALPHA
 end
 
-local function ApplyClassIcon(texture, classFilename)
-    local class = SafeClass(classFilename)
-    local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
-    if coords then
-        texture:SetTexture(CLASS_ICONS)
-        texture:SetTexCoord(unpack(coords))
-        texture:Show()
-        return true
-    end
-    texture:Hide()
-    return false
-end
-
 ---Ícone da linha: especialização por padrão (diz mais que a classe — quem é o healer, quem
 ---tanka), com a classe como reserva quando a spec não veio.
--- Sem máscara: `SetMask` e `SetTexCoord` não convivem ("Cannot set tex coords when texture
--- has mask"), e o ícone fica quadrado mesmo. Duas texturas por linha: uma para o
+-- `SetMask` e `SetTexCoord` não convivem ("Cannot set tex coords when texture has mask"); o
+-- formato redondo usa `AddMaskTexture` (abaixo). Duas texturas por linha: uma para o
 -- ícone de especialização (id inteiro) e outra para o de classe (recorte de atlas).
 
----@param spec texture redonda, para o ícone de especialização (id inteiro, sem recorte)
+-- (19/10) The icon's shape is a choice: square by default, round as an option (the user asked for
+-- both). Round is drawn the game's way: the portrait mask over the icon, clamped to black outside
+-- (`TempPortraitAlphaMask`, CLAMPTOBLACKADDITIVE -- the PvP screen's icons, Blizzard_PVPUI.xml).
+-- A MaskTexture added with `AddMaskTexture` keeps `SetTexCoord` working (an icon cut from an
+-- atlas sheet takes the mask the same way); it was the old `SetMask` that refused the cut.
+-- The icon keeps its size: only the corners go.
+local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+ns.ROUND_MASK = ROUND_MASK
+
+function ns.IconShape()
+    return (ns.db and ns.db.iconShape == "round") and "round" or "square"
+end
+
+local function ApplyShape(texture)
+    local round = ns.IconShape() == "round"
+    local mask = texture.roundMask
+    if round and not mask then
+        mask = texture:GetParent():CreateMaskTexture()
+        mask:SetTexture(ROUND_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        mask:SetAllPoints(texture)
+        texture.roundMask = mask
+    end
+    if mask and texture.roundMasked ~= round then
+        if round then texture:AddMaskTexture(mask) else texture:RemoveMaskTexture(mask) end
+        texture.roundMasked = round
+    end
+end
+
+---@param spec texture para o ícone de especialização (id inteiro)
 ---@param class texture com texcoord, para o recorte do atlas de classes
 function ns.ApplyRowIcon(spec, class, source)
+    ApplyShape(spec)
+    ApplyShape(class)
     local specIcon = source.specIconID
     if specIcon ~= nil and not issecretvalue(specIcon) and specIcon ~= 0 then
         spec:SetTexture(specIcon)
@@ -1081,8 +1089,8 @@ end
 --
 -- ⚠️ OS NUMEROS SAO RELATIVOS AOS 58 QUE JA ESTAVAM NA TELA, e nao uma medicao de glifo. Eu tentei
 -- derivar de largura de caractere primeiro e a conta deu larguras MENORES que as atuais -- porque
--- a largura do digito depende da fonte escolhida (o padrao e Friz Quadrata, mas o usuario roda
--- Arial Narrow), e isso eu nao consigo medir daqui. Ancorar no valor que ja funcionava e honesto;
+-- a largura do digito depende da fonte escolhida (o padrao hoje e Arial Narrow, e o jogador
+-- pode trocar), e isso eu nao consigo medir daqui. Ancorar no valor que ja funcionava e honesto;
 -- inventar uma medicao seria pior que assumir a referencia.
 --
 --   total      "339M", "1.2B"   -> +18   e a coluna que ele citou (Dano, Cura, Recebido)
@@ -1157,8 +1165,6 @@ local function Groups()
     if #grupos == 0 then RefreshGroups() end
     return grupos
 end
-
-ns.WindowGroups = Groups
 
 ---O que a CELULA de um grupo escreve: "65.1M - 48K".
 ---
@@ -1497,7 +1503,6 @@ local function CurrentHeight()
 end
 
 Window.__WindowHeight = WindowHeight
-Window.__CurrentHeight = function() return CurrentHeight() end
 
 ---Quanto uma linha ocupa de altura, com a separação.
 local function RowStep()
@@ -1531,14 +1536,6 @@ Window.__RowStep = RowStep
 --------------------------------------------------------------------------------
 -- Cabeçalho das colunas
 --------------------------------------------------------------------------------
----Esconde o cabecalho de colunas do desenho antigo, se ele chegou a existir.
----
----A funcao que o CONSTROI continua no arquivo de proposito: ela e a unica descricao de como o
----layout de colunas era, e apagar isso agora tornaria impossivel comparar os dois se o desenho
----em secoes for reprovado. Ela so nao e mais chamada.
-local function HideColumnHeader()
-    if headerRow then headerRow:Hide() end
-end
 
 local function BuildColumnHeader()
     if not headerRow then
@@ -1624,13 +1621,14 @@ local function BuildColumnHeader()
                 end
             end)
             button:SetScript("OnEnter", function(self)
+                -- (14/10) The workspace standard: the title, one green line per action (verb in
+                -- the infinitive). The line promising a highlighted leader went: nothing draws it.
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:SetText(ns.Data.GetAttributeLabel(self.sortKey), 1, 1, 1)
-                GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
-                GameTooltip:AddLine(L["Click again to reverse the order."], 0.7, 0.7, 0.7)
-                GameTooltip:AddLine(L["Shift-click moves it left, Ctrl-click moves it right."], 0.7, 0.7, 0.7)
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine(L["The leader of each column is highlighted, out of combat."], 0.5, 0.7, 1, true)
+                GameTooltip_SetTitle(GameTooltip, ns.Data.GetAttributeLabel(self.sortKey))
+                GameTooltip_AddInstructionLine(GameTooltip, L["Click: sort by this column"])
+                GameTooltip_AddInstructionLine(GameTooltip, L["Click again: reverse the order"])
+                GameTooltip_AddInstructionLine(GameTooltip, L["Shift-click: move left"])
+                GameTooltip_AddInstructionLine(GameTooltip, L["Ctrl-click: move right"])
                 GameTooltip:Show()
             end)
             button:SetScript("OnLeave", GameTooltip_Hide)
@@ -2166,7 +2164,7 @@ function Window.Create()
 
     frame.gearButton = HeaderButton(
         { atlas = "questlog-icon-setting", texture = "Interface\\Buttons\\UI-OptionsButton" },
-        L["Configure columns"], function() ns.Picker.Toggle(frame) end)
+        L["Configure"], function() ns.Picker.Toggle(frame) end)
     frame.gearButton:SetPoint("RIGHT", header, "RIGHT", -5, 0)
 
     frame.resetButton = HeaderButton(
@@ -2196,11 +2194,7 @@ function Window.Create()
         end)
     frame.lockButton:SetPoint("RIGHT", frame.boardButton, "LEFT", -5, 0)
 
-    if ns.db.pos then
-        frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
-    else
-        frame:SetPoint("CENTER", UIParent, "CENTER", 320, 0)
-    end
+    Window.ApplyPosition()
 
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -2257,6 +2251,13 @@ function Window.Create()
         ns.db.width = frame:GetWidth()
         Window.SetRows(RowsThatFit(frame:GetHeight()))
         frame:SetHeight(CurrentHeight())
+        -- (14/10) Resizing moves the corner too: the position is kept as dragging keeps it, or a
+        -- /reload put the window back off by the change of size. And the rows are drawn again
+        -- for the new width (the name's room is measured when a row is drawn, and out of combat
+        -- nothing else draws).
+        local point, _, relPoint, x, y = frame:GetPoint()
+        if point then ns.db.pos = { point = point, relPoint = relPoint, x = x, y = y } end
+        Window.Refresh(true)
     end)
 
     -- ENCAIXE AO VIVO. Antes o ajuste só acontecia ao SOLTAR o mouse, então a linha ficava
@@ -2301,6 +2302,9 @@ function Window.Rebuild()
     if not frame then return end
 
     RefreshGroups()
+    -- (14/10) The settings window, when open, follows what changed elsewhere: the rows by the
+    -- grip, a column moved by Shift/Ctrl-click, `/rm col`, `/rm preset`, a profile.
+    if ns.Picker and ns.Picker.Refresh then pcall(ns.Picker.Refresh) end
 
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
     frame:SetBackdropBorderColor(0, 0, 0, 0)
@@ -2582,30 +2586,37 @@ function Window.Draw()
 
     local escalas = ns.Data.GetColumnScales(ns.db.sessionType, ns.db.columns)
 
-    -- A BARRA MEDE O TOTAL DO GRUPO, e a razao e que **so o total tem regua**.
+    -- WHAT EACH BAR MEASURES, AND AGAINST WHAT. (14/10, revised)
     --
-    -- A regua de cada familia e `session.maxAmount` (`Data.GetColumnScales`), que e o maior
-    -- `totalAmount` da sessao. A API nao devolve um maximo de `amountPerSecond` -- e descobrir um
-    -- em Lua esbarra na restricao que molda este arquivo inteiro: em combate os valores sao
-    -- secret e comparar levanta erro.
+    -- In combat the values are secret: no comparing, no maximum in Lua. Then the bar is the
+    -- group's TOTAL over the ruler the game hands out (`session.maxAmount`, one per metric), as
+    -- the game's own meter does, and the list is in the API's order — the total's.
     --
-    -- Foi tentado encher a barra com a metrica ORDENADA (para a barra cheia cair sempre na
-    -- primeira linha quando o jogador ordena por DPS). Nao fecha: sem regua da taxa, o unico
-    -- divisor disponivel seria o maximo do TOTAL, e uma taxa dividida por um total da um fiapo em
-    -- toda linha. O teste reprovou na hora, com a barra de ninguem cheia.
-    --
-    -- ⚑ E ISTO CORRIGE UM DEFEITO QUE JA EXISTIA. Quando cada coluna tinha a propria barra, a
-    -- do DPS era desenhada com o valor da TAXA sobre a regua do TOTAL -- exatamente o fiapo
-    -- descrito acima, em toda linha, desde sempre. Com uma barra por familia o problema deixa de
-    -- existir: ha uma barra e ela mede o que tem regua.
-    --
-    -- O que fica em aberto, e vale dizer em vez de supor: se `amountPerSecond` usar o tempo ATIVO
-    -- de cada um (e nao a duracao da sessao), ordenar por DPS pode dar uma lista em que a barra
-    -- mais longa nao e a primeira. Nao da para conferir isso daqui -- so uma corrida real
-    -- responde -- e a alternativa exigiria uma regua que a API nao oferece.
-    local encheCom = {}
+    -- Out of combat the numbers can be read (`rows.readMax`, the largest of each column over the
+    -- whole list), and two things the total's ruler got wrong are put right:
+    --   * sorted by a rate (DPS, HPS), the list is in the RATE's order — the log showed total and
+    --     per-second in opposite orders — and a bar by the total made the 1st shorter than the 2nd;
+    --     the bar fills with the column that sorts;
+    --   * a group with no total (deaths, a share alone) has no ruler from the game: the deaths'
+    --     maxAmount is 0. Their numbers are readable even in combat (deaths are counted here).
+    local readMax = data and data.readMax or {}
+    local encheCom, reguaDe = {}, {}
+    local sortAt = posicaoDe[ns.db.sortBy]
     for g = 1, #vaosDesenho do
-        encheCom[g] = posicaoDe[vaosDesenho[g].grupo.key]
+        local grupo = vaosDesenho[g].grupo
+        local at = posicaoDe[grupo.key]
+        local inGroup = false
+        for _, key in ipairs(grupo.keys or {}) do
+            if posicaoDe[key] == sortAt then inGroup = true end
+        end
+        if inGroup and sortAt and readMax[sortAt] then
+            at = sortAt
+        end
+        local def = at and ns.Data.GetColumn(ns.db.columns[at])
+        if at and readMax[at] and (at == sortAt or not (def and def.field == "total")) then
+            reguaDe[g] = readMax[at] > 0 and readMax[at] or 1
+        end
+        encheCom[g] = at
     end
 
     local shown = 0
@@ -2632,7 +2643,7 @@ function Window.Draw()
 
                 -- A BARRA, uma so, atravessando o vao do grupo inteiro.
                 local at = encheCom[g]
-                local escala = at and escalas[at]
+                local escala = reguaDe[g] or (at and escalas[at])
                 if escala == nil then escala = 1 end
                 faixa.bar:SetMinMaxValues(0, escala)
                 local valor = at and entry.values[at] or 0
@@ -2746,8 +2757,8 @@ function Window.Draw()
 
 end
 
----O cabecalho de COLUNAS do desenho antigo ainda esta na tela? Tem que ser `false`: ele ocupa o
----lugar do cabecalho da primeira secao, e foi essa sobreposicao que o usuario viu.
+---O cabecalho de COLUNAS esta na tela? (14/10) Hoje e `true`: ele voltou como o cabecalho das
+---familias, desenhado a cada desenho (`BuildColumnHeader`).
 function Window.DebugColumnHeaderShown()
     return headerRow ~= nil and headerRow:IsShown() and true or false
 end
@@ -3030,6 +3041,17 @@ function Window.DebugRow(index)
             local faixa = row.groups and row.groups[1]
             return faixa ~= nil and faixa.bar ~= nil and faixa.bar.__gradient == true
         end)(),
+        -- (14/10) Each group's bar: what it holds and against what ruler.
+        bars = (function()
+            local out = {}
+            for g, faixa in ipairs(row.groups or {}) do
+                if faixa.bar and faixa.bar.GetMinMaxValues then
+                    local _, hi = faixa.bar:GetMinMaxValues()
+                    out[g] = { value = faixa.bar:GetValue(), max = hi }
+                end
+            end
+            return out
+        end)(),
         -- A LARGURA DE CADA COLUNA, na ordem da tela: e a caixa do NUMERO, que e o que decide
         -- se ele cabe ou vira reticencias.
         cellWidths = (function()
@@ -3148,6 +3170,17 @@ function Window.Toggle()
         Window.Hide()
     else
         Window.Show()
+    end
+end
+
+---(14/10) Where the saved position puts the window: at creation, and when the profile changes.
+function Window.ApplyPosition()
+    if not frame then return end
+    frame:ClearAllPoints()
+    if ns.db.pos then
+        frame:SetPoint(ns.db.pos.point, UIParent, ns.db.pos.relPoint, ns.db.pos.x, ns.db.pos.y)
+    else
+        frame:SetPoint("CENTER", UIParent, "CENTER", 320, 0)
     end
 end
 
@@ -3340,10 +3373,6 @@ function Window.GetRoleShadow(role)
     return ns.RoleConfig(role).shadow
 end
 
-function Window.GetFontSize()
-    return ns.RoleSize("body")
-end
-
 ---Aplica uma escolha de aparencia e redesenha.
 ---
 ---Um so caminho para as tres: elas mudam a mesma coisa (como o texto e desenhado) e precisam
@@ -3376,9 +3405,9 @@ function Window.SetRows(count)
     ns.db.rows = count
     Window.Rebuild()
     if frame and not frame.sizing then
-        -- Durante o arraste quem manda na altura é o mouse: cravar a altura aqui brigaria com
-        -- o `StartSizing` e a janela pularia embaixo do cursor. O encaixe final é feito ao
-        -- soltar, no `OnMouseUp` da alça.
+        -- Durante o arraste, a altura não é cravada aqui: o desenho a ajusta em passos de uma
+        -- linha (o encaixe ao vivo, `OnSizeChanged`), e o encaixe final é feito ao soltar, no
+        -- `OnMouseUp` da alça.
         frame:SetHeight(CurrentHeight())
     end
 end

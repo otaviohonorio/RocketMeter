@@ -142,8 +142,20 @@ end
 commands["move"] = function(rest)
     local from, direction = rest:match("^(%d+)%s*(%S*)$")
     from = tonumber(from)
-    if not from then
-        ns.Print("/rm move <column> <left|right>")
+    direction = direction and direction:lower()
+    -- (14/10) The number is the place ON SCREEN, which is not the `/rm col` list (that one has
+    -- every item, on or off): the places are listed here, and a move needs its direction (without
+    -- one it went left).
+    if not from or (direction ~= "left" and direction ~= "right") then
+        ns.Print("/rm move <n> left|right")
+        for i, group in ipairs(ns.Data.GroupColumns(ns.db.columns)) do
+            local names = {}
+            for _, key in ipairs(group.keys) do
+                local def = ns.Data.GetColumn(key)
+                names[#names + 1] = def and (def.label or key) or key
+            end
+            print(("  %d - %s"):format(i, table.concat(names, " / ")))
+        end
         return
     end
     ns.Window.MoveColumn(from, direction == "right" and 1 or -1)
@@ -242,7 +254,7 @@ end
 -- (`DamageMeterEntry.lua:365-369`).
 commands["fontes"] = function()
     if not ns.Data.IsAvailable() then
-        ns.Print("|cffff5555C_DamageMeter nao esta disponivel agora.|r")
+        ns.Print("|cffff5555C_DamageMeter não está disponível agora.|r")
         return
     end
 
@@ -283,9 +295,9 @@ commands["fontes"] = function()
         end
     end
 
-    ns.Print("se o healer aparece em |cffffd100healing|r e nao em |cffffd100damage|r,")
-    print("   a lista da janela sai da metrica ORDENADA -- ordene por Cura para ve-lo.")
-    print("   se nao aparece em NENHUMA, aliado NPC nao entra na API e nao ha o que fazer.")
+    ns.Print("se o curador aparece em |cffffd100healing|r e não em |cffffd100damage|r,")
+    print("   a lista da janela sai da métrica ORDENADA: ordene por Cura para vê-lo.")
+    print("   se não aparece em NENHUMA, aliado NPC não entra na API e não há o que fazer.")
 end
 
 commands["i18n"] = function()
@@ -310,7 +322,8 @@ end
 commands["help"] = function()
     ns.Print(L["version"] .. " " .. ns.version .. " — " .. L["commands:"])
     print("  /rm                             " .. L["opens or closes the window"])
-    print("  /rm columns                     " .. L["opens the column panel"])
+    print("  /rm show | hide                 " .. L["shows or hides the meter"])
+    print("  /rm config                      " .. L["opens or closes the settings"])
     print("  /rm col [n]                     " .. L["lists the columns or toggles one"])
     print("  /rm move <n> left|right         " .. L["moves a column left or right"])
     print("  /rm preset mplus|raid|damage    " .. L["switches the column preset"])
@@ -318,15 +331,16 @@ commands["help"] = function()
     print("  /rm score mplus                 " .. L["opens the last Mythic+ scoreboard"])
     print("  /rm score raid                  " .. L["opens the last raid scoreboard"])
     print("  /rm score demo                  " .. L["opens the scoreboard with invented data"])
-    print("  /rm atlas [name]                " .. L["checks whether the panel art exists"])
-    print("  /rm i18n                        " .. L["checks the labels taken from the game"])
     print("  /rm overall                     " .. L["switches current fight / overall"])
     print("  /rm profile char|account|reset  " .. L["account-wide or per-character settings"])
     print("  /rm reset                       " .. L["clears the sessions"])
-    print("  /rm config                      " .. L["opens the options"])
-    print("  /rm fontes                      " .. L["lists who the API reports in each metric"])
-    print("  /rm debug                       " .. L["prints what the API is returning"])
+    -- (14/10) The development tools only in a development build: their output is for us (some of
+    -- it in Portuguese whatever the language), and the package has no diary to go with them.
     if ns.Log.enabled then
+        print("  /rm atlas [name]                " .. L["checks whether the panel art exists"])
+        print("  /rm i18n                        " .. L["checks the labels taken from the game"])
+        print("  /rm fontes                      " .. L["lists who the API reports in each metric"])
+        print("  /rm debug                       " .. L["prints what the API is returning"])
         print("  /rm log [clear]                 " .. L["records a diagnostic snapshot"])
     end
     print("  " .. L["(click a column header to sort by it)"])
@@ -335,9 +349,12 @@ end
 SLASH_ROCKETMETER1 = "/rocketmeter"
 SLASH_ROCKETMETER2 = "/rm"
 
+local DEV_ONLY = { atlas = true, i18n = true, fontes = true, debug = true }
+
 SlashCmdList["ROCKETMETER"] = function(msg)
     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
     local handler = commands[cmd:lower()]
+    if DEV_ONLY[cmd:lower()] and not ns.Log.enabled then handler = nil end
     if handler then
         handler(rest)
     else

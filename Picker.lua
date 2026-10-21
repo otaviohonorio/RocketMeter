@@ -431,7 +431,8 @@ local function BuildRow(index, item, col, y)
             end
         end)
 
-        row.order = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        row.order = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.order:SetTextColor(LIGHTGRAY_FONT_COLOR:GetRGB())   -- (14/10) light grey, not the disabled one
         row.order:SetPoint("RIGHT", row.up, "LEFT", -ARROW_GAP, 0)
 
         -- Largura EXPLÍCITA para o rótulo, pelo mesmo motivo do checkbox: sem ela um nome longo
@@ -468,7 +469,7 @@ local function BuildRow(index, item, col, y)
         row.up:SetEnabled(position > 1)
         row.down:SetEnabled(position < quantos)
     else
-        row.label:SetTextColor(0.5, 0.5, 0.5)
+        row.label:SetTextColor(LIGHTGRAY_FONT_COLOR:GetRGB())
         row.order:Hide()
         row.up:Hide()
         row.down:Hide()
@@ -488,11 +489,12 @@ function Picker.Create()
     -- constantes que posicionam os controles, é o que impede a janela de sobrar ou faltar
     -- espaço quando uma linha é acrescentada.
     local h1 = H_SECTION + #columns * H_COLUMN_ROW
-    -- Aparencia: fonte, linhas, os DOIS deslizadores de distancia, o rotulo do vao e o reino.
-    -- Aparencia: fonte, linhas, os dois deslizadores de distancia e o reino.
-    local h2 = H_SECTION + H_FIELD * 4 + H_CHECK                       -- Aparencia
+    -- Aparencia: fonte, linhas, os dois deslizadores de distancia, (19/10) o formato do icone,
+    -- o reino e (14/10) o botao do minimapa.
+    local h2 = H_SECTION + H_FIELD * 5 + H_CHECK * 2                   -- Aparencia
         + GAP_SECTION + H_SECTION + H_CHECK                            -- Sessao
         + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON * 2     -- Placar
+        + GAP_SECTION + H_SECTION + H_CHECK                            -- (20/10) Registro de combate
     -- Tres secoes de texto identicas: titulo + deslizador + combo + caixa.
     local h3 = (H_SECTION + H_FIELD * 2 + H_CHECK) * 3 + GAP_SECTION * 2
     local content = math.max(h1, math.max(h2, h3))
@@ -579,12 +581,34 @@ function Picker.Create()
         function() return ns.Window.GetTotalWidth() end,
         function(v) ns.Window.SetTotalWidth(v) end)
 
+    -- (19/10) The specialization icon's shape (the user: square as the default, round as an option).
+    y, frame.iconShapeDrop = BuildDropdown(colWindow, y, L["Specialization icon"],
+        { { label = L["Square"], value = "square" }, { label = L["Round"], value = "round" } },
+        function() return ns.IconShape() end,
+        function(v)
+            ns.db.iconShape = v
+            ns.Window.Refresh()
+            if ns.Breakdown and ns.Breakdown.Draw then ns.Breakdown.Draw() end
+            if ns.Scoreboard and ns.Scoreboard.Refresh then ns.Scoreboard.Refresh() end
+        end)
+
     y, frame.realmCheck = BuildCheck(colWindow, y, L["Show the realm next to the name"],
         L["Off by default: the realm eats the column and the name is what ends up cut."],
         function() return ns.db.showRealm end,
         function(v)
             ns.db.showRealm = v
             ns.Window.Refresh()
+        end)
+
+    -- (14/10) `minimap.hide` existed with no way to change it. The addon compartment (the game's
+    -- list of addons by the minimap) keeps opening the meter with the button hidden.
+    y, frame.minimapCheck = BuildCheck(colWindow, y, L["Show the minimap button"],
+        L["The addon compartment, by the minimap, keeps opening the meter without it."],
+        function() return not (ns.db.minimap and ns.db.minimap.hide) end,
+        function(v)
+            ns.db.minimap = ns.db.minimap or {}
+            ns.db.minimap.hide = not v
+            if ns.Minimap and ns.Minimap.ApplyVisibility then ns.Minimap.ApplyVisibility() end
         end)
 
     -- SEÇÃO PRÓPRIA, e não uma quarta linha em "Aparência". A regra da tela é que seção é
@@ -628,6 +652,18 @@ function Picker.Create()
         L["Opens the scoreboard of the last raid boss defeated on this character."],
         function() ns.Scoreboard.ShowLast("raid") end)
     frame.lastRaid.hasRun = "raid"
+
+    -- (20/10) The game's combat log, on by itself inside an instance (MyRun.CombatLogByPlace). On by default: the
+    -- user's choice (*"Ligada"*), so whoever uploads to Warcraft Logs has the file without remembering /combatlog.
+    y = BuildSection(colWindow, y + GAP_SECTION, L["Combat log"])
+
+    y, frame.combatLog = BuildCheck(colWindow, y, L["Record the combat log in instances"],
+        L["On in dungeons, raids and delves, off when leaving: the file Warcraft Logs uploads (its own app sends it; it also asks for the game's advanced combat log). A log you turned on yourself is left alone."],
+        function() return ns.db.combatLog end,
+        function(v)
+            ns.db.combatLog = v
+            if ns.MyRun and ns.MyRun.CombatLogByPlace then pcall(ns.MyRun.CombatLogByPlace) end
+        end)
 
     ----------------------------------------------------------------------------
     -- Coluna 3: os TRES textos, cada um com corpo, contorno e sombra proprios
@@ -751,9 +787,9 @@ end
 function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
 
-    for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.realmCheck,
+    for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.iconShapeDrop, frame.realmCheck, frame.minimapCheck,
                              frame.gapSlider, frame.pairSlider,
-                             frame.autoSession, frame.autoMPlus, frame.autoRaid }) do
+                             frame.autoSession, frame.autoMPlus, frame.autoRaid, frame.combatLog }) do
         if widget and widget.Refresh then widget.Refresh() end
     end
 

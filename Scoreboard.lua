@@ -48,8 +48,8 @@ local HEADER_HEIGHT = 65         -- as linhas começam 65 abaixo do topo
 local COLHEAD_HEIGHT = 32
 local COLHEAD_LINE = 16
 local COL_PADDING = 2            -- respiro entre colunas
--- O RODAPÉ FECHA A CONTA DOS 452 de altura do painel:
---   65 (cabeçalho) + 20 (colunas) + 5 × 47 (linhas) + 132 = 452.
+-- O RODAPÉ FECHA A CONTA DA ALTURA do painel (14/10: o cabeçalho de colunas tem 32 hoje):
+--   65 (cabeçalho) + 32 (colunas) + 5 × 47 (linhas) + 132 = 464.
 -- Ele é grande porque o eixo de tempo não vem colado nas linhas: as linhas
 -- terminam em −321 e o eixo só começa em −385. Aqueles 64px de respiro são o
 -- que separa a tabela do gráfico — sem eles o eixo lê como mais uma linha da tabela.
@@ -347,8 +347,6 @@ local function Atlas(texture, name)
     return true
 end
 
-ns.SetAtlasSafe = Atlas
-
 local ROLE_ATLAS = {
     TANK = "roleicon-tiny-tank",
     HEALER = "roleicon-tiny-healer",
@@ -575,9 +573,22 @@ local function AttachDeathClasses(base)
         return
     end
 
+    -- (14/10) THE METER'S LIST IS NOT IN THE ORDER THE DEATHS HAPPENED: a real key (13 marks, 13
+    -- entries) had one player's three deaths at 1649/1650/1653 s listed apart. Its own clock
+    -- (`deathTimeSeconds`) ORDERS its entries — only among themselves; the marks keep the run's
+    -- clock. Without every time readable there is no order to trust, and the marks stay plain.
+    local ordem = {}
+    for i, o in ipairs(obitos) do
+        if type(o.quando) ~= "number" then return end
+        ordem[i] = { o = o, i = i }
+    end
+    table.sort(ordem, function(a, b)
+        if a.o.quando ~= b.o.quando then return a.o.quando < b.o.quando end
+        return a.i < b.i
+    end)
     for i = 1, #marks do
-        marks[i][2] = obitos[i].classe
-        marks[i][3] = obitos[i].nome
+        marks[i][2] = ordem[i].o.classe
+        marks[i][3] = ordem[i].o.nome
     end
 
     if ns.Log then
@@ -619,9 +630,20 @@ end
 -- de um `OnClick`, de um evento e do timer, e nada garante que dois não se cruzem.
 local desenhando = false
 
+-- (14/10) ONLY A RUN THAT JUST ENDED takes what arrives. Loot and scores kept stitching into the
+-- last run for as long as it was the one on screen: an item of a raid boss, a delve or a dungeon
+-- after the key went into the key's line (seen in the saved boards), and a keystone message at
+-- the start of the NEXT key rewrote the old run's scores. The chest, the new keystones and the
+-- season score all arrive in the first minutes; past this window nothing is of that run.
+local STITCH_SECONDS = 300
+local function Recente(run)
+    return type(run) == "table" and type(run.rows) == "table" and type(run.recordedAt) == "number"
+        and time and time() - run.recordedAt <= STITCH_SECONDS
+end
+
 local function Costura(mexe)
     local naTela = false
-    if type(context) == "table" and type(context.rows) == "table" then
+    if Recente(context) then
         naTela = mexe(context) and true or false
     end
 
@@ -629,7 +651,7 @@ local function Costura(mexe)
     -- aparecer no placar do último chefe de raide.
     local kind = context and context.kind
     local guardada = kind and Store()[kind]
-    if type(guardada) == "table" and type(guardada.rows) == "table" and guardada ~= context then
+    if Recente(guardada) and guardada ~= context then
         mexe(guardada)
     end
 
@@ -791,10 +813,12 @@ local function SortRows(list, columnIndex)
     end
     if not readable then return end
 
+    local pos = {}
+    for i = 1, #list do pos[list[i]] = i end
     table.sort(list, function(a, b)
         local x = a.values[columnIndex] or -1
         local y = b.values[columnIndex] or -1
-        if x == y then return false end
+        if x == y then return pos[a] < pos[b] end
         if sortDesc then return x > y end
         return x < y
     end)
@@ -870,10 +894,10 @@ local function BuildColumnHeader()
                 local label = ColumnLabel(column)
                 if label == "" then return end
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:SetText(column.custom and label
-                    or ns.Data.GetAttributeLabel(column.key), 1, 1, 1)
+                GameTooltip_SetTitle(GameTooltip, column.custom and label
+                    or ns.Data.GetAttributeLabel(column.key))
                 if not column.render or column.render == "score" then
-                    GameTooltip:AddLine(L["Click to sort by this column."], 0.7, 0.7, 0.7)
+                    GameTooltip_AddInstructionLine(GameTooltip, L["Click: sort by this column"])
                 end
                 GameTooltip:Show()
             end)
@@ -1691,7 +1715,7 @@ local function DrawHeader()
     local badge = context.level and tostring(context.level) or context.badge
     if badge and badge ~= "" then
         frame.level:SetText(badge)
-        -- Dois caracteres ("LFR", "+2") não cabem no mesmo corpo de um número de dois dígitos.
+        -- Três caracteres ("LFR") não cabem no mesmo corpo de um número de dois dígitos.
         frame.level:SetFont(ns.Skin.font, #badge > 2 and 20 or 28, "OUTLINE")
         frame.level:Show()
         if frame.star:GetTexture() then frame.star:Show() end
@@ -1710,7 +1734,9 @@ local function DrawHeader()
 
     -- Resultado: sem atlas de "+1/+2/+3" no cliente, o painel oficial usa texto — e nós também.
     if context.onTime == nil then
-        frame.result:SetText(context.result or "")
+        -- (14/10) The subtitle was saved and never drawn: a raid boss's difficulty by name (the
+        -- star has only its initial) and a session's "Overall" / "Current fight".
+        frame.result:SetText(context.result or context.subtitle or "")
     elseif context.onTime then
         local upgrades = context.upgrades or 1
         frame.result:SetText("|cff40d878" .. L["on time"]
@@ -1737,7 +1763,7 @@ local function DrawHeader()
 
     local deaths = context.deaths
     if deaths and not issecretvalue(deaths) then
-        local text = format(L["%d deaths"], deaths)
+        local text = format(deaths == 1 and L["%d death"] or L["%d deaths"], deaths)   -- (14/10) not "1 mortes"
         local lost = context.timeLostToDeaths
         if lost and lost > 0 then
             text = text .. "  (-" .. SecondsToClock(lost) .. ")"
@@ -2117,15 +2143,16 @@ function Scoreboard.Draw()
 
     local list = CollectRows(rowCount) or {}
 
-    -- Ordenação local: para coluna própria sempre, e para a simulação em qualquer coluna
-    -- (não há API para pedir ordem a dados inventados).
+    -- (14/10) The board is a SNAPSHOT (its numbers are kept, readable): it is sorted here, by
+    -- any column. Only the custom columns and the simulation were, from when the board read the
+    -- live session in the API's order; a click on Interrupts gilded the header and moved nothing.
+    -- `SortRows` keeps the order when a value cannot be read.
     local sortIndex
     for c = 1, #columns do
         if columns[c].key == sortBy then sortIndex = c end
     end
-    if sortIndex and (context.demo or columns[sortIndex].custom) then
-        SortRows(list, sortIndex)
-    end
+    if sortIndex then SortRows(list, sortIndex) end
+    Scoreboard.lastList, Scoreboard.lastSortIndex = list, sortIndex
 
     if #list > 0 and #list < rowCount then rowCount = #list end
     if rowCount < 1 then rowCount = 1 end
@@ -2202,10 +2229,6 @@ function Scoreboard.Toggle()
     Scoreboard.Show()
 end
 
-function Scoreboard.GetLastError()
-    return Scoreboard.lastError
-end
-
 --------------------------------------------------------------------------------
 -- Simulação
 --------------------------------------------------------------------------------
@@ -2272,12 +2295,17 @@ Scoreboard.__attachDeathClasses = AttachDeathClasses
 ---lib não estar presente.
 ---
 ---Dois minutos, de 5 em 5 segundos, e **para assim que não falta mais nada**: enquanto houver
----linha sem pedra ou sem saque continua tentando; completou, encerra. Assim o custo é do caso
----incompleto, e não de toda corrida.
+---linha sem pedra ou sem saque continua tentando; completou, encerra. (14/10) Na prática quase
+---sempre vai até o fim: ficar sem saque é o normal para parte do grupo. O custo é um redesenho a
+---cada 5 s por 2 minutos, uma vez por chave.
 local JANELA_EXTERNA_SEGUNDOS = 120
 local JANELA_EXTERNA_PASSO = 5
 
-local function ReencostarAteCompletar(restante)
+local reencostoAtual = 0
+local function ReencostarAteCompletar(restante, corrente)
+    -- (14/10) One chain at a time: the automatic path started one at the capture and another
+    -- when the chest closed, two timers running side by side.
+    if corrente ~= reencostoAtual then return end
     if not context or type(context.rows) ~= "table" then return end
 
     pcall(Scoreboard.RefreshExternalColumns)
@@ -2303,7 +2331,7 @@ local function ReencostarAteCompletar(restante)
         return
     end
 
-    C_Timer.After(JANELA_EXTERNA_PASSO, function() ReencostarAteCompletar(restante) end)
+    C_Timer.After(JANELA_EXTERNA_PASSO, function() ReencostarAteCompletar(restante, corrente) end)
 end
 
 local function Desde()
@@ -2329,7 +2357,8 @@ local esperaBau = CreateFrame("Frame")
 
 local function IniciarReencosto()
     if ns.Party and ns.Party.RequestKeystones then pcall(ns.Party.RequestKeystones) end
-    ReencostarAteCompletar(JANELA_EXTERNA_SEGUNDOS)
+    reencostoAtual = reencostoAtual + 1
+    ReencostarAteCompletar(JANELA_EXTERNA_SEGUNDOS, reencostoAtual)
 end
 
 esperaBau:SetScript("OnEvent", function(self, event, isLogin, isReload)
@@ -2376,6 +2405,10 @@ local function CaptureAndShow(base, kind, auto)
         end
 
         Scoreboard.SaveRun(kind, snapshot)
+        -- (14/10) The newest run becomes the current one unless another is ON SCREEN: with the
+        -- automatic board off, `/rm score` and the minimap reopened the run before, and the loot
+        -- of this one stitched into that one.
+        if not (frame and frame:IsShown()) then context = snapshot end
 
         -- `auto == false` é a abertura pedida à mão (botão, `/rm score`): essa sempre mostra.
         -- A automática obedece à caixa do tipo de conteúdo — são duas, porque quem quer o

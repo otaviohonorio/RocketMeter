@@ -107,6 +107,9 @@ function Minimap_.Create()
     return button
 end
 
+-- For the harness.
+function Minimap_.__button() return button end
+
 function Minimap_.ApplyVisibility()
     if not button then return end
     if ns.db.minimap.hide then

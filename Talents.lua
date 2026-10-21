@@ -34,7 +34,7 @@ end
 function Talents.Active()
     local now = GetTime and GetTime() or 0
     if cache and cachedAt and now - cachedAt < CACHE_SECONDS then return cache end
-    local out = { byId = {}, byName = {}, count = 0 }
+    local out = { byId = {}, byName = {}, count = 0, list = {} }
     pcall(function()
         if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_Traits) then return end
         local configID = C_ClassTalents.GetActiveConfigID()
@@ -50,6 +50,10 @@ function Talents.Active()
                     if type(spellID) == "number" then
                         local name = (type(def.overrideName) == "string" and def.overrideName ~= "" and def.overrideName)
                             or SpellName(spellID)
+                        if not out.byId[spellID] then
+                            out.list[#out.list + 1] = { spellID = spellID, name = name or "",
+                                ranks = node.activeRank, hero = node.subTreeID ~= nil }
+                        end
                         out.byId[spellID] = true
                         if name then out.byName[name] = spellID end
                         out.count = out.count + 1
@@ -84,6 +88,19 @@ function Talents.Of(spells)
     end
     table.sort(rows, function(a, b) return a.amount > b.amount end)
     return rows, total
+end
+
+---(14/10) The talent of the build a line of the meter comes from: its own id, the table of
+---triggered spells (Data/SpellOrigin.lua, the game's SpellEffect), or the same name.
+---@return number|nil spellID of the talent, as `Talents.Active().list` has it
+function Talents.OwnerOf(spellID)
+    local active = Talents.Active()
+    if active.count == 0 or type(spellID) ~= "number" then return nil end
+    if active.byId[spellID] then return spellID end
+    local origin = ns.SpellOrigin and ns.SpellOrigin[spellID]
+    if origin and active.byId[origin] then return origin end
+    local name = SpellName(spellID)
+    return name and active.byName[name] or nil
 end
 
 -- For the harness.

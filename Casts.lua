@@ -89,10 +89,6 @@ local function IsInterrupt(spellID)
     return (ns.InterruptSpells and ns.InterruptSpells[spellID]) or false
 end
 
-function Casts.IsInterruptSpell(spellID)
-    return Readable(spellID) and IsInterrupt(spellID) or false
-end
-
 local function Bucket(which, key)
     local list = tallies[which]
     local bucket = list[key]
@@ -170,6 +166,11 @@ function Casts.For(which, name, isLocal)
             for _, token in ipairs(TOKENS) do Resolve(token) end
         end
     end
+    -- (14/10) After a /reload the counts start again from zero, and the meter's overall does not:
+    -- casts since the reload against interrupts credited since the last clear made "missed"
+    -- negative, cut to 0, with partial numbers and no warning. Until the meter is cleared, the
+    -- overall has no casts to tell.
+    if which == "overall" and Casts.partialOverall then return nil end
     local bucket = tallies[which][key]
     if not bucket then return nil end
     local out = { control = bucket.control, interrupt = bucket.interrupt,
@@ -179,11 +180,6 @@ function Casts.For(which, name, isLocal)
     return out
 end
 
----Has this player any cast counted at all? Tells "zero" from "nothing was seen".
-function Casts.Seen(which, name, isLocal)
-    return Casts.For(which, name, isLocal) ~= nil
-end
-
 function Casts.OnCombatStart()
     tallies.current = {}
 end
@@ -191,6 +187,7 @@ end
 function Casts.OnReset()
     tallies.current = {}
     tallies.overall = {}
+    Casts.partialOverall = false
 end
 
 ---The roster changed: a token may be someone else now. What has a name keeps it.
@@ -211,6 +208,9 @@ function Casts.Which(sessionType)
 end
 
 function Casts.Init()
+    -- Loaded with the meter's overall already holding a fight: the casts before it were not seen.
+    local duration = ns.Data and ns.Data.GetDuration and ns.Data.GetDuration(1)
+    Casts.partialOverall = duration ~= nil and (issecretvalue(duration) or duration > 0)
     local frame = CreateFrame("Frame", ADDON .. "CastsFrame")
     frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
     frame:RegisterEvent("GROUP_ROSTER_UPDATE")
@@ -233,6 +233,7 @@ end
 -- For the harness: the tallies as they are.
 function Casts.__tallies() return tallies end
 function Casts.__reset()
+    Casts.partialOverall = false
     tallies = { current = {}, overall = {} }
     names = {}
     controlCache = {}

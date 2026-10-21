@@ -42,6 +42,7 @@ ns.L = L
 local FROM_GAME = {
     -- Nomes de métrica, do medidor nativo
     ["Total damage"]        = "DAMAGE_METER_TYPE_DAMAGE_DONE",
+    ["Damage done"]         = "DAMAGE_METER_TYPE_DAMAGE_DONE",   -- (20/10) a aba do Meu combate: o "Damage Done" do Warcraft Logs
     ["Total healing"]       = "DAMAGE_METER_TYPE_HEALING_DONE",
     ["Absorbs"]             = "DAMAGE_METER_TYPE_ABSORBS",
     ["Damage taken"]        = "DAMAGE_METER_TYPE_DAMAGE_TAKEN",
@@ -59,6 +60,12 @@ local FROM_GAME = {
     -- Seções do detalhamento por magia
     ["Damage"]              = "DAMAGE_METER_CATEGORY_DAMAGE",
     ["Healing"]             = "DAMAGE_METER_CATEGORY_HEALING",
+
+    -- (20/10) a seção da opção do registro de combate: o nome do próprio jogo (a aba do chat)
+    ["Combat log"]          = "COMBAT_LOG",
+
+    -- (20/10) a linha de atributos do Resumo do Meu combate: a palavra da ficha do personagem do jogo
+    ["Attributes"]          = "STAT_CATEGORY_ATTRIBUTES",
 
     -- Sessão, conteúdo e controles
     ["Overall"]             = "DAMAGE_METER_OVERALL_SESSION",

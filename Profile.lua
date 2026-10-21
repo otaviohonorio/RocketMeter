@@ -33,13 +33,21 @@ function Profile.EnsureRuntimeDefaults()
     -- nao invalida a ordenacao escolhida nem e novidade para o jogador: apagar `sortBy` e
     -- anunciar "colunas migradas" a cada login, por causa de uma reordenacao, seria jogar fora a
     -- escolha dele e mentir no chat sobre o motivo.
-    local migrated, changed = ns.Data.MigrateColumns(active.columns)
+    local migrated, changed, dropped = ns.Data.MigrateColumns(active.columns)
     if migrated then
         active.columns = migrated
         if changed then
             active.sortBy = nil
             ns.Print(L["columns migrated to the new format."])
+        elseif dropped then
+            ns.Print(L["columns that no longer exist were removed."])
         end
+    elseif type(active.columns) == "table" and #active.columns > 0 then
+        -- (14/10) Nothing of the saved list exists any more: the window stayed empty for good.
+        -- The default set comes in (below), and the sort with it.
+        active.columns = nil
+        active.sortBy = nil
+        ns.Print(L["columns that no longer exist were removed."])
     end
 
     if not active.columns or #active.columns == 0 then
@@ -98,7 +106,11 @@ function Profile.EnsureRuntimeDefaults()
     -- O tamanho e a excecao: herdar o corpo unico nos tres achataria a hierarquia (titulo e
     -- cabecalho menores que a linha, que e o que o medidor nativo faz). Entao o corpo salvo vai
     -- para a linha, e os outros dois mantem a distancia que tinham -- os deltas -2 e -4.
-    if not active.text then
+    -- (14/10) Only when there are old keys to carry over. A new (or reset) profile has none, and
+    -- building `text` here gave its header the body's thin outline, against ROLE_DEFAULTS (the
+    -- header's is "none"); with no `text`, every role reads ROLE_DEFAULTS.
+    local old = active.fontSize ~= nil or active.fontOutline ~= nil or active.fontShadow ~= nil
+    if not active.text and old then
         local size = type(active.fontSize) == "number" and active.fontSize or 16
         local outline = active.fontOutline or "thin"
 
@@ -171,10 +183,16 @@ function Profile.SetPerCharacter(enabled)
     Profile.EnsureRuntimeDefaults()
     ns.Print(enabled and L["settings for this character only."] or L["settings shared by the account."])
 
+    -- (14/10) Everything the profile holds, not only the scale and the columns: the position, the
+    -- lock, the visibility and the minimap button stayed as they were until a /reload.
     if ns.Window then
         ns.Window.ApplyScale()
+        ns.Window.ApplyPosition()
+        ns.Window.ApplyLock()
         ns.Window.Rebuild()
+        ns.Window.ApplyVisibility()
     end
+    if ns.Minimap and ns.Minimap.ApplyVisibility then ns.Minimap.ApplyVisibility() end
 end
 
 ---Volta esta configuração para o padrão de fábrica.
@@ -186,10 +204,16 @@ function Profile.Reset()
     end
     Fill(active)
     Profile.EnsureRuntimeDefaults()
+    -- (14/10) Everything the profile holds, not only the scale and the columns: the position, the
+    -- lock, the visibility and the minimap button stayed as they were until a /reload.
     if ns.Window then
         ns.Window.ApplyScale()
+        ns.Window.ApplyPosition()
+        ns.Window.ApplyLock()
         ns.Window.Rebuild()
+        ns.Window.ApplyVisibility()
     end
+    if ns.Minimap and ns.Minimap.ApplyVisibility then ns.Minimap.ApplyVisibility() end
 end
 
 -- O proxy. `pairs(ns.db)` não funciona de propósito: use ns.Profile.Raw() para isso.

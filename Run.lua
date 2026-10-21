@@ -15,11 +15,9 @@
 --   ENCOUNTER_END (success)          -> o instante de cada boss
 --   CHALLENGE_MODE_DEATH_COUNT_UPDATED -> quando o contador de mortes sobe
 --
--- LIMITE CONHECIDO E ACEITO: o evento de morte dá **quando**, não **quem**. A contagem por
--- jogador continua vindo da coluna de mortes do medidor, que é exata; o marcador na linha do
--- tempo fica sem nome. Descobrir o nome exigiria `UNIT_DIED`, cuja validade como evento de
--- frame no 12.1 não está confirmada em lugar nenhum — preferi um marcador anônimo a um
--- `RegisterEvent` que pode estourar.
+-- O evento de morte dá **quando**, não **quem**. Quem morreu vem da lista de mortes do medidor
+-- (`Scoreboard.AttachDeathClasses`), que empresta classe e nome ao marcador quando as duas
+-- listas batem — senão o marcador fica a caveira sem nome.
 local ADDON, ns = ...
 
 local Run = {}
@@ -104,6 +102,13 @@ function Run.Resume()
 
     Run.Start()
 
+    -- (14/10) The deaths before the /reload were not seen: the counter starts from what the game
+    -- already counts, or the next death drew all of them at once, piled on its instant.
+    if C_ChallengeMode.GetDeathCount then
+        local okCount, count = pcall(C_ChallengeMode.GetDeathCount)
+        if okCount and type(count) == "number" then lastDeathCount = count end
+    end
+
     local elapsed = Run.ElapsedFromWorldTimer()
     if elapsed then
         startedAt = GetTime() - elapsed
@@ -140,10 +145,6 @@ function Run.ElapsedFromWorldTimer()
     return nil
 end
 
-function Run.IsPartial()
-    return partial
-end
-
 ---A partir de que segundo da corrida o registro pode ser lido como verdade.
 ---
 ---0 numa corrida acompanhada do inicio; o instante da retomada quando houve `/reload` no meio.
@@ -151,10 +152,6 @@ end
 function Run.GetKnownFrom()
     if partial then return nil end
     return knownFrom
-end
-
-function Run.IsActive()
-    return active
 end
 
 function Run.OnCombatStart()

@@ -13,7 +13,8 @@
 -- no cast list, no rhythm, no cooldown use, no potion; the Cooldown Manager's list (it is the
 -- player's own spec's); and the blows of a death (the recap is the local player's).
 --
--- So this screen has two tabs where "My run" has five, and says at the foot what is missing and
+-- So this screen has two tabs where "My run" has five (summary, spells, talents, deaths,
+-- history), and says at the foot what is missing and
 -- why. The window is the same: the game's frame and inset, its tabs, its boxes and its
 -- dropdown, the meter's flat bars, the support line -- built from the same pieces
 -- (`ns.MyRunWindow.Kit`).
@@ -35,9 +36,8 @@ local LEFT_WIDTH = 420
 local RIGHT_WIDTH = INNER - LEFT_WIDTH - GAP
 local MAX_TAKEN = 8
 local MAX_DEATHS = 6
-local SCROLL_BAR = 24
 local TABS = { "summary", "spells" }
-local TAB_LABEL = { summary = "Summary", spells = "Spells" }
+local TAB_LABEL = { summary = L["Summary"], spells = L["Spells"] }
 -- The share of the group, one bar each: what the number is, and the key of `Win.Numbers`.
 local SHARES = {
     { key = "damage", label = "Damage" }, { key = "healing", label = "Healing" }, { key = "absorbs", label = "Absorbs" },
@@ -275,7 +275,7 @@ local function CreatePanel()
     for i, key in ipairs(TABS) do
         local tab = CreateFrame("Button", frame:GetName() .. "Tab" .. i, frame, "PanelTabButtonTemplate")
         tab:SetID(i)
-        tab:SetText(L[TAB_LABEL[key]])
+        tab:SetText(TAB_LABEL[key])
         tab:SetScript("OnClick", function() Win.SetTab(key) end)
         if i == 1 then tab:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2) end
         PanelTemplates_TabResize(tab, 0)
@@ -334,7 +334,7 @@ function Win.Draw()
         t.side1:SetText(s1 or "")
         t.side2:SetText(s2 or "")
     end
-    local function Rank(x) return x and x.rank and format(L["%dº of the group"], x.rank) or "" end
+    local function Rank(x) return x and x.rank and format(L["#%d in the group"], x.rank) or "" end
     local function Total(x) return x and (K.Fmt(x.total) .. " " .. L["in total"]) or L["out of combat only"] end
     Set(frame.tiles[1], m and K.Fmt(m.damage.perSecond), L["Damage per second"], Total(m and m.damage), Rank(m and m.damage))
     local h = m and m.healing
@@ -342,7 +342,8 @@ function Win.Draw()
     Set(frame.tiles[2], h and K.Fmt(h.perSecond), L["Healing per second"], Total(h), absorbed or Rank(h))
     local i, d = m and m.interrupts, m and m.dispels
     Set(frame.tiles[3], i and tostring(i.total), L["Interrupts"], Rank(i),
-        d and d.total > 0 and format("%d %s", d.total, L["Dispels"]) or "")
+        -- (14/10) "Dispels: 1", not "1 Dispels" (in Portuguese, "1 Dissipações").
+        d and d.total > 0 and format("%s: %d", L["Dispels"], d.total) or "")
     local deaths = m and #m.deaths or nil
     Set(frame.tiles[4], deaths and tostring(deaths), deaths == 1 and L["Death"] or L["Deaths"], "", "", deaths and deaths > 0)
 
@@ -430,11 +431,9 @@ end
 function Win.IsShown() return frame ~= nil and frame:IsShown() end
 function Win.Refresh()
     if not Win.IsShown() then return end
-    if view.tab == "spells" then
-        if ns.Breakdown and ns.Breakdown.Refresh then ns.Breakdown.Refresh() end
-    else
-        Win.Draw()
-    end
+    -- (14/10) Every tab redraws itself: the Spells tab is SpellsPage now, not the floating panel,
+    -- and asking the panel to refresh left "the numbers are hidden in combat" on after combat.
+    Win.Draw()
 end
 
 -- For the harness.

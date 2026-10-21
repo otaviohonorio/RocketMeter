@@ -42,8 +42,6 @@ ns.defaults = {
     -- `nil` aqui de proposito: `Profile.EnsureRuntimeDefaults` monta a tabela, herdando as
     -- chaves antigas de quem ja tinha configuracao salva.
     text = nil,
-    rowHeight = 20,          -- altura da barra
-    columnWidth = 58,
 
     -- AS DUAS DISTÂNCIAS DA LINHA, configuráveis a pedido (09/09/2026), com print e retângulos
     -- apontando as duas: *"são das distância entre colunas e entre valores nas colunas
@@ -59,17 +57,10 @@ ns.defaults = {
     groupGap = 8,
     totalWidth = 84,
     width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
-    rowIcon = "spec",         -- "spec" (padrão) ou "class"
-    barTexture = "flat",      -- chapada
-    rowBorder = true,         -- borda de 1px separando as linhas
-    windowAlpha = 0.9,        -- opacidade do fundo da janela
-    barAlpha = 1.0,           -- opacidade do preenchimento da barra
-    roundIcons = true,        -- ícone circular, como no medidor nativo
-    valueFormat = "columns",  -- colunas, como o usuário quer; o formato em linha = 734K (28.2K, 100%)
-    showColumnHeader = true,  -- faixa com os nomes das colunas
-    barBrightness = 0.7,      -- escurece a cor da classe para o texto branco contrastar
+    -- (14/10) Twelve keys that nothing read went away (the skin is constants, Window.lua): row
+    -- height, column width, row icon, bar texture, row border, window and bar alpha, round icons,
+    -- value format, column header, bar brightness, auto height. Saved values of them are ignored.
     highlightBest = true,     -- realça quem lidera cada coluna
-    autoHeight = true,        -- encolhe para o número de jogadores; a alça desliga isso
     locked = false,
     shown = true,             -- a janela volta como o usuário deixou
     combatOnly = false,       -- só aparece em combate
@@ -80,6 +71,11 @@ ns.defaults = {
     -- largura da coluna e o nome é que vira reticências. Quem joga cross-realm liga em
     -- `/rm columns`.
     showRealm = false,
+
+    -- (19/10) The specialization icon in the rows (meter, breakdown, scoreboard): "square" (the
+    -- game's meter, the default) or "round" (the user's option). Not the old `roundIcons`, which
+    -- nothing read since 14/10: a saved value of it would flip nobody's icons now.
+    iconShape = "square",
 
     -- O painel de fim de corrida abre sozinho? Duas chaves, não uma: quem faz Mítico+ toda
     -- noite pode querer o resumo lá e não a cada chefe de raide, e vice-versa. A chave antiga
@@ -92,6 +88,10 @@ ns.defaults = {
     -- cada um vira estorvo no meio da progressão.
     autoScoreboardMPlus = true,
     autoScoreboardRaid = false,
+
+    -- (20/10) The game's combat log on by itself inside an instance, for Warcraft Logs (MyRun.CombatLogByPlace).
+    -- ON by default, the user's choice: *"Ligada"*.
+    combatLog = true,
 
     pos = nil,
 }
@@ -130,10 +130,14 @@ function ns.RunWhenSafe(fn)
 end
 
 local function FlushQueue()
-    for i = 1, #queue do
-        queue[i]()
+    -- (14/10) Emptied BEFORE running, and each one in its own pcall: an error in one used to
+    -- stop the rest of the end of combat and stay in the queue, to fail again at every fight.
+    local pending = queue
+    queue = {}
+    for i = 1, #pending do
+        local ok, err = pcall(pending[i])
+        if not ok then geterrorhandler()(err) end
     end
-    wipe(queue)
 end
 
 --------------------------------------------------------------------------------

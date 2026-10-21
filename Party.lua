@@ -114,9 +114,20 @@ local function NextInspect()
     inspecting = false
     if #inspectQueue == 0 then return end
 
+    -- (14/10) The player's own Inspect window is open: `ClearInspectPlayer` would empty it. Wait
+    -- and try again after the gap.
+    if InspectFrame and InspectFrame.IsShown and InspectFrame:IsShown() then
+        inspecting = true
+        C_Timer.After(INSPECT_GAP, NextInspect)
+        return
+    end
     local unit = table.remove(inspectQueue, 1)
     if not UnitExists or not UnitExists(unit) then return NextInspect() end
     if not CanInspect or not CanInspect(unit) then return NextInspect() end
+    -- Known less than 15 minutes ago: nothing to ask (a raid's roster changes all the time).
+    local known = Readable(UnitName and UnitName(unit))
+    local entry = known and ilevelCache[known]
+    if entry and (GetTime and GetTime() or 0) - entry.at < CACHE_TTL then return NextInspect() end
 
     inspecting = true
     -- `ClearInspectPlayer` antes de cada pedido: sem ele o cliente pode devolver o
@@ -442,8 +453,8 @@ listener:SetScript("OnEvent", function(_, event, ...)
         -- `itemLink` — um 5º campo repetindo-o não faria sentido.
         --
         -- Então o addon segue esse uso **e registra o que chegou**: a linha `saque cru` no
-        -- diário responde qual dos dois está certo na primeira corrida real, que é mais barato
-        -- que qualquer raciocínio a mais aqui.
+        -- diário. (14/10) RESPONDIDO: o diário gravou `quinto = "Gothmorg"`, `sexto =
+        -- "DEMONHUNTER"`, e o próprio jogo lê `playerName, className` (BossBannerToast.lua:194).
         local _, _, itemLink, _, quinto, sexto = ...
         if ns.Log then
             ns.Log.Add("saque cru", { link = itemLink, quinto = quinto, sexto = sexto })

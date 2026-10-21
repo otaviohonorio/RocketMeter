@@ -36,7 +36,8 @@ local STEP = BAR + 2
 local GAP = 10
 local SCROLL_BAR = 24
 local ALL = 200                 -- the whole breakdown: the casts and the talents are looked up in it
-local MAX = { damage = 12, healing = 8, absorbs = 8, casts = 12, castsAlone = 24, talent = 8, small = 6 }
+-- (20/10) one tab per kind (MyRunWindow): the damage and the casts get the room of a whole tab
+local MAX = { damage = 20, healing = 12, absorbs = 8, casts = 12, castsAlone = 40, talent = 8, small = 8 }
 -- The number columns, from the right edge inwards.
 local COLS = {
     { key = "share", width = 40 }, { key = "rate", width = 64 }, { key = "amount", width = 64 },
@@ -83,7 +84,25 @@ function Page.Model(ctx)
         return n
     end
 
+    -- (20/10) The lists kept with the run (MyRun.ReadSpells): a boss, the trash, the whole run, a run of the
+    -- history. `ctx.stored` is them, `ctx.seconds` the combat time of the scope (the rate is over it).
+    local STORED = { [E.DamageDone] = "damage", [E.Absorbs] = "absorbs", [E.Interrupts] = "interrupts", [E.Dispels] = "dispels" }
+    local function Stored(attrs)
+        local key = attrs == "healing" and "healing" or STORED[attrs[1]]
+        local list = key and ctx.stored[key]
+        if not list or #list == 0 then return nil, nil end
+        local all, total = {}, 0
+        for _, sp in ipairs(list) do
+            total = total + sp.amount
+            all[#all + 1] = { spellID = sp.spellID, amount = sp.amount,
+                              perSecond = sp.perSecond or (ctx.seconds and ctx.seconds > 0 and sp.amount / ctx.seconds) or nil }
+        end
+        if total <= 0 then return nil, nil end
+        return all, total
+    end
+
     local function Breakdown(attrs)
+        if st == nil and ctx.stored then return Stored(attrs) end
         if st == nil or ctx.guid == nil then return nil, nil end
         local all, total
         if attrs == "healing" then
@@ -106,13 +125,16 @@ function Page.Model(ctx)
             -- not an "other cast".
             local casts = CastsOf(sp.spellID)
             if i <= limit then
-                rows[#rows + 1] = { spellID = sp.spellID, amount = sp.amount, rate = sp.perSecond,
+                local row = { spellID = sp.spellID, amount = sp.amount, rate = sp.perSecond,
                     share = sp.amount / total * 100, casts = casts,
                     perMinute = casts and minutes and casts / minutes or nil, bar = sp.amount }
+                rows[#rows + 1] = row
             end
         end
         sections[#sections + 1] = { key = key, title = format("%s: %s", title, ns.Data.FormatAmount(total) or "-"),
-            head = "amounts", rows = rows, top = rows[1].bar }
+            -- (14/10) Another player: the game hides his casts, so no "Casts" and "/min" headers
+            -- over columns that are always empty.
+            head = own and "amounts" or "amountsOnly", rows = rows, top = rows[1].bar }
         return all, total
     end
     local damage, damageTotal = Amounts("damage", L["Damage"], { E.DamageDone }, MAX.damage)
@@ -127,7 +149,8 @@ function Page.Model(ctx)
         local list = {}
         for id, n in pairs(own.bySpell) do
             local name = SpellName(id)
-            if not matchedId[id] and not (name and matchedName[name]) then
+            -- (20/10) the Casts tab lists every cast, matched to an amount or not (Warcraft Logs' "Casts")
+            if ctx.allCasts or (not matchedId[id] and not (name and matchedName[name])) then
                 list[#list + 1] = { spellID = id, casts = n, share = (own.casts or 0) > 0 and n / own.casts * 100 or 0,
                     perMinute = minutes and n / minutes or nil, bar = n }
             end
@@ -137,7 +160,7 @@ function Page.Model(ctx)
             return a.casts > b.casts
         end)
         if #list > 0 then
-            local alone = not damage and not healing and not absorbs
+            local alone = ctx.allCasts or (not damage and not healing and not absorbs)
             local limit = alone and MAX.castsAlone or MAX.casts
             while #list > limit do table.remove(list) end
             local K = Kit()
@@ -147,22 +170,22 @@ function Page.Model(ctx)
         end
     end
 
-    -- 4. Of the two lists, what a talent of the player's own build answers for (Talents.lua).
-    local function TalentRows(key, title, all, total)
-        if not (ctx.mine and ns.Talents and all) then return end
-        local found, part = ns.Talents.Of(all)
-        if #found == 0 then return end
-        local rows = {}
-        for i = 1, math.min(#found, MAX.talent) do
-            local sp = found[i]
-            rows[i] = { spellID = sp.spellID, amount = sp.amount, rate = sp.perSecond, share = sp.amount / total * 100, bar = sp.amount }
-        end
-        sections[#sections + 1] = { key = key, rows = rows, top = rows[1].bar,
-            title = format(L["%s (%d%% of the total)"], title, math.floor(part / total * 100 + 0.5)) }
+    -- 3b. (14/10) What the game reported as a cast and the player did not press: effects it
+    -- triggers (a proc reported as a cast), the world, a delve's or a zone's power. Shown so that
+    -- nothing vanishes, and out of every count (casts, per minute, gaps).
+    if own and own.notPressed and next(own.notPressed) then
+        local list = {}
+        for id, n in pairs(own.notPressed) do list[#list + 1] = { spellID = id, casts = n, bar = n } end
+        table.sort(list, function(a, b)
+            if a.casts == b.casts then return a.spellID < b.spellID end
+            return a.casts > b.casts
+        end)
+        while #list > MAX.small do table.remove(list) end
+        sections[#sections + 1] = { key = "notPressed", head = "casts", rows = list, top = list[1].bar,
+            title = L["Not counted: automatic effects, the world and delves"] }
     end
-    TalentRows("talentDamage", L["Your talents: direct damage"], damage, damageTotal)
-    TalentRows("talentHealing", L["Your talents: direct healing"], healing, healingTotal)
-    TalentRows("talentAbsorbs", L["Your talents: damage absorbed"], absorbs, absorbsTotal)
+
+    -- 4. (14/10) What the talents of the build gave moved to its own tab, "Build"; (20/10) that tab was removed.
 
     -- 5. Counts: the interrupts the game credited, the interrupts and the control cast, dispels.
     local function Counts(key, title, list)
@@ -183,6 +206,14 @@ function Page.Model(ctx)
     end
     Counts("dispels", L["Dispels"], (Breakdown({ E.Dispels })))
 
+    -- (20/10) One tab per kind, after Warcraft Logs: `ctx.only` keeps the sections of the tab.
+    if ctx.only then
+        local kept = {}
+        for _, section in ipairs(sections) do
+            if ctx.only[section.key] then kept[#kept + 1] = section end
+        end
+        sections = kept
+    end
     return sections
 end
 
@@ -257,21 +288,36 @@ local function Title(page, index)
 end
 
 local HEAD_LABELS = {
-    amounts = { casts = "Casts", perMinute = "/min", amount = "Total", rate = "Per second", share = "%" },
-    casts = { casts = "Casts", perMinute = "/min", share = "%" },
+    amounts = { casts = L["Casts"], perMinute = L["/min"], amount = L["Total"], rate = L["Per second"], share = L["%"] },
+    amountsOnly = { amount = L["Total"], rate = L["Per second"], share = L["%"] },
+    casts = { casts = L["Casts"], perMinute = L["/min"], share = L["%"] },
 }
 
+---A paragraph of a section (the "Build" tab's list of talents the game does not measure).
+local function Paragraph(page, index)
+    page.paragraphs = page.paragraphs or {}
+    local t = page.paragraphs[index]
+    if t then return t end
+    t = Kit().Text(page.child, "GameFontHighlightSmall")
+    t:SetWordWrap(true)
+    t:SetJustifyV("TOP")
+    t:SetJustifyH("LEFT")
+    page.paragraphs[index] = t
+    return t
+end
+
 ---Draws the page.
----@param ctx table what `Page.Model` takes, plus `classFilename`, `note` and `empty`
+---@param ctx table what `Page.Model` takes, plus `classFilename`, `note` and `empty`; `model`
+---draws another list of sections with the same pieces (the "Build" tab)
 function Page.Draw(page, ctx)
     local K = Kit()
-    local sections = Page.Model(ctx)
+    local sections = (ctx.model or Page.Model)(ctx)
     page.sections = sections
     local cr, cg, cb = ns.ClassColor(ctx.classFilename)
     local k = K.BarBrightness()
     cr, cg, cb = (cr or 1) * k, (cg or 1) * k, (cb or 1) * k
     local width = page.contentWidth
-    local y, rowsUsed, headsUsed = 0, 0, 0
+    local y, rowsUsed, headsUsed, textsUsed = 0, 0, 0, 0
 
     for index, section in ipairs(sections) do
         local title = Title(page, index)
@@ -289,7 +335,7 @@ function Page.Draw(page, ctx)
             h:ClearAllPoints()
             h:SetPoint("TOPLEFT", 0, -y)
             h:SetWidth(width)
-            for key, fs in pairs(h.cols) do fs:SetText(labels[key] and L[labels[key]] or "") end
+            for key, fs in pairs(h.cols) do fs:SetText(labels[key] or "") end
             h:Show()
             y = y + HEAD
         end
@@ -302,25 +348,37 @@ function Page.Draw(page, ctx)
             r:ClearAllPoints()
             r:SetPoint("TOPLEFT", 0, -y)
             r:SetWidth(width)
-            r.icon:SetTexture(K.SpellIcon(data.spellID))
-            r.name:SetText(K.SpellNameOf(data.spellID))
+            r.icon:SetTexture(data.icon or K.SpellIcon(data.spellID))
+            r.name:SetText(data.name or K.SpellNameOf(data.spellID))
             local c = r.cols
             c.casts:SetText(data.casts and tostring(data.casts) or "")
             c.perMinute:SetText(data.perMinute and format("%.1f", data.perMinute) or "")
             c.amount:SetText(data.count and tostring(data.count) or (data.amount and K.Fmt(data.amount)) or "")
             c.rate:SetText(data.rate and data.rate > 0 and K.Fmt(data.rate) or "")
             c.share:SetText(data.share and format("%d%%", math.floor(data.share + 0.5)) or "")
-            -- White for what was done and how much; the game's grey for the rates.
-            K.Colour(c.perMinute, DISABLED_FONT_COLOR)
-            K.Colour(c.rate, DISABLED_FONT_COLOR)
+            -- White for what was done and how much; the game's light grey for the rates.
+            K.Colour(c.perMinute, LIGHTGRAY_FONT_COLOR)
+            K.Colour(c.rate, LIGHTGRAY_FONT_COLOR)
             r.bar:SetMinMaxValues(0, math.max(1, section.top or 1))
             r.bar:SetValue(data.bar or 0)
             r.bar:SetStatusBarColor(cr, cg, cb)
             r:Show()
             y = y + STEP
         end
+        if section.text then
+            textsUsed = textsUsed + 1
+            local t = Paragraph(page, textsUsed)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", 4, -y)
+            t:SetWidth(width - 8)
+            t:SetText(section.text)
+            t:Show()
+            section.textString = t
+            y = y + math.max(STEP, (t.GetStringHeight and t:GetStringHeight() or STEP) + 4)
+        end
         y = y + GAP
     end
+    for i = textsUsed + 1, #(page.paragraphs or {}) do page.paragraphs[i]:Hide() end
 
     for i = #sections + 1, #page.titles do page.titles[i]:Hide() end
     for i = headsUsed + 1, #page.heads do page.heads[i]:Hide() end

@@ -262,8 +262,7 @@ local function CreatePanel()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
-    -- Mesma decisão da janela: sem fundo e sem moldura. Quem sustenta a leitura são os
-    -- Sem fundo, o texto disputaria com o cenário do jogo.
+    -- Um fundo escuro: sem ele, o texto disputaria com o cenário do jogo.
     frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
@@ -443,7 +442,7 @@ function Breakdown.Show(source, sessionType, anchorTo, raw)
         if isLocal then
             guid = UnitGUID("player")
         else
-            ns.Print(L["the spell breakdown of other players is only available out of combat."])
+            ns.Print(L["another player's screen opens only out of combat."])
             return
         end
     end
@@ -592,6 +591,10 @@ local function CreateTip()
         self.wait = (self.wait or 0) + (elapsed or 0)
         if self.wait < TIP.REFRESH then return end
         self.wait = 0
+        -- (14/10) The row is the owner, not the player: when the order changes in combat, the
+        -- row shows someone else and the box follows the row (it kept the player of the hover).
+        local rowSource = self.owner and self.owner.source
+        if rowSource and rowSource ~= self.source then self.source = rowSource end
         if self.source then pcall(Breakdown.FillTooltip) end
     end)
     tipFrame = f
@@ -723,7 +726,7 @@ function Breakdown.FillTooltip()
 
     local combat = InCombatLockdown and InCombatLockdown() and true or false
     if rows > 0 then
-        f.foot:SetText(L["Click: the full screen of this player"])
+        f.foot:SetText(L["Click: open this player's screen"])
         f.foot:SetTextColor(GREEN_FONT_COLOR:GetRGB())
     elseif not readable then
         f.foot:SetText(L["In combat the game only lets your own spells be read."])

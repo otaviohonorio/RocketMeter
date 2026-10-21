@@ -1,71 +1,75 @@
 -- RocketMeter | MyRunWindow.lua
--- The screen "My run" ("Meu combate"): what the player did, what cost, the cooldowns, the damage
--- taken, the timeline, the casts, the deaths and the history. Opens in place of the spell panel
--- on the player's own row. The data is MyRun.lua; this file only draws.
+-- The screen "My run" ("Meu combate"): the player's own report of a key, a raid, a delve or a session in the world,
+-- tab by tab as Warcraft Logs shows a report. Opens in place of the spell panel on the player's own row. The data is
+-- MyRun.lua; the tables and charts are Report.lua; this file chooses what goes in each tab.
 --
--- (!) THE GAME'S SKIN (01/10). The first version was painted by hand like the meter's spell
--- panel, and the user called it: *"os addons que estou criando seguem o padrão de skin blizzard,
--- tem que revisar"*. This is a screen to READ, like Rocket Mount's window, not a combat
--- overlay, so every piece is the game's (12.1.0, Blizzard_SharedXML and Blizzard_UIPanelTemplates):
+-- (!) THE GAME'S SKIN (01/10). The first version was painted by hand, and the user called it: *"os addons que estou
+-- criando seguem o padrão de skin blizzard, tem que revisar"*. Every piece is the game's (12.1.0):
 --
 --   frame     `ButtonFrameTemplate` without the portrait: title, close button, Esc
---   body      its `Inset`
+--   body      its `Inset`, each tab a page that scrolls (`ScrollFrameTemplate`)
 --   tabs      `PanelTabButtonTemplate` under the frame, `PanelTemplates_SetNumTabs` / `_SetTab`
---   tiles     `InsetFrameTemplate3`
+--   boxes     `InsetFrameTemplate3` for the title band of each table
 --   combos    `WowStyle1DropdownTemplate`
---   bars      the game's status bar texture, in the class colour (the colour of "me")
---   text      the game's font objects, and the colour OBJECTS: gold for titles, white for
---             values, grey for detail, red for what is not met (`RED_FONT_COLOR`)
---   marks     the game's own glyphs: tombstone, avoidable, deadly, boss
+--   text      the game's font objects and colour objects; the game's glyphs (tombstone, avoidable, deadly)
 --
--- NO COLOUR CARRIES A MEANING OF OURS: the first version had a red/yellow/grey edge for how bad
--- a problem was, a red bar for "avoidable", a blue one for rhythm. The order of the list says
--- how bad, and the game's glyph says avoidable.
+-- (!) WARCRAFT LOGS, TAB BY TAB (20/10). The user: *"eu falei para deixar igual ao warcraft logs, mas tu manteve
+-- algumas abas e ficou informação meio duplicada e não tá igual ao warcraftlogs, nenhum pouco igual, essa janela ela
+-- precisa ser igual ao warcraftlogs e entendo se não tiver algumas informações por não ter como mesmo, mas pesquisa
+-- tudo, analisa todos os detalhes e faça"*, and *"vai ter que aumentar a janela para caber as abas"*. Their report
+-- (`2LMPXTqKQ4xBRGvF`, fight 16) was read tab by tab on 20/10, and these are its twelve tabs in its order, with the
+-- History of this addon at the end:
 --
--- WHAT CAME FROM WARCRAFT LOGS (01/10, the user's two reports, read tab by tab), as far as the
--- game lets an addon rebuild it for the local player: the chart by fight (their per-second
--- curve has no source here: one point per fight), one line per cooldown with every use (their
--- casts timeline), the band of time casting with its holes, the casts tab with count, share and
--- casts per minute, and in the deaths "in N s" / "one shot", the last three blows and the
--- damage of the window.
+--   Summary       the chart per second (damage done, damage taken, healing done), the stats, the gear, and four
+--                 boxes: damage done, healing done and damage taken by ability, and the deaths
+--   Damage Done   Name, Amount, Casts, Avg Cast, Hits, Avg Hit, Crit %, Uptime %, DPS, and a Total line
+--   Damage Taken  Name, Amount, Hits, Avg Hit, DTPS (who cast it and the game's avoidable and deadly glyphs)
+--   Healing       the heals and the shields in one list: Name, Amount, Casts, Avg Cast, Hits, Avg Hit, Crit %,
+--                 Overheal, HPS
+--   Deaths        Time, Killing Blow, the window, the last three hits, the damage taken; a click opens the blows
+--   Interrupts    the total, what was stopped and the interrupts cast
+--   Dispels       the total and what was dispelled
+--   Casts         the casts over time; Name, Amount, CPM
+--
+-- (!) THREAT, BUFFS, DEBUFFS AND RESOURCES ARE NOT HERE (20/10): MEASURED EMPTY. For a few hours they were, fed by a
+-- sample a second in combat of the player's health, power, the enemies tanked and each aura, kept only when readable.
+-- The user's raid of 20/10 17:58 (Abismo Peçonhento, Death Knight, 6 fights, 347 samples): health 0 readable of 347,
+-- power 0 of 347, threat 0 of 347, auras readable only in the very first sample of each fight (the instant the fight
+-- begins) and 27,440 refused -- "Auras cannot be accessed when secret while tainted". Those first readings even drew
+-- false one-second spans. The user: *"documenta as que não mostrou nada, se tiver aba vazia pode remover"*. Hits,
+-- crits, overheal, uptime and the per-second curve exist only in the game's combat log file, which no addon can read,
+-- and the tabs say so.
+--
+-- (!) DEVELOPMENT SHOWS WHAT THE PACKAGE SHOWS (20/10). For a few hours the development copy drew those columns from
+-- the combat log (tools/meter_timeline.py -> Timeline.lua). The user: *"deixa igual ao pacote publicado, se não vai me
+-- gerar confusão"*. The tool stays, out of the addon, to check the numbers against Warcraft Logs.
+--
+-- What was here before and is not on the site went away (20/10): the four tiles, "What cost", the cooldowns "used /
+-- fitted", the rhythm and the Character tab (the stats and the gear are in the Summary, as on the site).
 local ADDON, ns = ...
 local L = ns.L
 
 local Win = {}
 ns.MyRunWindow = Win
 
-local WIDTH = 900
+-- (20/10) 900 -> 1000. Thirteen tabs were measured at 958 px with the game's font, and in game they ran past the window
+-- (the user's print, 18:17): a tab is never narrower than its two side pieces, about 70 px ("Cura" is 70, not 43).
+-- Measured on the print, the nine that stay take about 760 px.
+local WIDTH = 1000
 local PAD = 12                   -- inside the inset
 local TOP_BAND = 60              -- title bar + the row of the combos
-local TILE_HEIGHT = 46
+local BODY_HEIGHT = 560
 local TITLE = 16
 local ITEM_HEIGHT = 30
 local BAR_HEIGHT = 20
 local ROW_HEIGHT = 18
 local GAP = 10
-local LEFT_WIDTH = 520
 local INNER = WIDTH - 16 - PAD * 2          -- the inset is 8 from each side of the frame
-local RIGHT_WIDTH = INNER - LEFT_WIDTH - GAP
-local MAX_PROBLEMS = 6
-local MAX_COOLDOWNS = 6
-local MAX_TAKEN = 5
 local MAX_HISTORY = 8
-local MAX_CD_LINES = 5
-local CD_LINE = 16
-local CHART_HEIGHT = 40
-local GUTTER = 20                -- left of the timeline: the icon of each cooldown line
-local MAX_DEATH_ROWS = 8
-local DEATH_ROW = 46
-local MAX_EVENT_ROWS = 10
-local EVENT_ROW = 30
-local DEATH_LIST_WIDTH = 400
-local SCROLL_BAR = 24            -- kept free at the right of a page that scrolls
--- (!) THE BARS ARE THE METER'S OWN, FLAT (01/10). They were the game's status bar art, which
--- carries a sheen from top to bottom, while the Spells tab -- the meter's spell panel, in the
--- same window -- draws flat bars in the class colour darkened for the white text. The user:
--- *"a skin do gráfico das outras abas poderia ser igual ao da aba magias, sem degradê"*. So
--- every bar here takes the texture, the brightness and the row background from the same place
--- the spell panel does (`ns.Skin`): change the skin, and the five tabs change together.
+local CHART_HEIGHT = 130
+local BOX_ROWS = 10              -- the Summary's four boxes
+-- (!) THE BARS ARE THE METER'S OWN, FLAT (01/10). The user: *"a skin do gráfico das outras abas poderia ser igual ao
+-- da aba magias, sem degradê"*. Every bar takes the texture, the brightness and the row background from `ns.Skin`.
 local FLAT = "Interface\\Buttons\\WHITE8X8"
 local function BarTexture()
     return (ns.Skin and ns.Skin.barTexture) or FLAT
@@ -73,9 +77,15 @@ end
 local function BarBrightness()
     return (ns.Skin and tonumber(ns.Skin.barBrightness)) or 0.7
 end
--- (08/10) Four tabs: "Casts" and "Spells" became one (SpellsPage.lua).
-local TABS = { "summary", "spells", "deaths", "history" }
-local TAB_LABEL = { summary = "Summary", casts = "Casts", deaths = "Deaths", spells = "Spells", history = "History" }
+
+local TABS = { "summary", "damage", "taken", "healing", "deaths", "interrupts", "dispels", "casts", "history" }
+-- Labels looked up here, by name, so the locale test sees them used.
+local TAB_LABEL = { summary = L["Summary"], damage = L["Damage done"], taken = L["Damage taken"], healing = L["Healing"],
+                    deaths = L["Deaths"], interrupts = L["Interrupts"], dispels = L["Dispels"], casts = L["Casts"],
+                    history = L["History"] }
+
+-- The colours of the Summary's three lines, as the site draws them (blue, red, green); the legend names each.
+local LINE = { damage = { 0.38, 0.62, 1.0 }, taken = { 0.95, 0.3, 0.3 }, healing = { 0.35, 0.85, 0.45 } }
 
 local frame
 local view = { scope = "all", run = nil, tab = "summary", death = nil }
@@ -124,7 +134,12 @@ end
 -- Widgets
 --------------------------------------------------------------------------------
 local function Text(parent, template, justify)
-    local fs = parent:CreateFontString(nil, "OVERLAY", template or "GameFontHighlightSmall")
+    -- (14/10) Secondary text: the white font in the game's light grey (LIGHTGRAY_FONT_COLOR, 0.6),
+    -- never the disabled grey (0.5) on the stone and the art (the rule of 13/10: ~3.7:1 against
+    -- ~5.1:1). Asked for "GameFontDisableSmall", this gives that.
+    local grey = template == "GameFontDisableSmall"
+    local fs = parent:CreateFontString(nil, "OVERLAY", grey and "GameFontHighlightSmall" or template or "GameFontHighlightSmall")
+    if grey then Colour(fs, LIGHTGRAY_FONT_COLOR) end
     fs:SetJustifyH(justify or "LEFT")
     fs:SetWordWrap(false)
     return fs
@@ -233,215 +248,9 @@ local function Pool(parent, layer)
 end
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- The frame
 --------------------------------------------------------------------------------
-local function BuildSummary(page)
-    local y = 0
-    frame.tiles = {}
-    local tileWidth = (INNER - 6 * 3) / 4
-    for i = 1, 4 do
-        local t = Tile(page)
-        t:SetSize(tileWidth, TILE_HEIGHT)
-        t:SetPoint("TOPLEFT", (i - 1) * (tileWidth + 6), -y)
-        frame.tiles[i] = t
-    end
-    y = y + TILE_HEIGHT + GAP
-
-    -- Left: what cost, and the timeline.
-    local left = y
-    local p = Block(page, L["What cost"])
-    p:SetPoint("TOPLEFT", 0, -left)
-    p:SetSize(LEFT_WIDTH, TITLE + MAX_PROBLEMS * (ITEM_HEIGHT + 2) + 14)
-    p.rows = {}
-    for i = 1, MAX_PROBLEMS do
-        local r = ProblemRow(p)
-        r:SetPoint("TOPLEFT", 0, -(TITLE + (i - 1) * (ITEM_HEIGHT + 2)))
-        r:SetPoint("RIGHT")
-        r:EnableMouse(true)
-        r:SetScript("OnMouseUp", function(self)
-            local problem = self.problem
-            if problem and problem.kind == "death" then view.death = problem.index; Win.SetTab("deaths") end
-        end)
-        p.rows[i] = r
-    end
-    p.empty = Text(p, "GameFontDisableSmall")
-    p.empty:SetPoint("TOPLEFT", 4, -TITLE)
-    p.checked = Text(p, "GameFontDisableSmall")
-    p.checked:SetPoint("BOTTOMLEFT", 4, 0)
-    p.checked:SetPoint("RIGHT")
-    frame.problems = p
-    left = left + p:GetHeight() + GAP
-
-    -- The timeline: the chart by fight, the band of time casting, bosses / deaths / potions, and
-    -- one line per cooldown. Everything shares the same time axis, GUTTER from the left.
-    local tl = Block(page, L["Timeline"])
-    local height = TITLE + CHART_HEIGHT + 4 + 8 + 2 + 18 + MAX_CD_LINES * CD_LINE + 14
-    tl:SetPoint("TOPLEFT", 0, -left)
-    tl:SetSize(LEFT_WIDTH, height)
-    tl.width = LEFT_WIDTH - GUTTER
-    tl.chartTop = TITLE
-    tl.bandTop = TITLE + CHART_HEIGHT + 4
-    tl.marksTop = tl.bandTop + 8 + 2
-    tl.linesTop = tl.marksTop + 18
-    tl.bars = Pool(tl, "ARTWORK")
-    tl.segments = Pool(tl, "ARTWORK")
-    tl.holes = Pool(tl, "OVERLAY")
-    tl.marks = Pool(tl, "OVERLAY")
-    tl.uses = Pool(tl, "OVERLAY")
-    tl.lineIcons = {}
-    for i = 1, MAX_CD_LINES do
-        local icon = tl:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(CD_LINE - 2, CD_LINE - 2)
-        icon:SetPoint("TOPLEFT", 0, -(tl.linesTop + (i - 1) * CD_LINE))
-        tl.lineIcons[i] = icon
-    end
-    tl.start = Text(tl, "GameFontDisableSmall")
-    tl.start:SetPoint("BOTTOMLEFT", GUTTER, 0)
-    tl.finish = Text(tl, "GameFontDisableSmall", "RIGHT")
-    tl.finish:SetPoint("BOTTOMRIGHT", 0, 0)
-    tl.note = Text(tl, "GameFontDisableSmall", "RIGHT")
-    tl.note:SetPoint("TOPRIGHT", 0, -1)
-    frame.timeline = tl
-    left = left + height
-
-    -- Right: cooldowns, damage taken, rhythm.
-    local right = y
-    local rx = LEFT_WIDTH + GAP
-    local cd = Block(page, L["Cooldowns — used / fitted"])
-    cd:SetPoint("TOPLEFT", rx, -right)
-    cd:SetSize(RIGHT_WIDTH, TITLE + MAX_COOLDOWNS * (BAR_HEIGHT + 2) + 14)
-    cd.rows = {}
-    for i = 1, MAX_COOLDOWNS do
-        local r = BarRow(cd)
-        r:SetPoint("TOPLEFT", 0, -(TITLE + (i - 1) * (BAR_HEIGHT + 2)))
-        r:SetPoint("RIGHT")
-        cd.rows[i] = r
-    end
-    cd.note = Text(cd, "GameFontDisableSmall")
-    cd.note:SetPoint("BOTTOMLEFT", 4, 0)
-    cd.note:SetPoint("RIGHT")
-    frame.cooldowns = cd
-    right = right + cd:GetHeight() + GAP
-
-    local tk = Block(page, L["Damage taken"])
-    tk:SetPoint("TOPLEFT", rx, -right)
-    tk:SetSize(RIGHT_WIDTH, TITLE + MAX_TAKEN * (BAR_HEIGHT + 2) + 14)
-    tk.rows = {}
-    for i = 1, MAX_TAKEN do
-        local r = BarRow(tk)
-        r:SetPoint("TOPLEFT", 0, -(TITLE + (i - 1) * (BAR_HEIGHT + 2)))
-        r:SetPoint("RIGHT")
-        tk.rows[i] = r
-    end
-    tk.note = Text(tk, "GameFontDisableSmall")
-    tk.note:SetPoint("BOTTOMLEFT", 4, 0)
-    tk.note:SetPoint("RIGHT")
-    frame.taken = tk
-    right = right + tk:GetHeight() + GAP
-
-    local rh = Block(page, L["Rhythm"])
-    rh:SetPoint("TOPLEFT", rx, -right)
-    rh:SetSize(RIGHT_WIDTH, TITLE + 3 * (BAR_HEIGHT + 2))
-    rh.rows = {}
-    for i = 1, 3 do
-        local r = BarRow(rh, false)
-        r:SetPoint("TOPLEFT", 0, -(TITLE + (i - 1) * (BAR_HEIGHT + 2)))
-        r:SetPoint("RIGHT")
-        rh.rows[i] = r
-    end
-    frame.rhythm = rh
-    right = right + rh:GetHeight()
-
-    return math.max(left, right)
-end
-
-local function BuildDeaths(page)
-    page.listTitle = Text(page, "GameFontNormalSmall")
-    page.listTitle:SetPoint("TOPLEFT", 2, -1)
-    page.rows = {}
-    for i = 1, MAX_DEATH_ROWS do
-        local r = CreateFrame("Button", nil, page)
-        r:SetSize(DEATH_LIST_WIDTH, DEATH_ROW)
-        r:SetPoint("TOPLEFT", 0, -(TITLE + (i - 1) * (DEATH_ROW + 2)))
-        r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-        r.selected = r:CreateTexture(nil, "BACKGROUND")
-        r.selected:SetAllPoints()
-        r.selected:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-        r.selected:SetBlendMode("ADD")
-        r.selected:Hide()
-        r.when = Text(r, "GameFontDisableSmall", "RIGHT")
-        r.when:SetPoint("TOPLEFT", 2, -4)
-        r.when:SetWidth(36)
-        r.icon = r:CreateTexture(nil, "ARTWORK")
-        r.icon:SetSize(24, 24)
-        r.icon:SetPoint("TOPLEFT", 44, -4)
-        r.killer = Text(r, "GameFontHighlightSmall")
-        r.killer:SetPoint("TOPLEFT", 74, -3)
-        r.killer:SetPoint("RIGHT", -24, 0)
-        r.hardest = Text(r, "GameFontHighlightSmall")
-        r.hardest:SetPoint("TOPLEFT", 74, -17)
-        r.hardest:SetPoint("RIGHT", -24, 0)
-        r.window = Text(r, "GameFontDisableSmall")
-        r.window:SetPoint("TOPLEFT", 74, -31)
-        r.window:SetPoint("RIGHT", -24, 0)
-        r.mark = r:CreateTexture(nil, "OVERLAY")
-        r.mark:SetSize(14, 14)
-        r.mark:SetPoint("TOPRIGHT", -4, -4)
-        r:SetScript("OnClick", function(self) view.death = self.index; Win.Draw() end)
-        page.rows[i] = r
-    end
-    page.empty = Text(page, "GameFontDisableSmall")
-    page.empty:SetPoint("TOPLEFT", 4, -TITLE)
-
-    local detail = CreateFrame("Frame", nil, page)
-    detail:SetPoint("TOPLEFT", DEATH_LIST_WIDTH + GAP, 0)
-    detail:SetPoint("BOTTOMRIGHT")
-    page.detail = detail
-    detail.title = Text(detail, "GameFontNormalSmall")
-    detail.title:SetPoint("TOPLEFT", 2, -1)
-    detail.sub = Text(detail, "GameFontDisableSmall")
-    detail.sub:SetPoint("TOPLEFT", 2, -TITLE)
-    detail.rows = {}
-    for i = 1, MAX_EVENT_ROWS do
-        local r = CreateFrame("Frame", nil, detail)
-        r:SetHeight(EVENT_ROW)
-        r:SetPoint("TOPLEFT", 0, -(TITLE + 14 + (i - 1) * (EVENT_ROW + 1)))
-        r:SetPoint("RIGHT")
-        r.before = Text(r, "GameFontDisableSmall", "RIGHT")
-        r.before:SetPoint("LEFT", 0, 0)
-        r.before:SetWidth(44)
-        r.icon = r:CreateTexture(nil, "ARTWORK")
-        r.icon:SetSize(24, 24)
-        r.icon:SetPoint("LEFT", 50, 0)
-        r.spell = Text(r, "GameFontNormalSmall")
-        r.spell:SetPoint("TOPLEFT", 80, -3)
-        r.spell:SetWidth(170)
-        r.source = Text(r, "GameFontDisableSmall")
-        r.source:SetPoint("BOTTOMLEFT", 80, 3)
-        r.source:SetWidth(170)
-        r.amount = Text(r, "GameFontHighlightSmall", "RIGHT")
-        r.amount:SetPoint("LEFT", 252, 0)
-        r.amount:SetWidth(70)
-        r.life = CreateFrame("StatusBar", nil, r)
-        r.life:SetSize(80, 10)
-        r.life:SetPoint("LEFT", 330, 0)
-        r.life:SetStatusBarTexture(BarTexture())
-        r.life:SetMinMaxValues(0, 1)
-        -- The green of every health bar of the game, at the brightness of the other bars.
-        r.life:SetStatusBarColor(0, BarBrightness(), 0)
-        r.pct = Text(r, "GameFontDisableSmall", "RIGHT")
-        r.pct:SetPoint("LEFT", r.life, "RIGHT", 4, 0)
-        r.pct:SetWidth(32)
-        r.mark = r:CreateTexture(nil, "OVERLAY")
-        r.mark:SetSize(12, 12)
-        r.mark:SetPoint("LEFT", r.pct, "RIGHT", 2, 0)
-        detail.rows[i] = r
-    end
-    detail.empty = Text(detail, "GameFontDisableSmall")
-    detail.empty:SetPoint("TOPLEFT", 4, -TITLE)
-    frame.deaths = page
-end
-
 local HISTORY_COLS = { 300, 70, 90, 80, 70, 70, 80, 80 }
 local function BuildHistory(page)
     page.title = Text(page, "GameFontNormalSmall")
@@ -500,12 +309,12 @@ local function CreatePanel()
         if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
     end)
 
-    -- The band above the inset: who and what at the left, the two combos at the right.
+    -- The band above the inset: who and what at the left, the two combos at the right (the site's report and fight).
     frame.context = Text(frame, "GameFontHighlightSmall")
     frame.context:SetPoint("TOPLEFT", 14, -36)
-    frame.fightCombo = Dropdown(frame, 170)
+    frame.fightCombo = Dropdown(frame, 190)
     frame.fightCombo:SetPoint("TOPRIGHT", -12, -30)
-    frame.runCombo = Dropdown(frame, 270)
+    frame.runCombo = Dropdown(frame, 290)
     frame.runCombo:SetPoint("RIGHT", frame.fightCombo, "LEFT", -6, 0)
     frame.context:SetPoint("RIGHT", frame.runCombo, "LEFT", -10, 0)
     frame.runCombo:SetupMenu(function(_, root)
@@ -524,7 +333,7 @@ local function CreatePanel()
         end
     end)
 
-    -- The body: the game's inset, and one page per tab inside it.
+    -- The body: the game's inset, and one page per tab inside it; every page but the History scrolls.
     local inset = frame.Inset
     inset:ClearAllPoints()
     inset:SetPoint("TOPLEFT", 8, -TOP_BAND)
@@ -539,16 +348,11 @@ local function CreatePanel()
         page:SetAllPoints()
         page:Hide()
         frame.pages[key] = page
+        if key ~= "history" then ns.Report.Page(page, INNER) end
     end
-    -- The Spells page scrolls: the spell panel has one section per kind of thing, and a player
-    -- with every section full is taller than the window. The game's own scroll frame.
-    ns.SpellsPage.Build(frame.pages.spells, INNER)
-
-    local bodyHeight = BuildSummary(frame.pages.summary)
-    BuildDeaths(frame.pages.deaths)
     BuildHistory(frame.pages.history)
 
-    frame:SetHeight(TOP_BAND + PAD + bodyHeight + PAD + ns.DONATE_ROW + 6)
+    frame:SetHeight(TOP_BAND + PAD + BODY_HEIGHT + PAD + ns.DONATE_ROW + 6)
     ns.DonateFooter(frame)
 
     -- The tabs, under the frame, as in the game's own windows.
@@ -556,7 +360,7 @@ local function CreatePanel()
     for i, key in ipairs(TABS) do
         local tab = CreateFrame("Button", frame:GetName() .. "Tab" .. i, frame, "PanelTabButtonTemplate")
         tab:SetID(i)
-        tab:SetText(L[TAB_LABEL[key]])
+        tab:SetText(TAB_LABEL[key])
         tab:SetScript("OnClick", function() Win.SetTab(key) end)
         if i == 1 then tab:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2) end
         PanelTemplates_TabResize(tab, 0)
@@ -569,7 +373,7 @@ local function CreatePanel()
     return frame
 end
 
----Which tab is on. The spell panel is drawn inside the body, in the same place and size.
+---Which tab is on.
 function Win.SetTab(tab)
     if not frame then return end
     view.tab = tab
@@ -577,358 +381,507 @@ function Win.SetTab(tab)
         frame.pages[key]:SetShown(key == tab)
         if key == tab then PanelTemplates_SetTab(frame, i) end
     end
-    -- The Spells tab follows the two combos like the others (08/10): its casts are of the run.
     local scoped = tab ~= "history"
     frame.fightCombo:SetShown(scoped)
     frame.runCombo:SetShown(scoped)
-    if tab == "spells" and frame.pages.spells.scroll.SetVerticalScroll then
-        frame.pages.spells.scroll:SetVerticalScroll(0)
-    end
+    local page = frame.pages[tab]
+    if page and page.scroll and page.scroll.SetVerticalScroll then page.scroll:SetVerticalScroll(0) end
     Win.Draw()
 end
 
 --------------------------------------------------------------------------------
--- Drawing
+-- What a scope covers
 --------------------------------------------------------------------------------
-local function DrawTiles(r, own, m)
-    local tiles = frame.tiles
-    local role = r and r.role or "DAMAGER"
-    local function Set(t, number, label, s1, s2, bad)
-        t.number:SetText(number or "-")
-        Colour(t.number, bad and RED_FONT_COLOR or HIGHLIGHT_FONT_COLOR)
-        t.label:SetText(label)
-        t.side1:SetText(s1 or "")
-        t.side2:SetText(s2 or "")
-    end
-    local function Rank(x) return x and x.rank and format(L["%dº of the group"], x.rank) or "" end
-    local function Total(x) return x and (Fmt(x.total) .. " " .. L["in total"]) or L["out of combat only"] end
-    if role == "HEALER" then
-        -- Healing without the shields (08/10); what was absorbed is said beside it.
-        local h = m and m.healing
-        local absorbed = h and h.absorbed and h.absorbed > 0 and format(L["+ %s absorbed"], Fmt(h.absorbed)) or nil
-        Set(tiles[1], h and Fmt(h.perSecond), L["Healing per second"], Total(h), absorbed or Rank(h))
-        Set(tiles[2], m and m.damage and Fmt(m.damage.perSecond), L["Damage per second"], m and Total(m.damage) or "", Rank(m and m.damage))
-    elseif role == "TANK" then
-        Set(tiles[1], m and m.taken and Fmt(m.taken.perSecond), L["Damage taken per second"], Total(m and m.taken), Rank(m and m.taken))
-        Set(tiles[2], m and m.damage and Fmt(m.damage.perSecond), L["Damage per second"], m and Total(m.damage) or "", Rank(m and m.damage))
+---The fights of a scope (the run's own list), as MyRun counts them.
+local function FightsOf(r, scope)
+    local out = {}
+    if not r then return out end
+    local fights = r.fights or {}
+    if type(scope) == "number" then
+        if fights[scope] then out[1] = fights[scope] end
+    elseif scope == "current" then
+        out[1] = r.open or fights[#fights]
     else
-        Set(tiles[1], m and m.damage and Fmt(m.damage.perSecond), L["Damage per second"], Total(m and m.damage), Rank(m and m.damage))
-        local a = m and m.avoidable
-        local share = a and m.taken and m.taken.total > 0 and math.floor(a.total / m.taken.total * 100 + 0.5) or nil
-        Set(tiles[2], a and Fmt(a.total), L["Avoidable damage taken"], share and format(L["%d%% of what you took"], share) or "", Rank(a), share and share >= 5)
-    end
-    local i = m and m.interrupts
-    local cast = 0
-    if ns.InterruptSpells then for id, n in pairs(own.bySpell) do if ns.InterruptSpells[id] then cast = cast + n end end end
-    local missed = i and math.max(0, cast - i.total) or nil
-    Set(tiles[3], i and tostring(i.total), L["Interrupts"], Rank(i), missed and missed > 0 and format(L["%d cast cut nothing"], missed) or "")
-    local deaths = #own.deaths
-    local last = own.deaths[deaths]
-    Set(tiles[4], tostring(deaths), deaths == 1 and L["Death"] or L["Deaths"],
-        last and format(L["at %s"], Clock(last.t)) or "", last and (last.killer or "") or "", deaths > 0)
-end
-
-local function DrawProblems(r, scope)
-    local list, checked = ns.MyRun.Problems(scope, r and r.role or nil, r)
-    local b = frame.problems
-    b.title:SetText(format("%s (%s)", L["What cost"], L[r and r.role or "DAMAGER"]))
-    for i, row in ipairs(b.rows) do
-        local p = list[i]
-        row.problem = p
-        if not p then row:Hide() else
-            row:Show()
-            if p.atlas then
-                row.icon:SetAtlas(p.atlas)
-            elseif p.item then
-                row.icon:SetTexture(ItemIcon(p.itemID))
-            else
-                row.icon:SetTexture(SpellIcon(p.spellID))
-            end
-            row.title:SetText(p.title)
-            row.detail:SetText(p.detail or "")
-            row.number:SetText(p.number or "")
+        for _, f in ipairs(fights) do
+            if scope ~= "trash" or not f.boss then out[#out + 1] = f end
         end
+        if r.open and (scope ~= "trash" or not r.open.boss) then out[#out + 1] = r.open end
     end
-    b.empty:SetShown(#list == 0)
-    b.empty:SetText(L["Nothing found: no death, no avoidable damage worth the name, cooldowns on time."])
-    b.checked:SetText(format(L["Looked at: %s."], table.concat(checked, ", ")))
+    return out
 end
 
-local function DrawCooldowns(r, own)
-    local b = frame.cooldowns
-    local cr, cg, cb = ClassRGB(r)
-    local situational = false
-    for i, row in ipairs(b.rows) do
-        local cd = own.cooldowns[i]
-        if not cd then row:Hide() else
-            row:Show()
-            row.icon:SetTexture(SpellIcon(cd.spellID))
-            if cd.situational then
-                -- Pressed only when something asks for it (a combat resurrection, Bloodlust, an
-                -- interrupt, a crowd control): how many times, and no judgement.
-                situational = true
-                row.name:SetText(cd.name .. " " .. L["(when needed)"])
-                row.value:SetText(format(L["used %d×"], cd.used))
-                row.bar:SetMinMaxValues(0, 1)
-                row.bar:SetValue(0)
-                Colour(row.value, cd.used > 0 and HIGHLIGHT_FONT_COLOR or DISABLED_FONT_COLOR)
-            else
-                row.name:SetText(cd.name .. (cd.category == "utility" and (" " .. L["(defensive)"]) or ""))
-                row.value:SetText(format("%d / %d", cd.used, cd.fitted))
-                row.bar:SetMinMaxValues(0, math.max(1, cd.fitted))
-                row.bar:SetValue(cd.used)
-                -- Used less than half of what fitted: the number in the game's red.
-                Colour(row.value, (cd.fitted > 0 and cd.used / cd.fitted < 0.5) and RED_FONT_COLOR or HIGHLIGHT_FONT_COLOR)
-            end
-            row.bar:SetStatusBarColor(cr, cg, cb)
-        end
-    end
-    b.note:SetText(#own.cooldowns == 0 and L["The game's Cooldown Manager lists no cooldown for this spec."]
-        or (situational and L["The game's Cooldown Manager list. \"When needed\": resurrection, Bloodlust, interrupts and crowd control are not measured against how often they fitted."])
-        or L["The game's Cooldown Manager list, with the cooldown of each."])
+local function Now(r)
+    return r == ns.MyRun.Current() and r and not r.finished and r.startedAt and (GetTime() - r.startedAt) or nil
 end
 
-local function DrawTaken(r, m, scope)
-    local b = frame.taken
-    local cr, cg, cb = ClassRGB(r)
-    local total = m and m.taken and m.taken.total or 0
-    local avoidable = m and m.avoidable and m.avoidable.total or 0
-    b.title:SetText(total > 0 and format("%s — %s", L["Damage taken"], Fmt(total)) or L["Damage taken"])
-    local list = m and m.takenSpells or {}
-    local top = list[1] and list[1].amount or 1
-    for i, row in ipairs(b.rows) do
-        local sp = list[i]
-        if not sp then row:Hide() else
-            row:Show()
-            row.icon:SetTexture(SpellIcon(sp.spellID))
-            row.name:SetText(SpellNameOf(sp.spellID) .. (sp.creature and (" · " .. sp.creature) or ""))
-            row.value:SetText(Fmt(sp.amount))
-            row.bar:SetMinMaxValues(0, top)
-            row.bar:SetValue(sp.amount)
-            row.bar:SetStatusBarColor(cr, cg, cb)
-            -- Avoidable and deadly are said by the game's own glyphs, not by a colour.
-            if sp.deadly then row.mark:SetAtlas("icons_16x16_deadly"); row.mark:Show()
-            elseif sp.avoidable then row.mark:SetAtlas("damagemeters-avoidabledamage-icon"); row.mark:Show()
-            else row.mark:Hide() end
-        end
+---The seconds of the run the charts span: the whole run, or the one fight of the scope.
+local function Range(r, scope)
+    if not r then return 0, 1 end
+    if type(scope) == "number" or scope == "current" then
+        local f = FightsOf(r, scope)[1]
+        if f then return f.s, math.max(f.s + 1, f.e or Now(r) or (f.s + 1)) end
     end
-    if not m then
-        b.note:SetText(type(scope) == "number" and L["This fight's numbers were not kept."]
-            or L["In combat the meter's numbers are hidden; they come back when it ends."])
-    elseif #list == 0 then
-        b.note:SetText(L["Nothing taken."])
-    else
-        b.note:SetText(total > 0 and format(L["%d%% avoidable"], math.floor(avoidable / total * 100 + 0.5)) or "")
-    end
+    local fights = r.fights or {}
+    local last = fights[#fights]
+    return 0, math.max(1, r.elapsed or Now(r) or (last and (last.e or last.s)) or 1)
 end
 
-local function DrawTimeline(r)
-    local tl = frame.timeline
-    tl.bars.Reset(); tl.segments.Reset(); tl.holes.Reset(); tl.marks.Reset(); tl.uses.Reset()
-    for _, icon in ipairs(tl.lineIcons) do icon:Hide() end
-    tl.note:SetText("")
-    if not r then tl.start:SetText(""); tl.finish:SetText(""); return end
+local function InFights(t, fights, grace)
+    grace = grace or 0
+    for _, f in ipairs(fights) do
+        if t >= f.s - grace and t <= (f.e or math.huge) then return true end
+    end
+    return false
+end
 
-    local fights = {}
-    for _, f in ipairs(r.fights) do fights[#fights + 1] = f end
-    if r.open then fights[#fights + 1] = r.open end
-    local now = r == ns.MyRun.Current() and not r.finished and (GetTime() - r.startedAt) or nil
-    local total = r.elapsed or now or (fights[#fights] and (fights[#fights].e or fights[#fights].s)) or 0
-    if total <= 0 then total = 1 end
-    local width = tl.width
-    local function X(t) return GUTTER + math.max(0, math.min(width, t / total * width)) end
-    local cr, cg, cb = ClassRGB(r)
-
-    -- 1. The chart by fight: one bar per fight over its own time, as tall as the role's rate.
-    local rates, top, key = ns.MyRun.FightRates(r, r.role)
+---One point per fight (MyRun.FightRates): the meter's rate of `key` over the span of each reading.
+local function ByFight(r, key)
+    local out = {}
+    if not r then return out end
+    local rates = ns.MyRun.FightRates(r, nil, key)
     for _, f in ipairs(rates) do
-        if f.rate and top > 0 and f.e then
-            local bar = tl.bars.Get()
-            bar:SetTexture(BarTexture())
-            bar:SetVertexColor(cr, cg, cb)
-            bar:SetPoint("BOTTOMLEFT", tl, "TOPLEFT", X(f.s), -(tl.chartTop + CHART_HEIGHT))
-            bar:SetSize(math.max(2, X(f.e) - X(f.s) - 1), math.max(1, f.rate / top * CHART_HEIGHT))
-        end
+        if f.rate and f.e then out[#out + 1] = { f.s, f.e, f.rate } end
     end
-    local what = key == "healing" and L["Healing per second"] or (key == "taken" and L["Damage taken per second"] or L["Damage per second"])
-    tl.note:SetText(top > 0 and format(L["by fight: %s, up to %s"], what, Fmt(top)) or L["by fight: the numbers come at the end of each fight"])
-
-    -- 2. The band of time casting: the fights filled, the gaps without casting as holes.
-    for _, f in ipairs(fights) do
-        local seg = tl.segments.Get()
-        seg:SetTexture(BarTexture())
-        seg:SetVertexColor(cr, cg, cb)
-        seg:SetPoint("TOPLEFT", tl, "TOPLEFT", X(f.s), -tl.bandTop)
-        seg:SetSize(math.max(1, X(f.e or total) - X(f.s)), 8)
-    end
-    for _, g in ipairs(r.gaps or {}) do
-        local hole = tl.holes.Get()
-        hole:SetColorTexture(0, 0, 0, 0.85)
-        hole:SetPoint("TOPLEFT", tl, "TOPLEFT", X(g[1] - g[2]), -tl.bandTop)
-        hole:SetSize(math.max(1, X(g[1]) - X(g[1] - g[2])), 8)
-    end
-
-    -- 3. Bosses, my deaths, my potions: the game's glyphs on one line.
-    local function Mark(t, size, atlas, texture)
-        local mk = tl.marks.Get()
-        mk:SetSize(size, size)
-        mk:SetPoint("CENTER", tl, "TOPLEFT", X(t), -(tl.marksTop + 9))
-        if atlas then mk:SetAtlas(atlas) else mk:SetTexture(texture) end
-    end
-    for _, f in ipairs(fights) do
-        if f.boss and f.e then Mark(f.e, 16, "worldquest-icon-boss") end
-    end
-    for _, d in ipairs(r.deaths or {}) do Mark(d.t, 16, "deathrecap-icon-tombstone") end
-    for _, it in ipairs(r.items or {}) do
-        if it[2] == "potion" then Mark(it[1], 12, nil, ItemIcon(it[3])) end
-    end
-
-    -- 4. One line per cooldown: its icon at the left, and an icon at every use.
-    local uses = ns.MyRun.CooldownUses(r)
-    local all = ns.MyRun.Own("all", r).cooldowns
-    for i = 1, MAX_CD_LINES do
-        local cd = all[i]
-        if cd then
-            local tex = SpellIcon(cd.spellID)
-            tl.lineIcons[i]:SetTexture(tex)
-            tl.lineIcons[i]:Show()
-            for _, t in ipairs(uses[cd.spellID] or {}) do
-                local u = tl.uses.Get()
-                u:SetSize(CD_LINE - 4, CD_LINE - 4)
-                u:SetTexture(tex)
-                u:SetPoint("CENTER", tl, "TOPLEFT", X(t), -(tl.linesTop + (i - 1) * CD_LINE + CD_LINE / 2))
-            end
-        end
-    end
-    tl.start:SetText("0:00")
-    tl.finish:SetText(Clock(total))
+    return out
 end
 
-local function DrawRhythm(r, own)
-    local rows = frame.rhythm.rows
-    local cr, cg, cb = ClassRGB(r)
-    local seconds = own.combatSeconds
-    local active = seconds > 0 and math.max(0, (seconds - own.gaps.total) / seconds) or 0
-    local function Set(row, name, value, ratio)
-        row:Show()
-        row.name:SetText(name)
-        row.value:SetText(value)
-        row.bar:SetMinMaxValues(0, 1)
-        row.bar:SetValue(ratio)
-        row.bar:SetStatusBarColor(cr, cg, cb)
-    end
-    Set(rows[1], L["Time casting in combat"], seconds > 0 and format(L["%d%% · %s idle of %s"], math.floor(active * 100 + 0.5), Clock(own.gaps.total), Clock(seconds)) or "-", active)
-    Set(rows[2], L["Casts per minute"], own.perMinute and format(L["%d · %d casts"], math.floor(own.perMinute + 0.5), own.casts) or "-", own.perMinute and math.min(1, own.perMinute / 60) or 0)
-    Set(rows[3], L["Potion / healthstone"], format("%d / %d", own.potions, own.healthstones), math.min(1, own.potions / math.max(1, own.bossCount)))
+local function DeathMarks(r)
+    local out = {}
+    for _, d in ipairs(r and r.deaths or {}) do out[#out + 1] = { d.t, atlas = "deathrecap-icon-tombstone" } end
+    return out
 end
 
----The Spells tab: each spell with how many times it was cast and what it gave (SpellsPage.lua).
----The casts are the run's, for the scope chosen. The amounts are the game's meter, which lists
----the spells of a player only for its current fight and its overall: "This fight" and "Whole
----run" of the run in progress have them, a boss of the run or a run of the history does not.
-local function DrawSpells(r, own, scope)
-    local live = r == nil or r == ns.MyRun.Current()
-    local sessionType = nil
-    if live and scope == "current" then sessionType = 0 elseif live and scope == "all" then sessionType = 1 end
-    local class = r and r.class or nil
-    if not class and UnitClassBase then
-        local ok, c = pcall(UnitClassBase, "player")
-        if ok and type(c) == "string" then class = c end
+--------------------------------------------------------------------------------
+-- The rows of the tables
+--------------------------------------------------------------------------------
+local function SpellName(id)
+    if not (C_Spell and C_Spell.GetSpellName) or type(id) ~= "number" then return nil end
+    local ok, name = pcall(C_Spell.GetSpellName, id)
+    return ok and type(name) == "string" and name ~= "" and name or nil
+end
+
+---The casts behind a line of the meter: by id, or by NAME when the cast and what lands are two ids with one name.
+local function CastMatcher(own)
+    local byName = {}
+    for id, n in pairs(own and own.bySpell or {}) do
+        local name = SpellName(id)
+        if name then byName[name] = (byName[name] or 0) + n end
     end
-    local guid = UnitGUID and UnitGUID("player") or nil
-    local note
-    if sessionType == nil then
-        note = L["Damage and healing by spell exist only for \"This fight\" and \"Whole run\" of the run in progress: the game's meter keeps no list by spell of a past fight."]
-    elseif sessionType == 1 then
-        note = L["Damage and healing by spell are the meter's \"overall\": everything since the meter was last cleared. The casts are of this run."]
+    return function(spellID)
+        local name = SpellName(spellID)
+        if name and byName[name] then return byName[name] end
+        return own and own.bySpell and own.bySpell[spellID] or nil
+    end
+end
+
+local function Pct(v) return v and format("%.1f%%", v) or nil end
+local function Num0(v) return v and tostring(math.floor(v + 0.5)) or nil end
+
+---The amounts of one kind (damage, healing) as rows: share, casts, per cast, per second.
+local function AmountRows(list, own, seconds)
+    local casts = CastMatcher(own)
+    local rows, total = {}, 0
+    for _, sp in ipairs(list or {}) do total = total + (sp.amount or 0) end
+    for _, sp in ipairs(list or {}) do
+        local n = casts(sp.spellID)
+        local row = { spellID = sp.spellID, amount = sp.amount, bar = sp.amount, share = total > 0 and sp.amount / total * 100 or nil,
+                      casts = n, perCast = n and n > 0 and sp.amount / n or nil,
+                      rate = sp.perSecond or (seconds and seconds > 0 and sp.amount / seconds) or nil, name = sp.name,
+                      atlas = sp.atlas }
+        rows[#rows + 1] = row
+    end
+    table.sort(rows, function(a, b) return (a.amount or 0) > (b.amount or 0) end)
+    return rows, total
+end
+
+---The columns of a table of amounts.
+local function AmountColumns(rateLabel, withCasts)
+    local cols = { { key = "name", label = L["Name"] }, { key = "amount", label = L["Amount"], width = 250 } }
+    if withCasts then
+        cols[#cols + 1] = { key = "casts", label = L["Casts"], width = 72, fmt = function(v) return v and tostring(v) or "-" end }
+        cols[#cols + 1] = { key = "perCast", label = L["Avg cast"], width = 84, grey = true }
+    end
+    cols[#cols + 1] = { key = "rate", label = rateLabel, width = 74 }
+    return cols
+end
+
+---Why a table is empty, said once: in combat, a fight the meter did not keep, a run saved before the spells.
+local function MissingNote(m, scope, hasList)
+    if not m then
+        if type(scope) == "number" then return L["This fight's numbers were not kept."] end
+        return L["In combat the meter's numbers are hidden; they come back when it ends."]
+    end
+    if not hasList then return L["This run was saved before the spells were kept with it."] end
+    return nil
+end
+
+local function ClassColour(r) return { ClassRGB(r) } end
+
+--------------------------------------------------------------------------------
+-- The tabs
+--------------------------------------------------------------------------------
+local function Ctx(r, scope)
+    local own = ns.MyRun.Own(scope, r)
+    local m = ns.MyRun.Metrics(scope, r)
+    local from, to = Range(r, scope)
+    return { r = r, scope = scope, own = own, m = m, from = from, to = to, seconds = own.combatSeconds or 0,
+             fights = FightsOf(r, scope) }
+end
+
+---The chart of one kind: one point per fight (the game gives no curve).
+local function KindChart(page, c, key, label)
+    ns.Report.Chart(page, { height = CHART_HEIGHT, from = c.from, to = c.to, note = L["one point per fight: the game gives no curve"],
+        marks = DeathMarks(c.r),
+        series = { { label = label, colour = ClassColour(c.r), points = ByFight(c.r, key), fill = true } } })
+end
+
+local function DrawSummary(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    -- 1. The chart: damage done, damage taken, healing done.
+    local series = {}
+    for _, k in ipairs({ { "damage", L["Damage done"] }, { "taken", L["Damage taken"] }, { "healing", L["Healing"] } }) do
+        series[#series + 1] = { label = k[2], colour = LINE[k[1]], points = ByFight(c.r, k[1]) }
+    end
+    Report.Chart(page, { height = CHART_HEIGHT, from = c.from, to = c.to, series = series, marks = DeathMarks(c.r),
+        note = L["one point per fight: the game gives no curve"] })
+
+    -- 2. The stats, one line, as the site writes them.
+    local s = c.r and c.r.stats
+    Report.Band(page, L["Attributes"])
+    if s then
+        local PRIMARY = { [1] = "SPELL_STAT1_NAME", [2] = "SPELL_STAT2_NAME", [4] = "SPELL_STAT4_NAME" }
+        local parts = {}
+        local function Add(global, value)
+            if value then parts[#parts + 1] = format("%s: |cffffffff%s|r", _G[global] or global, BreakUpLargeNumbers and BreakUpLargeNumbers(value) or tostring(value)) end
+        end
+        Add(PRIMARY[s.primaryStat or 4] or "SPELL_STAT4_NAME", s.primary)
+        Add("SPELL_STAT3_NAME", s.stamina)
+        Add("STAT_CRITICAL_STRIKE", s.crit)
+        Add("STAT_HASTE", s.haste)
+        Add("STAT_MASTERY", s.mastery)
+        Add("STAT_VERSATILITY", s.versatility)
+        if (s.avoidance or 0) > 0 then Add("STAT_AVOIDANCE", s.avoidance) end
+        if (s.leech or 0) > 0 then Add("STAT_LIFESTEAL", s.leech) end
+        if (s.speed or 0) > 0 then Add("STAT_SPEED", s.speed) end
+        Report.Note(page, table.concat(parts, "    "))
     else
-        note = L["Damage and healing by spell are of the meter's current fight; in combat the game hides them and only the casts show."]
+        Report.Note(page, L["This run was saved before the sheet and the gear were kept with it."])
     end
-    ns.SpellsPage.Draw(frame.pages.spells, {
-        source = { isLocalPlayer = true, sourceGUID = guid, name = UnitName and UnitName("player") or nil,
-                   classFilename = class, sourceCreatureID = 0 },
-        guid = guid, creatureId = 0, classFilename = class, sessionType = sessionType,
-        own = own, mine = true, note = note, empty = L["No cast in this scope."],
-    })
+
+    -- 3. The gear: item level, slot, name, the gems and the enchant.
+    local gear = c.r and c.r.gear
+    if gear then
+        Report.Band(page, L["Gear"], nil, nil, s and s.ilvl and format("%s: %.1f", _G.STAT_AVERAGE_ITEM_LEVEL or "Item Level", s.ilvl) or nil)
+        local rows = {}
+        for _, item in ipairs(gear) do
+            local itemID = tonumber(item.link:match("item:(%d+)"))
+            local colour, name = item.link:match("|c(%x+)"), item.link:match("%[(.-)%]")
+            rows[#rows + 1] = { icon = ItemIcon(itemID), name = name and (colour and ("|c" .. colour .. name .. "|r") or name) or "",
+                link = item.link, ilvl = item.ilvl, slot = _G[Win.SLOT_NAME[item.slot] or ""] or "", extras = Win.ItemExtras(item.link) }
+        end
+        Report.Table(page, { rows = rows, columns = {
+            { key = "name", label = L["Name"] },
+            { key = "slot", label = L["Slot"], width = 110, justify = "LEFT", grey = true },
+            { key = "ilvl", label = L["Item level"], width = 78, fmt = function(v) return v and tostring(v) or "" end },
+            { key = "extras", label = L["Gems and enchants"], width = 330, justify = "LEFT", grey = true },
+        } })
+        Report.Space(page)
+    end
+
+    -- 4. The four boxes, two by two: damage done, healing done; damage taken, deaths.
+    local half = (page.width - GAP) / 2
+    local m = c.m
+    local function Box(x, title, rows, total, rateLabel, noAdvance)
+        local y0 = page.y
+        Report.Band(page, title, x, half, nil, true)
+        page.y = page.y + Report.Geometry.BAND
+        local h
+        if #rows == 0 then
+            h = Report.Note(page, MissingNote(m, c.scope, m and m.spells ~= nil) or L["Nothing in this scope."], x, half, true)
+        else
+            h = Report.Table(page, { x = x, width = half, rows = rows, maxRows = BOX_ROWS, top = rows[1].bar,
+                colour = ClassColour(c.r), columns = {
+                    { key = "name", label = L["Name"] }, { key = "amount", label = L["Amount"], width = 220 },
+                    { key = "rate", label = rateLabel, width = 66 } } }, true)
+        end
+        local used = Report.Geometry.BAND + h
+        page.y = y0
+        return used
+    end
+    local dmg = AmountRows(m and m.spells and m.spells.damage, c.own, c.seconds)
+    local heal = AmountRows(m and m.spells and Win.HealingList(m), c.own, c.seconds)
+    local h1 = Box(0, L["Damage done by ability"], dmg, nil, L["DPS"])
+    local h2 = Box(half + GAP, L["Healing done by ability"], heal, nil, L["HPS"])
+    page.y = page.y + math.max(h1, h2) + GAP
+    local taken = Win.TakenRows(c)
+    local h3 = Box(0, L["Damage taken by ability"], taken, nil, L["DTPS"])
+    -- the deaths' box: name, killing blow, time
+    local y0 = page.y
+    Report.Band(page, L["Deaths"], half + GAP, half, nil, true)
+    page.y = page.y + Report.Geometry.BAND
+    local deathRows = {}
+    for _, d in ipairs(c.own.deaths) do
+        deathRows[#deathRows + 1] = { name = c.r and c.r.player or "", atlas = "deathrecap-icon-tombstone",
+            blow = (d.killer or L["cause unknown"]), time = Clock(d.t) }
+    end
+    local h4
+    if #deathRows == 0 then
+        h4 = Report.Note(page, L["No death in this scope."], half + GAP, half, true)
+    else
+        h4 = Report.Table(page, { x = half + GAP, width = half, rows = deathRows, maxRows = BOX_ROWS, columns = {
+            { key = "name", label = L["Name"] }, { key = "blow", label = L["Killing blow"], width = 200, justify = "LEFT" },
+            { key = "time", label = L["Time"], width = 60 } } }, true)
+    end
+    page.y = y0 + math.max(h3, Report.Geometry.BAND + h4) + GAP
+    Report.Finish(page)
 end
 
-local function DrawDeaths(r, own)
-    local d = frame.deaths
-    local list = own.deaths
-    d.listTitle:SetText(format("%s (%d)", L["My deaths"], #list))
-    if not view.death or not list[view.death] then view.death = list[1] and 1 or nil end
-    for i, row in ipairs(d.rows) do
-        local death = list[i]
-        if not death then row:Hide() else
-            row:Show()
-            row.index = i
-            row.when:SetText(Clock(death.t))
-            if not death.killerSpell then row.icon:SetAtlas("deathrecap-icon-tombstone")
-            else row.icon:SetTexture(SpellIcon(death.killerSpell)) end
-            local killer = (death.killer or L["cause unknown"]) .. (death.killerSource and (" · " .. death.killerSource) or "")
-            if death.hardest then
-                row.killer:SetText(format("%s: %s", L["Killed"], killer))
-                row.hardest:SetText(format("%s: %s", L["Hardest"], death.hardest .. (death.hardestSource and (" · " .. death.hardestSource) or "")))
-            else
-                row.killer:SetText(format("%s: %s", L["Killed and hardest"], killer))
-                row.hardest:SetText(ns.MyRun.BossAt(death.t, r) or "")
-            end
-            -- In how long, with what, and how much: the "Over", "Last Three Hits" and "Damage
-            -- Taken" of the deaths table of Warcraft Logs, from the game's recap.
-            local sum = ns.MyRun.DeathSummary(death)
-            if sum.blows == 0 then
-                row.window:SetText("")
-            elseif sum.oneShot then
-                row.window:SetText(format(L["one shot · %s"], Fmt(sum.total)))
-            else
-                row.window:SetText(format(L["%s in %.1f s · %s"], Fmt(sum.total), sum.seconds or 0, table.concat(sum.last, ", ")))
-            end
-            if death.avoidable then row.mark:SetAtlas("damagemeters-avoidabledamage-icon"); row.mark:Show()
-            else row.mark:Hide() end
-            row.selected:SetShown(view.death == i)
-        end
-    end
-    d.empty:SetShown(#list == 0)
-    d.empty:SetText(L["No death in this scope."])
+---The heals and the shields in one list, as the site lists them (a shield's line beside the heal of the same spell).
+function Win.HealingList(m)
+    local out = {}
+    for _, sp in ipairs(m.spells.healing or {}) do out[#out + 1] = sp end
+    for _, sp in ipairs(m.spells.absorbs or {}) do out[#out + 1] = sp end
+    return out
+end
 
-    local det = d.detail
-    local death = view.death and list[view.death]
-    for _, row in ipairs(det.rows) do row:Hide() end
-    if not death then
-        det.title:SetText(L["Blow by blow"])
-        det.sub:SetText("")
-        det.empty:SetShown(#list > 0)
-        det.empty:SetText(L["Click a death."])
+---The damage taken by spell: who cast it, the game's glyphs, the amount and per second.
+function Win.TakenRows(c)
+    local list = c.m and c.m.takenSpells or {}
+    local rows, total = {}, 0
+    for _, sp in ipairs(list) do total = total + (sp.amount or 0) end
+    for _, sp in ipairs(list) do
+        local glyph = sp.deadly and CreateAtlasMarkup("icons_16x16_deadly", 12, 12)
+            or sp.avoidable and CreateAtlasMarkup("damagemeters-avoidabledamage-icon", 12, 12) or nil
+        local row = { spellID = sp.spellID, amount = sp.amount, bar = sp.amount, share = total > 0 and sp.amount / total * 100 or nil,
+            rate = c.seconds > 0 and sp.amount / c.seconds or nil,
+            name = SpellNameOf(sp.spellID) .. (sp.creature and (" · " .. sp.creature) or "") .. (glyph and (" " .. glyph) or "") }
+        rows[#rows + 1] = row
+    end
+    return rows, total
+end
+
+local function TotalRow(total, seconds, extra)
+    local row = { name = L["Total"], amount = total, rate = seconds > 0 and total / seconds or nil }
+    for k, v in pairs(extra or {}) do row[k] = v end
+    return row
+end
+
+local function DrawDamage(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    KindChart(page, c, "damage", L["Damage done"])
+    local list = c.m and c.m.spells and c.m.spells.damage
+    local rows, total = AmountRows(list, c.own, c.seconds)
+    if #rows == 0 then
+        Report.Note(page, MissingNote(c.m, c.scope, list ~= nil) or L["Nothing in this scope."])
+    else
+        Report.Table(page, { rows = rows, total = TotalRow(total, c.seconds), top = rows[1].bar, colour = ClassColour(c.r),
+            columns = AmountColumns(L["DPS"], true) })
+        Report.Space(page)
+        Report.Note(page, L["Hits, critical hits and uptime exist only in the game's combat log file, which an addon cannot read."])
+    end
+    Report.Finish(page)
+end
+
+local function DrawTaken(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    KindChart(page, c, "taken", L["Damage taken"])
+    local rows, total = Win.TakenRows(c)
+    if #rows == 0 then
+        Report.Note(page, MissingNote(c.m, c.scope, true) or L["Nothing taken."])
+    else
+        local avoidable = c.m and c.m.avoidable and c.m.avoidable.total or 0
+        local whole = c.m and c.m.taken and c.m.taken.total or total
+        Report.Band(page, L["Damage taken"], nil, nil, whole > 0 and format(L["%d%% avoidable"], math.floor(avoidable / whole * 100 + 0.5)) or nil)
+        Report.Table(page, { rows = rows, total = TotalRow(total, c.seconds), top = rows[1].bar, colour = ClassColour(c.r),
+            columns = AmountColumns(L["DTPS"], false) })
+    end
+    Report.Finish(page)
+end
+
+local function DrawHealing(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    KindChart(page, c, "healing", L["Healing"])
+    local list = c.m and c.m.spells and Win.HealingList(c.m)
+    local rows, total = AmountRows(list, c.own, c.seconds)
+    if #rows == 0 then
+        Report.Note(page, MissingNote(c.m, c.scope, list ~= nil) or L["Nothing in this scope."])
+    else
+        Report.Table(page, { rows = rows, total = TotalRow(total, c.seconds), top = rows[1].bar, colour = ClassColour(c.r),
+            columns = AmountColumns(L["HPS"], true) })
+        Report.Space(page)
+        Report.Note(page, L["The heals and the shields in one list, as Warcraft Logs shows them; a shield is the game's \"Absorbs\"."])
+    end
+    Report.Finish(page)
+end
+
+local function DrawDeaths(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    local list = c.own.deaths
+    if not view.death or not list[view.death] then view.death = list[1] and 1 or nil end
+    local rows = {}
+    for i, d in ipairs(list) do
+        local sum = ns.MyRun.DeathSummary(d)
+        rows[#rows + 1] = { index = i, name = Clock(d.t) .. "  " .. (c.r and c.r.player or ""),
+            spellID = d.killerSpell, atlas = not d.killerSpell and "deathrecap-icon-tombstone" or nil,
+            blow = (d.killer or L["cause unknown"]) .. (d.killerSource and (" · " .. d.killerSource) or ""),
+            over = sum.blows > 0 and (sum.oneShot and L["one shot"] or format("%.1fs", sum.seconds or 0)) or "",
+            last = table.concat(sum.last, ", "), taken = sum.total > 0 and sum.total or nil }
+    end
+    if #rows == 0 then
+        Report.Note(page, L["No death in this scope."])
+        Report.Finish(page)
         return
     end
-    det.empty:Hide()
-    det.title:SetText(format("%s — %s", L["Blow by blow"], Clock(death.t)))
-    local events = death.events or {}
-    local covers = events[#events] and events[#events].before
-    det.sub:SetText(#events > 0 and format(L["%d blows, the last %s s before the death · %s of life"], #events,
-        covers and format("%.1f", covers) or "?", death.maxHealth and Fmt(death.maxHealth) or "?") or L["The game kept no blow of this death."])
-    local maxHealth = death.maxHealth
-    for i, row in ipairs(det.rows) do
-        local ev = events[i]
-        if ev then
-            row:Show()
-            row.before:SetText(ev.before and format("-%.1fs", ev.before) or "")
-            row.icon:SetTexture(SpellIcon(ev.spellId))
-            row.spell:SetText(ev.spell or L["cause unknown"])
-            -- The blow that killed, in the game's red; the others in the gold of a spell's name.
-            Colour(row.spell, i == 1 and RED_FONT_COLOR or NORMAL_FONT_COLOR)
-            row.source:SetText(ev.source or "")
-            local amount = ev.amount and Fmt(ev.amount) or "-"
-            if ev.absorbed and ev.absorbed > 0 then amount = amount .. format(" (%s %s)", Fmt(ev.absorbed), L["absorbed"]) end
-            row.amount:SetText(amount)
-            local share = maxHealth and maxHealth > 0 and ev.hp and math.max(0, math.min(1, ev.hp / maxHealth)) or nil
-            row.life:SetValue(share or 0)
-            row.pct:SetText(share and format("%d%%", math.floor(share * 100 + 0.5)) or "")
-            if ev.deadly then row.mark:SetAtlas("icons_16x16_deadly"); row.mark:Show()
-            elseif ev.avoidable then row.mark:SetAtlas("damagemeters-avoidabledamage-icon"); row.mark:Show()
-            else row.mark:Hide() end
+    Report.Table(page, { rows = rows, selected = rows[view.death], onClick = function(row) view.death = row.index; Win.Draw() end,
+        columns = {
+            { key = "name", label = L["Time"] .. " · " .. L["Name"] },
+            { key = "blow", label = L["Killing blow"], width = 230, justify = "LEFT" },
+            { key = "over", label = L["Window"], width = 70 },
+            { key = "last", label = L["Last three hits"], width = 290, justify = "LEFT", grey = true },
+            { key = "taken", label = L["Damage taken"], width = 90 } } })
+    Report.Space(page)
+    -- the blows of the death clicked, the killing one first
+    local d = list[view.death]
+    local events = d and d.events or {}
+    Report.Band(page, format("%s — %s", L["Blow by blow"], Clock(d.t)), nil, nil,
+        d.maxHealth and format(L["%s of life"], Fmt(d.maxHealth)) or nil)
+    if #events == 0 then
+        Report.Note(page, L["The game kept no blow of this death."])
+    else
+        local blows = {}
+        for i, ev in ipairs(events) do
+            local share = d.maxHealth and d.maxHealth > 0 and ev.hp and math.max(0, math.min(1, ev.hp / d.maxHealth)) or nil
+            local glyph = ev.deadly and CreateAtlasMarkup("icons_16x16_deadly", 12, 12)
+                or ev.avoidable and CreateAtlasMarkup("damagemeters-avoidabledamage-icon", 12, 12) or nil
+            blows[#blows + 1] = { spellID = ev.spellId, name = (ev.spell or L["cause unknown"]) .. (glyph and (" " .. glyph) or ""),
+                nameColour = i == 1 and RED_FONT_COLOR or NORMAL_FONT_COLOR,
+                before = ev.before and format("-%.1fs", ev.before) or "", source = ev.source or "",
+                amount = ev.amount, absorbed = ev.absorbed and ev.absorbed > 0 and ev.absorbed or nil,
+                hp = share and format("%d%%", math.floor(share * 100 + 0.5)) or "" }
+        end
+        Report.Table(page, { rows = blows, columns = {
+            { key = "name", label = L["Ability"] },
+            { key = "source", label = L["Source"], width = 220, justify = "LEFT", grey = true },
+            { key = "before", label = L["Before death"], width = 90, grey = true },
+            { key = "amount", label = L["Amount"], width = 80, fmt = function(v) return v and Fmt(v) or "-" end },
+            { key = "absorbed", label = L["absorbed"], width = 80, grey = true },
+            { key = "hp", label = L["Health"], width = 70 } } })
+    end
+    Report.Finish(page)
+end
+
+---Counts by spell (the meter's interrupts or dispels) as rows.
+local function CountRows(list)
+    local rows, total = {}, 0
+    for _, sp in ipairs(list or {}) do total = total + (sp.amount or 0) end
+    for _, sp in ipairs(list or {}) do
+        rows[#rows + 1] = { spellID = sp.spellID, count = sp.amount, share = total > 0 and sp.amount / total * 100 or nil, bar = sp.amount }
+    end
+    return rows, total
+end
+
+local function DrawInterrupts(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    local total = c.m and c.m.interrupts and c.m.interrupts.total
+    Report.Band(page, L["Total interrupts"], nil, nil, total and tostring(total) or "-")
+    local rows = CountRows(c.m and c.m.spells and c.m.spells.interrupts)
+    if #rows > 0 then
+        Report.Band(page, L["Interrupted (the game's count)"])
+        Report.Table(page, { rows = rows, top = rows[1].bar, colour = ClassColour(c.r), columns = {
+            { key = "name", label = L["Name"] },
+            { key = "count", label = L["Count"], width = 70, fmt = tostring },
+            { key = "share", label = L["%"], width = 60, fmt = Pct } } })
+        Report.Space(page)
+    end
+    -- the interrupts cast (the player's own casts), against what the game credited
+    local cast, castRows = 0, {}
+    for id, n in pairs(c.own.bySpell or {}) do
+        if type(ns.InterruptSpells) == "table" and ns.InterruptSpells[id] then
+            cast = cast + n
+            castRows[#castRows + 1] = { spellID = id, casts = n }
         end
     end
+    if #castRows > 0 then
+        Report.Band(page, L["Interrupts cast"], nil, nil, total and cast > total and format(L["%d cast cut nothing"], cast - total) or nil)
+        Report.Table(page, { rows = castRows, columns = { { key = "name", label = L["Name"] },
+            { key = "casts", label = L["Casts"], width = 76, fmt = tostring } } })
+    end
+    if not total and #castRows == 0 then Report.Note(page, MissingNote(c.m, c.scope, true) or L["No interrupt in this scope."]) end
+    Report.Finish(page)
+end
+
+local function DrawDispels(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    local total = c.m and c.m.dispels and c.m.dispels.total
+    Report.Band(page, L["Total dispels"], nil, nil, total and tostring(total) or "-")
+    local rows = CountRows(c.m and c.m.spells and c.m.spells.dispels)
+    if #rows > 0 then
+        Report.Table(page, { rows = rows, top = rows[1].bar, colour = ClassColour(c.r), columns = {
+            { key = "name", label = L["Name"] },
+            { key = "count", label = L["Count"], width = 70, fmt = tostring },
+            { key = "share", label = L["%"], width = 60, fmt = Pct } } })
+    elseif not total or total == 0 then
+        Report.Note(page, MissingNote(c.m, c.scope, true) or L["No dispel in this scope."])
+    end
+    Report.Finish(page)
+end
+
+local function DrawCasts(page, c)
+    local Report = ns.Report
+    Report.Begin(page)
+    -- the chart: how many casts in each slice of the time, as the site's bars of time spent casting
+    local times = ns.MyRun.CastTimes(c.r)
+    local width = math.floor(page.width / 3)
+    local step = math.max(1, (c.to - c.from) / width)
+    local counts, order = {}, {}
+    for _, t in ipairs(times) do
+        if t[1] >= c.from and t[1] <= c.to and InFights(t[1], c.fights, 3) then
+            local b = math.floor((t[1] - c.from) / step)
+            if not counts[b] then counts[b] = 0; order[#order + 1] = b end
+            counts[b] = counts[b] + 1
+        end
+    end
+    local points = {}
+    for _, b in ipairs(order) do points[#points + 1] = { c.from + b * step, c.from + (b + 1) * step, counts[b] / step * 60 } end
+    if #points > 0 then
+        Report.Chart(page, { height = CHART_HEIGHT, from = c.from, to = c.to, marks = DeathMarks(c.r),
+            series = { { label = L["Casts per minute"], colour = ClassColour(c.r), points = points, fill = true, bars = true } } })
+    end
+    local rows, total = {}, c.own.casts or 0
+    local minutes = c.seconds > 0 and c.seconds / 60 or nil
+    for id, n in pairs(c.own.bySpell or {}) do
+        rows[#rows + 1] = { spellID = id, amount = n, bar = n, share = total > 0 and n / total * 100 or nil,
+                            perMinute = minutes and n / minutes or nil }
+    end
+    table.sort(rows, function(a, b) if a.amount == b.amount then return a.spellID < b.spellID end return a.amount > b.amount end)
+    if #rows == 0 then
+        Report.Note(page, L["No cast in this scope."])
+    else
+        Report.Table(page, { rows = rows, top = rows[1].bar, colour = ClassColour(c.r),
+            total = { name = L["Total"], amount = total, perMinute = minutes and total / minutes or nil },
+            columns = {
+                { key = "name", label = L["Name"] },
+                { key = "amount", label = L["Amount"], width = 250, fmt = function(v) return v and tostring(v) or "" end },
+                { key = "perMinute", label = L["CPM"], width = 70, fmt = function(v) return v and format("%.1f", v) or "-" end } } })
+        -- what the game reported as a cast and the player did not press, apart, so nothing vanishes
+        local other = {}
+        for id, n in pairs(c.own.notPressed or {}) do other[#other + 1] = { spellID = id, casts = n } end
+        if #other > 0 then
+            table.sort(other, function(a, b) if a.casts == b.casts then return a.spellID < b.spellID end return a.casts > b.casts end)
+            Report.Space(page)
+            Report.Band(page, L["Not counted: automatic effects, the world and delves"])
+            Report.Table(page, { rows = other, maxRows = 12, columns = { { key = "name", label = L["Name"] },
+                { key = "casts", label = L["Casts"], width = 76, fmt = tostring } } })
+        end
+    end
+    Report.Finish(page)
 end
 
 local function DrawHistory()
@@ -937,25 +890,26 @@ local function DrawHistory()
     b.title:SetText(format(L["History — the last %d"], MAX_HISTORY))
     local labels = { L["Run"], L["Role"], L["Per second"], L["Avoidable"], L["Interr."], L["Deaths"], L["Cooldowns"], L["Casts/min"] }
     for c, cell in ipairs(b.rows[0].cells) do cell:SetText(labels[c]) end
+    local ROLE_LABEL = { DAMAGER = L["DAMAGER"], TANK = L["TANK"], HEALER = L["HEALER"] }
     for i = 1, MAX_HISTORY do
         local row = b.rows[i]
         local saved = list[i]
         row.run = saved
         if not saved then row:Hide() else
             row:Show()
-            local m = saved.metrics
+            local m = ns.MyRun.Metrics("all", saved)
             local own = ns.MyRun.Own("all", saved)
             local key = saved.role == "HEALER" and "healing" or (saved.role == "TANK" and "taken" or "damage")
             local share = m and m.taken and m.avoidable and m.taken.total > 0 and math.floor(m.avoidable.total / m.taken.total * 100 + 0.5) or nil
             local used, fitted = 0, 0
-            -- only the cooldowns that are measured: the situational ones would count as "all used"
+            -- only the cooldowns that are judged (MyRun.Judged)
             for _, cd in ipairs(own.cooldowns) do
-                if not cd.situational then used, fitted = used + cd.used, fitted + cd.fitted end
+                if cd.judged then used, fitted = used + cd.used, fitted + cd.fitted end
             end
             local cells = row.cells
             local onde = ns.MyRun.Where(saved)
             cells[1]:SetText((saved.date or "") .. " · " .. (onde ~= "" and onde or "?"))
-            cells[2]:SetText(L[saved.role or "DAMAGER"])
+            cells[2]:SetText(ROLE_LABEL[saved.role] or ROLE_LABEL.DAMAGER)
             cells[3]:SetText(m and m[key] and Fmt(m[key].perSecond) or "-")
             cells[4]:SetText(share and (share .. "%") or "-")
             cells[5]:SetText(m and m.interrupts and tostring(m.interrupts.total) or "-")
@@ -966,6 +920,36 @@ local function DrawHistory()
     end
     b.note:SetText(#list == 0 and L["No run saved yet."] or L["Click a line to open it."])
 end
+
+-- The slot names of the character sheet (the game's globals), by inventory slot.
+Win.SLOT_NAME = { [1] = "HEADSLOT", [2] = "NECKSLOT", [3] = "SHOULDERSLOT", [15] = "BACKSLOT", [5] = "CHESTSLOT",
+    [9] = "WRISTSLOT", [10] = "HANDSSLOT", [6] = "WAISTSLOT", [7] = "LEGSSLOT", [8] = "FEETSLOT", [11] = "FINGER0SLOT",
+    [12] = "FINGER1SLOT", [13] = "TRINKET0SLOT", [14] = "TRINKET1SLOT", [16] = "MAINHANDSLOT", [17] = "SECONDARYHANDSLOT" }
+
+---What the game's tooltip of an item says of its enchant, and the names of its gems: "Enchant · Gem, Gem".
+function Win.ItemExtras(link)
+    local parts = {}
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink and Enum.TooltipDataLineType then
+        local ok, data = pcall(C_TooltipInfo.GetHyperlink, link)
+        for _, line in ipairs(ok and type(data) == "table" and data.lines or {}) do
+            if line.type == Enum.TooltipDataLineType.ItemEnchantmentPermanent and type(line.leftText) == "string" then
+                parts[#parts + 1] = line.leftText
+            end
+        end
+    end
+    local gems = {}
+    for i = 1, (C_Item and C_Item.GetItemGem) and 3 or 0 do
+        local ok, name = pcall(C_Item.GetItemGem, link, i)
+        if ok and type(name) == "string" and name ~= "" then gems[#gems + 1] = name end
+    end
+    if #gems > 0 then parts[#parts + 1] = table.concat(gems, ", ") end
+    return table.concat(parts, " · ")
+end
+
+local DRAW = {
+    summary = DrawSummary, damage = DrawDamage, taken = DrawTaken, healing = DrawHealing,
+    deaths = DrawDeaths, interrupts = DrawInterrupts, dispels = DrawDispels, casts = DrawCasts,
+}
 
 function Win.Draw()
     if not frame then return end
@@ -990,17 +974,8 @@ function Win.Draw()
     frame.runCombo:GenerateMenu()
 
     if view.tab == "history" then DrawHistory(); return end
-    local own = ns.MyRun.Own(scope, r)
-    if view.tab == "deaths" then DrawDeaths(r, own); return end
-    if view.tab == "spells" then DrawSpells(r, own, scope); return end
-
-    local m = ns.MyRun.Metrics(scope, r)
-    DrawTiles(r, own, m)
-    DrawProblems(r, scope)
-    DrawCooldowns(r, own)
-    DrawTaken(r, m, scope)
-    DrawTimeline(r)
-    DrawRhythm(r, own)
+    local draw = DRAW[view.tab]
+    if draw then draw(frame.pages[view.tab], Ctx(r, scope)) end
 end
 
 ---Opens the screen where it was left; the first time, in the middle.
@@ -1016,7 +991,9 @@ function Win.Show()
     end
     frame:Show()
     frame:Raise()
-    Win.SetTab(view.tab or "summary")
+    local known = false
+    for _, key in ipairs(TABS) do if key == view.tab then known = true end end
+    Win.SetTab(known and view.tab or "summary")
 end
 
 ---Opens the screen on a SAVED run (a click on the player's row of the scoreboard of that key).
@@ -1038,8 +1015,8 @@ function Win.Refresh()
 end
 function Win.Toggle() if Win.IsShown() then Win.Hide() else Win.Show() end end
 
--- The pieces this window is made of, for the screen of the OTHER players (PlayerWindow.lua): the
--- same boxes, bars, dropdown and colours, so the two windows cannot drift apart.
+-- The pieces this window is made of, for the screen of the OTHER players (PlayerWindow.lua) and Report.lua: the
+-- same boxes, bars, dropdown and colours, so the windows cannot drift apart.
 Win.Kit = {
     Text = Text, Block = Block, Tile = Tile, BarRow = BarRow, Dropdown = Dropdown, Colour = Colour,
     SpellIcon = SpellIcon, SpellNameOf = SpellNameOf, Fmt = Fmt, Clock = Clock,
@@ -1047,6 +1024,7 @@ Win.Kit = {
 }
 
 -- For the harness.
+Win.TABS = TABS
 function Win.__frame() return frame end
 function Win.__view() return view end
 function Win.__setView(scope, r) view.scope = scope; view.run = r end
