@@ -300,6 +300,15 @@ L["kicked a target that was not casting, or someone cut first"] = "chute em quem
 L["%d%% missed"] = "%d%% de erro"
 L["cooldowns"] = "recargas"
 L["%s: used %d times; %d fitted"] = "%s: usada %d vezes; cabiam %d"
+-- (21/10) "My run" beyond Warcraft Logs: the defensives ready at a death, and the cooldowns' use in Casts
+L["none"] = "nenhuma"
+L["Defensives ready"] = "Defensivas prontas"
+L["Defensives ready and not pressed: %s."] = "Defensivas prontas e não usadas: %s."
+L["No defensive was ready: all of them had been used."] = "Nenhuma defensiva estava pronta: todas tinham sido usadas."
+L["Fitted"] = "Cabiam"
+L["Usage"] = "Aproveitamento"
+L["Fitted: how many times a cooldown of 45 s or more was ready in these fights. Usage: the share of those it was pressed; in colour only a damage dealer's burst, defensives and what is pressed on demand are not judged."] =
+    "Cabiam: quantas vezes uma recarga de 45 s ou mais ficou pronta nestas lutas. Aproveitamento: a parte delas em que foi usada; em cor só as de dano de quem causa dano, as defensivas e o que se usa quando precisa não são avaliados."
 L["cooldown of %s · idle %s in total"] = "recarga de %s · parada %s no total"
 L["gaps without casting"] = "vãos sem lançar"
 L["%d gaps without casting of more than %d s in combat"] = "%d vãos sem lançar de mais de %d s em combate"

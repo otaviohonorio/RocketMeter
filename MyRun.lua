@@ -163,23 +163,37 @@ function MyRun.ReadCooldowns()
     if not (C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCategorySet
             and C_CooldownViewer.GetCooldownViewerCooldownInfo) then return out end
     local seen = {}
+    local function Add(spellID, base, category)
+        seen[spellID] = true
+        local okB, ms = pcall(GetSpellBaseCooldown or error, spellID)
+        local cd = okB and type(ms) == "number" and ms / 1000 or 0
+        local charges
+        if C_Spell and C_Spell.GetSpellCharges then
+            local okC, c = pcall(C_Spell.GetSpellCharges, spellID)
+            if okC and type(c) == "table" and type(c.maxCharges) == "number" then charges = c.maxCharges end
+        end
+        local name = C_Spell and C_Spell.GetSpellName and select(2, pcall(C_Spell.GetSpellName, spellID))
+        out[#out + 1] = { spellID = spellID, name = type(name) == "string" and name or ("#" .. spellID),
+            cooldown = cd, charges = charges or 1, category = category, base = base,
+            defensive = MyRun.IsDefensive(spellID, base) or nil }
+    end
     for _, cat in ipairs({ { "essential", 0 }, { "utility", 1 } }) do
         local ok, ids = pcall(C_CooldownViewer.GetCooldownViewerCategorySet, cat[2], false)
         for i = 1, (ok and type(ids) == "table" and #ids or 0) do
             local okI, info = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, ids[i])
             local spellID = okI and type(info) == "table" and (info.overrideSpellID or info.spellID) or nil
             if type(spellID) == "number" and not seen[spellID] and (info.isKnown == nil or info.isKnown == true) then
-                seen[spellID] = true
-                local okB, ms = pcall(GetSpellBaseCooldown or error, spellID)
-                local cd = okB and type(ms) == "number" and ms / 1000 or 0
-                local charges
-                if C_Spell and C_Spell.GetSpellCharges then
-                    local okC, c = pcall(C_Spell.GetSpellCharges, spellID)
-                    if okC and type(c) == "table" and type(c.maxCharges) == "number" then charges = c.maxCharges end
-                end
-                local name = C_Spell and C_Spell.GetSpellName and select(2, pcall(C_Spell.GetSpellName, spellID))
-                out[#out + 1] = { spellID = spellID, name = type(name) == "string" and name or ("#" .. spellID),
-                    cooldown = cd, charges = charges or 1, category = cat[1], base = info.spellID }
+                Add(spellID, info.spellID, cat[1])
+            end
+        end
+    end
+    -- (21/10) THE DEFENSIVES THE COOLDOWN MANAGER DOES NOT LIST, so a death can say which were ready
+    -- (Data/DefensiveSpells.lua, from the game's tables). Only the ones this character knows.
+    if C_SpellBook and C_SpellBook.IsSpellKnown then
+        for id in pairs(type(ns.DefensiveSpells) == "table" and ns.DefensiveSpells or {}) do
+            if not seen[id] then
+                local ok, known = pcall(C_SpellBook.IsSpellKnown, id)
+                if ok and known == true then Add(id, id, "defensive") end
             end
         end
     end
@@ -671,6 +685,13 @@ end
 ---(the game's own word, `C_Spell.IsSpellCrowdControl`). Those are listed with how many times
 ---they were used and nothing else: no "fitted", no red, never a problem, and out of the sums.
 ---@return string|nil "rez", "haste", "interrupt", "control"
+---(21/10) Is this cooldown one of the player's own defensives (Data/DefensiveSpells.lua)?
+function MyRun.IsDefensive(spellID, base)
+    local t = type(ns.DefensiveSpells) == "table" and ns.DefensiveSpells
+    if not t then return false end
+    return (spellID and t[spellID] ~= nil) or (base and t[base] ~= nil) or false
+end
+
 function MyRun.Situational(spellID, base)
     for _, id in ipairs({ spellID, base }) do
         if type(id) == "number" then
@@ -695,6 +716,9 @@ end
 ---judged by how many times they fitted; the rest is listed with how many times it was used.
 function MyRun.Judged(cd, role)
     if cd.situational then return false end
+    -- (21/10) a defensive is pressed when the damage comes, never "as often as it fits", even when the
+    -- game lists it as Essential (a damage dealer's Icebound Fortitude was judged as if it were burst)
+    if cd.defensive or MyRun.IsDefensive(cd.spellID, cd.base) then return false end
     if cd.category == "utility" then return false end
     return (role or "DAMAGER") == "DAMAGER"
 end
@@ -794,8 +818,9 @@ function MyRun.Own(scope, r)
             -- Pressed only when something asks for it: there is no "fitted" to be behind of.
             local situational = MyRun.Situational(cd.spellID, cd.base)
             if situational then fitted = used end
-            local entry = { spellID = cd.spellID, name = cd.name, cooldown = cd.cooldown,
+            local entry = { spellID = cd.spellID, base = cd.base, name = cd.name, cooldown = cd.cooldown,
                 used = used, fitted = fitted, category = cd.category, situational = situational,
+                defensive = cd.defensive or MyRun.IsDefensive(cd.spellID, cd.base) or nil,
                 idle = fitted > used and (fitted - used) * cd.cooldown or 0 }
             entry.judged = MyRun.Judged(entry, role)
             out.cooldowns[#out.cooldowns + 1] = entry
@@ -1310,6 +1335,68 @@ function MyRun.CooldownUses(r)
     return out
 end
 
+---(21/10) When each DEFENSIVE was used, the whole run and not only inside the fights: one pressed between two
+---packs is still on its cooldown when the next fight kills. { [spellID] = { t1, t2, ... } }; a saved run keeps it.
+function MyRun.DefensiveUses(r)
+    r = r or run
+    if not r then return {} end
+    -- a run saved before 21/10 kept no defensive's use: nil, and nothing is said of its deaths
+    if not r.casts then return r.defCasts end
+    local wanted, out = {}, {}
+    for _, cd in ipairs(r.cooldowns or {}) do
+        if cd.defensive or MyRun.IsDefensive(cd.spellID, cd.base) then
+            wanted[cd.spellID] = cd.spellID
+            if cd.base then wanted[cd.base] = cd.spellID end
+        end
+    end
+    for _, c in ipairs(r.casts) do
+        local id = wanted[c[2]]
+        if id then
+            out[id] = out[id] or {}
+            out[id][#out[id] + 1] = c[1]
+        end
+    end
+    return out
+end
+
+---(21/10) THE DEFENSIVES READY AT A DEATH, and not pressed. The user: *"é para incremental o que tem igual o
+---warcraftlogs, vamos melhorar o que ele tem"*. Warcraft Logs shows the blows of a death; it does not say what the
+---player still had. Health in combat is secret in Midnight (0 of 347 readings, 20/10), so "it fitted to press it"
+---over a fight cannot be told -- at the death it can: each use's time (`DefensiveUses`) against the cooldown and
+---its charges, one charge back every cooldown. The base cooldown is the game's (`GetSpellBaseCooldown`): a talent
+---that shortens it makes this say "not ready" when it was -- never the other way round.
+---@return table|nil { { spellID, name, cooldown }, ... } in the order of the run's list; nil when the run cannot say
+function MyRun.ReadyAtDeath(d, r)
+    r = r or run
+    local out = {}
+    if not (r and d and d.t) then return out end
+    local uses = MyRun.DefensiveUses(r)
+    if not uses then return nil end
+    for _, cd in ipairs(r.cooldowns or {}) do
+        if (cd.defensive or MyRun.IsDefensive(cd.spellID, cd.base)) and (cd.cooldown or 0) > 0 then
+            local max = cd.charges or 1
+            local have, back = max, nil          -- charges now; when the next one comes back
+            local function Until(t)
+                while have < max and back and back <= t do
+                    have = have + 1
+                    back = have < max and (back + cd.cooldown) or nil
+                end
+            end
+            local times = {}
+            for _, u in ipairs(uses[cd.spellID] or {}) do if u <= d.t then times[#times + 1] = u end end
+            table.sort(times)
+            for _, u in ipairs(times) do
+                Until(u)
+                have = math.max(0, have - 1)
+                if not back then back = u + cd.cooldown end
+            end
+            Until(d.t)
+            if have >= 1 then out[#out + 1] = { spellID = cd.spellID, name = cd.name, cooldown = cd.cooldown } end
+        end
+    end
+    return out
+end
+
 ---The casts of a scope as a list: each spell with its count, its share and its casts per minute.
 ---@param own table what `MyRun.Own` gave
 function MyRun.CastList(own)
@@ -1379,6 +1466,7 @@ local function Compact(r)
         c.fights[i] = { s = f.s, e = f.e, boss = f.boss, enc = f.enc, success = f.success, bySpell = {}, m = f.m }
     end
     c.cdCasts = MyRun.CooldownUses(r)
+    c.defCasts = MyRun.DefensiveUses(r)
     for _, cast in ipairs(r.casts) do
         -- Not pressed (MyRun.CastKind) apart, in `other`, fight by fight.
         local key = cast[3] == 0 and "other" or "bySpell"

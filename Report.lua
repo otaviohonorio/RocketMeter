@@ -200,7 +200,8 @@ local function PlaceCells(holder, columns, make)
 end
 
 ---A table. `spec`: { columns, rows, total (a row, or nil), top (the bar's full length), x, width, maxRows,
----colour = { r, g, b } (the bars), onClick = function(row), selected = row }. Each row: { spellID or icon, name,
+---colour = { r, g, b } (the bars), onClick = function(row), selected = row }; a column may have `colour(v, row)` for
+---its cells. Each row: { spellID or icon, name,
 ---[column key] = value, bar, share }. Returns its height; `noAdvance` keeps the cursor where it was (a table beside
 ---another).
 function Report.Table(page, spec, noAdvance)
@@ -290,7 +291,8 @@ function Report.Table(page, spec, noAdvance)
                 if c.fmt then text = c.fmt(v, data) elseif type(v) == "number" then text = K.Fmt(v) else text = v end
                 cell:SetJustifyH(c.justify or "RIGHT")
                 cell:SetText(text or (isTotal and "" or "-"))
-                K.Colour(cell, c.grey and LIGHTGRAY_FONT_COLOR or HIGHLIGHT_FONT_COLOR)
+                -- (21/10) a column may colour its own cells (`colour(v, row)` -> a colour object of the game, or nil)
+                K.Colour(cell, (c.colour and not isTotal and c.colour(v, data)) or (c.grey and LIGHTGRAY_FONT_COLOR or HIGHLIGHT_FONT_COLOR))
             end
         end
         if spec.selected ~= nil and spec.selected == data then

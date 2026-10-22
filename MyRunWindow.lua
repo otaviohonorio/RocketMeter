@@ -718,6 +718,20 @@ local function DrawHealing(page, c)
     Report.Finish(page)
 end
 
+---(21/10) The defensives ready at a death, as icons for the death's line: what Warcraft Logs does not say.
+local READY_ICONS = 4
+local function ReadyIcons(list)
+    if not list then return "" end
+    if #list == 0 then return L["none"] end
+    local parts = {}
+    for i, sp in ipairs(list) do
+        if i > READY_ICONS then parts[#parts + 1] = "+" .. (#list - READY_ICONS); break end
+        local icon = SpellIcon(sp.spellID)
+        parts[#parts + 1] = icon and ("|T" .. icon .. ":16:16|t") or (sp.name or "?")
+    end
+    return table.concat(parts, " ")
+end
+
 local function DrawDeaths(page, c)
     local Report = ns.Report
     Report.Begin(page)
@@ -726,11 +740,13 @@ local function DrawDeaths(page, c)
     local rows = {}
     for i, d in ipairs(list) do
         local sum = ns.MyRun.DeathSummary(d)
+        local ready = ns.MyRun.ReadyAtDeath(d, c.r)
         rows[#rows + 1] = { index = i, name = Clock(d.t) .. "  " .. (c.r and c.r.player or ""),
             spellID = d.killerSpell, atlas = not d.killerSpell and "deathrecap-icon-tombstone" or nil,
             blow = (d.killer or L["cause unknown"]) .. (d.killerSource and (" · " .. d.killerSource) or ""),
             over = sum.blows > 0 and (sum.oneShot and L["one shot"] or format("%.1fs", sum.seconds or 0)) or "",
-            last = table.concat(sum.last, ", "), taken = sum.total > 0 and sum.total or nil }
+            last = table.concat(sum.last, ", "), taken = sum.total > 0 and sum.total or nil,
+            ready = ReadyIcons(ready), readyCount = ready and #ready or nil }
     end
     if #rows == 0 then
         Report.Note(page, L["No death in this scope."])
@@ -742,7 +758,10 @@ local function DrawDeaths(page, c)
             { key = "name", label = L["Time"] .. " · " .. L["Name"] },
             { key = "blow", label = L["Killing blow"], width = 230, justify = "LEFT" },
             { key = "over", label = L["Window"], width = 70 },
-            { key = "last", label = L["Last three hits"], width = 290, justify = "LEFT", grey = true },
+            { key = "last", label = L["Last three hits"], width = 210, justify = "LEFT", grey = true },
+            -- (21/10) beyond Warcraft Logs: what the player still had
+            { key = "ready", label = L["Defensives ready"], width = 112, justify = "LEFT",
+              colour = function(_, row) return row.readyCount and row.readyCount > 0 and NORMAL_FONT_COLOR or LIGHTGRAY_FONT_COLOR end },
             { key = "taken", label = L["Damage taken"], width = 90 } } })
     Report.Space(page)
     -- the blows of the death clicked, the killing one first
@@ -750,6 +769,14 @@ local function DrawDeaths(page, c)
     local events = d and d.events or {}
     Report.Band(page, format("%s — %s", L["Blow by blow"], Clock(d.t)), nil, nil,
         d.maxHealth and format(L["%s of life"], Fmt(d.maxHealth)) or nil)
+    -- (21/10) the defensives that were ready, by name: the line says it in icons
+    local ready = ns.MyRun.ReadyAtDeath(d, c.r)
+    if ready then
+        local names = {}
+        for _, sp in ipairs(ready) do names[#names + 1] = sp.name end
+        Report.Note(page, #names > 0 and format(L["Defensives ready and not pressed: %s."], table.concat(names, ", "))
+            or L["No defensive was ready: all of them had been used."])
+    end
     if #events == 0 then
         Report.Note(page, L["The game kept no blow of this death."])
     else
@@ -856,9 +883,22 @@ local function DrawCasts(page, c)
     end
     local rows, total = {}, c.own.casts or 0
     local minutes = c.seconds > 0 and c.seconds / 60 or nil
+    -- (21/10) beyond Warcraft Logs: for a cooldown of 45 s or more, how many times it was ready in these fights
+    -- ("Fitted") and the share of those it was pressed ("Usage") -- only for what is pressed as often as it comes
+    -- back; in colour only a damage dealer's burst (MyRun.Judged); a defensive or what is pressed on demand, blank
+    local cdOf = {}
+    for _, cd in ipairs(c.own.cooldowns or {}) do
+        cdOf[cd.spellID] = cd
+        if cd.base then cdOf[cd.base] = cdOf[cd.base] or cd end
+    end
     for id, n in pairs(c.own.bySpell or {}) do
+        local cd = cdOf[id]
+        local open = cd and not cd.situational and not cd.defensive and cd.fitted > 0
         rows[#rows + 1] = { spellID = id, amount = n, bar = n, share = total > 0 and n / total * 100 or nil,
-                            perMinute = minutes and n / minutes or nil }
+                            perMinute = minutes and n / minutes or nil,
+                            fitted = open and cd.fitted or nil,
+                            usage = open and math.min(100, cd.used / cd.fitted * 100) or nil,
+                            judged = cd and cd.judged or nil }
     end
     table.sort(rows, function(a, b) if a.amount == b.amount then return a.spellID < b.spellID end return a.amount > b.amount end)
     if #rows == 0 then
@@ -868,8 +908,14 @@ local function DrawCasts(page, c)
             total = { name = L["Total"], amount = total, perMinute = minutes and total / minutes or nil },
             columns = {
                 { key = "name", label = L["Name"] },
-                { key = "amount", label = L["Amount"], width = 250, fmt = function(v) return v and tostring(v) or "" end },
-                { key = "perMinute", label = L["CPM"], width = 70, fmt = function(v) return v and format("%.1f", v) or "-" end } } })
+                { key = "amount", label = L["Amount"], width = 200, fmt = function(v) return v and tostring(v) or "" end },
+                { key = "perMinute", label = L["CPM"], width = 70, fmt = function(v) return v and format("%.1f", v) or "-" end },
+                { key = "fitted", label = L["Fitted"], width = 56, fmt = function(v) return v and tostring(v) or "" end, grey = true },
+                { key = "usage", label = L["Usage"], width = 92, fmt = function(v) return v and format("%d%%", math.floor(v + 0.5)) or "" end,
+                  colour = function(v, row)
+                      if not (v and row.judged) then return nil end
+                      return v < 50 and RED_FONT_COLOR or v < 70 and NORMAL_FONT_COLOR or GREEN_FONT_COLOR end } } })
+        Report.Note(page, L["Fitted: how many times a cooldown of 45 s or more was ready in these fights. Usage: the share of those it was pressed; in colour only a damage dealer's burst, defensives and what is pressed on demand are not judged."])
         -- what the game reported as a cast and the player did not press, apart, so nothing vanishes
         local other = {}
         for id, n in pairs(c.own.notPressed or {}) do other[#other + 1] = { spellID = id, casts = n } end

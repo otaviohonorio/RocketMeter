@@ -31,6 +31,7 @@ Log.lua
 #@end-debug@
 Data\InterruptSpells.lua
 Data\SituationalSpells.lua
+Data\DefensiveSpells.lua
 Data\OpenSpells.lua
 Data\SpellOrigin.lua
 Data.lua
