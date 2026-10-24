@@ -31,7 +31,7 @@ L["Interrupts"] = "Interrupções"
 L["Crowd control used"] = "Controle usado"
 L["Session"] = "Sessão"
 L["Open the scoreboard of this session"] = "Abrir o placar desta sessão"
-L["Click: your own performance in this run"] = "Clique: o seu desempenho nesta corrida"
+L["Click: your own performance in this run"] = "Clique: ver o seu desempenho nesta corrida"
 L["total"] = "total"
 L["per s"] = "por s"
 L["share"] = "parte"
@@ -54,7 +54,7 @@ L["Damage only"] = "Só dano"
 L["settings for this character only."] = "configuração própria deste personagem."
 L["settings shared by the account."] = "configuração compartilhada pela conta."
 L["settings restored to the defaults."] = "configuração restaurada para o padrão."
-L["moves a column left or right"] = "move uma coluna para a esquerda ou direita"
+L["moves a column left or right"] = "move uma coluna para a esquerda ou para a direita"
 L["account-wide or per-character settings"] = "configuração da conta ou do personagem"
 
 -- Opções
@@ -85,7 +85,7 @@ L["sessions cleared."] = "sessões zeradas."
 L["showing the current fight."] = "mostrando o combate atual."
 L["showing the overall."] = "mostrando o geral."
 L["columns applied:"] = "colunas aplicadas:"
-L["column toggled:"] = "coluna alternada:"
+L["column toggled:"] = "coluna ligada/desligada:"
 L["available presets:"] = "conjuntos disponíveis:"
 L["columns (type the number to toggle):"] = "colunas (número liga/desliga):"
 
@@ -112,22 +112,22 @@ L["columns migrated to the new format."] = "colunas convertidas para o formato n
 -- Limpar dados (0.10.0)
 L["Clear the data"] = "Limpar dados"
 L["Clear the current fight and the overall? This cannot be undone."] =
-    "Limpar o combate atual e o geral? Não dá para desfazer."
+    "Limpar o combate atual e o geral? Não é possível desfazer."
 
 -- Realce do lider por coluna (0.12.0)
 
 L["prints what the API is returning"] = "mostra o que a API está devolvendo"
 L["lists who the API reports in each metric"] =
-    "lista quem a API reporta em cada métrica"
+    "lista quem a API informa em cada métrica"
 
 L["error while drawing:"] = "erro ao desenhar:"
 
 -- Log de diagnostico (0.13.0)
 L["records a diagnostic snapshot"] = "grava uma foto de diagnóstico"
-L["log cleared."] = "log limpo."
+L["log cleared."] = "diário limpo."
 L["the log only exists in development builds."] = "o diário só existe na versão de desenvolvimento."
 L["snapshot saved (%d entries). Type /reload so the file is written."] =
-    "foto gravada (%d entradas). Digite /reload para o arquivo ser escrito."
+    "foto gravada (%d entradas). Digite /reload para gravar o arquivo."
 
 -- Skin da barra (0.14.0)
 
@@ -144,19 +144,19 @@ L["another player's screen opens only out of combat."] =
     "a tela de outro jogador só abre fora de combate."
 
 L["restart the client: the breakdown module was not loaded yet."] =
-    "reinicie o cliente: o módulo de detalhamento ainda não foi carregado."
+    "reinicie o jogo: o módulo de detalhamento ainda não foi carregado."
 
 -- Placar reconstruido (0.51.0)
 L["Score"] = "Pont."
 L["%d deaths"] = "%d mortes"
 L["%d death"] = "%d morte"
-L["Simulation — invented data."] = "Simulação — dados inventados."
-L["opens the scoreboard with invented data"] = "abre o placar com dados inventados"
+L["Simulation — invented data."] = "Simulação — dados fictícios."
+L["opens the scoreboard with invented data"] = "abre o placar com dados fictícios"
 L["restart the client: the demo module was not loaded yet."] =
-    "reinicie o cliente: o módulo de simulação ainda não foi carregado."
+    "reinicie o jogo: o módulo de simulação ainda não foi carregado."
 
 -- entender que o placar sabe algo sobre ela.
-L["Ruins of the Ember Court"] = "Ruínas da Corte de Brasas"
+L["Ruins of the Ember Court"] = "Ruínas da Corte das Brasas"
 L["First boss"] = "Primeiro chefe"
 L["Second boss"] = "Segundo chefe"
 L["Last boss"] = "Último chefe"
@@ -183,7 +183,7 @@ L["%d d ago"] = "há %d dia(s)"
 
 -- Conferencia dos rotulos que vem do jogo (0.53.0). Mesmo motivo do /rm atlas: a falha e
 -- silenciosa — a global some e o rotulo so continua em ingles.
-L["checks the labels taken from the game"] = "confere os rotulos que vem do jogo"
+L["checks the labels taken from the game"] = "confere os rótulos que vêm do jogo"
 L["locale %s, %d game label(s):"] = "idioma %s, %d rótulo(s) vindos do jogo:"
 L["%d game label(s) are not usable here."] = "%d rótulo(s) do jogo não servem neste cliente."
 
@@ -203,7 +203,7 @@ L["Square"] = "Quadrado"
 L["Round"] = "Redondo"
 L["Show the realm next to the name"] = "Mostrar o reino ao lado do nome"
 L["Off by default: the realm eats the column and the name is what ends up cut."] =
-    "Desligado por padrão: o reino come a coluna e quem acaba cortado é o nome."
+    "Desligado por padrão: o reino ocupa a coluna e o nome acaba cortado."
 
 -- Estado do cadeado em palavras (0.55.0): o icone mudou de FORMA, mas a dica e o canal que
 -- nao depende de interpretar um desenho de 14px.
@@ -218,7 +218,7 @@ L["Font"] = "Fonte"
 L["Font outline"] = "Contorno da fonte"
 L["Font shadow"] = "Sombra da fonte"
 L["A 1px black shadow below the text. Carries the letters over any background."] =
-    "Sombra preta de 1px abaixo do texto. Carrega as letras sobre qualquer fundo."
+    "Sombra preta de 1px abaixo do texto. Deixa as letras legíveis sobre qualquer fundo."
 L["the font %s could not be loaded; using the default."] =
     "não foi possível carregar a fonte %s; usando a padrão."
 L["Columns"] = "Colunas"
@@ -246,7 +246,7 @@ L["In combat, the current fight; when it ends, back to the overall."] =
 L["errors are NOT being captured on this client."] =
     "os erros NÃO estão sendo capturados neste cliente."
 L["no error captured (capture: %s)."] = "nenhum erro capturado (captura: %s)."
-L["%d error(s) captured, %d occurrence(s):"] = "%d erro(s) capturado(s), %d ocorrencia(s):"
+L["%d error(s) captured, %d occurrence(s):"] = "%d erro(s) capturado(s), %d ocorrência(s):"
 
 -- As duas distancias da linha, configuraveis (0.81.0)
 L["Space between columns"] = "Espaço entre colunas"
@@ -296,7 +296,7 @@ L["avoidable damage"] = "dano evitável"
 L["%s of avoidable damage"] = "%s de dano evitável"
 L["interrupts"] = "interrupções"
 L["%d of %d interrupts cut nothing"] = "%d das %d interrupções sem efeito"
-L["kicked a target that was not casting, or someone cut first"] = "chute em quem não lançava, ou outro cortou antes"
+L["kicked a target that was not casting, or someone cut first"] = "alvo que não lançava, ou alguém interrompeu antes"
 L["%d%% missed"] = "%d%% de erro"
 L["cooldowns"] = "recargas"
 L["%s: used %d times; %d fitted"] = "%s: usada %d vezes; cabiam %d"
@@ -308,16 +308,16 @@ L["No defensive was ready: all of them had been used."] = "Nenhuma defensiva est
 L["Fitted"] = "Cabiam"
 L["Usage"] = "Aproveitamento"
 L["Fitted: how many times a cooldown of 45 s or more was ready in these fights. Usage: the share of those it was pressed; in colour only a damage dealer's burst, defensives and what is pressed on demand are not judged."] =
-    "Cabiam: quantas vezes uma recarga de 45 s ou mais ficou pronta nestas lutas. Aproveitamento: a parte delas em que foi usada; em cor só as de dano de quem causa dano, as defensivas e o que se usa quando precisa não são avaliados."
+    "Cabiam: quantas vezes uma recarga de 45 s ou mais ficou pronta nestas lutas. Aproveitamento: a parte delas em que foi usada. Só a explosão de quem causa dano ganha cor; as defensivas e o que se usa quando precisa não são avaliados."
 L["cooldown of %s · idle %s in total"] = "recarga de %s · parada %s no total"
-L["gaps without casting"] = "vãos sem lançar"
-L["%d gaps without casting of more than %d s in combat"] = "%d vãos sem lançar de mais de %d s em combate"
-L["%s idle in total · the longest: %d s at %s"] = "%s parado no total · o maior: %d s aos %s"
+L["gaps without casting"] = "pausas sem lançar"
+L["%d gaps without casting of more than %d s in combat"] = "%d pausas de mais de %d s sem lançar em combate"
+L["%s idle in total · the longest: %d s at %s"] = "%s parado no total · a maior: %d s aos %s"
 L["%d/min"] = "%d/min"
 L["potions"] = "poções"
 L["Potion in %d of %d bosses"] = "Poção em %d dos %d chefes"
-L["the healthstone was not used"] = "a pedra de vida não foi usada"
-L["healthstone used %d times"] = "pedra de vida usada %d vezes"
+L["the healthstone was not used"] = "a Pedra de Vida não foi usada"
+L["healthstone used %d times"] = "Pedra de Vida usada %d vezes"
 L["deaths of the group"] = "mortes do grupo"
 L["%d deaths in the group"] = "%d mortes no grupo"
 L["the scoreboard says who and when"] = "o placar diz quem e quando"
@@ -327,7 +327,7 @@ L["Spells"] = "Magias"
 L["This run"] = "Este combate"
 L["DAMAGER"] = "DPS"
 L["TANK"] = "Tanque"
-L["HEALER"] = "Curandeiro"
+L["HEALER"] = "Curador"
 L["History"] = "Histórico"
 L["#%d in the group"] = "%dº do grupo"
 L["in total"] = "no total"
@@ -335,7 +335,7 @@ L["out of combat only"] = "só fora de combate"
 L["%d cast cut nothing"] = "%d sem efeito"
 L["Death"] = "Morte"
 L["at %s"] = "aos %s"
-L["In combat the meter's numbers are hidden; they come back when it ends."] = "Em combate os números do medidor ficam escondidos; voltam quando ele acaba."
+L["In combat the meter's numbers are hidden; they come back when it ends."] = "Em combate, os números do medidor ficam ocultos; voltam quando a luta acaba."
 L["Nothing taken."] = "Nada recebido."
 L["%d%% avoidable"] = "%d%% evitável"
 L["Casts per minute"] = "Lançamentos por minuto"
@@ -345,7 +345,7 @@ L["Interr."] = "Interr."
 L["No run saved yet."] = "Nenhum combate guardado ainda."
 L["No death in this scope."] = "Nenhuma morte neste trecho."
 L["Blow by blow"] = "Golpe a golpe"
-L["The game kept no blow of this death."] = "O jogo não guardou golpe nenhum desta morte."
+L["The game kept no blow of this death."] = "O jogo não guardou nenhum golpe desta morte."
 L["absorbed"] = "absorvido"
 L["Casts"] = "Lançamentos"
 L["Role"] = "Papel"
@@ -388,12 +388,12 @@ L["Click: open this player's screen"] = "Clique: abrir a tela deste jogador"
 -- (20/10) As abas do Warcraft Logs no Meu combate
 L["Gear"] = "Equipamento"
 L["Nothing in this scope."] = "Nada a mostrar aqui."
-L["This run was saved before the sheet and the gear were kept with it."] = "Este combate foi guardado antes de a ficha e o equipamento serem guardados com ele."
+L["This run was saved before the sheet and the gear were kept with it."] = "Este combate é de antes de a ficha e o equipamento serem guardados com ele."
 L["Time"] = "Tempo"
 
 -- (20/10) O Meu combate igual ao Warcraft Logs: as abas e as colunas do site, nas palavras do jogo e da comunidade
 L["Name"] = "Nome"
-L["Amount"] = "Quantia"
+L["Amount"] = "Valor"
 L["Avg cast"] = "Por lançamento"
 L["CPM"] = "Por minuto"
 L["Count"] = "Contagem"
@@ -418,9 +418,9 @@ L["Total dispels"] = "Total de dissipações"
 L["Interrupted (the game's count)"] = "Interrompidas (contagem do jogo)"
 L["No interrupt in this scope."] = "Nenhuma interrupção aqui."
 L["No dispel in this scope."] = "Nenhuma dissipação aqui."
-L["one point per fight: the game gives no curve"] = "um ponto por luta: o jogo não entrega a curva"
+L["one point per fight: the game gives no curve"] = "um ponto por luta: o jogo não fornece a curva"
 L["Hits, critical hits and uptime exist only in the game's combat log file, which an addon cannot read."] =
     "Acertos, críticos e tempo ativo existem só no arquivo do registro de combate do jogo, que um addon não consegue ler."
 L["The heals and the shields in one list, as Warcraft Logs shows them; a shield is the game's \"Absorbs\"."] =
     "As curas e os escudos numa lista só, como o Warcraft Logs mostra; escudo é o que o jogo chama de \"Absorções\"."
-L["This run was saved before the spells were kept with it."] = "Este combate foi salvo antes de as magias serem guardadas com ele."
+L["This run was saved before the spells were kept with it."] = "Este combate é de antes de as magias serem guardadas com ele."

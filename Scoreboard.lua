@@ -1060,6 +1060,26 @@ function CellBuilders.keystone(cell)
     cell.level:SetPoint("BOTTOM", cell.icon, "BOTTOM", 0, -1)
 end
 
+---Shows the game's tooltip for the item on the hovered loot icon (`self.link`). The link is
+---the whole item link that `ENCOUNTER_LOOT_RECEIVED` gave (`Party.NoteLoot`); when it is not
+---one the tooltip understands, the item id still shows the base item.
+function Scoreboard.__lootEnter(self)
+    local link = self and self.link
+    if not link then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local ok = type(link) == "string" and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+    if not ok then
+        local id = tonumber(link)
+        if not id and C_Item and C_Item.GetItemInfoInstant then
+            local okId, itemID = pcall(C_Item.GetItemInfoInstant, link)
+            id = okId and itemID or nil
+        end
+        if not id then GameTooltip:Hide(); return end
+        GameTooltip:SetItemByID(id)
+    end
+    GameTooltip:Show()
+end
+
 ---Quadrado de saque: ícone 32 com borda na cor da qualidade e o nível do item por cima.
 function CellBuilders.loot(cell)
     cell.icon = cell:CreateTexture(nil, "ARTWORK")
@@ -1080,6 +1100,31 @@ function CellBuilders.loot(cell)
 
     cell.ilvl = cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     cell.ilvl:SetPoint("BOTTOM", cell.icon, "BOTTOM", 0, 0)
+
+    -- (!) THE ITEM'S OWN TOOLTIP ON MOUSE OVER (24/10). The user, 13/10: *"quando passa o mouse
+    -- em cima do item que alguém ganhou não mostra a popup dele (…) o padrão do jogo"*. The game
+    -- does it the same way on its loot banner (BossBannerToast.lua:213, 12.1.0): owner + the
+    -- link itself, so bonus ids and item level are the ones that dropped. Only the icon takes
+    -- the mouse, and only while there is an item (the painter turns it on), so the rest of the
+    -- row still drags the panel; a drag that starts on the icon is handed to the panel too.
+    local hit = CreateFrame("Frame", nil, cell)
+    hit:SetAllPoints(cell.icon)
+    hit:EnableMouse(false)
+    hit:RegisterForDrag("LeftButton")
+    hit:SetScript("OnDragStart", function(self) self.dragged = true; if frame then frame:StartMoving() end end)
+    hit:SetScript("OnDragStop", function() if frame then frame:StopMovingOrSizing() end end)
+    hit:SetScript("OnMouseDown", function(self) self.dragged = nil end)
+    hit:SetScript("OnEnter", Scoreboard.__lootEnter)
+    hit:SetScript("OnLeave", GameTooltip_Hide)
+    -- Shift-click links it in chat, Ctrl-click tries it on: the game's own item click. A plain
+    -- click does what a click on the row does (the player's own row opens "My run").
+    hit:SetScript("OnMouseUp", function(self, button)
+        if button ~= "LeftButton" or self.dragged or not self.link then return end
+        if HandleModifiedItemClick and HandleModifiedItemClick(self.link) then return end
+        local row = cell:GetParent()
+        if row and row.open then row.open() end
+    end)
+    cell.hit = hit
 end
 
 ---Célula de número — e de pontuação, que é número com o ganho colado.
@@ -1902,7 +1947,13 @@ end
 
 function CellPainters.loot(cell, entry)
     local link = entry.row and entry.row.loot
-    if not link or link == "" or not Item or not Item.CreateFromItemLink then
+    if link == "" then link = nil end
+    -- The tooltip only needs the link, so it is set before the icon (which waits for the cache).
+    if cell.hit then
+        cell.hit.link = link
+        cell.hit:EnableMouse(link ~= nil)
+    end
+    if not link or not Item or not Item.CreateFromItemLink then
         cell.icon:Hide(); cell.border:Hide(); cell.ilvlBg:Hide(); cell.ilvl:Hide()
         return
     end
@@ -1932,6 +1983,8 @@ function CellPainters.loot(cell, entry)
         end
     end)
 end
+
+Scoreboard.__paintLoot = CellPainters.loot
 
 function CellPainters.value(cell, entry, index)
     ns.SetCellText(cell.text, entry.values[index], columns[index].key)
