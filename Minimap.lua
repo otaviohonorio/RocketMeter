@@ -7,14 +7,24 @@ local L = ns.L
 local Minimap_ = {}
 ns.Minimap = Minimap_
 
-local RADIUS = 80
+-- (!) THE RADIUS FOLLOWS THE MINIMAP (24/10). A player on CurseForge: *"cant move (from the center)
+-- minimap ico when minimap >110%"*; the user reproduced it: with the minimap enlarged our button only
+-- went round INSIDE the map, while the other addons' buttons sat on the enlarged border. The radius
+-- was a fixed 80, inside a 198 map; the common minimap-button library uses half the minimap's width
+-- plus 5, read at every placement. Same numbers here, and the button follows when the size changes.
+local RIM = 5
+
+local function Radius()
+    return Minimap:GetWidth() / 2 + RIM
+end
 local button
 
 local function UpdatePosition()
     if not button then return end
     local angle = math.rad(ns.db.minimap.angle or 200)
+    local radius = Radius()
     button:SetPoint("CENTER", Minimap, "CENTER",
-        math.cos(angle) * RADIUS, math.sin(angle) * RADIUS)
+        math.cos(angle) * radius, math.sin(angle) * radius)
 end
 
 local function OnDragUpdate(self)
@@ -102,6 +112,7 @@ function Minimap_.Create()
     end)
     button:SetScript("OnLeave", GameTooltip_Hide)
 
+    Minimap:HookScript("OnSizeChanged", UpdatePosition)
     UpdatePosition()
     Minimap_.ApplyVisibility()
     return button
