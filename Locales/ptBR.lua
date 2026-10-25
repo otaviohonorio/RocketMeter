@@ -46,7 +46,7 @@ L["Current fight"] = "Combate atual"
 L["Overall"] = "Geral"
 
 -- Conjuntos
-L["Mythic+"] = "Mítico+"
+L["Mythic+"] = "Mítica+"
 L["Raid"] = "Raide"
 L["Damage only"] = "Só dano"
 
@@ -167,15 +167,15 @@ L["checking %d atlas name(s):"] = "conferindo %d nome(s) de atlas:"
 L["%d name(s) do not exist on this client."] = "%d nome(s) não existem neste cliente."
 
 -- Placares guardados (0.52.0)
-L["Last Mythic+"] = "Último Mítico+"
+L["Last Mythic+"] = "Última Mítica+"
 L["Last raid"] = "Última raide"
 L["Opens the scoreboard of the last Mythic+ run finished on this character."] =
-    "Abre o placar da última corrida de Mítico+ concluída neste personagem."
+    "Abre o placar da última chave de Mítica+ concluída neste personagem."
 L["Opens the scoreboard of the last raid boss defeated on this character."] =
     "Abre o placar do último chefe de raide derrotado neste personagem."
-L["opens the last Mythic+ scoreboard"] = "abre o último placar de Mítico+"
+L["opens the last Mythic+ scoreboard"] = "abre o último placar de Mítica+"
 L["opens the last raid scoreboard"] = "abre o último placar de raide"
-L["no Mythic+ run recorded yet."] = "nenhuma corrida de Mítico+ registrada ainda."
+L["no Mythic+ run recorded yet."] = "nenhuma chave de Mítica+ registrada ainda."
 L["no raid encounter recorded yet."] = "nenhum chefe de raide registrado ainda."
 L["%d min ago"] = "há %d min"
 L["%d h ago"] = "há %d h"
@@ -189,9 +189,9 @@ L["%d game label(s) are not usable here."] = "%d rótulo(s) do jogo não servem 
 
 -- Seção Placar e opção de reino (0.54.0)
 L["Scoreboard"] = "Placar"
-L["Open at the end of a Mythic+ run"] = "Abrir ao fim de uma corrida de Mítico+"
+L["Open at the end of a Mythic+ run"] = "Abrir ao fim de uma chave de Mítica+"
 L["When the keystone ends, the summary of the run opens by itself."] =
-    "Quando a chave termina, o resumo da corrida abre sozinho."
+    "Quando a chave termina, o resumo dela abre sozinho."
 L["Open when a raid boss dies"] = "Abrir quando um chefe de raide morrer"
 L["When an encounter is defeated, the summary of the fight opens by itself."] =
     "Quando o encontro é vencido, o resumo da luta abre sozinho."
@@ -233,7 +233,7 @@ L["Title"] = "Título"
 L["Column header"] = "Cabeçalho das colunas"
 
 -- O placar de Mítico+ (0.66.0)
-L["Keystone"] = "Pedra"
+L["Keystone"] = "Pedra-chave"
 L["Loot"] = "Saque"
 L["Not in combat: %s"] = "Fora de combate: %s"
 
@@ -261,7 +261,7 @@ L["Report a problem"] = "Relatar um problema"
 L["Report a problem on"] = "Relatar um problema em"
 L["Click: choose where to report a problem"] = "Clique: escolher onde relatar um problema"
 L["Rocket Meter %s — report a problem on %s.|n|nPress Ctrl+C to copy the link, then paste it in your browser. Say what you were doing and what happened."] =
-    "Rocket Meter %s — relatar um problema em %s.|n|nAperte Ctrl+C para copiar o endereço e cole no navegador. Conte o que você estava fazendo e o que aconteceu."
+    "Rocket Meter %s — relatar um problema em %s.|n|nAperte Ctrl+C para copiar o link e cole no navegador. Conte o que você estava fazendo e o que aconteceu."
 
 -- Minha corrida (01/10): a tela individual do jogador.
 L["Whole run"] = "Todo o combate"
@@ -284,8 +284,8 @@ L["Your talents: direct healing"] = "Seus talentos: cura direta"
 L["Your talents: damage absorbed"] = "Seus talentos: dano absorvido"
 L["%s (%d%% of the total)"] = "%s (%d%% do total)"
 L["This fight"] = "Luta atual"
-L["Trash"] = "Pacotes"
-L["trash"] = "pacotes"
+L["Trash"] = "Trash"
+L["trash"] = "trash"
 L["deaths"] = "mortes"
 L["cause unknown"] = "causa desconhecida"
 L["avoidable"] = "evitável"
