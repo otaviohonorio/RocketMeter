@@ -501,6 +501,7 @@ function Picker.Create()
 
     frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "DefaultPanelTemplate")
     frame:SetSize(WIDTH, TOP + content + FOOTER)
+    ns.DarkBody(frame, 1, frame.Bg)       -- (25/10) the dark body, as every Rocket window (Core.lua: "escuro em tudo")
     frame:SetFrameStrata("DIALOG")
     -- IN FRONT WHEN OPENED OR CLICKED (27/09). Every Rocket window shares the HIGH strata, and
     -- inside a strata the order is the frame LEVEL: without this, the rows of a window opened

@@ -147,6 +147,7 @@ local function CreatePanel()
 
     frame = CreateFrame("Frame", ADDON .. "Player", UIParent, "ButtonFrameTemplate")
     frame:SetWidth(WIDTH)
+    ns.DarkBody(frame, 1, frame.Bg)       -- (25/10) the dark body, as every Rocket window (Core.lua: "escuro em tudo")
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)

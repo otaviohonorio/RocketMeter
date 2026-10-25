@@ -865,12 +865,13 @@ local function BuildColumnHeader()
     for c = 1, #columns do
         local button = headerRow.labels[c]
         if not button then
-            button = CreateFrame("Button", nil, headerRow, "BackdropTemplate")
+            button = CreateFrame("Button", nil, headerRow)
             button:SetHeight(COLHEAD_HEIGHT)
-            button:SetBackdrop({
-                bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-                tileSize = 64, tile = true,
-            })
+            -- (25/10) the game's tooltip background, as a texture of the button (it was a SetBackdrop of it: the
+            -- same look, no backdrop -- the workspace rules)
+            button.bg = button:CreateTexture(nil, "BACKGROUND")
+            button.bg:SetAllPoints()
+            button.bg:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
             -- The PART of the column, on the second line; the family goes on the first, over
             -- the whole group (`headerRow.families`, below).
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -912,7 +913,7 @@ local function BuildColumnHeader()
         button:SetPoint("TOPLEFT", headerRow, "TOPLEFT", offsets[c], 0)
 
         local sorted = group ~= nil and group == sortedGroup
-        button:SetBackdropColor(unpack(sorted and COLHEAD_TINT_SORTED or COLHEAD_TINT))
+        button.bg:SetVertexColor(unpack(sorted and COLHEAD_TINT_SORTED or COLHEAD_TINT))
 
         -- Corpo 10, aplicado pela escada do addon para o seletor de fonte
         -- continuar valendo.
@@ -1577,7 +1578,10 @@ end
 local function CreatePanel()
     if frame then return frame end
 
-    frame = CreateFrame("Frame", ADDON .. "Scoreboard", UIParent, "BackdropTemplate")
+    -- (25/10) the game's tooltip border (TooltipBorderBackdropTemplate: a NineSlice, an empty centre) around the
+    -- dark art (ns.DarkBody), instead of a flat WHITE8X8 backdrop with a 1-pixel black edge: the workspace rules
+    -- (no hand-painted panel; "escuro em tudo", the app as the reference). The dungeon's own art stays above it
+    frame = CreateFrame("Frame", ADDON .. "Scoreboard", UIParent, "TooltipBorderBackdropTemplate")
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
     frame:SetFrameStrata("HIGH")
     -- IN FRONT WHEN OPENED OR CLICKED (27/09). Every Rocket window shares the HIGH strata, and
@@ -1593,24 +1597,18 @@ local function CreatePanel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
     -- Painel de leitura, não overlay: aqui o fundo é obrigatório, senão o texto disputa com o
     -- cenário. `ns.Skin.scoreboardAlpha` é o valor reservado para isso.
-    frame:SetBackdropColor(0.035, 0.035, 0.05, ns.Skin.scoreboardAlpha)
-    frame:SetBackdropBorderColor(0, 0, 0, 1)
+    ns.DarkBody(frame, ns.Skin.scoreboardAlpha)
     frame:Hide()
 
     frame.art = frame:CreateTexture(nil, "BACKGROUND")
-    frame.art:SetPoint("TOPLEFT", 1, -1)
-    frame.art:SetPoint("BOTTOMRIGHT", -1, 1)
+    frame.art:SetPoint("TOPLEFT", 3, -3)
+    frame.art:SetPoint("BOTTOMRIGHT", -3, 3)
 
     frame.headerArt = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
-    frame.headerArt:SetPoint("TOPLEFT", 1, -1)
-    frame.headerArt:SetPoint("TOPRIGHT", -1, -1)
+    frame.headerArt:SetPoint("TOPLEFT", 3, -3)
+    frame.headerArt:SetPoint("TOPRIGHT", -3, -3)
     frame.headerArt:SetHeight(HEADER_HEIGHT - 6)
     ns.ApplyHeaderArt(frame.headerArt)
     frame.headerArt:SetAlpha(0.9)

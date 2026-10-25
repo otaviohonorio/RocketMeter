@@ -314,3 +314,30 @@ function RocketMeter_OnCompartmentClick(_, buttonName)
         ns.Window.Toggle()
     end
 end
+
+
+-- (25/10) DARK EVERYWHERE (the workspace rules, visual identity: the user chose the app's look as the reference and,
+-- asked, "escuro em tudo"): a window's body wears the Specialization tab's dark art (spec-background), as the
+-- RocketLab's tabs. Over a template's panel stone (ButtonFrameTemplate's or DefaultPanelTemplate's `Bg`, tiled): a
+-- texture of its own at the stone's place, and the stone hidden -- one texture tiled and then given an atlas shows the
+-- whole atlas file (RocketLab, 13/10). `stone`: the template's stone to cover (its `Bg`, said by the caller: a frame
+-- without one answers nil in the game and a function in the harness); none (a panel on TooltipBorderBackdropTemplate,
+-- the game's tooltip border with an empty centre): the art 3 points in from the frame's edges, inside the border.
+function ns.DarkBody(frame, alpha, stone)
+    local art = frame.__dark
+    if not art then
+        art = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
+        art:SetAtlas("spec-background")
+        if stone then
+            art:SetAllPoints(stone)
+            stone:Hide()
+        else
+            art:SetPoint("TOPLEFT", 3, -3)
+            art:SetPoint("BOTTOMRIGHT", -3, 3)
+        end
+        frame.__dark = art
+    end
+    art:SetAlpha(alpha or 1)
+    art:Show()
+    return art
+end

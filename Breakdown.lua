@@ -252,7 +252,9 @@ local function CreatePanel()
     if frame then return frame end
     local skin = Skin()
 
-    frame = CreateFrame("Frame", ADDON .. "Breakdown", UIParent, "BackdropTemplate")
+    -- (25/10) the game's tooltip border around the dark art (ns.DarkBody), not a flat WHITE8X8 backdrop (the
+    -- workspace rules); embedded in the meter it shows neither (Embed)
+    frame = CreateFrame("Frame", ADDON .. "Breakdown", UIParent, "TooltipBorderBackdropTemplate")
     frame:SetSize(WIDTH, 400)
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
@@ -263,13 +265,7 @@ local function CreatePanel()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
     -- Um fundo escuro: sem ele, o texto disputaria com o cenário do jogo.
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    frame:SetBackdropColor(0.03, 0.03, 0.04, skin.panelAlpha)
-    frame:SetBackdropBorderColor(0, 0, 0, 1)
+    ns.DarkBody(frame, skin.panelAlpha)
     frame:Hide()
 
     local header = CreateFrame("Frame", nil, frame)
@@ -386,8 +382,8 @@ function Breakdown.Embed(container, source, sessionType)
     frame:SetParent(container)
     frame:SetFrameStrata(container:GetFrameStrata())
     frame:SetFrameLevel(container:GetFrameLevel() + 1)
-    frame:SetBackdropColor(0, 0, 0, 0)
-    frame:SetBackdropBorderColor(0, 0, 0, 0)
+    frame.__dark:Hide()
+    if frame.NineSlice then frame.NineSlice:Hide() end
     frame:EnableMouse(false)
     frame.header:Hide()
     -- (!) AS TALL AS ITS CONTENT, NOT AS THE WINDOW (01/10). Anchored to the four corners of the
@@ -411,8 +407,8 @@ function Breakdown.Unembed()
     frame:SetParent(UIParent)
     frame:SetClampedToScreen(true)
     frame:SetFrameStrata("DIALOG")
-    frame:SetBackdropColor(0.03, 0.03, 0.04, skin.panelAlpha)
-    frame:SetBackdropBorderColor(0, 0, 0, 1)
+    ns.DarkBody(frame, skin.panelAlpha)
+    if frame.NineSlice then frame.NineSlice:Show() end
     frame:EnableMouse(true)
     frame.header:Show()
     frame:ClearAllPoints()
