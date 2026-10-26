@@ -347,6 +347,17 @@ function MyRun.Start(kind, name, level)
             if d.local_ and d.recap then run.oldRecaps[d.recap] = true end
         end
     end
+    -- (25/10) for the history in the app: the key's dungeon by its id (its name in any language) and a raid's difficulty
+    if run.kind == "key" and C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
+        local ok, cm = pcall(C_ChallengeMode.GetActiveChallengeMapID)
+        run.cm = ok and Num(cm) or nil
+    elseif run.kind == "raid" and GetInstanceInfo then
+        local ok, _, _, difficultyID, difficultyName = pcall(GetInstanceInfo)
+        if ok then
+            run.difficulty = Num(difficultyID)
+            run.detail = type(difficultyName) == "string" and difficultyName ~= "" and difficultyName or nil
+        end
+    end
     if bagsDirty then pcall(ScanBags) end
     -- (20/10) the character sheet and the gear at the start, as Warcraft Logs' summary shows them
     local okS, stats = pcall(MyRun.ReadStats)
@@ -604,7 +615,19 @@ function MyRun.ReadDeaths()
     end
 end
 
----Ends the run. `result` is what the game said of it (timed, time, ...), or nil.
+---(25/10) What the game says of the key that just ended (the end banner's own reading,
+---Blizzard_ChallengesUI): in time or not, its time in seconds, how many levels the keystone went
+---up. nil for a practice run or when the game says nothing.
+function MyRun.KeyResult()
+    if not (C_ChallengeMode and C_ChallengeMode.GetChallengeCompletionInfo) then return nil end
+    local ok, info = pcall(C_ChallengeMode.GetChallengeCompletionInfo)
+    if not ok or type(info) ~= "table" or info.practiceRun == true then return nil end
+    local ms = Num(info.time)
+    return { onTime = info.onTime == true, time = ms and ms / 1000 or nil, upgrade = Num(info.keystoneUpgradeLevels),
+             level = Num(info.level), cm = Num(info.mapChallengeModeID) }
+end
+
+---Ends the run. `result` is what the game said of it (MyRun.KeyResult for a key), or nil.
 function MyRun.Stop(result)
     if not run or run.finished then return end
     if run.open then MyRun.OnCombatEnd() end
@@ -1456,7 +1479,8 @@ end
 
 ---Compacts the run for the saved file: casts become counts per spell per fight.
 local function Compact(r)
-    local c = { kind = r.kind, name = r.name, level = r.level, tier = r.tier, detail = r.detail,
+    local c = { kind = r.kind, name = r.name, level = r.level, tier = r.tier, detail = r.detail, cm = r.cm,
+                difficulty = r.difficulty,
                 date = r.date, at = r.at, role = r.role, class = r.class,
                 spec = r.spec, specIcon = r.specIcon, player = r.player, elapsed = r.elapsed, result = r.result,
                 fights = {}, gaps = r.gaps, items = r.items, deaths = r.deaths, cooldowns = r.cooldowns,
@@ -1630,7 +1654,7 @@ function MyRun.Init()
             pcall(MyRun.Start, "key", name, level)
             pcall(MyRun.CombatLogByPlace)
         elseif event == "CHALLENGE_MODE_COMPLETED" then
-            C_Timer.After(2, function() pcall(MyRun.Stop, nil) end)
+            C_Timer.After(2, function() pcall(MyRun.Stop, MyRun.KeyResult()) end)
         elseif event == "BAG_UPDATE_DELAYED" then
             MyRun.OnBagsChanged()
         elseif event == "PLAYER_ENTERING_WORLD" then
