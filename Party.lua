@@ -1,16 +1,16 @@
 -- RocketMeter | Party.lua
--- O que o medidor NÃO sabe sobre o grupo: nível de item, pedra angular e saque.
+-- What the meter does NOT know about the group: item level, keystone and loot.
 --
--- POR QUE ESTE ARQUIVO EXISTE. Três colunas do placar não saem do `C_DamageMeter`:
+-- WHY THIS FILE EXISTS. Three scoreboard columns do not come from `C_DamageMeter`:
 --
---   * o **nível de item** ao pé do retrato — vem de inspeção;
---   * a **pedra angular** de cada um — vem de comunicação entre addons;
---   * o **saque** da corrida — vem de um evento que só passa uma vez.
+--   * the **item level** at the foot of the portrait -- it comes from inspection;
+--   * each one's **keystone** -- it comes from communication between addons;
+--   * the run's **loot** -- it comes from an event that only passes once.
 --
--- Nenhuma das três é dado de combate, e por isso nenhuma delas cabia em `Data.lua`, que é o
--- envelope do medidor. Elas moram aqui, com uma regra em comum: **quando não dá para saber, o
--- placar mostra vazio** — nunca um número inventado nem um ícone genérico que o jogador leria
--- como afirmação.
+-- None of the three is combat data, and so none of them fitted in `Data.lua`, which is the
+-- meter's envelope. They live here, with one rule in common: **when it cannot be known, the
+-- scoreboard shows empty** -- never a made-up number nor a generic icon the player would read
+-- as a statement.
 local ADDON, ns = ...
 
 local Party = {}
@@ -21,28 +21,28 @@ local UnitName = UnitName
 local UnitExists = UnitExists
 
 --------------------------------------------------------------------------------
--- Nível de item: inspeção
+-- Item level: inspection
 --------------------------------------------------------------------------------
--- O caminho é o de sempre: pedir inspeção da unidade,
--- esperar `INSPECT_READY` e ler `C_PaperDollInfo.GetInspectItemLevel`. Do próprio jogador não se
--- pede nada — `GetAverageItemLevel` responde na hora e é exato.
+-- The path is the usual one: ask for the unit's inspection,
+-- wait for `INSPECT_READY` and read `C_PaperDollInfo.GetInspectItemLevel`. For the player himself nothing is
+-- asked -- `GetAverageItemLevel` answers right away and is exact.
 --
--- ⚠️ **A inspeção tem limite do servidor.** Pedir para cinco pessoas de uma vez faz o cliente
--- descartar as últimas em silêncio, então os pedidos saem espaçados, e o resultado fica em cache
--- por um tempo: no fim de uma chave o equipamento não muda mais.
-local INSPECT_GAP = 1.25         -- segundos entre um pedido de inspeção e o seguinte
-local CACHE_TTL = 900            -- 15 min: dentro de uma corrida o equipamento não muda
+-- ⚠️ **Inspection has a server limit.** Asking for five people at once makes the client
+-- drop the last ones silently, so the requests go out spaced, and the result stays cached
+-- for a while: at the end of a key the gear no longer changes.
+local INSPECT_GAP = 1.25         -- seconds between one inspection request and the next
+local CACHE_TTL = 900            -- 15 min: within a run the gear does not change
 
 local ilevelCache = {}           -- [nome] = { level = n, at = tempo }
 local inspectQueue = {}
 local inspecting = false
 
--- Declarada aqui e escrita lá embaixo, junto das outras coisas de LibOpenRaid: o nível de item
--- (que vem primeiro no arquivo) e a pedra (que vem depois) usam a MESMA busca, e um `local`
--- referenciado antes da declaração vira busca de global — `nil` na hora da chamada, calado.
+-- Declared here and written further down, with the other LibOpenRaid things: the item level
+-- (which comes first in the file) and the keystone (which comes after) use the SAME lookup, and a `local`
+-- referenced before its declaration becomes a global lookup -- `nil` at call time, silently.
 local LibLookup
 
----Nome curto e legível, ou nil. Identidade pode vir opaca em combate.
+--- A short, readable name, or nil. The identity can come opaque in combat.
 local function Readable(name)
     if name == nil or issecretvalue(name) or type(name) ~= "string" or name == "" then return nil end
     return ns.SplitName(name) or name
@@ -53,10 +53,10 @@ local function Remember(name, level)
     ilevelCache[name] = { level = level, at = GetTime and GetTime() or 0 }
 end
 
----O nível de item conhecido de alguém, ou nil.
+--- Someone's known item level, or nil.
 ---
----**nil é resposta**, e é por isso que o placar desenha um traço em vez de um número: dizer "-"
----é dizer "não sei", e é honesto. Um zero ali seria lido como "está pelado".
+--- **nil is an answer**, and that is why the scoreboard draws a dash instead of a number: saying "-"
+--- is saying "I do not know", and it is honest. A zero there would be read as "he is naked".
 function Party.ItemLevel(name)
     name = Readable(name)
     if not name then return nil end
@@ -77,18 +77,18 @@ function Party.ItemLevel(name)
         if now - entry.at < CACHE_TTL then return entry.level end
     end
 
-    -- ⚑ SEGUNDA FONTE: a LibOpenRaid. Relato de 10/09/2026: *"não aparece o ilvl dos outros"* — e a
-    -- corrida gravada das 02:28 mostrou `ilevel` só na linha do próprio jogador, num grupo
-    -- cross-realm de LFG.
+    -- ⚑ A SECOND SOURCE: LibOpenRaid. The report of 10/09/2026: *"não aparece o ilvl dos outros"* -- and the
+    -- run recorded at 02:28 showed `ilevel` only on the player's own row, in a cross-realm
+    -- LFG group.
     --
-    -- A inspeção é frágil por natureza e não avisa quando falha: exige `CanInspect` (distância,
-    -- mesma fase), o servidor descarta pedidos em rajada, e ela só é disparada no
-    -- `GROUP_ROSTER_UPDATE` — numa chave o grupo não muda, então **é uma tentativa só, no pior
-    -- momento possível** (o começo, com todo mundo se posicionando e tela de carregamento).
+    -- Inspection is fragile by nature and does not say when it fails: it needs `CanInspect` (distance,
+    -- the same phase), the server drops requests in bursts, and it is only fired on
+    -- `GROUP_ROSTER_UPDATE` -- in a key the group does not change, so **it is one attempt only, at the worst
+    -- possible moment** (the start, with everyone getting into position and a loading screen).
     --
-    -- A lib não tem nenhum desses limites: o dado viaja pelo canal de addon, funciona cross-realm
-    -- e a qualquer distância. Ela entra DEPOIS da inspeção, e não antes, porque a inspeção lê o
-    -- cliente direto — quando responde, é a fonte mais exata das duas.
+    -- The lib has none of those limits: the data travels through the addon channel, works cross-realm
+    -- and at any distance. It comes in AFTER the inspection, and not before, because the inspection reads the
+    -- client directly -- when it answers, it is the more exact source of the two.
     local gear = LibLookup("GetAllUnitsGear", "GetUnitGear", name)
     local nivel = gear and gear.ilevel
     if type(nivel) == "number" and nivel > 0 then
@@ -130,16 +130,16 @@ local function NextInspect()
     if entry and (GetTime and GetTime() or 0) - entry.at < CACHE_TTL then return NextInspect() end
 
     inspecting = true
-    -- `ClearInspectPlayer` antes de cada pedido: sem ele o cliente pode devolver o
-    -- `INSPECT_READY` da unidade ANTERIOR, e o nível de item vai parar na linha errada — que é o
-    -- pior defeito possível aqui, porque não parece defeito nenhum.
+    -- `ClearInspectPlayer` before each request: without it the client may return the
+    -- PREVIOUS unit's `INSPECT_READY`, and the item level ends up on the wrong row -- the
+    -- worst possible defect here, because it does not look like a defect at all.
     if ClearInspectPlayer then pcall(ClearInspectPlayer) end
     pcall(NotifyInspect, unit)
 
     C_Timer.After(INSPECT_GAP, NextInspect)
 end
 
----Enfileira a inspeção do grupo inteiro. Barato e sem efeito visível para os outros.
+--- Queues the whole group's inspection. Cheap and with no visible effect for the others.
 function Party.RefreshItemLevels()
     if InCombatLockdown and InCombatLockdown() then return end
     if not NotifyInspect then return end
@@ -158,15 +158,15 @@ end
 --------------------------------------------------------------------------------
 -- Pedra angular
 --------------------------------------------------------------------------------
--- A do PRÓPRIO jogador o cliente informa direto. A dos outros **não existe em API nenhuma**: ela
--- viaja pelo canal de addon, e quem a distribui é a `LibOpenRaid-1.0` — a biblioteca que
--- vários addons já embutem.
+-- The player's OWN one the client gives directly. The others' **exists in no API**: it
+-- travels through the addon channel, and what distributes it is `LibOpenRaid-1.0` -- the library
+-- several addons already bundle.
 --
--- **O RocketMeter não embute a biblioteca**, e a escolha é deliberada: são 3.660 linhas de código
--- de terceiro, com protocolo de rede próprio, para preencher uma coluna. Em vez disso ele
--- PERGUNTA se ela já está carregada — o que é verdade para quem roda algum addon que a embute.
--- Sem ela, a coluna fica vazia, e vazio aqui é honesto:
--- significa "ninguém me contou", não "não tem pedra".
+-- **RocketMeter does not bundle the library**, and the choice is deliberate: it is 3,660 lines of
+-- third-party code, with a network protocol of its own, to fill one column. Instead it
+-- ASKS whether it is already loaded -- which is true for whoever runs some addon that bundles it.
+-- Without it, the column stays empty, and empty here is honest:
+-- it means "nobody told me", not "he has no keystone".
 local function OpenRaid()
     if not LibStub or not LibStub.GetLibrary then return nil end
     local ok, lib = pcall(LibStub.GetLibrary, LibStub, "LibOpenRaid-1.0", true)
@@ -174,24 +174,24 @@ local function OpenRaid()
     return nil
 end
 
----Acha a entrada de alguém numa tabela da LibOpenRaid, com ou sem reino no nome.
+--- Finds someone's entry in a LibOpenRaid table, with or without the realm in the name.
 ---
----⚑ A CHAVE DA LIB TEM REINO, E A NOSSA NÃO TINHA. Era isto que deixava a coluna Pedra com só a
----linha do próprio jogador preenchida (relato de 10/09/2026: *"também a pontuação e também a
----pedra, só a minha aparece"*) — a minha vem do caminho `C_MythicPlus`, que não passa pela lib.
+--- ⚑ THE LIB'S KEY HAS THE REALM, AND OURS DID NOT. That is what left the Keystone column with only the
+--- player's own row filled (the report of 10/09/2026: *"também a pontuação e também a
+--- pedra, só a minha aparece"*) -- mine comes from the `C_MythicPlus` path, which does not go through the lib.
 ---
----As duas tabelas dela seguem o mesmo formato, documentado na fonte da biblioteca:
----**`[playerName-realm] = {information}`**. E as
----funções de busca por unidade fazem `GetUnitName(unitId, true) or unitId` — passando "Gsm", que
----não é token de unidade, elas procuram a chave "Gsm" numa tabela indexada por "Gsm-Dragonblight".
+--- Its two tables follow the same format, documented in the library's source:
+--- **`[playerName-realm] = {information}`**. And the
+--- lookup functions by unit do `GetUnitName(unitId, true) or unitId` -- passing "Gsm", which
+--- is not a unit token, they look for the key "Gsm" in a table indexed by "Gsm-Dragonblight".
 ---
----**Não levanta erro: devolve `nil`** — e `nil` aqui é indistinguível de "esse jogador não tem
----pedra" ou "não sei o nível de item dele". Foi isso que fez o defeito sobreviver sem ninguém ver.
+--- **It raises no error: it returns `nil`** -- and `nil` here cannot be told from "that player has no
+--- keystone" or "I do not know his item level". That is what let the defect survive with nobody seeing.
 ---
----Varrer casando pela parte antes do "-" resolve os dois casos (com e sem reino) e não depende de
----sabermos o reino de ninguém — informação que o medidor pode não trazer.
----@param todasFn string nome da função que devolve a tabela inteira
----@param umaFn string nome da função de busca direta, usada como reserva
+--- Sweeping and matching by the part before the "-" settles both cases (with and without the realm) and does not depend on
+--- our knowing anyone's realm -- information the meter may not bring.
+--- @param todasFn string the name of the function that returns the whole table
+--- @param umaFn string the name of the direct lookup function, used as a fallback
 LibLookup = function(todasFn, umaFn, name)
     local lib = OpenRaid()
     if not lib then return nil end
@@ -208,7 +208,7 @@ LibLookup = function(todasFn, umaFn, name)
         end
     end
 
-    -- Reserva: a busca direta, que funciona quando o nome já vem sem reino na tabela dela.
+    -- The fallback: the direct lookup, which works when the name already comes without the realm in its table.
     if lib[umaFn] then
         local ok, info = pcall(lib[umaFn], name)
         if ok and type(info) == "table" then return info end
@@ -316,19 +316,19 @@ function Party.Keystone(name)
     return info.level, info.challengeMapID
 end
 
----Pede aos colegas os dados de pedra pelo canal da LibOpenRaid.
+--- Asks the others for the keystone data through the LibOpenRaid channel.
 ---
----A lib guarda o que os OUTROS mandam, e eles mandam quando alguém pergunta. Sem o pedido, a
----tabela pode estar vazia numa sessão em que ninguém mais perguntou — e a coluna some sem que
----nada esteja quebrado. Chamar não custa: é um `SendAddonMessage` para o grupo.
+--- The lib keeps what the OTHERS send, and they send when someone asks. Without the request, the
+--- table may be empty in a session in which nobody else asked -- and the column vanishes with
+--- nothing broken. Calling costs nothing: it is a `SendAddonMessage` to the group.
 function Party.RequestKeystones()
     local pediuLKS = RequestLibKS()
     local lib = OpenRaid()
     if not lib then return pediuLKS end
 
-    -- `RequestAllData` traz o EQUIPAMENTO junto, e e por isso que ele entra aqui: a mesma ida ao
-    -- canal de addon que busca a pedra resolve o nivel de item dos outros, que a inspecao so
-    -- consegue as vezes. Se ela nao existir, o pedido de pedra sozinho ainda vale.
+    -- `RequestAllData` brings the GEAR along, and that is why it comes in here: the same trip to the
+    -- addon channel that fetches the keystone settles the others' item level, which the inspection only
+    -- gets sometimes. If it does not exist, the keystone request alone still holds.
     if lib.RequestAllData then pcall(lib.RequestAllData) end
 
     if not lib.RequestKeystoneDataFromParty then return pediuLKS end
@@ -336,14 +336,14 @@ function Party.RequestKeystones()
     return (ok and enviou) or pediuLKS
 end
 
----Assina o aviso da lib: "a pedra de fulano mudou".
+--- Subscribes to the lib's notice: "so-and-so's keystone changed".
 ---
----⚑ ISTO É O QUE FAZ O PLACAR SE ATUALIZAR SOZINHO conforme o grupo abre o baú, que é o
----comportamento que o usuário descreveu (10/09/2026): *"conforme os jogadores vão
----abrindo o baú ele vai atualizando o placar"*. A pedra nova só existe depois de o baú abrir, e é
----nesse instante que a lib transmite — não há como capturar antes.
+--- ⚑ THIS IS WHAT MAKES THE SCOREBOARD UPDATE BY ITSELF as the group opens the chest, which is the
+--- behaviour the user described (10/09/2026): *"conforme os jogadores vão
+--- abrindo o baú ele vai atualizando o placar"*. The new keystone only exists after the chest opens, and it is
+--- at that instant that the lib broadcasts -- there is no capturing it before.
 ---
----Assina uma vez só: a lib guarda a inscrição numa lista e assinar de novo duplicaria a chamada.
+--- It subscribes once only: the lib keeps the subscription in a list and subscribing again would duplicate the call.
 local assinado = false
 
 function Party.WatchKeystones()
@@ -352,7 +352,7 @@ function Party.WatchKeystones()
     local lib = OpenRaid()
     if not lib or not lib.RegisterCallback then return false end
 
-    -- A lib chama `objeto[nome](...)`, então precisa de uma tabela com o método pelo nome.
+    -- The lib calls `object[name](...)`, so it needs a table with the method by name.
     local ouvinte = {
         RocketMeterKeystoneUpdate = function()
             if ns.Scoreboard and ns.Scoreboard.RefreshExternalColumns then
@@ -371,7 +371,7 @@ end
 --------------------------------------------------------------------------------
 local loot = {}                  -- [nome] = itemLink
 
----O item que alguém pegou nesta corrida, ou nil.
+--- The item someone got in this run, or nil.
 function Party.Loot(name)
     name = Readable(name)
     return name and loot[name] or nil
@@ -381,10 +381,10 @@ function Party.ResetLoot()
     loot = {}
 end
 
----Guarda um item recebido, se ele passar pelos filtros.
+--- Keeps an item received, if it passes the filters.
 ---
----Os filtros existem porque a coluna é sobre **a peça que a corrida rendeu**: sem eles ela
----mostraria a primeira poção que caísse no colo de alguém.
+--- The filters exist because the column is about **the piece the run yielded**: without them it
+--- would show the first potion that fell into someone's lap.
 function Party.NoteLoot(itemLink, playerName)
     local name = Readable(playerName)
     if not name or not itemLink or itemLink == "" then return end
@@ -396,8 +396,8 @@ function Party.NoteLoot(itemLink, playerName)
         if itemType ~= Enum.ItemClass.Weapon and itemType ~= Enum.ItemClass.Armor then return end
     end
 
-    -- Item que só vincula ao equipar é presente para outro personagem, não recompensa desta
-    -- corrida.
+    -- An item that only binds on equip is a present for another character, not a reward of this
+    -- run.
     if C_Item.IsItemBindToAccountUntilEquip then
         local okBind, bound = pcall(C_Item.IsItemBindToAccountUntilEquip, itemLink)
         if okBind and bound then return end
@@ -406,9 +406,9 @@ function Party.NoteLoot(itemLink, playerName)
     loot[name] = itemLink
     if ns.Log then ns.Log.Add("saque", { quem = name, item = itemLink }) end
 
-    -- ⚑ E AVISA O PLACAR, porque o saque quase sempre chega DEPOIS da captura da corrida. O
-    -- diário de 10/09 mediu: captura às 00:33:18, saque do grupo às 00:33:20 e o do próprio
-    -- jogador às 00:33:30. Sem este aviso a coluna nasce vazia e fica vazia para sempre.
+    -- ⚑ AND IT TELLS THE SCOREBOARD, because the loot almost always arrives AFTER the run's capture. The
+    -- log of 10/09 measured it: capture at 00:33:18, the group's loot at 00:33:20 and the player's
+    -- own at 00:33:30. Without this notice the column is born empty and stays empty forever.
     if ns.Scoreboard and ns.Scoreboard.OnLoot then
         pcall(ns.Scoreboard.OnLoot, name, itemLink)
     end
@@ -427,8 +427,8 @@ listener:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 listener:SetScript("OnEvent", function(_, event, ...)
     if event == "INSPECT_READY" then
         local guid = ...
-        -- O evento traz o GUID; a leitura precisa de um token de unidade. Varrer o grupo é
-        -- barato e é o único caminho: não há `UnitFromGUID`.
+        -- The event brings the GUID; the reading needs a unit token. Sweeping the group is
+        -- cheap and it is the only way: there is no `UnitFromGUID`.
         local size = GetNumGroupMembers and GetNumGroupMembers() or 0
         local prefix = (IsInRaid and IsInRaid()) and "raid" or "party"
         for i = 1, size do
@@ -441,20 +441,20 @@ listener:SetScript("OnEvent", function(_, event, ...)
         end
 
     elseif event == "ENCOUNTER_LOOT_RECEIVED" then
-        -- ⚠️ **A DOCUMENTAÇÃO E O USO EM PRODUÇÃO DISCORDAM SOBRE O 5º ARGUMENTO.**
+        -- ⚠️ **THE DOCUMENTATION AND THE USE IN PRODUCTION DISAGREE ABOUT THE 5TH ARGUMENT.**
         --
-        -- `LootDocumentation.lua:136-141` chama a carga de `encounterID, itemID, itemLink,
-        -- quantity, itemName, fileName`. Um placar que roda em produção neste mesmo patch lê
-        -- `local _, _, itemLink, _, unitName = ...` — ou seja, trata o 5º como **nome do
-        -- jogador**.
+        -- `LootDocumentation.lua:136-141` calls the payload `encounterID, itemID, itemLink,
+        -- quantity, itemName, fileName`. A scoreboard running in production on this same patch reads
+        -- `local _, _, itemLink, _, unitName = ...` -- that is, it treats the 5th as **the
+        -- player's name**.
         --
-        -- Duas coisas pesam a favor desse uso: o 6º campo se chama `fileName`, que é o nome
-        -- clássico do arquivo de CLASSE ("WARRIOR"), e nome de item já viaja dentro do
-        -- `itemLink` — um 5º campo repetindo-o não faria sentido.
+        -- Two things weigh in favour of that use: the 6th field is called `fileName`, which is the
+        -- classic name of the CLASS file ("WARRIOR"), and an item's name already travels inside the
+        -- `itemLink` -- a 5th field repeating it would make no sense.
         --
-        -- Então o addon segue esse uso **e registra o que chegou**: a linha `saque cru` no
-        -- diário. (14/10) RESPONDIDO: o diário gravou `quinto = "Gothmorg"`, `sexto =
-        -- "DEMONHUNTER"`, e o próprio jogo lê `playerName, className` (BossBannerToast.lua:194).
+        -- So the addon follows that use **and records what arrived**: the `saque cru` line in the
+        -- log. (14/10) ANSWERED: the log recorded `quinto = "Gothmorg"`, `sexto =
+        -- "DEMONHUNTER"`, and the game itself reads `playerName, className` (BossBannerToast.lua:194).
         local _, _, itemLink, _, quinto, sexto = ...
         if ns.Log then
             ns.Log.Add("saque cru", { link = itemLink, quinto = quinto, sexto = sexto })

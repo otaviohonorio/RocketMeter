@@ -15,60 +15,60 @@ local L = ns.L
 ns.version = C_AddOns.GetAddOnMetadata(ADDON, "Version") or "0.0.0"
 
 ns.defaults = {
-    -- columns/sortBy usam Enum.DamageMeterType, resolvido no PLAYER_LOGIN (o Enum não
-    -- existe ainda quando os arquivos carregam). Padrão: o conjunto de Mítico+.
+    -- columns/sortBy use Enum.DamageMeterType, resolved at PLAYER_LOGIN (the Enum does not
+    -- exist yet when the files load). The default: the Mythic+ set.
     columns = nil,
     sortBy = nil,
-    sessionType = 0,      -- 0 = sessão atual; 1 = geral
+    sessionType = 0,      -- 0 = the current session; 1 = overall
 
-    -- A VISÃO SEGUE O COMBATE: em combate, a luta atual; fora dele, o geral. **Ligado por
-    -- padrão**, a pedido — e o padrão é o certo porque as duas visões respondem a perguntas
-    -- diferentes em momentos diferentes. Durante a luta a única pergunta é "como estou AGORA";
-    -- terminada ela, a pergunta vira "como foi a corrida até aqui", e trocar isso na mão a cada
-    -- pull é trabalho que a máquina faz melhor.
+    -- THE VIEW FOLLOWS THE COMBAT: in combat, the current fight; out of it, the overall. **On by
+    -- default**, by request -- and the default is right because the two views answer different
+    -- questions at different moments. During the fight the only question is "how am I doing NOW";
+    -- once it is over, the question becomes "how did the run go so far", and switching that by hand at every
+    -- pull is work the machine does better.
     --
-    -- Trocar na mão continua funcionando (`/rm overall` e o clique no cabeçalho); o que a opção
-    -- garante é para onde a visão volta na PRÓXIMA transição de combate.
+    -- Switching by hand still works (`/rm overall` and the click on the header); what the option
+    -- guarantees is where the view goes back at the NEXT combat transition.
     autoSession = true,
     sortDesc = true,      -- maior primeiro
-    rows = 5,                 -- linhas visíveis; a alça muda isso
+    rows = 5,                 -- visible rows; the handle changes it
     scale = 1.0,
     font = nil,               -- caminho da fonte; nil = a padrao (ns.FONT_CHOICES[1])
-    -- TRES textos independentes: corpo das linhas, titulo e cabecalho de coluna. Cada um com
-    -- tamanho, contorno e sombra proprios -- mexer num nao pode mexer nos outros, que foi a
-    -- reprovacao do corpo unico. Limites e motivo de cada um em `Window.lua`
-    -- (FONT_SIZE_MIN/MAX); os padroes ficam em `ROLE_DEFAULTS`, que e a fonte unica deles.
+    -- THREE independent texts: the rows' body, the title and the column header. Each with its own
+    -- size, outline and shadow -- changing one cannot change the others, which was the
+    -- rejection of the single body. Limits and the reason for each in `Window.lua`
+    -- (FONT_SIZE_MIN/MAX); the defaults sit in `ROLE_DEFAULTS`, their single source.
     --
-    -- `nil` aqui de proposito: `Profile.EnsureRuntimeDefaults` monta a tabela, herdando as
-    -- chaves antigas de quem ja tinha configuracao salva.
+    -- `nil` here on purpose: `Profile.EnsureRuntimeDefaults` builds the table, inheriting the
+    -- old keys of whoever already had saved settings.
     text = nil,
 
-    -- AS DUAS DISTÂNCIAS DA LINHA, configuráveis a pedido (09/09/2026), com print e retângulos
-    -- apontando as duas: *"são das distância entre colunas e entre valores nas colunas
-    -- mescladas"*. Os padrões são os números que ele deu.
+    -- THE ROW'S TWO DISTANCES, configurable by request (09/09/2026), with a print and rectangles
+    -- pointing at both: *"são das distância entre colunas e entre valores nas colunas
+    -- mescladas"*. The defaults are the numbers he gave.
     --
-    --   `groupGap`   o branco ENTRE famílias de métrica (Dano+DPS | Cura+CPS | Interr | Mortes)
-    --   `totalWidth` a largura da coluna de TOTAL, que é quem governa a distância entre os dois
-    --                valores de uma coluna dupla — cada um é ancorado numa ponta da barra, então
-    --                aproximar os dois é encurtar a barra, e não mexer num espaçamento
+    --   `groupGap`   the white space BETWEEN metric families (Damage+DPS | Healing+HPS | Interr | Deaths)
+    --   `totalWidth` the TOTAL column's width, which is what governs the distance between the two
+    --                values of a double column -- each one is anchored at one end of the bar, so
+    --                bringing the two closer is shortening the bar, not touching a spacing
     --
-    -- ⚑ As unidades são pixel do jogo, e o print de 09/09 saiu 1:1: o vão medido nele (10 px)
-    -- era exatamente o `GROUP_GAP` do código. Medir na tela e digitar aqui funciona.
+    -- ⚑ The units are game pixels, and the print of 09/09 came out 1:1: the gap measured on it (10 px)
+    -- was exactly the code's `GROUP_GAP`. Measuring on screen and typing here works.
     groupGap = 8,
     totalWidth = 84,
-    width = nil,              -- largura escolhida na alça; nil = mínimo das colunas
+    width = nil,              -- width chosen with the handle; nil = the columns' minimum
     -- (14/10) Twelve keys that nothing read went away (the skin is constants, Window.lua): row
     -- height, column width, row icon, bar texture, row border, window and bar alpha, round icons,
     -- value format, column header, bar brightness, auto height. Saved values of them are ignored.
-    highlightBest = true,     -- realça quem lidera cada coluna
+    highlightBest = true,     -- highlights who leads each column
     locked = false,
-    shown = true,             -- a janela volta como o usuário deixou
-    combatOnly = false,       -- só aparece em combate
-    hideDelay = 5,            -- segundos para sumir depois da luta, no modo acima
+    shown = true,             -- the window comes back as the user left it
+    combatOnly = false,       -- only shows in combat
+    hideDelay = 5,            -- seconds to hide after the fight, in the mode above
     minimap = { hide = false, angle = 200 },
 
-    -- Reino do jogador ("-Tichondrius") ao lado do nome. **Desligado por padrão**: ele come a
-    -- largura da coluna e o nome é que vira reticências. Quem joga cross-realm liga em
+    -- The player's realm ("-Tichondrius") beside the name. **Off by default**: it eats the
+    -- column's width and the name is what turns into an ellipsis. Whoever plays cross-realm turns it on in
     -- `/rm columns`.
     showRealm = false,
 
@@ -77,15 +77,15 @@ ns.defaults = {
     -- nothing read since 14/10: a saved value of it would flip nobody's icons now.
     iconShape = "square",
 
-    -- O painel de fim de corrida abre sozinho? Duas chaves, não uma: quem faz Mítico+ toda
-    -- noite pode querer o resumo lá e não a cada chefe de raide, e vice-versa. A chave antiga
-    -- `autoScoreboard` continua sendo lida uma vez, para não desligar o painel de quem já
-    -- tinha escolhido (ver `Profile.MigrateScoreboard`).
+    -- Does the end-of-run panel open by itself? Two keys, not one: whoever does Mythic+ every
+    -- night may want the summary there and not at every raid boss, and vice versa. The old key
+    -- `autoScoreboard` is still read once, so as not to turn off the panel of whoever had already
+    -- chosen (see `Profile.MigrateScoreboard`).
     --
-    -- ⚑ RAIDE NASCE DESLIGADA (pedido de 11/09: *"o placar da raid por padrão pode deixar
-    -- desabilitado"*). A assimetria tem razão de uso: uma corrida de Mítico+ termina UMA vez, e o
-    -- resumo é o fecho dela; uma noite de raide tem um chefe atrás do outro, e o painel abrindo a
-    -- cada um vira estorvo no meio da progressão.
+    -- ⚑ RAID IS BORN OFF (request of 11/09: *"o placar da raid por padrão pode deixar
+    -- desabilitado"*). The lopsidedness has a reason of use: a Mythic+ run ends ONCE, and the
+    -- summary is its close; a raid night has one boss after another, and the panel opening at
+    -- each one becomes a nuisance in the middle of progression.
     autoScoreboardMPlus = true,
     autoScoreboardRaid = false,
 
@@ -96,15 +96,15 @@ ns.defaults = {
     pos = nil,
 }
 
--- O DIARIO E FERRAMENTA DE DESENVOLVIMENTO, E NAO VAI NO PACOTE. Regra do usuario (23/09):
+-- THE LOG IS A DEVELOPMENT TOOL, AND IT DOES NOT GO IN THE PACKAGE. The user's rule (23/09):
 -- *"quando forem publicados não devem gerar os logs, por que vai ficar consumindo espaço e disco
--- do usuário, apenas aqui para desenvolvimento"*. `Log.lua` e o `RocketMeterLogDB` ficam em
--- `#@debug@` no .toc, que o empacotador remove de TODO build (alpha inclusive), e o `.pkgmeta`
--- tira o arquivo do zip. O medidor era o que mais escrevia: um retrato a cada combate.
+-- do usuário, apenas aqui para desenvolvimento"*. `Log.lua` and `RocketMeterLogDB` sit in
+-- `#@debug@` in the .toc, which the packager removes from EVERY build (alpha included), and the `.pkgmeta`
+-- takes the file out of the zip. The meter was the one that wrote most: a picture at every combat.
 --
--- Este substituto e o que o jogador recebe: toda chamada responde nada, entao as chamadas ao
--- diario espalhadas pelo addon nao precisam de guarda. Em desenvolvimento o `Log.lua`, carregado
--- depois deste arquivo, troca pelo real.
+-- This stand-in is what the player gets: every call answers nothing, so the calls to the
+-- log spread over the addon need no guard. In development `Log.lua`, loaded
+-- after this file, swaps it for the real one.
 ns.Log = setmetatable({ enabled = false }, {
     __index = function() return function() end end,
 })
@@ -148,7 +148,7 @@ local handlers = {}
 function handlers:ADDON_LOADED(addon)
     if addon ~= ADDON then return end
 
-    -- O perfil decide se a configuração vem da conta ou deste personagem.
+    -- The profile decides whether the settings come from the account or from this character.
     ns.Profile.Init()
     ns.Log.Init()
     -- Casts.lua is a NEW file in the .toc: nil until the client restarts (see RunCall).
@@ -157,7 +157,7 @@ function handlers:ADDON_LOADED(addon)
 end
 
 function handlers:PLAYER_LOGIN()
-    -- Colunas padrão dependem de Enum, que só existe com o cliente carregado.
+    -- The default columns depend on Enum, which only exists with the client loaded.
     ns.Profile.EnsureRuntimeDefaults()
 
     if not ns.Data.IsAvailable() then
@@ -169,20 +169,20 @@ function handlers:PLAYER_LOGIN()
     ns.Minimap.Create()
     ns.SetupOptions()
 
-    -- A visão salva pode ser a do combate anterior ao `/reload`. Aplicar a regra no login é o
-    -- que impede a janela de abrir em "Combate atual" parada fora de combate — estado que a
-    -- opção existe justamente para não deixar acontecer.
+    -- The saved view may be the one of the combat before the `/reload`. Applying the rule at login is
+    -- what keeps the window from opening on "Current combat" standing still out of combat -- a state the
+    -- option exists exactly to prevent.
     ns.Window.ApplyAutoSession()
 
     ns.Window.ApplyVisibility()
 end
 
--- Dados da sessão em andamento mudaram (dispara muito durante o combate).
+-- The data of the session under way changed (it fires a lot during combat).
 function handlers:DAMAGE_METER_CURRENT_SESSION_UPDATED()
     ns.Window.Refresh()
 end
 
--- Uma sessão registrada mudou (fim de combate, novo segmento).
+-- A recorded session changed (end of combat, a new segment).
 function handlers:DAMAGE_METER_COMBAT_SESSION_UPDATED()
     ns.Window.Refresh(true)
 end
@@ -192,13 +192,13 @@ function handlers:DAMAGE_METER_RESET()
 end
 
 --------------------------------------------------------------------------------
--- Gravação da corrida e placar de fim de conteúdo
+-- Recording the run and the end-of-content scoreboard
 --------------------------------------------------------------------------------
--- `Run.lua` é arquivo NOVO, e arquivo novo no `.toc` só entra depois de sair para a tela de
--- personagens — `/reload` não basta. Entre atualizar o addon e reiniciar o cliente, `ns.Run`
--- é nil, e `ns.Run.OnCombatStart()` cru derrubaria o `PLAYER_REGEN_DISABLED` a CADA LUTA,
--- levando junto o refresh da janela. O addon inteiro pareceria quebrado por causa de um
--- arquivo que ainda não carregou. `Window.lua` já usa essa guarda pelo mesmo motivo.
+-- `Run.lua` is a NEW file, and a new file in the `.toc` only comes in after going out to the
+-- character screen -- `/reload` is not enough. Between updating the addon and restarting the client, `ns.Run`
+-- is nil, and a raw `ns.Run.OnCombatStart()` would bring down `PLAYER_REGEN_DISABLED` at EVERY FIGHT,
+-- taking the window's refresh with it. The whole addon would look broken because of a
+-- file that has not loaded yet. `Window.lua` already uses this guard for the same reason.
 local function RunCall(method, ...)
     local run = ns.Run
     if not run or not run[method] then return end
@@ -207,16 +207,16 @@ local function RunCall(method, ...)
 end
 
 function handlers:CHALLENGE_MODE_START()
-    -- A gravação da linha do tempo não depende de `autoScoreboard`: quem desliga o painel
-    -- automático ainda pode abrir depois com `/rm score`, e aí o rodapé precisa ter dados.
+    -- Recording the timeline does not depend on `autoScoreboard`: whoever turns off the automatic
+    -- panel can still open it later with `/rm score`, and then the footer needs data.
     RunCall("Start")
 
-    -- E pede a pedra dos colegas no começo da chave, não no fim: a resposta viaja pelo canal de
-    -- addon e leva um instante. Perguntar na captura seria perguntar tarde demais — o mesmo erro
-    -- de tempo que deixava a coluna de saque vazia.
+    -- And it asks for the others' keystone at the start of the key, not at the end: the answer travels through the
+    -- addon channel and takes an instant. Asking at capture time would be asking too late -- the same timing
+    -- mistake that left the loot column empty.
     --
-    -- ⚑ E ASSINA O AVISO DE MUDANÇA, que é o que faz o placar acertar sozinho depois: a pedra
-    -- NOVA de cada um só existe quando ele abre o baú, e é aí que a lib transmite.
+    -- ⚑ AND IT SUBSCRIBES TO THE CHANGE NOTICE, which is what makes the scoreboard get it right by itself later: each one's NEW
+    -- keystone only exists when he opens the chest, and that is when the lib broadcasts.
     if ns.Party then
         if ns.Party.RequestKeystones then pcall(ns.Party.RequestKeystones) end
         if ns.Party.WatchKeystones then pcall(ns.Party.WatchKeystones) end
@@ -224,19 +224,19 @@ function handlers:CHALLENGE_MODE_START()
 end
 
 function handlers:CHALLENGE_MODE_RESET()
-    RunCall("Start")    -- refazer a chave recomeça a corrida do zero
+    RunCall("Start")    -- redoing the key starts the run again from zero
 end
 
 function handlers:CHALLENGE_MODE_DEATH_COUNT_UPDATED()
     RunCall("OnDeathCountUpdated")
 end
 
--- Entrar no mundo cobre os dois lados que faltavam:
---   * `/reload` no meio da chave — o `CHALLENGE_MODE_START` já passou e a gravação nunca
---     ligaria; `Resume` religa e recupera o instante zero pelo cronômetro do mundo (ou marca
---     a corrida como parcial e cala o rodapé, em vez de mostrar marcador fora de lugar);
---   * sair da masmorra sem completar — nada desarmava a gravação, e ela seguiria anotando
---     as lutas do mundo aberto como se fossem da corrida.
+-- Entering the world covers the two sides that were missing:
+--   * `/reload` in the middle of the key -- `CHALLENGE_MODE_START` has already gone by and the recording would never
+--     turn on; `Resume` turns it back on and recovers the zero instant from the world timer (or marks
+--     the run as partial and silences the footer, instead of showing a marker out of place);
+--   * leaving the dungeon without completing it -- nothing disarmed the recording, and it would keep noting
+--     the open world's fights as if they were the run's.
 function handlers:PLAYER_ENTERING_WORLD()
     local active
     if C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
@@ -258,30 +258,30 @@ function handlers:CHALLENGE_MODE_COMPLETED()
     ns.scoreboardClock = GetTime and GetTime() or 0
     ns.Log.Add("placar", { fase = "fim da chave", emCombate = InCombatLockdown() and true or false })
     RunCall("Stop")
-    -- Idem: grava sempre, mostra conforme a preferência.
-    -- Pequena espera: a sessão ainda está sendo fechada quando o evento dispara.
+    -- The same: always records, shows according to the preference.
+    -- A short wait: the session is still being closed when the event fires.
     C_Timer.After(1.5, function()
         ns.Scoreboard.OnChallengeCompleted()
     end)
 end
 
 function handlers:ENCOUNTER_END(encounterID, encounterName, difficultyID, groupSize, success)
-    -- Dentro de uma corrida, todo boss vira marcador na linha do tempo — inclusive quando o
-    -- placar automático está desligado.
+    -- Inside a run, every boss becomes a marker on the timeline -- including when the
+    -- automatic scoreboard is off.
     RunCall("OnEncounterEnd", encounterName, success)
 
     if success ~= 1 and success ~= true then return end
-    if not IsInRaid() then return end   -- em M+ quem manda é o CHALLENGE_MODE_COMPLETED
+    if not IsInRaid() then return end   -- in M+ CHALLENGE_MODE_COMPLETED rules
 
-    -- A captura acontece mesmo com o painel automático desligado: "ver o último placar de
-    -- raide" só funciona se a corrida tiver sido gravada quando aconteceu. Quem decide se a
-    -- janela aparece é o `autoScoreboard`, lá dentro.
+    -- The capture happens even with the automatic panel off: "see the last raid
+    -- scoreboard" only works if the run was recorded when it happened. What decides whether the
+    -- window shows is `autoScoreboard`, in there.
     C_Timer.After(1, function()
         ns.Scoreboard.OnEncounterEnd(encounterName, difficultyID)
     end)
 end
 
--- Ao sair do combate os valores deixam de ser secret: vale um refresh completo.
+-- Leaving combat the values stop being secret: a full refresh is worth it.
 function handlers:PLAYER_REGEN_ENABLED()
     FlushQueue()
     ns.Window.Refresh(true)
