@@ -221,6 +221,15 @@ end
 ---An enemy's cast was cut: who of the team cast something in that instant, and could have kicked?
 local function Attribute(at)
     pending = false
+    -- (26/10, review) a kick READ in that instant -- the player's own, always readable, or a teammate's the game let be
+    -- read -- is the one that cut it: no guessing. Without this the player's own kick went to a teammate who happened
+    -- to cast something at the same moment (the player is not among the candidates)
+    for token, u in pairs(uses.kick) do
+        if u.at >= at - WINDOW_BEFORE and u.at <= at + WINDOW_AFTER then
+            if ns.Log and ns.Log.Add then ns.Log.Add("kick-correlacao", { candidatos = "", escolhido = token .. " (lido)" }) end
+            return
+        end
+    end
     local found, candidates = nil, {}
     for _, t in ipairs(TEAM) do
         local c = lastCast[t]
@@ -251,6 +260,11 @@ end
 
 function Kicks.OnInterrupted(unit)
     if type(unit) ~= "string" or FRIENDLY[unit] or unit:match("^raid") then return end
+    -- an ally's cast cut by an enemy (the target or a nameplate may be a friend): not an enemy interrupted
+    if UnitIsFriend then
+        local ok, friend = pcall(UnitIsFriend, "player", unit)
+        if ok and Readable(friend) and friend == true then return end
+    end
     local at = Now()
     if at - lastInterrupt < SAME_INTERRUPT then return end
     lastInterrupt = at
@@ -268,6 +282,27 @@ function Kicks.ForgetRoster()
     known = { kick = {} }
 end
 
+-- who is in each token: GROUP_ROSTER_UPDATE also comes when nobody changed (a role, someone going offline), and then
+-- the clocks stay
+local roster = ""
+local function Roster()
+    local parts = {}
+    for _, t in ipairs(TEAM) do
+        local ok, guid = pcall(UnitGUID, t)
+        parts[#parts + 1] = (ok and Readable(guid) and guid) or NameOf(t) or "-"
+    end
+    return table.concat(parts, "|")
+end
+
+function Kicks.OnRoster()
+    local now = Roster()
+    if roster == "" then roster = now return end    -- the first: nothing to compare with yet
+    if now ~= roster then
+        roster = now
+        Kicks.ForgetRoster()                    -- "party2" may be someone else now
+    end
+end
+
 function Kicks.Init()
     local f = CreateFrame("Frame")
     f:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
@@ -280,7 +315,7 @@ function Kicks.Init()
         elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
             pcall(Kicks.OnInterrupted, unit)
         elseif event == "GROUP_ROSTER_UPDATE" then
-            Kicks.ForgetRoster()                -- "party2" may be someone else now
+            pcall(Kicks.OnRoster)
         else
             Kicks.Reset()
         end

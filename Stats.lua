@@ -217,7 +217,13 @@ function Stats.Compute(snap, scope)
             d.keys = d.keys + 1
             if r.sec then m.seconds = m.seconds + r.sec end
             if r.level then m.levels = m.levels + r.level end
-            local timed = r.done and r.sec and r.limit and r.sec <= r.limit
+            -- (26/10) IN TIME, OVER TIME, NOT FINISHED, right whatever `completed` means. The first reading in game (Dauð,
+            -- 133 keys) gave 0 "completed over time" and 41 "not completed", and the game's own Great Vault lists its
+            -- week's runs asking for the NOT completed too (`GetRunHistory(false, true)`, Blizzard_WeeklyRewards.lua),
+            -- although only finished keys count for the vault: to the game a key finished over time is "not
+            -- completed". So: past the limit is over time, completed or not; not completed and within it, not finished
+            local over = r.sec and r.limit and r.sec > r.limit
+            local timed = r.done and not over and r.sec and r.limit
             if timed then
                 m.inTime = m.inTime + 1
                 d.inTime = d.inTime + 1
@@ -225,7 +231,7 @@ function Stats.Compute(snap, scope)
                 if r.level and (not d.bestLevel or r.level > d.bestLevel or (r.level == d.bestLevel and r.sec < (d.bestSec or math.huge))) then
                     d.bestLevel, d.bestSec = r.level, r.sec
                 end
-            elseif r.done then
+            elseif over then
                 m.overTime = m.overTime + 1
             else
                 m.notDone = m.notDone + 1
