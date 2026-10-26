@@ -5,7 +5,7 @@ if GetLocale() ~= "ptBR" then return end
 
 local L = ns.L
 
--- Cabeçalhos de coluna (curtos: precisam caber em ~50px)
+-- Column headers (short: they need to fit in ~50px)
 L["Dmg"] = "Dano"
 L["DPS"] = "DPS"
 L["Heal"] = "Cura"
@@ -18,9 +18,9 @@ L["Dispel"] = "Dissip."
 L["Deaths"] = "Mortes"
 L["Enemies"] = "Inimig."
 
--- Nomes longos (usados no tooltip e nas opções)
+-- Long names (used in the tooltip and the options)
 L["Total damage"] = "Dano total"
-L["Damage done"] = "Dano causado"         -- (20/10) igual ao DAMAGE_METER_TYPE_DAMAGE_DONE do jogo; aqui para o harness, que nao tem as globais
+L["Damage done"] = "Dano causado"         -- (20/10) the same as the game's DAMAGE_METER_TYPE_DAMAGE_DONE; here for the harness, which does not have the globals
 L["Damage per second"] = "Dano por segundo"
 L["Total healing"] = "Cura total"
 L["Healing per second"] = "Cura por segundo"
@@ -41,7 +41,7 @@ L["Dispels"] = "Dissipações"
 L["Player deaths"] = "Mortes"
 L["Damage on enemies"] = "Dano nos inimigos"
 
--- Janela
+-- Window
 L["Current fight"] = "Combate atual"
 L["Overall"] = "Geral"
 
@@ -50,20 +50,20 @@ L["Mythic+"] = "Mítica+"
 L["Raid"] = "Raide"
 L["Damage only"] = "Só dano"
 
--- Ordenação e perfil
+-- Sorting and profile
 L["settings for this character only."] = "configuração própria deste personagem."
 L["settings shared by the account."] = "configuração compartilhada pela conta."
 L["settings restored to the defaults."] = "configuração restaurada para o padrão."
 L["moves a column left or right"] = "move uma coluna para a esquerda ou para a direita"
 L["account-wide or per-character settings"] = "configuração da conta ou do personagem"
 
--- Opções
+-- Options
 L["Lock position"] = "Travar posição"
 L["Rows"] = "Linhas"
 
 -- Painel de colunas e minimapa
 
--- Janela e combate
+-- Window and combat
 L["Click to switch between the current fight and the overall."] =
     "Clique para alternar entre o combate atual e o geral."
 
@@ -181,13 +181,13 @@ L["%d min ago"] = "há %d min"
 L["%d h ago"] = "há %d h"
 L["%d d ago"] = "há %d dia(s)"
 
--- Conferencia dos rotulos que vem do jogo (0.53.0). Mesmo motivo do /rm atlas: a falha e
--- silenciosa — a global some e o rotulo so continua em ingles.
+-- Checking the labels that come from the game (0.53.0). The same reason as /rm atlas: the failure is
+-- silent -- the global goes away and the label just stays in English.
 L["checks the labels taken from the game"] = "confere os rótulos que vêm do jogo"
 L["locale %s, %d game label(s):"] = "idioma %s, %d rótulo(s) vindos do jogo:"
 L["%d game label(s) are not usable here."] = "%d rótulo(s) do jogo não servem neste cliente."
 
--- Seção Placar e opção de reino (0.54.0)
+-- Scoreboard section and realm option (0.54.0)
 L["Scoreboard"] = "Placar"
 L["Open at the end of a Mythic+ run"] = "Abrir ao fim de uma chave de Mítica+"
 L["When the keystone ends, the summary of the run opens by itself."] =
@@ -205,8 +205,8 @@ L["Show the realm next to the name"] = "Mostrar o reino ao lado do nome"
 L["Off by default: the realm eats the column and the name is what ends up cut."] =
     "Desligado por padrão: o reino ocupa a coluna e o nome acaba cortado."
 
--- Estado do cadeado em palavras (0.55.0): o icone mudou de FORMA, mas a dica e o canal que
--- nao depende de interpretar um desenho de 14px.
+-- The padlock's state in words (0.55.0): the icon changed SHAPE, but the tooltip is the channel that
+-- does not depend on interpreting a 14px drawing.
 L["Locked — click to unlock and resize"] = "Travado — clique para destravar e redimensionar"
 L["Unlocked — drag to move, corner to resize"] = "Destravado — arraste para mover, canto para redimensionar"
 
@@ -232,7 +232,7 @@ L["Row text"] = "Texto das linhas"
 L["Title"] = "Título"
 L["Column header"] = "Cabeçalho das colunas"
 
--- O placar de Mítico+ (0.66.0)
+-- The Mythic+ scoreboard (0.66.0)
 L["Keystone"] = "Pedra-chave"
 L["Loot"] = "Saque"
 L["Not in combat: %s"] = "Fora de combate: %s"
@@ -252,7 +252,7 @@ L["%d error(s) captured, %d occurrence(s):"] = "%d erro(s) capturado(s), %d ocor
 L["Space between columns"] = "Espaço entre colunas"
 L["Width of the total column"] = "Largura da coluna de total"
 
--- Doação (Donate.lua, 26/09)
+-- Donation (Donate.lua, 26/09)
 L["Link copied — paste it in your browser."] = "Link copiado — cole no navegador."
 L["Thank you for supporting Rocket Meter! Press Ctrl+C to copy the link, then paste it in your browser."] = "Obrigado por apoiar o Rocket Meter! Aperte Ctrl+C para copiar o link e cole no navegador."
 L["Click: open the donation link, ready to copy"] = "Clique: abrir o link de doação, pronto para copiar"

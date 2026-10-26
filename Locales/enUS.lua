@@ -1,18 +1,18 @@
 -- RocketMeter | Locales/enUS.lua
--- Base da localização. Este arquivo carrega SEMPRE, em qualquer idioma de cliente.
+-- The localization base. This file ALWAYS loads, in any client language.
 --
--- Duas camadas, nesta ordem:
+-- Two layers, in this order:
 --
---   1. A CHAVE É O TEXTO EM INGLÊS. Sem tradução, a própria chave aparece na tela — então o
---      inglês é o fallback automático de todo idioma que ainda não tem arquivo aqui, sem
---      nenhuma linha de código para isso.
+--   1. THE KEY IS THE ENGLISH TEXT. Without a translation, the key itself shows on screen -- so
+--      English is the automatic fallback of every language that does not have a file here yet, with
+--      no line of code for it.
 --
---   2. `FROM_GAME` puxa do próprio cliente os rótulos que a Blizzard já traduziu. Isso vale
---      para os ~12 idiomas de uma vez, e — o que importa mais — usa **a palavra que o jogador
---      já lê na interface do jogo**, não a nossa versão dela.
+--   2. `FROM_GAME` pulls from the client itself the labels Blizzard already translated. That holds
+--      for the ~12 languages at once, and -- what matters more -- uses **the word the player
+--      already reads in the game's interface**, not our version of it.
 --
--- Depois deste arquivo carrega o do idioma (ptBR.lua), que sobrescreve o que quiser. A
--- precedência final é: nossa escolha explícita > palavra do jogo > chave em inglês.
+-- After this file the language's file loads (ptBR.lua), which overrides what it wants. The
+-- final precedence is: our explicit choice > the game's word > the English key.
 local ADDON, ns = ...
 
 local L = setmetatable({}, {
@@ -24,10 +24,10 @@ local L = setmetatable({}, {
 ns.L = L
 
 --------------------------------------------------------------------------------
--- Rótulos que o jogo já traduziu
+-- Labels the game already translated
 --------------------------------------------------------------------------------
--- O medidor nativo da Blizzard tem uma global para CADA atributo que este addon mostra, e é a
--- mesma fonte de dados (`C_DamageMeter`). A tabela abaixo espelha
+-- Blizzard's native meter has a global for EACH attribute this addon shows, and it is the
+-- same data source (`C_DamageMeter`). The table below mirrors
 -- `Blizzard_DamageMeter/DamageMeterSessionWindow.lua:34-46`:
 --
 --     local DAMAGE_METER_TYPE_NAMES = {
@@ -35,12 +35,12 @@ ns.L = L
 --         [Enum.DamageMeterType.Dps]        = DAMAGE_METER_TYPE_DPS,
 --         ...
 --
--- SÓ ENTRAM AQUI RÓTULOS LONGOS (tooltip, título, botão). Os cabeçalhos de coluna continuam
--- nossos: eles têm ~50px, e "Dano evitável recebido" não cabe onde cabe "Evitáv". A Blizzard
--- não tem forma curta desses nomes — o medidor dela mostra uma métrica por janela, nós
--- mostramos seis colunas. Onde a global JÁ é curta (DPS, HPS, Deaths), ela entra.
+-- ONLY LONG LABELS COME IN HERE (tooltip, title, button). The column headers stay
+-- ours: they are ~50px wide, and "Dano evitável recebido" does not fit where "Evitáv" fits. Blizzard
+-- has no short form of these names -- its meter shows one metric per window, we
+-- show six columns. Where the global IS already short (DPS, HPS, Deaths), it comes in.
 local FROM_GAME = {
-    -- Nomes de métrica, do medidor nativo
+    -- Metric names, from the native meter
     ["Total damage"]        = "DAMAGE_METER_TYPE_DAMAGE_DONE",
     ["Damage done"]         = "DAMAGE_METER_TYPE_DAMAGE_DONE",   -- (20/10) a aba do Meu combate: o "Damage Done" do Warcraft Logs
     ["Total healing"]       = "DAMAGE_METER_TYPE_HEALING_DONE",
@@ -53,21 +53,21 @@ local FROM_GAME = {
     ["Damage on enemies"]   = "DAMAGE_METER_TYPE_ENEMY_DAMAGE_TAKEN",
     ["Damage per second"]   = "DAMAGE_PER_SECOND",
 
-    -- Cabeçalho curto. Só entra global que seja curta nos ONZE idiomas — ver a nota sobre
-    -- DPS/HPS logo abaixo, que é o motivo de só sobrar esta.
-    ["Deaths"]              = "DAMAGE_METER_TYPE_DEATHS",   -- máx. 7 (esES)
+    -- A short header. Only a global that is short in all ELEVEN languages comes in -- see the note on
+    -- DPS/HPS right below, which is the reason only this one is left.
+    ["Deaths"]              = "DAMAGE_METER_TYPE_DEATHS",   -- max. 7 (esES)
 
-    -- Seções do detalhamento por magia
+    -- Sections of the per-spell breakdown
     ["Damage"]              = "DAMAGE_METER_CATEGORY_DAMAGE",
     ["Healing"]             = "DAMAGE_METER_CATEGORY_HEALING",
 
-    -- (20/10) a seção da opção do registro de combate: o nome do próprio jogo (a aba do chat)
+    -- (20/10) the combat log option's section: the game's own name (the chat tab)
     ["Combat log"]          = "COMBAT_LOG",
 
     -- (20/10) a linha de atributos do Resumo do Meu combate: a palavra da ficha do personagem do jogo
     ["Attributes"]          = "STAT_CATEGORY_ATTRIBUTES",
 
-    -- Sessão, conteúdo e controles
+    -- Session, content and controls
     ["Overall"]             = "DAMAGE_METER_OVERALL_SESSION",
     ["Clear the data"]      = "DAMAGE_METER_RESET_ALL_SESSIONS",
     ["Lock position"]       = "DAMAGE_METER_LOCK_WINDOW",
@@ -80,61 +80,61 @@ local FROM_GAME = {
     ["version"]             = "GAME_VERSION_LABEL",
 }
 
--- O que NÃO entrou, e por quê — para ninguém "consertar" isso depois sem saber:
+-- What did NOT come in, and why -- so nobody "fixes" it later without knowing:
 --
---   "Current fight"  DAMAGE_METER_CURRENT_SESSION é "Segmento atual". "Combate atual" é mais
---                    claro e foi aprovado in-game em várias rodadas de ajuste visual.
---   "Control"        DAMAGE_METER_CATEGORY_ACTIONS é "Ações", e o grupo da Blizzard inclui
---                    mortes; o nosso é interromper + dissipar. Palavra diferente, conjunto
---                    diferente — trocar mudaria o que o painel significa.
---   "Score"          PROVING_GROUNDS_SCORE traz dois-pontos embutido — "Score:" em inglês e
---                    "Pontuação:" em português. Rótulo com pontuação dentro quebra o layout.
---   "Absorb"         ABSORB é "Absorver", 8 caracteres, no cabeçalho de ~58px. Não cabe.
---   "Enemies"        SPELL_TARGET_TYPE13_DESC é "inimigos", minúsculo e de outro domínio.
---   "Heal"           só existe em WOW_LABS_HEAL_TOOLTIP, de um modo de jogo que pode sumir.
+--   "Current fight"  DAMAGE_METER_CURRENT_SESSION is "Segmento atual". "Combate atual" is
+--                    clearer and was approved in-game over several rounds of visual tuning.
+--   "Control"        DAMAGE_METER_CATEGORY_ACTIONS is "Ações", and Blizzard's group includes
+--                    deaths; ours is interrupt + dispel. A different word, a different
+--                    set -- swapping would change what the panel means.
+--   "Score"          PROVING_GROUNDS_SCORE carries a built-in colon -- "Score:" in English and
+--                    "Pontuação:" in Portuguese. A label with punctuation inside breaks the layout.
+--   "Absorb"         ABSORB is "Absorver", 8 characters, in a ~58px header. It does not fit.
+--   "Enemies"        SPELL_TARGET_TYPE13_DESC is "inimigos", lowercase and from another domain.
+--   "Heal"           only exists in WOW_LABS_HEAL_TOOLTIP, from a game mode that may go away.
 --
---   "DPS" e "HPS"    ESTE É O CASO QUE MAIS ENSINA, e eu já tinha errado aqui. Em enUS e ptBR
---                    `DAMAGE_METER_TYPE_DPS` é a sigla "DPS", então a global parece perfeita
---                    para o cabeçalho. Nos outros nove idiomas ela NÃO é sigla:
+--   "DPS" and "HPS"  THIS IS THE CASE THAT TEACHES THE MOST, and I had already got it wrong here. In enUS and ptBR
+--                    `DAMAGE_METER_TYPE_DPS` is the acronym "DPS", so the global looks perfect
+--                    for the header. In the other nine languages it is NOT an acronym:
 --
---                        deDE  "Schadensklassen"       15 caracteres — e quer dizer
---                                                      *classes de dano*: o tradutor leu DPS
---                                                      como FUNÇÃO, não como métrica
---                        ruRU  "Бойцы"                 *combatentes* — mesmo erro
---                        koKR  "초당 피해량"             frase, não sigla
+--                        deDE  "Schadensklassen"       15 characters -- and it means
+--                                                      *damage classes*: the translator read DPS
+--                                                      as a ROLE, not as a metric
+--                        ruRU  "Бойцы"                 *fighters* -- the same mistake
+--                        koKR  "초당 피해량"             a phrase, not an acronym
 --
---                    `DAMAGE_METER_TYPE_HPS` idem: esMX "Sanación por segundo" (20),
---                    ruRU "Ед. здоровья в сек." (19). O cabeçalho tem 58px.
+--                    `DAMAGE_METER_TYPE_HPS` likewise: esMX "Sanación por segundo" (20),
+--                    ruRU "Ед. здоровья в сек." (19). The header is 58px.
 --
---                    A lição não é sobre estas duas globais: é que **conferir enUS e ptBR não
---                    testa uma promessa sobre onze idiomas**. Toda entrada desta tabela foi
---                    medida nos onze, e as larguras anotadas ao lado são o máximo encontrado.
+--                    The lesson is not about these two globals: it is that **checking enUS and ptBR does not
+--                    test a promise about eleven languages**. Every entry of this table was
+--                    measured in the eleven, and the widths noted beside are the maximum found.
 --
---   "version"        `VERSION` existe e o texto está certo, mas tem `Flags=2` no DB2 — sem o
---                    bit que TODAS as outras globais confirmadas aqui carregam — e zero
---                    leituras na fonte 12.1.0. Dois sinais
---                    independentes de que ela não vira global de Lua. Trocada por
---                    `GAME_VERSION_LABEL` (Flags=1), mesmo texto nos onze idiomas.
+--   "version"        `VERSION` exists and the text is right, but it has `Flags=2` in the DB2 -- without the
+--                    bit that ALL the other globals confirmed here carry -- and zero
+--                    reads in the 12.1.0 source. Two independent
+--                    signals that it does not become a Lua global. Replaced by
+--                    `GAME_VERSION_LABEL` (Flags=1), the same text in the eleven languages.
 
 ns.FROM_GAME = FROM_GAME
 
----Esta global serve como rótulo?
+--- Does this global serve as a label?
 ---
----Três guardas, cada uma contra uma falha diferente:
+--- Three guards, each one against a different failure:
 ---
----  * **não é string** → a global não existe neste cliente. Esta é a guarda que **não pode**
----    ser simplificada: sem ela, `text:find` recebe `nil` e **levanta erro na carga do
----    arquivo**. Como é aqui que `ns.L` nasce, o addon inteiro morre junto — não é um rótulo
----    em branco, é a tela toda. Travado por teste (sabotagem verificada: *"attempt to index
+---  * **not a string** -> the global does not exist in this client. This is the guard that **cannot**
+---    be simplified: without it, `text:find` receives `nil` and **raises an error at file
+---    load**. Since `ns.L` is born here, the whole addon dies with it -- it is not a blank
+---    label, it is the whole screen. Locked by a test (sabotage verified: *"attempt to index
 ---    local 'text' (a nil value)"*).
----  * **string vazia** → existe mas não tem texto; viraria um rótulo em branco.
----  * **tem `%s`/`%d`** → é modelo de frase, não rótulo (`DAMAGE_METER_SOURCE_NAME` = `"%d. %s"`),
----    e apareceria cru na tela.
+---  * **empty string** -> it exists but has no text; it would become a blank label.
+---  * **has `%s`/`%d`** -> it is a sentence template, not a label (`DAMAGE_METER_SOURCE_NAME` = `"%d. %s"`),
+---    and would show raw on screen.
 ---
----Nos três casos a chave fica em paz e o inglês continua valendo. Vale notar que
----`rawset(L, key, nil)` seria inofensivo por si — apagar a chave a devolve ao `__index`; o
----perigo real é a indexação do `nil`, não o buraco na tabela.
----@return string|nil texto, string|nil motivo da recusa
+--- In all three cases the key is left alone and the English still holds. Worth noting that
+--- `rawset(L, key, nil)` would be harmless by itself -- deleting the key returns it to `__index`; the
+--- real danger is indexing the `nil`, not the hole in the table.
+--- @return string|nil text, string|nil reason for refusal
 local function Usable(tag)
     local text = _G[tag]
     if type(text) ~= "string" then return nil, "ausente" end
@@ -143,8 +143,8 @@ local function Usable(tag)
     return text
 end
 
----Escreve os rótulos do jogo em `L`. Roda **uma vez**, na carga deste arquivo, antes do
----arquivo de idioma — que sobrescreve o que quiser depois.
+--- Writes the game's labels into `L`. It runs **once**, when this file loads, before the
+--- language file -- which overrides what it wants afterwards.
 function ns.ApplyGameStrings()
     for key, tag in pairs(FROM_GAME) do
         local text = Usable(tag)
@@ -154,28 +154,28 @@ function ns.ApplyGameStrings()
     end
 end
 
----Relatório para o `/rm i18n`. **Só lê.**
+--- The report for `/rm i18n`. **Read only.**
 ---
----Não pode aplicar nada: este comando roda muito depois da carga, e reaplicar aqui apagaria
----as traduções que o arquivo de idioma escreveu por cima — num cliente pt-BR, "Absorções"
----viraria "Absorve" até o próximo `/reload`, sem ninguém entender por quê.
----@return table lista de { key, tag, text, why }, ordenada pela global
+--- It cannot apply anything: this command runs long after loading, and reapplying here would erase
+--- the translations the language file wrote on top -- on a pt-BR client, "Absorções"
+--- would become "Absorve" until the next `/reload`, with nobody understanding why.
+--- @return table a list of { key, tag, text, why }, sorted by global
 function ns.CheckGameStrings()
     local report = {}
     for key, tag in pairs(FROM_GAME) do
         local text, why = Usable(tag)
         report[#report + 1] = { key = key, tag = tag, text = text, why = why }
     end
-    -- ⚑ O DESEMPATE PELA CHAVE NÃO É ENFEITE. `DAMAGE_METER_TYPE_DEATHS` está em `FROM_GAME`
-    -- DUAS vezes — uma para "Player deaths" e outra para "Deaths" —, e um comparador que devolve
-    -- `false` para os dois deixa a ordem deles indefinida: `table.sort` não é estável.
+    -- ⚑ THE TIE-BREAK BY KEY IS NOT DECORATION. `DAMAGE_METER_TYPE_DEATHS` is in `FROM_GAME`
+    -- TWICE -- once for "Player deaths" and once for "Deaths" --, and a comparator that returns
+    -- `false` for both leaves their order undefined: `table.sort` is not stable.
     --
-    -- Isso parecia inofensivo (as duas linhas dizem a mesma coisa), e não era: a saída do `/rm
-    -- i18n` mudava de ordem entre execuções, o harness a imprime, e o `sabotar.py` casa a saída
-    -- por TEXTO para decidir qual check reprovou primeiro. **Uma suíte de sabotagem que muda de
-    -- resultado sem o código mudar não distingue "o teste não pega" de "deu azar agora"** — e foi
-    -- exatamente esse sintoma que apareceu em 10/09/2026, com sabotagens diferentes falhando a
-    -- cada rodada.
+    -- That looked harmless (the two lines say the same thing), and it was not: the output of `/rm
+    -- i18n` changed order between runs, the harness prints it, and `sabotar.py` matches the output
+    -- by TEXT to decide which check failed first. **A sabotage suite that changes its
+    -- result without the code changing cannot tell "the test does not catch it" from "bad luck this time"** -- and it was
+    -- exactly that symptom that showed up on 10/09/2026, with different sabotages failing at
+    -- each round.
     table.sort(report, function(a, b)
         if a.tag ~= b.tag then return a.tag < b.tag end
         return a.key < b.key
