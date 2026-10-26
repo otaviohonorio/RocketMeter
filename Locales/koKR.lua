@@ -361,3 +361,5 @@ L["The keys, the rating, the Great Vault and the raids come from the game. Your 
 -- (26/10) the interrupts' clock (Kicks.lua)
 L["Show each one's interrupt cooldown"] = "각자의 차단 재사용 대기시간 표시"
 L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."] = "차단 열 옆에 각자의 차단 기술과 재사용 대기시간을 표시합니다. 내 것은 정확하며, 파티원의 것은 게임이 보여주는 정보(차단된 적과 그 순간 무언가를 시전한 사람)로 추정합니다. 두 명이 동시에 시전하면 아무에게도 기록하지 않습니다."
+L["No raid lockout this week."] = "이번 주 공격대 귀속 없음."
+L["No raid recorded this season."] = "이번 시즌에 기록된 공격대 없음."

@@ -466,3 +466,5 @@ L["The keys, the rating, the Great Vault and the raids come from the game. Your 
 -- (26/10) the interrupts' clock (Kicks.lua)
 L["Show each one's interrupt cooldown"] = "Mostrar a recarga da interrupção de cada um"
 L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."] = "Ao lado da coluna de interrupções: a interrupção de cada um, com a recarga. A sua é exata; a dos colegas é deduzida do que o jogo mostra (um inimigo interrompido e quem lançou algo naquele instante), e se dois lançarem ao mesmo tempo ninguém recebe o crédito."
+L["No raid lockout this week."] = "Nenhum bloqueio de raide nesta semana."
+L["No raid recorded this season."] = "Nenhuma raide gravada nesta temporada."

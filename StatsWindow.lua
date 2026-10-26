@@ -108,7 +108,9 @@ function Win.Draw()
         { L["In time"], Share(m.inTime, m.keys) },
         { L["Over time"], tostring(m.overTime or 0) },
         { L["Not finished"], tostring(m.notDone or 0) },
-        { L["Highest in time"], m.highest and ("+" .. m.highest.level .. (m.highest.name and (" · " .. m.highest.name) or "")) },
+        -- the level alone: with the dungeon's name it did not fit ("+15 · Arena da Chaga do Caos" is 153 px in a cell of
+        -- 144, the user's print of 26/10), and the dungeon is in the Dungeons table below, on the row with that level
+        { L["Highest in time"], m.highest and ("+" .. m.highest.level) },
         { L["Average level"], m.avgLevel and ("+" .. Dec(m.avgLevel)) },
         { L["Time in keys"], Duration(m.seconds) },
     }
@@ -163,6 +165,8 @@ function Win.Draw()
             rRows[#rRows + 1] = { name = r.name .. (r.difficultyName and (" · " .. r.difficultyName) or ""),
                                   bosses = format("%d/%d", r.done or 0, r.total or 0) }
         end
+        -- none: one line that says so, not a header over nothing (the user's print of 26/10)
+        if #rRows == 0 then rRows[1] = { name = L["No raid lockout this week."], bosses = "" } end
         local raidBox = { L["Raids"], nil, { columns = { { key = "name", label = "" },
             { key = "bosses", label = L["Bosses"], width = 80 } }, rows = rRows } }
         SideBySide(page, raidBox, perfBox)
@@ -171,6 +175,7 @@ function Win.Draw()
             rRows[#rRows + 1] = { name = tostring(r.name) .. (r.detail and (" · " .. r.detail) or ""),
                                   kills = tostring(r.kills or 0), wipes = tostring(r.wipes or 0) }
         end
+        if #rRows == 0 then rRows[1] = { name = L["No raid recorded this season."], kills = "", wipes = "" } end
         Full(page, L["Raids"], nil, { columns = { { key = "name", label = "" },
             { key = "kills", label = L["Bosses defeated"], width = 130 }, { key = "wipes", label = L["Wipes"], width = 122 } }, rows = rRows })
     end

@@ -2287,11 +2287,15 @@ function Window.Create()
     frame.boardButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -5, 0)
 
     -- (26/10) THE STATISTICS: the week's and the season's keys, vault and raids (StatsWindow.lua). The user: *"pode ser
-    -- um botão na janela principal"*. The game's trophy, in the tone of the others. A new file: absent until the client
-    -- restarts, and then no button rather than one that does nothing
+    -- um botão na janela principal"*. A new file: absent until the client restarts, and then no button rather than one
+    -- that does nothing. THE ART: the achievement's shield (in the game, Statistics is a tab of the Achievements
+    -- window), the one of the game's own achievement alert (AlertFrameSystems.xml), with the small shield file as the
+    -- fallback. The first choice, `house-chest-trophy-icon_32`, is in the atlas table but no screen of the game uses it,
+    -- and in game it was a white square (the user's print, 26/10): an atlas is chosen from one the game itself draws.
     local leftmost = frame.boardButton
     if ns.StatsWindow then
-        frame.statsButton = HeaderButton({ atlas = "house-chest-trophy-icon_32" },
+        frame.statsButton = HeaderButton({ atlas = "ui-achievement-shield-1",
+                                           texture = "Interface\\AchievementFrame\\UI-Achievement-TinyShield" },
             L["Statistics"], function() ns.StatsWindow.Toggle() end)
         frame.statsButton:SetPoint("RIGHT", frame.boardButton, "LEFT", -5, 0)
         leftmost = frame.statsButton

@@ -361,3 +361,5 @@ L["The keys, the rating, the Great Vault and the raids come from the game. Your 
 -- (26/10) the interrupts' clock (Kicks.lua)
 L["Show each one's interrupt cooldown"] = "显示每个人的打断冷却"
 L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."] = "在打断列旁显示每个人的打断技能和冷却。你自己的是准确的；队友的则根据游戏显示的信息推断（被打断的敌人以及那一刻谁施放了技能），两人同时施放时不计入任何人。"
+L["No raid lockout this week."] = "本周没有团队副本进度锁定。"
+L["No raid recorded this season."] = "本赛季没有记录团队副本。"

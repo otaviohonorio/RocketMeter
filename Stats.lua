@@ -145,8 +145,25 @@ local function ReadGame(snap)
                                 limit = info.limit }
         end
     end
-    if ns.Log and ns.Log.Add and type(list) == "table" and list[1] then
-        ns.Log.Add("historico do jogo", { quantas = #list, primeira = list[1], segunda = list[2] })
+    -- (26/10) WHAT `completed` MEANS, measured: the first reading in game (Dauð, 133 keys) gave 92 completed in time, 0
+    -- completed over time and 41 not completed -- over-time keys may be the ones counted as "not completed". Every key
+    -- is counted here by (completed?, its time within the limit?), with the times of the not-completed ones, so one
+    -- /reload answers it
+    if ns.Log and ns.Log.Add and #runs > 0 then
+        local c = { feitaNoTempo = 0, feitaFora = 0, naoFeitaNoTempo = 0, naoFeitaFora = 0, semTempo = 0 }
+        local tempos = {}
+        for _, r in ipairs(runs) do
+            if not r.sec or r.sec <= 0 or not r.limit then
+                c.semTempo = c.semTempo + 1
+            elseif r.done then
+                if r.sec <= r.limit then c.feitaNoTempo = c.feitaNoTempo + 1 else c.feitaFora = c.feitaFora + 1 end
+            else
+                if r.sec <= r.limit then c.naoFeitaNoTempo = c.naoFeitaNoTempo + 1 else c.naoFeitaFora = c.naoFeitaFora + 1 end
+                if #tempos < 12 then tempos[#tempos + 1] = format("%d/%d", r.sec, r.limit) end
+            end
+        end
+        c.quantas, c.temposNaoFeitas = #runs, table.concat(tempos, " ")
+        ns.Log.Add("historico do jogo", c)
     end
     snap.maps, snap.runs = maps, runs
     snap.score = C_ChallengeMode and N(Call(C_ChallengeMode.GetOverallDungeonScore))

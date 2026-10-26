@@ -194,8 +194,12 @@ local function PlaceCells(holder, columns, make)
         c.right = x
         x = x - c.width
     end
-    for i = #columns + 1, #holder.cells do if holder.cells[i] then holder.cells[i]:Hide() end end
-    if holder.cells[1] then holder.cells[1]:Hide() end
+    -- (26/10) by pairs, not `#`: the cells start at index 2 (1 is the name), and `#` of a table with no [1] is 0 -- the
+    -- extra cells of a row or a head reused from a WIDER table were never hidden (the Statistics' season tab showed the
+    -- vault's "3/0" and the dungeons' "+12 26:25" over "Your performance", the user's print of 26/10)
+    for i, cell in pairs(holder.cells) do
+        if i == 1 or i > #columns then cell:Hide() end
+    end
     return x
 end
 
