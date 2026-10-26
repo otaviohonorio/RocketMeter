@@ -1068,7 +1068,12 @@ function Scoreboard.__lootEnter(self)
     local link = self and self.link
     if not link then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    local ok = type(link) == "string" and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+    local ok, err = false, nil
+    if type(link) == "string" then ok, err = pcall(GameTooltip.SetHyperlink, GameTooltip, link) end
+    if ns.Log and ns.Log.Add then
+        ns.Log.Add("balao do saque", { link = link, ok = ok and true or false, erro = err and tostring(err) or nil,
+                                       linhas = GameTooltip.NumLines and GameTooltip:NumLines() or nil })
+    end
     if not ok then
         local id = tonumber(link)
         if not id and C_Item and C_Item.GetItemInfoInstant then

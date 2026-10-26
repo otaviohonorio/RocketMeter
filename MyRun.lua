@@ -447,13 +447,29 @@ function MyRun.OnCombatEnd()
         -- (of = 0, or 260 of healing from 3 others). The fight's own session, by the id kept at its end
         -- (f.sid), still has it: read from there when "current" does not have the player. A fight read
         -- so has no damage taken by spell (the meter gives that by session type only).
-        local mine = ok and type(m) == "table" and m.damage and m.damage.rank ~= nil
+        -- (26/10) AND THE LAST BOSS OF A KEY, AGAIN: "current" one second after it can be the key's WHOLE session,
+        -- with the player in it (Dauð, 24/10: Kyrakka's fight, 357 s, saved with the key's 175,164,014 damage, which the
+        -- meter counts over 1,445 s; Rei Dazar's, 142 s, over 1,347 s). A reading whose time (total / per second) does
+        -- not fit the fight is not this fight's: the fight's own session by id, else no numbers rather than the key's.
+        -- Twice the fight plus 10 s: the meter's own session can join pulls close together (182 s for a 72 s pack in
+        -- the same key), and the key's whole is 4 to 10 times the boss
+        local function Fits(x)
+            local d = type(x) == "table" and x.damage
+            local total, rate = d and Num(d.total), d and Num(d.perSecond)
+            if not total or not rate or rate <= 0 or not f.e or not f.s then return true end
+            return total / rate <= (f.e - f.s) * 2 + 10
+        end
+        local mine = ok and type(m) == "table" and m.damage and m.damage.rank ~= nil and Fits(m)
         if not mine and f.sid then
             local okId, byId = pcall(MyRun.LiveMetrics, #doRun.fights)
-            if okId and type(byId) == "table" and byId.damage and byId.damage.rank ~= nil then
+            if okId and type(byId) == "table" and byId.damage and byId.damage.rank ~= nil and Fits(byId) then
                 ok, m = true, byId
                 if ns.Log and ns.Log.Add then ns.Log.Add("luta-por-id", { luta = #doRun.fights, sid = f.sid, dano = byId.damage.total }) end
             end
+        end
+        if ok and type(m) == "table" and not Fits(m) then
+            if ns.Log and ns.Log.Add then ns.Log.Add("luta-sem-leitura", { luta = #doRun.fights, boss = f.boss, segundos = f.e - f.s }) end
+            ok = false
         end
         if ok and type(m) == "table" then
             while m.takenSpells and #m.takenSpells > MAX_FIGHT_SPELLS do table.remove(m.takenSpells) end
