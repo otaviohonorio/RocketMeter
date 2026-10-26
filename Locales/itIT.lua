@@ -293,3 +293,31 @@ L["one point per fight: the game gives no curve"] = "un punto per scontro: il gi
 L["Hits, critical hits and uptime exist only in the game's combat log file, which an addon cannot read."] = "Colpi, critici e tempo attivo esistono solo nel file del registro di combattimento del gioco, che un addon non può leggere."
 L["The heals and the shields in one list, as Warcraft Logs shows them; a shield is the game's \"Absorbs\"."] = "Le cure e gli scudi in un unico elenco, come li mostra Warcraft Logs; scudo è ciò che il gioco chiama \"Assorbimenti\"."
 L["This run was saved before the spells were kept with it."] = "Questo scontro è di prima che gli incantesimi venissero salvati con esso."
+
+-- (25/10) the game's own words (FROM_GAME), written here as the game gives them in this
+-- language (GlobalStrings.itIT): the same as at runtime, and checked by tests/locales.lua
+L["Total damage"] = "Danni inflitti"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Damage done"] = "Danni inflitti"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Total healing"] = "Cure fornite"  -- the game's DAMAGE_METER_TYPE_HEALING_DONE
+L["Absorbs"] = "Assorbimenti"  -- the game's DAMAGE_METER_TYPE_ABSORBS
+L["Damage taken"] = "Danni subiti"  -- the game's DAMAGE_METER_TYPE_DAMAGE_TAKEN
+L["Avoidable damage"] = "Danni evitabili subiti"  -- the game's DAMAGE_METER_TYPE_AVOIDABLE_DAMAGE_TAKEN
+L["Interrupts"] = "Interruzioni"  -- the game's DAMAGE_METER_TYPE_INTERRUPTS
+L["Player deaths"] = "Morti"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage on enemies"] = "Danni subiti dal nemico"  -- the game's DAMAGE_METER_TYPE_ENEMY_DAMAGE_TAKEN
+L["Damage per second"] = "Danni per secondo"  -- the game's DAMAGE_PER_SECOND
+L["Deaths"] = "Morti"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage"] = "Danni"  -- the game's DAMAGE_METER_CATEGORY_DAMAGE
+L["Healing"] = "Cure"  -- the game's DAMAGE_METER_CATEGORY_HEALING
+L["Combat log"] = "Registro di combattimento"  -- the game's COMBAT_LOG
+L["Attributes"] = "Attributi"  -- the game's STAT_CATEGORY_ATTRIBUTES
+L["Overall"] = "Generale"  -- the game's DAMAGE_METER_OVERALL_SESSION
+L["Clear the data"] = "Ripristina dati"  -- the game's DAMAGE_METER_RESET_ALL_SESSIONS
+L["Lock position"] = "Blocca finestra"  -- the game's DAMAGE_METER_LOCK_WINDOW
+L["Configure"] = "Impostazioni"  -- the game's SETTINGS
+L["in combat"] = "In Combattimento"  -- the game's HUD_EDIT_MODE_SETTING_DAMAGE_METER_VISIBILITY_IN_COMBAT
+L["Mythic+"] = "Mitica+"  -- the game's PLAYER_DIFFICULTY_MYTHIC_PLUS
+L["Raid"] = "Incursione"  -- the game's RAID
+L["Dungeon"] = "Spedizione"  -- the game's LFG_TYPE_DUNGEON
+L["defeated"] = "Sconfitto"  -- the game's BOSS_DEAD
+L["version"] = "Versione"  -- the game's GAME_VERSION_LABEL

@@ -293,3 +293,32 @@ L["one point per fight: the game gives no curve"] = "одна точка на б
 L["Hits, critical hits and uptime exist only in the game's combat log file, which an addon cannot read."] = "Попадания, криты и время действия есть только в файле журнала боя игры, а его аддон прочитать не может."
 L["The heals and the shields in one list, as Warcraft Logs shows them; a shield is the game's \"Absorbs\"."] = "Исцеление и щиты в одном списке, как в Warcraft Logs; щит — это то, что игра называет «Щиты»."
 L["This run was saved before the spells were kept with it."] = "Этот забег сохранён до того, как вместе с ним стали сохраняться заклинания."
+
+-- (25/10) the game's own words (FROM_GAME), written here as the game gives them in this
+-- language (GlobalStrings.ruRU): the same as at runtime, and checked by tests/locales.lua
+L["Total damage"] = "Урона нанесено"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Damage done"] = "Урона нанесено"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Total healing"] = "Объем исцеления"  -- the game's DAMAGE_METER_TYPE_HEALING_DONE
+L["Absorbs"] = "Щиты"  -- the game's DAMAGE_METER_TYPE_ABSORBS
+L["Damage taken"] = "Полученный урон"  -- the game's DAMAGE_METER_TYPE_DAMAGE_TAKEN
+L["Avoidable damage"] = "Полученный предотвратимый урон"  -- the game's DAMAGE_METER_TYPE_AVOIDABLE_DAMAGE_TAKEN
+L["Interrupts"] = "Прерывание"  -- the game's DAMAGE_METER_TYPE_INTERRUPTS
+L["Dispels"] = "Рассеивание"  -- the game's DAMAGE_METER_TYPE_DISPELS
+L["Player deaths"] = "Смерти"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage on enemies"] = "Полученный противниками урон"  -- the game's DAMAGE_METER_TYPE_ENEMY_DAMAGE_TAKEN
+L["Damage per second"] = "Урон в секунду"  -- the game's DAMAGE_PER_SECOND
+L["Deaths"] = "Смерти"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage"] = "Урон"  -- the game's DAMAGE_METER_CATEGORY_DAMAGE
+L["Healing"] = "Исцеление"  -- the game's DAMAGE_METER_CATEGORY_HEALING
+L["Combat log"] = "Журнал боя"  -- the game's COMBAT_LOG
+L["Attributes"] = "Характеристики"  -- the game's STAT_CATEGORY_ATTRIBUTES
+L["Overall"] = "Общий"  -- the game's DAMAGE_METER_OVERALL_SESSION
+L["Clear the data"] = "Сбросить данные"  -- the game's DAMAGE_METER_RESET_ALL_SESSIONS
+L["Lock position"] = "Зафиксировать окно"  -- the game's DAMAGE_METER_LOCK_WINDOW
+L["Configure"] = "Параметры"  -- the game's SETTINGS
+L["in combat"] = "В бою"  -- the game's HUD_EDIT_MODE_SETTING_DAMAGE_METER_VISIBILITY_IN_COMBAT
+L["Mythic+"] = "Эпохальный+"  -- the game's PLAYER_DIFFICULTY_MYTHIC_PLUS
+L["Raid"] = "Рейд"  -- the game's RAID
+L["Dungeon"] = "Подземелье"  -- the game's LFG_TYPE_DUNGEON
+L["defeated"] = "(завершено)"  -- the game's BOSS_DEAD
+L["version"] = "Версия"  -- the game's GAME_VERSION_LABEL

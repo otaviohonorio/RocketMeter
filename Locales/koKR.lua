@@ -293,3 +293,32 @@ L["one point per fight: the game gives no curve"] = "전투당 한 점: 게임�
 L["Hits, critical hits and uptime exist only in the game's combat log file, which an addon cannot read."] = "적중, 치명타, 유지 시간은 게임의 전투 기록 파일에만 있고, 애드온은 그 파일을 읽을 수 없습니다."
 L["The heals and the shields in one list, as Warcraft Logs shows them; a shield is the game's \"Absorbs\"."] = "치유와 보호막을 Warcraft Logs처럼 한 목록에 보여 줍니다. 보호막은 게임에서 '흡수'라고 부르는 것입니다."
 L["This run was saved before the spells were kept with it."] = "이 진행은 주문을 함께 저장하기 전에 저장되었습니다."
+
+-- (25/10) the game's own words (FROM_GAME), written here as the game gives them in this
+-- language (GlobalStrings.koKR): the same as at runtime, and checked by tests/locales.lua
+L["Total damage"] = "피해량"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Damage done"] = "피해량"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Total healing"] = "치유량"  -- the game's DAMAGE_METER_TYPE_HEALING_DONE
+L["Absorbs"] = "흡수"  -- the game's DAMAGE_METER_TYPE_ABSORBS
+L["Damage taken"] = "받은 피해"  -- the game's DAMAGE_METER_TYPE_DAMAGE_TAKEN
+L["Avoidable damage"] = "피할 수 있는 받는 피해"  -- the game's DAMAGE_METER_TYPE_AVOIDABLE_DAMAGE_TAKEN
+L["Interrupts"] = "차단"  -- the game's DAMAGE_METER_TYPE_INTERRUPTS
+L["Dispels"] = "무효화"  -- the game's DAMAGE_METER_TYPE_DISPELS
+L["Player deaths"] = "죽은 횟수"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage on enemies"] = "적 받은 피해"  -- the game's DAMAGE_METER_TYPE_ENEMY_DAMAGE_TAKEN
+L["Damage per second"] = "초당 공격력"  -- the game's DAMAGE_PER_SECOND
+L["Deaths"] = "죽은 횟수"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage"] = "공격력"  -- the game's DAMAGE_METER_CATEGORY_DAMAGE
+L["Healing"] = "치유량"  -- the game's DAMAGE_METER_CATEGORY_HEALING
+L["Combat log"] = "전투"  -- the game's COMBAT_LOG
+L["Attributes"] = "능력치"  -- the game's STAT_CATEGORY_ATTRIBUTES
+L["Overall"] = "종합"  -- the game's DAMAGE_METER_OVERALL_SESSION
+L["Clear the data"] = "데이터 초기화"  -- the game's DAMAGE_METER_RESET_ALL_SESSIONS
+L["Lock position"] = "창 잠금"  -- the game's DAMAGE_METER_LOCK_WINDOW
+L["Configure"] = "설정"  -- the game's SETTINGS
+L["in combat"] = "전투 중"  -- the game's HUD_EDIT_MODE_SETTING_DAMAGE_METER_VISIBILITY_IN_COMBAT
+L["Mythic+"] = "신화+"  -- the game's PLAYER_DIFFICULTY_MYTHIC_PLUS
+L["Raid"] = "공격대"  -- the game's RAID
+L["Dungeon"] = "던전"  -- the game's LFG_TYPE_DUNGEON
+L["defeated"] = "처치"  -- the game's BOSS_DEAD
+L["version"] = "Version"  -- the game's GAME_VERSION_LABEL

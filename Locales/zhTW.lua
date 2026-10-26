@@ -293,3 +293,32 @@ L["one point per fight: the game gives no curve"] = "每場戰鬥一個點：遊
 L["Hits, critical hits and uptime exist only in the game's combat log file, which an addon cannot read."] = "命中、致命一擊和持續時間只存在於遊戲的戰鬥紀錄檔案中，插件無法讀取。"
 L["The heals and the shields in one list, as Warcraft Logs shows them; a shield is the game's \"Absorbs\"."] = "治療和護盾在同一個列表裡，與Warcraft Logs一致；護盾就是遊戲中的「吸收」。"
 L["This run was saved before the spells were kept with it."] = "這條紀錄儲存於開始一併儲存法術之前。"
+
+-- (25/10) the game's own words (FROM_GAME), written here as the game gives them in this
+-- language (GlobalStrings.zhTW): the same as at runtime, and checked by tests/locales.lua
+L["Total damage"] = "傷害量"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Damage done"] = "傷害量"  -- the game's DAMAGE_METER_TYPE_DAMAGE_DONE
+L["Total healing"] = "治療量"  -- the game's DAMAGE_METER_TYPE_HEALING_DONE
+L["Absorbs"] = "吸收"  -- the game's DAMAGE_METER_TYPE_ABSORBS
+L["Damage taken"] = "所受傷害"  -- the game's DAMAGE_METER_TYPE_DAMAGE_TAKEN
+L["Avoidable damage"] = "受到可避免的傷害"  -- the game's DAMAGE_METER_TYPE_AVOIDABLE_DAMAGE_TAKEN
+L["Interrupts"] = "中斷"  -- the game's DAMAGE_METER_TYPE_INTERRUPTS
+L["Dispels"] = "驅散"  -- the game's DAMAGE_METER_TYPE_DISPELS
+L["Player deaths"] = "死亡"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage on enemies"] = "敵人所受傷害"  -- the game's DAMAGE_METER_TYPE_ENEMY_DAMAGE_TAKEN
+L["Damage per second"] = "每秒傷害"  -- the game's DAMAGE_PER_SECOND
+L["Deaths"] = "死亡"  -- the game's DAMAGE_METER_TYPE_DEATHS
+L["Damage"] = "傷害"  -- the game's DAMAGE_METER_CATEGORY_DAMAGE
+L["Healing"] = "治療"  -- the game's DAMAGE_METER_CATEGORY_HEALING
+L["Combat log"] = "戰鬥紀錄"  -- the game's COMBAT_LOG
+L["Attributes"] = "屬性"  -- the game's STAT_CATEGORY_ATTRIBUTES
+L["Overall"] = "整體"  -- the game's DAMAGE_METER_OVERALL_SESSION
+L["Clear the data"] = "重置資料"  -- the game's DAMAGE_METER_RESET_ALL_SESSIONS
+L["Lock position"] = "鎖定視窗"  -- the game's DAMAGE_METER_LOCK_WINDOW
+L["Configure"] = "設定"  -- the game's SETTINGS
+L["in combat"] = "戰鬥中"  -- the game's HUD_EDIT_MODE_SETTING_DAMAGE_METER_VISIBILITY_IN_COMBAT
+L["Mythic+"] = "傳奇難度+"  -- the game's PLAYER_DIFFICULTY_MYTHIC_PLUS
+L["Raid"] = "團隊"  -- the game's RAID
+L["Dungeon"] = "地城"  -- the game's LFG_TYPE_DUNGEON
+L["defeated"] = "擊殺"  -- the game's BOSS_DEAD
+L["version"] = "版本"  -- the game's GAME_VERSION_LABEL
