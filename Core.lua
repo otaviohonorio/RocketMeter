@@ -76,6 +76,8 @@ ns.defaults = {
     -- game's meter, the default) or "round" (the user's option). Not the old `roundIcons`, which
     -- nothing read since 14/10: a saved value of it would flip nobody's icons now.
     iconShape = "square",
+    -- (26/10) the interrupts' clock beside the interrupts column (Kicks.lua): on by default
+    kickClock = true,
 
     -- Does the end-of-run panel open by itself? Two keys, not one: whoever does Mythic+ every
     -- night may want the summary there and not at every raid boss, and vice versa. The old key
@@ -156,6 +158,8 @@ function handlers:ADDON_LOADED(addon)
     if ns.MyRun and ns.MyRun.Init then ns.MyRun.Init() end
     -- (26/10) Stats.lua is a NEW file too: nil until the client restarts
     if ns.Stats and ns.Stats.Init then ns.Stats.Init() end
+    -- (26/10) Kicks.lua, the interrupts' clock: a NEW file too
+    if ns.Kicks and ns.Kicks.Init then ns.Kicks.Init() end
 end
 
 function handlers:PLAYER_LOGIN()

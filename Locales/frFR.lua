@@ -357,3 +357,7 @@ L["Best time"] = "Meilleur temps"
 L["Wipes"] = "Échecs"
 L["The game has not sent the keys yet: they show here in a few seconds."] = "Le jeu n'a pas encore envoyé les clés : elles apparaîtront ici dans quelques secondes."
 L["The keys, the rating, the Great Vault and the raids come from the game. Your performance comes from the runs RocketMeter recorded: %d keys and %d raids this season."] = "Les clés, la cote, la grande chambre forte et les raids viennent du jeu. Vos performances viennent des parties enregistrées par RocketMeter : %d clés et %d raids cette saison."
+
+-- (26/10) the interrupts' clock (Kicks.lua)
+L["Show each one's interrupt cooldown"] = "Afficher la recharge de chaque interruption"
+L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."] = "À côté de la colonne des interruptions : l'interruption de chacun, avec son temps de recharge. La vôtre est exacte ; celle des coéquipiers est déduite de ce que montre le jeu (un ennemi interrompu et qui a lancé quelque chose à cet instant), et si deux lancent en même temps, personne n'est crédité."

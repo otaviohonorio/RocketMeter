@@ -357,3 +357,7 @@ L["Best time"] = "최고 기록 시간"
 L["Wipes"] = "전멸"
 L["The game has not sent the keys yet: they show here in a few seconds."] = "게임이 아직 쐐기돌 정보를 보내지 않았습니다. 몇 초 후 여기에 표시됩니다."
 L["The keys, the rating, the Great Vault and the raids come from the game. Your performance comes from the runs RocketMeter recorded: %d keys and %d raids this season."] = "쐐기돌, 평점, 위대한 금고, 공격대 정보는 게임에서 가져옵니다. 내 성과는 RocketMeter가 기록한 전투에서 계산합니다: 이번 시즌 쐐기돌 %d회, 공격대 %d회."
+
+-- (26/10) the interrupts' clock (Kicks.lua)
+L["Show each one's interrupt cooldown"] = "각자의 차단 재사용 대기시간 표시"
+L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."] = "차단 열 옆에 각자의 차단 기술과 재사용 대기시간을 표시합니다. 내 것은 정확하며, 파티원의 것은 게임이 보여주는 정보(차단된 적과 그 순간 무언가를 시전한 사람)로 추정합니다. 두 명이 동시에 시전하면 아무에게도 기록하지 않습니다."

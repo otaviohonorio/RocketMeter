@@ -490,8 +490,8 @@ function Picker.Create()
     -- missing when a line is added.
     local h1 = H_SECTION + #columns * H_COLUMN_ROW
     -- Aparencia: fonte, linhas, os dois deslizadores de distancia, (19/10) o formato do icone,
-    -- o reino e (14/10) o botao do minimapa.
-    local h2 = H_SECTION + H_FIELD * 5 + H_CHECK * 2                   -- Aparencia
+    -- o reino, (14/10) o botao do minimapa e (26/10) a recarga do interrupt de cada um.
+    local h2 = H_SECTION + H_FIELD * 5 + H_CHECK * 3                   -- Aparencia
         + GAP_SECTION + H_SECTION + H_CHECK                            -- Sessao
         + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON * 2     -- Placar
         + GAP_SECTION + H_SECTION + H_CHECK                            -- (20/10) Registro de combate
@@ -591,6 +591,15 @@ function Picker.Create()
             ns.Window.Refresh()
             if ns.Breakdown and ns.Breakdown.Draw then ns.Breakdown.Draw() end
             if ns.Scoreboard and ns.Scoreboard.Refresh then ns.Scoreboard.Refresh() end
+        end)
+
+    -- (26/10) The interrupts' clock (Kicks.lua): each one's interrupt beside the interrupts column
+    y, frame.kickCheck = BuildCheck(colWindow, y, L["Show each one's interrupt cooldown"],
+        L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."],
+        function() return ns.db.kickClock ~= false end,
+        function(v)
+            ns.db.kickClock = v
+            if ns.Window and ns.Window.Rebuild then ns.Window.Rebuild() end
         end)
 
     y, frame.realmCheck = BuildCheck(colWindow, y, L["Show the realm next to the name"],
@@ -788,7 +797,7 @@ end
 function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
 
-    for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.iconShapeDrop, frame.realmCheck, frame.minimapCheck,
+    for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.iconShapeDrop, frame.kickCheck, frame.realmCheck, frame.minimapCheck,
                              frame.gapSlider, frame.pairSlider,
                              frame.autoSession, frame.autoMPlus, frame.autoRaid, frame.combatLog }) do
         if widget and widget.Refresh then widget.Refresh() end

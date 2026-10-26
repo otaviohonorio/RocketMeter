@@ -1028,7 +1028,77 @@ function ns.IconShape()
     return (ns.db and ns.db.iconShape == "round") and "round" or "square"
 end
 
-local function ApplyShape(texture)
+local ApplyShape
+
+---(26/10) The interrupt's icon of a strip: the spell's icon, the game's cooldown clock over it (CooldownFrameTemplate,
+---the action bars' own), the seconds in the middle, and the Cooldown Manager's gold frame when it is ready.
+local function KickIcon(faixa)
+    if faixa.kick then return faixa.kick end
+    local b = CreateFrame("Frame", nil, faixa.top)
+    b:EnableMouse(false)                               -- the row's click and tooltip go through
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints()
+    b.cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
+    b.cd:SetAllPoints()
+    b.cd:SetDrawEdge(false)
+    if b.cd.SetHideCountdownNumbers then b.cd:SetHideCountdownNumbers(true) end
+    b.over = CreateFrame("Frame", nil, b)
+    b.over:SetAllPoints()
+    b.over:SetFrameLevel(b.cd:GetFrameLevel() + 2)
+    b.num = b.over:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.num:SetPoint("CENTER", 0, 0)
+    b.glow = b.over:CreateTexture(nil, "OVERLAY")
+    b.glow:SetAtlas("ui-cooldownmanager-activeglow")
+    b.glow:SetPoint("TOPLEFT", -4, 4)
+    b.glow:SetPoint("BOTTOMRIGHT", 4, -4)
+    b.glow:Hide()
+    faixa.kick = b
+    return b
+end
+
+---The seconds left over the icon, while the clock runs (only then: the frame has no OnUpdate when ready).
+local function KickTick(self)
+    local left = (self.endAt or 0) - GetTime()
+    if left <= 0 then
+        self.num:SetText("")
+        self:SetScript("OnUpdate", nil)
+        return
+    end
+    self.num:SetText(left >= 10 and tostring(math.floor(left + 0.5)) or tostring(math.ceil(left)))
+end
+
+---Draws a row's interrupt (Kicks.ForRow's answer) on its strip's icon; hides it when there is none.
+function ns.DrawKick(faixa, state)
+    local b = faixa.kick
+    if not b then return end
+    if not state then b:Hide(); b:SetScript("OnUpdate", nil); return end
+    b.tex:SetTexture(state.icon or 134400)
+    ApplyShape(b.tex)
+    local round = ns.IconShape() == "round"
+    -- the clock's dark slice in the icon's own shape (the round one through the same mask as the icon)
+    if b.cd.SetSwipeTexture then
+        b.cd:SetSwipeTexture(round and ROUND_MASK or "Interface\\Buttons\\WHITE8X8", 0, 0, 0, 0.75)
+    end
+    if b.cd.SetUseCircularEdge then b.cd:SetUseCircularEdge(round) end
+    if state.state == "cooldown" then
+        b.cd:SetCooldown(state.start, state.duration)
+        b.tex:SetDesaturated(true)
+        b.glow:Hide()
+        b.endAt = state.start + state.duration
+        b:SetScript("OnUpdate", KickTick)
+        KickTick(b)
+    else
+        b.cd:Clear()
+        b.tex:SetDesaturated(false)
+        b.num:SetText("")
+        b:SetScript("OnUpdate", nil)
+        -- the gold frame is square: on a round icon "ready" is the lit icon alone
+        b.glow:SetShown(not round)
+    end
+    b:Show()
+end
+
+function ApplyShape(texture)
     local round = ns.IconShape() == "round"
     local mask = texture.roundMask
     if round and not mask then
@@ -1249,7 +1319,12 @@ end
 --- That also answers what he offered as an alternative (*"podemos por limite no tamanho da
 --- fonte... o limite por fonte pode mudar"*): with the column measuring its own text, the limit stops
 --- being needed -- it follows any font at any size, instead of assuming one.
+local KICK_ROOM = 26              -- (26/10) the interrupts' clock: the icon and its gap, beside the count (Kicks.lua)
+
 local function ColumnWidthFor(key)
+    if ns.Kicks and ns.Kicks.KindOfColumn(key) and ns.Kicks.Enabled() and key ~= "dispels" then
+        return ColumnWidthFor("dispels") + KICK_ROOM
+    end
     local def = ns.Data.GetColumn(key)
 
     -- A COUNT METRIC COMES FIRST, and not by `field`: interrupts and dispels are also
@@ -2038,6 +2113,31 @@ local function BuildRow(index)
 
         for i = #vao.grupo.keys + 1, #faixa.texts do faixa.texts[i]:SetText("") end
 
+        -- (26/10) THE INTERRUPTS' CLOCK (Kicks.lua): on the interrupts' strip, the icon at the right end and the
+        -- count beside it; on any other strip, or with the option off, no icon
+        faixa.kickKind = nil
+        if ns.Kicks and ns.Kicks.Enabled() and quantos == 1 then
+            faixa.kickKind = ns.Kicks.KindOfColumn(vao.grupo.keys[1])
+        end
+        if faixa.kickKind then
+            local size = math.min(height - CELL_INSET * 2 - 2, 22)
+            local b = KickIcon(faixa)
+            b:SetSize(size, size)
+            b:ClearAllPoints()
+            b:SetPoint("RIGHT", faixa, "RIGHT", -TEXT_INSET, 0)
+            ns.ApplyRoleFont(b.num, "body", PAIR_DELTA)
+            -- the count stays centred (the user: *"quando a coluna tiver apenas um valor, fica centralizado"*), in the
+            -- part of the strip left of the icon
+            local fs = faixa.texts[1]
+            fs:ClearAllPoints()
+            fs:SetJustifyH("CENTER")
+            fs:SetWidth(math.max(10, larguraFaixa - size - TEXT_INSET * 2 - 4))
+            fs:SetPoint("RIGHT", b, "LEFT", -4, 0)
+        elseif faixa.kick then
+            faixa.kick:Hide()
+            faixa.kick:SetScript("OnUpdate", nil)
+        end
+
         faixa:Show()
     end
 
@@ -2686,6 +2786,11 @@ function Window.Draw()
                 -- value and probing a secret value. It was the version that joined the two in a single
                 -- string that needed a special path in combat -- separated, each one
                 -- survives the fight on its own.
+                if faixa.kickKind then
+                    local okK, st = pcall(ns.Kicks.ForRow, source, faixa.kickKind)
+                    ns.DrawKick(faixa, okK and st or nil)
+                end
+
                 for i = 1, #grupo.keys do
                     local key = grupo.keys[i]
                     local pos = posicaoDe[key]

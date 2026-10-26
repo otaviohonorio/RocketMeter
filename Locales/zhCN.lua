@@ -357,3 +357,7 @@ L["Best time"] = "最佳时间"
 L["Wipes"] = "团灭"
 L["The game has not sent the keys yet: they show here in a few seconds."] = "游戏尚未发送钥石数据：几秒后会显示在这里。"
 L["The keys, the rating, the Great Vault and the raids come from the game. Your performance comes from the runs RocketMeter recorded: %d keys and %d raids this season."] = "钥石、评分、宏伟宝库和团队副本来自游戏。你的表现来自 RocketMeter 记录的战斗：本赛季 %d 次钥石、%d 次团队副本。"
+
+-- (26/10) the interrupts' clock (Kicks.lua)
+L["Show each one's interrupt cooldown"] = "显示每个人的打断冷却"
+L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."] = "在打断列旁显示每个人的打断技能和冷却。你自己的是准确的；队友的则根据游戏显示的信息推断（被打断的敌人以及那一刻谁施放了技能），两人同时施放时不计入任何人。"

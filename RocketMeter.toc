@@ -43,8 +43,10 @@ Data\SituationalSpells.lua
 Data\DefensiveSpells.lua
 Data\OpenSpells.lua
 Data\SpellOrigin.lua
+Data\Kicks.lua
 Data.lua
 Casts.lua
+Kicks.lua
 Party.lua
 Window.lua
 Minimap.lua
