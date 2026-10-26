@@ -653,6 +653,8 @@ function MyRun.Stop(result)
     pcall(MyRun.ReadDeaths)
     if AUTO[run.kind] then
         run.metrics = MyRun.Metrics("all", run)
+    elseif run.kind == "raid" then
+        run.metrics = MyRun.RaidWhole(run)
     else
         run.metrics = MyRun.LiveMetrics("all")
     end
@@ -1084,6 +1086,22 @@ end
 ---A fight answers from what was kept at its end (`f.m`); the trash is the sum of the fights
 ---without a boss; the whole run and the current fight are the meter's, read now (nil in
 ---combat); a saved run has the numbers taken at its end.
+-- (26/10) A RAID'S WHOLE. The game's "Overall" at the end of a raid is not the raid: of the 9 raids saved in 7
+-- characters' files, 3 held only the last fight (Eldríss, 23/10: Dimensius' 8,227,872, Salhadaar's 2,545,282 not in
+-- it), 1 held nothing (0), 4 a part; once it was more than the fights read (some fights went without a reading). Both
+-- are parts of the real whole, so the raid keeps the larger: the meter's whole or the sum of its own fights.
+local function Larger(a, b)
+    local ta = a and a.damage and Readable(a.damage.total) and a.damage.total or -1
+    local tb = b and b.damage and Readable(b.damage.total) and b.damage.total or -1
+    if ta < 0 and tb < 0 then return a or b end
+    return ta >= tb and a or b
+end
+
+---A raid's numbers of the whole, at its end: the larger of the meter's whole and the sum of its fights.
+function MyRun.RaidWhole(r)
+    return Larger(MyRun.LiveMetrics("all"), SumFights(r, function() return true end))
+end
+
 function MyRun.Metrics(scope, r)
     r = r or run
     local saved = r ~= nil and r ~= run
@@ -1098,6 +1116,7 @@ function MyRun.Metrics(scope, r)
         -- (20/10) a run that started by itself was saved with the sum of its readings, the earlier part of a
         -- session counted again (OwnReadings): summed again from its fights, it comes out right
         if AUTO[r.kind] then return SumFights(r, function() return true end) or Purify(r.metrics) end
+        if r.kind == "raid" then return Larger(Purify(r.metrics), SumFights(r, function() return true end)) end
         return Purify(r.metrics)
     elseif scope == "all" and r and AUTO[r.kind] then
         -- A session that started by itself: the sum of its own fights (see AUTO).

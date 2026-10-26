@@ -4,5 +4,5 @@
 - The end-of-key scoreboard, the spell breakdown, the settings, My run and the teammate window now use the game's dark background and its own frames. The meter window itself is unchanged.
 - The item you won on the Mythic+ end screen shows the game's own tooltip, with its bonuses and item level; Shift-click and Ctrl-click work as in the game.
 - **Statistics**: the trophy in the meter's header opens your keys, Great Vault and raids, for this week and for the whole season. Keys done, in time, over time and not finished, the highest in time, your Mythic+ rating and what it gained this week, each dungeon's best, the vault's progress and your raid lockouts come from the game itself, including keys done before you installed the addon. Your damage, rank in the group, deaths and interrupts per key come from the runs the meter recorded.
-- The last boss of a key no longer shows the whole key's numbers in My run.
+- The last boss of a key no longer shows the whole key's numbers in My run, and a raid's whole counts every boss (the game's overall sometimes held only the last one).
 - Brazilian Portuguese texts reviewed.
