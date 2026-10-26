@@ -1,27 +1,27 @@
 -- RocketMeter | Scoreboard.lua
--- O resumo de fim de Mítico+ e de encontro de raide.
+-- The end-of-Mythic+ and raid encounter summary.
 --
--- Aqui a densidade é outra: a corrida acabou, ninguém está lutando, e a tela pode respirar.
--- Linha alta com ícone de especialização e barra na cor da classe, cabeçalho com a estrela do
--- nível da chave, rodapé com a linha do tempo da corrida. Fecha só no X — ESC não fecha.
+-- Here the density is different: the run is over, nobody is fighting, and the screen can breathe.
+-- A tall row with the specialization icon and a bar in the class colour, a header with the key level's
+-- star, a footer with the run's timeline. It closes only on the X -- ESC does not close it.
 --
--- DE ONDE VEM A APARÊNCIA. A referência é o painel oficial de fim de M+ da Blizzard, e a arte
--- dele foi levantada nas próprias texturas do cliente. Três decisões saíram dessa leitura,
--- contra o que eu teria feito de palpite:
+-- WHERE THE LOOK COMES FROM. The reference is Blizzard's official end-of-M+ panel, and its art
+-- was surveyed in the client's own textures. Three decisions came from that reading,
+-- against what I would have done by guess:
 --
---   1. **Sem moldura dourada.** Nine-slice (`DialogBorderTemplate` e parentes) é bonito numa
---      caixa de diálogo estreita; num painel largo joga todo o peso visual para a periferia e
---      briga com a cor de classe das linhas. O painel de referência usa canto escuro e nenhuma
---      borda, e é por isso que lê como Blizzard moderno em vez de Blizzard 2008.
---   2. **`Fillagree` com dois L.** É erro de digitação da própria Blizzard no nome do atlas.
---      `BossBanner-LeftFiligree` falha em silêncio — nada aparece e nada avisa.
---   3. **Não existe atlas de "+1/+2/+3".** O painel oficial resolve com texto, e é o que
---      fazemos.
+--   1. **No gold frame.** Nine-slice (`DialogBorderTemplate` and relatives) is nice on a
+--      narrow dialog box; on a wide panel it throws all the visual weight to the edges and
+--      fights the rows' class colour. The reference panel uses a dark corner and no
+--      border, and that is why it reads as modern Blizzard instead of 2008 Blizzard.
+--   2. **`Fillagree` with two L's.** It is Blizzard's own typo in the atlas's name.
+--      `BossBanner-LeftFiligree` fails silently -- nothing shows and nothing warns.
+--   3. **There is no "+1/+2/+3" atlas.** The official panel solves it with text, and so
+--      do we.
 --
--- SILÊNCIO É O MODO DE FALHA. `SetAtlas` com nome inexistente não levanta erro: a textura
--- simplesmente não desenha. Todo atlas daqui passa por `Atlas()`, que consulta
--- `C_Texture.GetAtlasInfo` ANTES e devolve false para quem quiser um plano B. `/rm atlas`
--- imprime a lista inteira resolvida, para a dúvida morrer com um dado em vez de uma teoria.
+-- SILENCE IS THE FAILURE MODE. `SetAtlas` with a name that does not exist raises no error: the texture
+-- simply does not draw. Every atlas here goes through `Atlas()`, which asks
+-- `C_Texture.GetAtlasInfo` FIRST and returns false for whoever wants a plan B. `/rm atlas`
+-- prints the whole resolved list, so the doubt dies with data instead of a theory.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -31,16 +31,16 @@ ns.Scoreboard = Scoreboard
 --------------------------------------------------------------------------------
 -- Geometria
 --------------------------------------------------------------------------------
--- TODO NÚMERO DESTE BLOCO É MEDIDA, não estimativa. A fonte da verdade é a medida, não o
--- gosto. O que cada número mede vai no comentário, porque número sem procedência é número que
--- a próxima rodada "arruma" no olho.
+-- EVERY NUMBER OF THIS BLOCK IS A MEASURE, not an estimate. The source of truth is the measure, not
+-- taste. What each number measures goes in the comment, because a number with no provenance is a number
+-- the next round "fixes" by eye.
 --
--- O que ficou de fora, e por quê, está no cabeçalho de `ALL_COLUMNS`.
-local ROW_HEIGHT = 46            -- altura da linha
-local ROW_SPACING = 1            -- 1px entre uma linha e a seguinte
+-- What was left out, and why, is in `ALL_COLUMNS`'s header.
+local ROW_HEIGHT = 46            -- the row's height
+local ROW_SPACING = 1            -- 1px between one row and the next
 local LINE_INSET = 2             -- recuo da linha dentro do painel
 local SIDE = 5                   -- margem lateral do painel
-local HEADER_HEIGHT = 65         -- as linhas começam 65 abaixo do topo
+local HEADER_HEIGHT = 65         -- the rows start 65 below the top
 -- (!) TWO LINES (30/09): the header carries the family's name
 -- on the first line and the part of each column on the second ("Damage" over "per s" and
 -- "total"), so 2 x 16. The user, on "Interr - Missed - CC" in one line: *"só errou na coluna
@@ -48,22 +48,22 @@ local HEADER_HEIGHT = 65         -- as linhas começam 65 abaixo do topo
 local COLHEAD_HEIGHT = 32
 local COLHEAD_LINE = 16
 local COL_PADDING = 2            -- respiro entre colunas
--- O RODAPÉ FECHA A CONTA DA ALTURA do painel (14/10: o cabeçalho de colunas tem 32 hoje):
---   65 (cabeçalho) + 32 (colunas) + 5 × 47 (linhas) + 132 = 464.
--- Ele é grande porque o eixo de tempo não vem colado nas linhas: as linhas
--- terminam em −321 e o eixo só começa em −385. Aqueles 64px de respiro são o
--- que separa a tabela do gráfico — sem eles o eixo lê como mais uma linha da tabela.
+-- THE FOOTER CLOSES THE SUM OF THE PANEL'S HEIGHT (14/10: the column header is 32 today):
+--   65 (header) + 32 (columns) + 5 × 47 (rows) + 132 = 464.
+-- It is big because the time axis does not come glued to the rows: the rows
+-- end at −321 and the axis only starts at −385. Those 64px of breathing room are what
+-- separates the table from the chart -- without them the axis reads as one more row of the table.
 local FOOTER_HEIGHT = 132
 local MAX_ROWS = 20
 
--- Retrato, ícone de função e nível de item dentro da coluna de retrato
+-- The portrait, the role icon and the item level inside the portrait column
 local PORTRAIT_INSET = 2         -- recuo do retrato dentro da linha
-local ROLE_SIZE = 18             -- ícone de função 18x18
+local ROLE_SIZE = 18             -- role icon 18x18
 local ROLE_X, ROLE_Y = -9, -2    -- ancorado em `bottomright` do retrato
 local ILVL_FONT = 11
 local ILVL_BG_HEIGHT = 14
 local ILVL_BG_INSET = 7
-local SPEC_ICON = 20             -- ícone de especialização 20x20
+local SPEC_ICON = 20             -- specialization icon 20x20
 local KEYSTONE_ICON = 45         -- lado do quadro da pedra
 local KEYSTONE_FONT = 12
 -- The game's own: icon of 50 in a frame of 52 (Blizzard_ChallengesUI.xml), at our 45.
@@ -71,50 +71,50 @@ local KEYSTONE_INNER = math.floor(KEYSTONE_ICON * 50 / 52 + 0.5)
 local KEYSTONE_FRAME_ATLAS = "ChallengeMode-DungeonIconFrame"
 -- What the game shows for a dungeon with no icon (Blizzard_ChallengesUI.lua, `SetUp`).
 local KEYSTONE_NO_ART = "Interface\\Icons\\achievement_bg_wineos_underxminutes"
-local LOOT_ICON = 32             -- ícone de saque 32x32
+local LOOT_ICON = 32             -- loot icon 32x32
 
--- Fundo alternado das linhas. Branco a 5% e a 10% SOBRE o fundo do painel — não é
--- preto sobre preto: a diferença entre as duas linhas é clara mesmo com a arte da masmorra
--- aparecendo por trás, que é o caso real.
+-- The rows' alternating background. White at 5% and at 10% OVER the panel's background -- it is not
+-- black on black: the difference between the two rows is clear even with the dungeon's art
+-- showing behind, which is the real case.
 local ROW_TINT_ODD = { 1, 1, 1, 0.10 }
 local ROW_TINT_EVEN = { 1, 1, 1, 0.05 }
 
--- Cabeçalho de coluna: célula com fundo próprio, texto branco a 10.
+-- A column header: a cell with its own background, white text at 10.
 local COLHEAD_TINT = { 0, 0, 0, 0.5 }
 local COLHEAD_TINT_SORTED = { 0.3, 0.3, 0.3, 0.5 }
 
 local TITLE_Y = -12              -- nome da masmorra, 12 abaixo do topo
 
--- ⚑ OS CORPOS SUBIRAM 2, a pedido (*"aumente só um pouco a fonte"*, 10/09/2026). E subiram TODOS
--- juntos, de propósito: a hierarquia do cabeçalho é a razão entre eles (20/16/11 ≈ 1,8 e 1,45), e
--- crescer um só a achataria. Com +2 vira 22/18/13, e as razões ficam 1,22 e 1,38 — mais próximas
--- entre si, o que é o efeito de aumentar tudo; o que não pode é inverter, e não inverte.
+-- ⚑ THE SIZES WENT UP 2, by request (*"aumente só um pouco a fonte"*, 10/09/2026). And they ALL went up
+-- together, on purpose: the header's hierarchy is the ratio between them (20/16/11 ≈ 1.8 and 1.45), and
+-- growing one alone would flatten it. With +2 it becomes 22/18/13, and the ratios become 1.22 and 1.38 -- closer
+-- to each other, which is the effect of enlarging everything; what cannot happen is inverting, and it does not invert.
 --
--- O tempo é o que mais ganha em presença relativa, e isso é intencional: ele deixou de ser a
--- segunda linha do título e virou o bloco da direita, onde precisa se sustentar sozinho.
+-- The time is what gains most in relative presence, and that is intended: it stopped being the
+-- title's second line and became the right-hand block, where it has to hold up alone.
 local TITLE_SIZE = 22            -- era 20
 local CLOCK_SIZE = 18            -- era 16
 local IDLE_SIZE = 13             -- era 11
 
--- O bloco da direita: o tempo começa na mesma altura do título, e o resultado 2px abaixo dele.
--- Os 2 são o mesmo `GAP_LABEL` que cola rótulo em controle na tela de configuração — aqui o
--- resultado é legenda do tempo, e legenda mora colada no que descreve.
+-- The right-hand block: the time starts at the same height as the title, and the result 2px below it.
+-- The 2 are the same `GAP_LABEL` that glues a label to a control on the settings screen -- here the
+-- result is the time's caption, and a caption lives glued to what it describes.
 local CLOCK_Y = -14
 local RESULT_GAP = -2
 local RESULT_SIZE = 13           -- legenda do tempo: mesmo corpo da faixa de contexto
 
--- ⚑ QUANTO O BLOCO DA DIREITA ENTRA PARA DENTRO. Na 0.85.0 ele nasceu em 29 (a margem do painel
--- mais um respiro) e ficou colado na borda — *"o tempo à direita ficou muito à direita... deixando
+-- ⚑ HOW FAR THE RIGHT-HAND BLOCK COMES IN. In 0.85.0 it was born at 29 (the panel's margin
+-- plus a breathing room) and sat glued to the edge -- *"o tempo à direita ficou muito à direita... deixando
 -- ele à direita, mas não tão à direita"* (10/09/2026).
 --
--- 65 não é um número escolhido no olho: é a largura de uma coluna de contagem (**60**) mais a
--- margem lateral do painel (**5**). Com ele o bloco fica **sobre a última coluna** em vez de
--- pendurado no canto — quer dizer, alinhado a uma borda que já existe na tela, e não a uma
--- distância inventada. Se a largura das colunas mudar, este número tem um lugar de onde vir.
+-- 65 is not a number picked by eye: it is the width of a count column (**60**) plus the
+-- panel's side margin (**5**). With it the block sits **over the last column** instead of
+-- hanging in the corner -- that is, aligned to an edge that already exists on screen, and not to an
+-- invented distance. If the columns' width changes, this number has a place to come from.
 local CLOCK_RIGHT_INSET = 65
 
--- Estrela do nível da chave: 100x100 centrada em ("center", frame, "top", 0, 27). Os números
--- foram medidos contra o painel oficial — mantidos, não recalibrados.
+-- The key level's star: 100x100 centred at ("center", frame, "top", 0, 27). The numbers
+-- were measured against the official panel -- kept, not recalibrated.
 local STAR_SIZE = 100
 local STAR_OFFSET_Y = 27
 local FILIGREE_SIDE_W, FILIGREE_SIDE_H = 72, 43
@@ -122,18 +122,18 @@ local FILIGREE_SIDE_X = 50
 local FILIGREE_BOTTOM_W, FILIGREE_BOTTOM_H = 66, 28
 local FILIGREE_BOTTOM_Y = -19
 
--- Linha do tempo: trilho de 4px, marcadores de boss acima, mortes abaixo, eixo por último.
+-- The timeline: a 4px rail, boss markers above, deaths below, the axis last.
 local RAIL_HEIGHT = 4
 local BOSS_ICON = 18
 local DEATH_ICON = 11
-local CHEST_ICON = 26            -- nativo 257x226 escalado; aqui só a altura importa
--- A FAIXA DE CLASSE NO RODAPÉ DA LINHA SAIU (era `BAR_STRIP_HEIGHT`/`BAR_ALPHA`), e com ela a
--- escala de dano que ela desenhava: num placar de fim de corrida a comparação se faz lendo a
--- coluna, não medindo barras — e a identidade da classe continua em três lugares na mesma linha (retrato, ícone de
--- especialização e cor do nome).
+local CHEST_ICON = 26            -- native 257x226 scaled; here only the height matters
+-- THE CLASS STRIP AT THE FOOT OF THE ROW WENT AWAY (it was `BAR_STRIP_HEIGHT`/`BAR_ALPHA`), and with it the
+-- damage scale it drew: on an end-of-run scoreboard the comparison is made reading the
+-- column, not measuring bars -- and the class's identity stays in three places on the same row (portrait,
+-- specialization icon and the name's colour).
 
--- Todo atlas usado pelo painel, num lugar só, para `/rm atlas` conferir a lista inteira de uma
--- vez em vez de descobrir um nome quebrado por rodada de teste.
+-- Every atlas the panel uses, in one place, so `/rm atlas` checks the whole list at
+-- once instead of finding one broken name per test round.
 ns.SCOREBOARD_ATLASES = {
     "ChallengeMode-SpikeyStar",
     "BossBanner-LeftFillagree",
@@ -148,12 +148,12 @@ ns.SCOREBOARD_ATLASES = {
     "roleicon-tiny-dps",
     "ui-damagemeters-header-bar",
     "common-icon-redx",
-    -- Cadeado destravado do cabecalho da janela (0.55.0). Entra aqui porque `/rm atlas` e o
-    -- unico jeito de saber se ele existe: `SetAtlas` com nome invalido falha em silencio.
+    -- The window header's unlocked padlock (0.55.0). It comes in here because `/rm atlas` is the
+    -- only way to know whether it exists: `SetAtlas` with an invalid name fails silently.
     "common-icon-move",
-    -- O placar de Mítico+ (0.66.0). Todos conferidos na fonte do
-    -- 12.1.0 antes de entrar; ficam aqui porque `/rm atlas` e o unico jeito de descobrir que um
-    -- deles deixou de existir num patch -- `SetAtlas` com nome morto nao avisa nada.
+    -- The Mythic+ scoreboard (0.66.0). All checked in the
+    -- 12.1.0 source before coming in; they stay here because `/rm atlas` is the only way to find out that one
+    -- of them stopped existing in a patch -- `SetAtlas` with a dead name warns nothing.
     "auctionhouse-icon-clock",                    -- tempo fora de combate
     "bags-icon-equipment",                        -- nivel de item medio
     "UI-LFG-RoleIcon-Tank-Micro-GroupFinder",     -- TextureUtil.lua:187-189
@@ -169,20 +169,20 @@ ns.SCOREBOARD_ATLASES = {
 --------------------------------------------------------------------------------
 -- Colunas
 --------------------------------------------------------------------------------
--- AS COLUNAS, NA ORDEM E NA LARGURA DA 0.66.0:
+-- THE COLUMNS, IN THE ORDER AND WIDTH OF 0.66.0:
 --
---   retrato 60 · especialização 25 · nome 110 · pedra 60 · pontuação 90 ·
---   saque 80 · mortes 80 · dano evitável 80 · dano recebido 100 · DPS 100 · CPS 100 ·
---   interrupções 100 · dissipações 80
+--   portrait 60 · specialization 25 · name 110 · keystone 60 · score 90 ·
+--   loot 80 · deaths 80 · avoidable damage 80 · damage taken 100 · DPS 100 · HPS 100 ·
+--   interrupts 100 · dispels 80
 --
--- ⚠️ **CURTIDAS NÃO ENTRAM, e não é preguiça.** Um "gg" entre jogadores precisaria de um
--- canal de addon próprio, e só responderia quem roda o mesmo addon. Um RocketMeter com
--- essa coluna mostraria **0** para sempre, em todas as linhas, para todo mundo: uma
--- coluna que só sabe mentir ocupa espaço e ensina o jogador a desconfiar do resto da tela.
+-- ⚠️ **LIKES DO NOT COME IN, and it is not laziness.** A "gg" between players would need an
+-- addon channel of its own, and only whoever runs the same addon would answer. A RocketMeter with
+-- that column would show **0** forever, on every row, for everyone: a
+-- column that can only lie takes space and teaches the player to distrust the rest of the screen.
 --
--- `render` marca a coluna que desenha algo que não é número; sem ele, é célula numérica e o
--- rótulo curto e o formato saem do catálogo de `Data.lua`, sem cópia. `custom` marca as que o
--- `C_DamageMeter` não conhece e o placar preenche por conta própria.
+-- `render` marks the column that draws something that is not a number; without it, it is a numeric cell and the
+-- short label and the format come from `Data.lua`'s catalogue, with no copy. `custom` marks the ones
+-- `C_DamageMeter` does not know and the scoreboard fills on its own.
 local ALL_COLUMNS = {
     { key = "portrait",   width = 60,  render = "portrait", custom = true, label = "" },
     { key = "spec",       width = 25,  render = "spec",     custom = true, label = "" },
@@ -191,24 +191,24 @@ local ALL_COLUMNS = {
     { key = "score",      width = 90,  render = "score",    custom = true, label = L["Score"] },
     { key = "loot",       width = 80,  render = "loot",     custom = true, label = L["Loot"] },
 
-    -- ⚑ DAQUI PARA BAIXO A ORDEM E AS LARGURAS SÃO DECISÃO DO USUÁRIO (10/09/2026), não
-    -- descuido: *"tá faltando o total de dano e total de cura, e vamos ordenar
+    -- ⚑ FROM HERE DOWN THE ORDER AND THE WIDTHS ARE THE USER'S DECISION (10/09/2026), not
+    -- carelessness: *"tá faltando o total de dano e total de cura, e vamos ordenar
     -- isso, depois da coluna saque, vem o DPS, Dano, CPS, Cura, Interrupts, Disspel, Mortes,
     -- Evitavel, Recebido, pode diminuir só um pouco a largura das colunas"*.
     --
-    -- As seis de cima (retrato, spec, nome, pedra, pontuação, saque) continuam como estavam:
-    -- são identidade e Mítico+.
+    -- The six above (portrait, spec, name, keystone, score, loot) stay as they were:
+    -- they are identity and Mythic+.
     --
-    -- A ORDEM TEM UMA LÓGICA, e ela casa com a da janela de combate: **a taxa vem antes do
-    -- total**, porque a taxa é a leitura principal e o total é o contexto dela — a mesma decisão
-    -- que inverteu o brilho do par na 0.82.0. Depois vêm as contagens, e por último o dano
-    -- recebido, que é o que menos se olha ao fim de uma chave.
+    -- THE ORDER HAS A LOGIC, and it matches the combat window's: **the rate comes before the
+    -- total**, because the rate is the main reading and the total is its context -- the same decision
+    -- that inverted the pair's brightness in 0.82.0. Then come the counts, and last the damage
+    -- taken, which is what is least looked at at the end of a key.
     --
-    -- AS LARGURAS descem em dois degraus, não num só: métrica de valor (dano, cura, DPS, CPS,
-    -- recebido, evitável) fica em **84**, e métrica de CONTAGEM (interrupções, dissipações,
-    -- mortes) em **60**. Contagem escreve "7", não "44.4M" — dar a ela a mesma caixa era o que
-    -- fazia a tabela parecer vazia à direita. O piso de 60 é o rótulo: "Dissip" e "Mortes"
-    -- precisam caber no cabeçalho, senão a coluna perde o nome.
+    -- THE WIDTHS go down in two steps, not one: a value metric (damage, healing, DPS, HPS,
+    -- taken, avoidable) stays at **84**, and a COUNT metric (interrupts, dispels,
+    -- deaths) at **60**. A count writes "7", not "44.4M" -- giving it the same box was what
+    -- made the table look empty on the right. The floor of 60 is the label: "Dissip" and "Mortes"
+    -- have to fit in the header, or the column loses its name.
     { key = "dps",        width = 84 },
     { key = "damage",     width = 84 },
     { key = "hps",        width = 84 },
@@ -222,28 +222,28 @@ local ALL_COLUMNS = {
 
 local DEFAULT_SORT = "dps"
 
--- As colunas VISÍVEIS nesta corrida. O catálogo acima é fixo; esta lista é recalculada a cada
--- desenho porque um placar de raide não tem pontuação de Mítico+ — mostrar a coluna vazia (ou
--- pior, com a pontuação de M+ de cada um ao lado do dano num boss de raide) é ruído com cara
--- de dado. Todo o resto do arquivo lê daqui, nunca do catálogo.
+-- The columns VISIBLE in this run. The catalogue above is fixed; this list is recomputed at every
+-- drawing because a raid scoreboard has no Mythic+ score -- showing the column empty (or
+-- worse, with each one's M+ score beside the damage on a raid boss) is noise that looks
+-- like data. The whole rest of the file reads from here, never from the catalogue.
 local columns = ALL_COLUMNS
 
 local frame, headerRow, rows, timeline
 local sortBy, sortDesc = DEFAULT_SORT, true
-local context                -- a corrida que está na tela
+local context                -- the run on screen
 
----A corrida em tela é uma chave de Mítico+? O placar de raide não tem nível, nem afixos, nem
----baú, nem eixo de tempo — e mostrar essas peças vazias em volta de um boss morto é pior que
----não mostrar nada. `level` é o que separa os dois casos.
+--- Is the run on screen a Mythic+ key? The raid scoreboard has no level, no affixes, no
+--- chest, no time axis -- and showing those pieces empty around a dead boss is worse than
+--- showing nothing. `level` is what separates the two cases.
 local function IsKeystone()
     return context ~= nil and context.level ~= nil
 end
 
----Recalcula quais colunas aparecem.
+--- Recomputes which columns show.
 ---
----Fora de uma chave saem as três que só existem em Mítico+ — pedra, pontuação e saque. As
----outras `custom` (retrato, especialização, nome) valem em qualquer placar e ficam: um placar
----de raide sem a coluna de nome seria uma tabela de números sem dono.
+--- Outside a key the three that only exist in Mythic+ go -- keystone, score and loot. The
+--- other `custom` ones (portrait, specialization, name) hold on any scoreboard and stay: a raid
+--- scoreboard without the name column would be a table of numbers with no owner.
 local KEYSTONE_ONLY = { keystone = true, score = true, loot = true }
 
 local function ComputeColumns()
@@ -256,9 +256,9 @@ local function ComputeColumns()
     return out
 end
 
----Altura do rodapé. Sem linha do tempo ele não precisa dos 66px — sobrariam como um vão
----vazio embaixo das linhas, que é o tipo de espaço reservado para nada que faz uma janela
----parecer quebrada.
+--- The footer's height. Without a timeline it does not need the 66px -- they would be left as an
+--- empty gap under the rows, the kind of space reserved for nothing that makes a window
+--- look broken.
 local function FooterHeight()
     return IsKeystone() and FOOTER_HEIGHT or 20
 end
@@ -288,13 +288,13 @@ local function HeaderGroups()
     return groups
 end
 
----A borda ESQUERDA de cada coluna, e a largura total.
+--- Each column's LEFT edge, and the total width.
 ---
----Da esquerda para a direita, e este é o giro de 180° da 0.66.0: o placar antigo
----empilhava as colunas a partir da BORDA DIREITA, com um bloco fixo de nome à esquerda. Agora
----cada coluna começa onde a anterior terminou, mais o respiro
----(`COL_PADDING`), e o conteúdo da célula se alinha à esquerda dela. Nome e retrato deixam de
----ser exceção e viram duas colunas como as outras.
+--- From left to right, and this is the 180° turn of 0.66.0: the old scoreboard
+--- stacked the columns from the RIGHT EDGE, with a fixed name block on the left. Now
+--- each column starts where the previous one ended, plus the breathing room
+--- (`COL_PADDING`), and the cell's content aligns to its left. Name and portrait stop
+--- being an exception and become two columns like the others.
 local function ColumnOffsets()
     local offsets, x = {}, 0
     for c = 1, #columns do
@@ -315,10 +315,10 @@ local function PanelHeight(rowCount)
         + FooterHeight()
 end
 
----Quantas linhas cabem na tela. Uma raide de 20 pessoas daria 866px de painel mais a estrela
----por cima: em tela de 1080 com escala de UI padrão o rodapé sai por baixo e o usuário não
----tem como arrastar de volta o que está fora. O piso de 3 existe para o caso de a altura do
----UIParent vir estranha — melhor um painel pequeno que um painel de uma linha.
+--- How many rows fit on the screen. A 20-person raid would give 866px of panel plus the star
+--- on top: on a 1080 screen with the default UI scale the footer goes out at the bottom and the user
+--- has no way to drag back what is outside. The floor of 3 exists for the case of the
+--- UIParent's height coming odd -- better a small panel than a one-row panel.
 local function MaxRowsOnScreen()
     local screen = UIParent and UIParent:GetHeight()
     if not screen or screen <= 0 then return MAX_ROWS end
@@ -331,14 +331,14 @@ local function MaxRowsOnScreen()
 end
 
 --------------------------------------------------------------------------------
--- Arte, com o silêncio contornado
+-- Art, with the silence worked around
 --------------------------------------------------------------------------------
----Aplica um atlas só se ele existir neste cliente.
+--- Applies an atlas only if it exists in this client.
 ---
----`SetAtlas` com nome errado não levanta erro nem devolve nada — a textura fica vazia e o bug
----aparece semanas depois como "aquele canto está esquisito". Consultar `GetAtlasInfo` antes é
----o que permite ter plano B.
----@return boolean aplicado
+--- `SetAtlas` with a wrong name raises no error nor returns anything -- the texture stays empty and the bug
+--- shows weeks later as "that corner looks odd". Asking `GetAtlasInfo` first is
+--- what allows a plan B.
+--- @return boolean applied
 local function Atlas(texture, name)
     if not texture or not name then return false end
     local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)
@@ -353,15 +353,15 @@ local ROLE_ATLAS = {
     DAMAGER = "roleicon-tiny-dps",
 }
 
----Função (tanque / curandeiro / dano) de um jogador, pelo nome.
+--- A player's role (tank / healer / damage), by name.
 ---
----O medidor não informa função, e sem isto o ícone só aparecia na SIMULAÇÃO — na corrida real
----cada linha ficava com 19px vazios à esquerda, o que faz o painel parecer desalinhado sem
----que dê para dizer por quê. Varrer as unidades do grupo é barato (no máximo 40 chamadas) e
----não depende de inspeção nem de comunicação entre addons.
+--- The meter does not give the role, and without this the icon only showed in the SIMULATION -- in the real run
+--- each row stayed with 19px empty on the left, which makes the panel look misaligned without
+--- anyone being able to say why. Sweeping the group's units is cheap (40 calls at most) and
+--- does not depend on inspection nor on communication between addons.
 ---
----`UnitName` continua legível em combate (identidade não é secret por padrão), mas o cliente
----pode escondê-la caso a caso — daí a checagem antes de comparar.
+--- `UnitName` stays readable in combat (identity is not secret by default), but the client
+--- can hide it case by case -- hence the check before comparing.
 local function RoleFor(name)
     if name == nil or issecretvalue(name) or type(name) ~= "string" then return nil end
     if not UnitGroupRolesAssigned or not UnitName then return nil end
@@ -388,12 +388,12 @@ local function RoleFor(name)
     return nil
 end
 
----Fundo do painel: a arte da própria masmorra, dessaturada e apagada.
+--- The panel's background: the dungeon's own art, desaturated and faded.
 ---
----O 5º retorno de `GetMapUIInfo` é o `backgroundTexture` da masmorra — funciona para qualquer
----masmorra, presente ou futura, sem tabela amarrada a temporada (a outra saída, uma pasta
----de `.jpg` por masmorra, deixa de cobrir a temporada assim que ela muda). Sem mapID — que é o
----caso da simulação — simplesmente não há fundo, e o painel fica no escuro liso.
+--- `GetMapUIInfo`'s 5th return is the dungeon's `backgroundTexture` -- it works for any
+--- dungeon, present or future, with no table tied to a season (the other way out, a folder
+--- of `.jpg` per dungeon, stops covering the season as soon as it changes). With no mapID -- which is the
+--- simulation's case -- there is simply no background, and the panel stays on the plain dark.
 local function ApplyBackdropArt(texture, mapID)
     texture:SetTexture(nil)
     if not mapID or not C_ChallengeMode or not C_ChallengeMode.GetMapUIInfo then return false end
@@ -410,12 +410,12 @@ end
 --------------------------------------------------------------------------------
 -- Dados
 --------------------------------------------------------------------------------
----Pontuação de M+ de um jogador pelo nome.
+--- A player's M+ score by name.
 ---
----`GetPlayerMythicPlusRatingSummary` aceita nome ou unit token; o placar só tem o nome que o
----medidor devolveu. Em combate a identidade pode ser secret, e aí não há o que consultar —
----por isso o `pcall` e a checagem: o placar aparece depois da corrida, mas o usuário pode
----reabrir no meio de outra luta.
+--- `GetPlayerMythicPlusRatingSummary` accepts a name or a unit token; the scoreboard only has the name the
+--- meter returned. In combat the identity can be secret, and then there is nothing to look up --
+--- hence the `pcall` and the check: the scoreboard shows after the run, but the user can
+--- reopen it in the middle of another fight.
 local function ScoreFor(name)
     if name == nil or issecretvalue(name) then return nil end
     if not C_PlayerInfo or not C_PlayerInfo.GetPlayerMythicPlusRatingSummary then return nil end
@@ -425,20 +425,20 @@ local function ScoreFor(name)
     return summary.currentSeasonScore
 end
 
----Normaliza as linhas para que `values[c]` corresponda sempre a `columns[c]`.
+--- Normalises the rows so that `values[c]` always matches `columns[c]`.
 ---
----`Data.GetRows` só conhece colunas de medidor, então ele recebe a sublista e devolve valores
----indexados por ela. Remapear aqui é o que permite ao desenho ter um caminho só, valendo
----igual para corrida real e para simulação — dois caminhos de desenho divergem na terceira
----mudança, e o projeto já pagou por isso uma vez.
+--- `Data.GetRows` only knows meter columns, so it gets the sublist and returns values
+--- indexed by it. Remapping here is what lets the drawing have one path only, holding
+--- the same for a real run and for the simulation -- two drawing paths drift apart at the third
+--- change, and the project already paid for that once.
 --------------------------------------------------------------------------------
--- Retrato da corrida: da sessão viva para dado gravável
+-- The run's picture: from the live session to data that can be saved
 --------------------------------------------------------------------------------
----Todas as chaves de coluna que um retrato guarda.
+--- Every column key a picture keeps.
 ---
----Guarda o catálogo INTEIRO, não só o que está visível: quem abrir a corrida daqui a uma
----semana pode ter mudado as colunas, e um retrato que só gravou o que estava na tela naquele
----dia obriga a resposta "esse dado eu não tenho". Gravar tudo custa oito números por jogador.
+--- It keeps the WHOLE catalogue, not only what is visible: whoever opens the run a
+--- week from now may have changed the columns, and a picture that only saved what was on screen that
+--- day forces the answer "I do not have that data". Saving everything costs eight numbers per player.
 local function SnapshotKeys()
     local keys = {}
     for c = 1, #ALL_COLUMNS do
@@ -447,20 +447,20 @@ local function SnapshotKeys()
     return keys
 end
 
----Um número que possa ir para o disco, ou nil.
+--- A number that can go to disk, or nil.
 ---
----Secret value **não pode ser serializado** — é regra explícita do Midnight, e tentar gravá-lo
----nos SavedVariables é erro. Aqui ele simplesmente não entra: a célula fica vazia no retrato,
----que é honesto, em vez de gravar lixo ou derrubar a captura.
+--- A secret value **cannot be serialised** -- it is an explicit Midnight rule, and trying to write it
+--- to the SavedVariables is an error. Here it simply does not go in: the cell stays empty in the picture,
+--- which is honest, instead of saving garbage or bringing the capture down.
 local function Storable(value)
     if value == nil or issecretvalue(value) then return nil end
     if type(value) ~= "number" then return nil end
     return value
 end
 
----Copia a sessão viva para uma tabela solta, pronta para desenhar e para gravar.
----@param base table o contexto da corrida (título, tempo, afixos, linha do tempo...)
----@return table retrato
+--- Copies the live session into a loose table, ready to draw and to save.
+--- @param base table the run's context (title, time, affixes, timeline...)
+--- @return table picture
 function Scoreboard.Snapshot(base)
     local keys = SnapshotKeys()
     local data = ns.Data.GetRows(base.sessionType or 1, DEFAULT_SORT, keys, MAX_ROWS, false)
@@ -486,9 +486,9 @@ function Scoreboard.Snapshot(base)
         local isLocal = source.isLocalPlayer
         isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
 
-        -- O QUE O MEDIDOR NÃO SABE viaja no retrato junto com o resto: nível de item, pedra e
-        -- saque. Tem que ser AQUI, no instante da captura — uma corrida reaberta na semana que
-        -- vem não tem mais grupo para inspecionar nem evento de saque para ouvir.
+        -- WHAT THE METER DOES NOT KNOW travels in the picture with the rest: item level, keystone and
+        -- loot. It has to be HERE, at the moment of capture -- a run reopened next
+        -- week no longer has a group to inspect nor a loot event to hear.
         local ilevel, keystoneLevel, keystoneMapID, gotLoot
         if ns.Party then
             ilevel = ns.Party.ItemLevel(source.name)
@@ -519,11 +519,11 @@ end
 --------------------------------------------------------------------------------
 -- Corridas guardadas
 --------------------------------------------------------------------------------
----Onde as corridas moram.
+--- Where the runs live.
 ---
----SavedVariable PRÓPRIO, por personagem, fora de `ns.db`: `Profile.Reset()` apaga tudo que
----está na configuração, e "restaurar o padrão" não pode significar "perder as corridas". Além
----disso a corrida é do personagem que a fez, não da conta.
+--- A SavedVariable OF ITS OWN, per character, outside `ns.db`: `Profile.Reset()` erases everything
+--- in the settings, and "restore defaults" cannot mean "lose the runs". Besides,
+--- the run belongs to the character who made it, not to the account.
 local function Store()
     if RocketMeterRunsDB == nil then RocketMeterRunsDB = {} end
     return RocketMeterRunsDB
@@ -540,22 +540,22 @@ function Scoreboard.GetRun(kind)
     return run
 end
 
----Põe a CLASSE em cada marcador de morte da linha do tempo — quando dá para provar qual é.
+--- Puts the CLASS on each death marker of the timeline -- when it can be proven which.
 ---
----Pedido de 10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"*.
+--- The request of 10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"*.
 ---
----⚑ SÃO DUAS FONTES E NENHUMA DELAS SOZINHA RESPONDE. O `Run` sabe **quando** cada morte
----aconteceu, no relógio da chave, mas o evento dele não diz **quem**. A métrica de mortes do
----medidor sabe **quem** (uma entrada por óbito, com a classe), mas o relógio dela é
----`deathTimeSeconds`, e daqui não dá para confirmar de onde ele conta.
+--- ⚑ THERE ARE TWO SOURCES AND NEITHER ALONE ANSWERS. `Run` knows **when** each death
+--- happened, on the key's clock, but its event does not say **who**. The meter's deaths metric
+--- knows **who** (one entry per death, with the class), but its clock is
+--- `deathTimeSeconds`, and from here there is no confirming where it counts from.
 ---
----Então não se mistura relógio: o `Run` continua posicionando, e a lista do medidor só empresta a
----classe **na ordem**. E isso só é honesto sob uma condição que dá para verificar em tempo de
----execução: **as duas listas terem o mesmo tamanho**. Se tiverem, cada morte do medidor casa com
----o marcador de mesma posição. Se não tiverem, alguma das duas viu algo que a outra não viu, a
----correspondência por ordem passa a ser chute, e o marcador fica a caveira de sempre.
+--- So the clocks are not mixed: `Run` still places, and the meter's list only lends the
+--- class **in order**. And that is only honest under a condition that can be checked at
+--- run time: **the two lists having the same size**. If they do, each death of the meter matches
+--- the marker in the same position. If not, one of the two saw something the other did not, the
+--- match by order becomes a guess, and the marker stays the usual skull.
 ---
----É a diferença entre um ícone que pode estar errado e um ícone que só aparece quando está certo.
+--- It is the difference between an icon that may be wrong and an icon that only shows when it is right.
 local function AttachDeathClasses(base)
     local marks = base.deathMarks
     if type(marks) ~= "table" or #marks == 0 then return end
@@ -596,38 +596,38 @@ local function AttachDeathClasses(base)
     end
 end
 
----O saque chegou DEPOIS da captura. Costura ele na corrida que já está retratada.
+--- The loot arrived AFTER the capture. Stitches it into the run already pictured.
 ---
----⚑ ESTE É O DEFEITO DO PRINT DE 10/09, e o diário do usuário o datou sem sobrar dúvida:
+--- ⚑ THIS IS THE DEFECT OF THE PRINT OF 10/09, and the user's log dated it with no doubt left:
 ---
----    00:33:16  snapshot  fim do combate
----    00:33:18  saque cru  Kankerlekker  (descartado: não é arma nem armadura)
----    00:33:20  saque      Gsm
----    00:33:30  saque      Dauð
+---    00:33:16  snapshot  end of combat
+---    00:33:18  raw loot  Kankerlekker  (discarded: neither weapon nor armour)
+---    00:33:20  loot      Gsm
+---    00:33:30  loot      Dauð
 ---
----`Scoreboard.OnChallengeCompleted` roda **1,5 s** depois do `CHALLENGE_MODE_COMPLETED` — ou seja,
----por volta de 00:33:18. O saque do Gsm chegou 2 s depois e o do próprio jogador **12 s** depois.
----A coluna era capturada vazia e nunca mais olhava para trás; por isso ela estava vazia para
----**todo mundo**, inclusive para quem abriu o painel e sabia que tinha ganhado item.
+--- `Scoreboard.OnChallengeCompleted` runs **1.5 s** after `CHALLENGE_MODE_COMPLETED` -- that is,
+--- around 00:33:18. Gsm's loot arrived 2 s later and the player's own **12 s** later.
+--- The column was captured empty and never looked back; that is why it was empty for
+--- **everyone**, including whoever opened the panel and knew he had won an item.
 ---
----Esperar mais antes de capturar não resolve: não há prazo garantido para o último item cair, e
----qualquer número escolhido aqui seria chute. Costurar depois resolve para qualquer atraso.
+--- Waiting longer before capturing does not solve it: there is no guaranteed deadline for the last item to drop, and
+--- any number chosen here would be a guess. Stitching afterwards solves it for any delay.
 ---
----Mexe nos DOIS lugares onde a corrida existe, e é por isso que a função é uma só: o retrato em
----memória (o que está na tela) e o gravado em disco (o que `/rm score` reabre amanhã).
+--- It touches BOTH places where the run exists, and that is why the function is one: the picture in
+--- memory (what is on screen) and the one saved on disk (what `/rm score` reopens tomorrow).
 ---
----⚑ E O DESENHO NÃO SE ATUALIZA SOZINHO — quem repinta é `Scoreboard.Refresh`, chamado no fim.
----`Scoreboard.Refresh`, e não o `SafeDraw` local: ele só é declarado 1200 linhas abaixo daqui, e um
----`local` referenciado antes da declaração vira busca de global — `nil` na hora da chamada.
--- ⚑ REDESENHO NAO PODE ACONTECER DENTRO DE UM REDESENHO, e isto nasceu de um defeito real: o
--- `ReencostarAteCompletar` chama `RefreshExternalColumns`, que chama `Scoreboard.Refresh`. Com o
--- timer do simulador rodando o callback **dentro** de quem o agendou (o do jogo não faz isso), a
--- corrente virava 24 desenhos empilhados, um por cima do outro, reescrevendo os caches
--- compartilhados no meio do próprio uso. O sintoma eram erros de TIPO em lugares sem relação
--- nenhuma com timer, um a cada ~30 execuções.
+--- ⚑ AND THE DRAWING DOES NOT UPDATE BY ITSELF -- what repaints is `Scoreboard.Refresh`, called at the end.
+--- `Scoreboard.Refresh`, and not the local `SafeDraw`: it is only declared 1200 lines below here, and a
+--- `local` referenced before its declaration becomes a global lookup -- `nil` at call time.
+-- ⚑ A REDRAW CANNOT HAPPEN INSIDE A REDRAW, and this was born from a real defect:
+-- `ReencostarAteCompletar` calls `RefreshExternalColumns`, which calls `Scoreboard.Refresh`. With the
+-- simulator's timer running the callback **inside** whoever scheduled it (the game's does not do that), the
+-- chain became 24 drawings stacked, one over the other, rewriting the shared caches
+-- in the middle of their own use. The symptom was TYPE errors in places with no relation
+-- at all to a timer, one every ~30 runs.
 --
--- O stub do harness foi corrigido, mas a guarda fica: no jogo o `Refresh` também pode ser chamado
--- de um `OnClick`, de um evento e do timer, e nada garante que dois não se cruzem.
+-- The harness's stub was fixed, but the guard stays: in the game `Refresh` can also be called
+-- from an `OnClick`, from an event and from the timer, and nothing guarantees two do not cross.
 local desenhando = false
 
 -- (14/10) ONLY A RUN THAT JUST ENDED takes what arrives. Loot and scores kept stitching into the
@@ -647,8 +647,8 @@ local function Costura(mexe)
         naTela = mexe(context) and true or false
     end
 
-    -- Em disco, só a corrida do mesmo tipo da que está na tela: um saque de chave não pode
-    -- aparecer no placar do último chefe de raide.
+    -- On disk, only the run of the same type as the one on screen: a key's loot cannot
+    -- show on the last raid boss's scoreboard.
     local kind = context and context.kind
     local guardada = kind and Store()[kind]
     if Recente(guardada) and guardada ~= context then
@@ -664,10 +664,10 @@ end
 function Scoreboard.OnLoot(name, itemLink)
     if not name or not itemLink then return end
 
-    -- (!) NOME SEM REINO DOS DOIS LADOS (26/09). `Party.NoteLoot` manda o nome curto ("Bizco"),
-    -- e a linha de quem e de OUTRO reino guarda "Bizco-Quel'dorei" (corrida salva de 26/09). A
-    -- comparacao exata deixava o item de todo jogador de outro reino fora do placar -- ele so
-    -- entrava se chegasse nos 2 minutos da janela de `RefreshExternalColumns`, que tira o reino.
+    -- (!) A NAME WITHOUT THE REALM ON BOTH SIDES (26/09). `Party.NoteLoot` sends the short name ("Bizco"),
+    -- and the row of whoever is from ANOTHER realm keeps "Bizco-Quel'dorei" (a run saved on 26/09). The
+    -- exact comparison left every other-realm player's item off the scoreboard -- it only
+    -- came in if it arrived within the 2 minutes of `RefreshExternalColumns`'s window, which strips the realm.
     local curto = ns.SplitName(name) or name
     Costura(function(run)
         local mudou = false
@@ -681,20 +681,20 @@ function Scoreboard.OnLoot(name, itemLink)
     end)
 end
 
----A pedra e a pontuação chegam **depois**, como o saque — e continuam chegando por minutos.
+--- The keystone and the score arrive **later**, like the loot -- and keep arriving for minutes.
 ---
----⚑ ISTO É OBSERVAÇÃO DO USUÁRIO SOBRE O PLACAR DE REFERÊNCIA, 10/09/2026, e ela reenquadrou a
----correção: lá também nada aparece na hora, mas, conforme os jogadores vão abrindo o baú, o
----placar vai se atualizando até ficar tudo certo — as pedras, o saque, a pontuação.
+--- ⚑ THIS IS THE USER'S OBSERVATION ABOUT THE REFERENCE SCOREBOARD, 10/09/2026, and it reframed the
+--- fix: there too nothing shows at once, but, as the players open the chest, the
+--- scoreboard keeps updating until everything is right -- the keystones, the loot, the score.
 ---
----Ou seja: **não é para acertar o instante da captura, é para o placar continuar vivo depois
----dela.** Faz sentido pelo próprio jogo — a pedra nova só existe quando cada um abre o baú, e é
----ela que a LibOpenRaid transmite; a pontuação da temporada é recalculada no servidor. Capturar
----mais tarde só trocaria um instante errado por outro.
+--- That is: **it is not about getting the capture's instant right, it is about the scoreboard staying alive after
+--- it.** It makes sense by the game itself -- the new keystone only exists when each one opens the chest, and it is
+--- that one LibOpenRaid broadcasts; the season's score is recomputed on the server. Capturing
+--- later would only swap one wrong instant for another.
 ---
----Então esta função reencosta as três colunas que dependem de fora, e ela é chamada tanto pelo
----aviso da lib quanto por uma janela de tentativas depois do fim da corrida.
----@return boolean mudou alguma coisa
+--- So this function re-reads the three columns that depend on outside, and it is called both by
+--- the lib's notice and by a window of attempts after the end of the run.
+--- @return boolean something changed
 function Scoreboard.RefreshExternalColumns()
     if not ns.Party then return false end
 
@@ -716,9 +716,9 @@ function Scoreboard.RefreshExternalColumns()
                         mudou = true
                     end
                 end
-                -- O NÍVEL DE ITEM ENTRA NA MESMA LISTA, pelo mesmo motivo: a inspeção do começo
-                -- da chave falha calada (distância, fase, rajada de pedidos), e a resposta da
-                -- LibOpenRaid pode chegar depois. Relato de 10/09: *"não aparece o ilvl dos
+                -- THE ITEM LEVEL GOES INTO THE SAME LIST, for the same reason: the inspection at the start
+                -- of the key fails silently (distance, phase, a burst of requests), and
+                -- LibOpenRaid's answer may arrive later. The report of 10/09: *"não aparece o ilvl dos
                 -- outros"*.
                 if row.ilevel == nil then
                     local nivel = ns.Party.ItemLevel(row.name)
@@ -727,9 +727,9 @@ function Scoreboard.RefreshExternalColumns()
                         mudou = true
                     end
                 end
-                -- A PONTUAÇÃO É A ÚNICA QUE SE SOBRESCREVE, e de propósito: ela não "chega", ela
-                -- **muda** — o servidor recalcula a da temporada depois da corrida. Manter a
-                -- primeira leitura seria mostrar de propósito o número velho.
+                -- THE SCORE IS THE ONLY ONE THAT IS OVERWRITTEN, and on purpose: it does not "arrive", it
+                -- **changes** -- the server recomputes the season's after the run. Keeping the
+                -- first reading would be showing the old number on purpose.
                 local nova = ScoreFor(row.name)
                 if nova and row.values and row.values.score ~= nova then
                     row.values.score = nova
@@ -741,7 +741,7 @@ function Scoreboard.RefreshExternalColumns()
     end)
 end
 
----Há quanto tempo a corrida foi feita, em texto curto ("há 2 dias").
+--- How long ago the run was done, in short text ("há 2 dias").
 local function RunAge(snapshot)
     if not snapshot or not snapshot.recordedAt or not time then return nil end
 
@@ -756,17 +756,17 @@ local function RunAge(snapshot)
     return format(L["%d d ago"], math.floor(seconds / 86400))
 end
 
----Converte o retrato (valores por CHAVE) para o formato que o desenho usa (por POSIÇÃO).
+--- Converts the picture (values by KEY) to the format the drawing uses (by POSITION).
 ---
----O placar não lê mais a sessão viva. Ele lê sempre um retrato: da corrida que acabou, de uma
----corrida guardada em disco, ou da simulação. Três motivos:
+--- The scoreboard no longer reads the live session. It always reads a picture: of the run that ended, of a
+--- run kept on disk, or of the simulation. Three reasons:
 ---
----  1. A sessão do `C_DamageMeter` é zerada pela próxima luta. "Ver o último placar" só é
----     possível se os números tiverem sido copiados para fora dela no momento certo.
----  2. Um retrato é dado morto: não tem secret value, não tem referência para tabela da API,
----     e por isso pode ser gravado nos SavedVariables.
----  3. Um caminho de desenho só. Corrida real, corrida guardada e simulação desenham pelo
----     mesmo código — o que faz a simulação valer como teste do painel de verdade.
+---  1. The `C_DamageMeter` session is reset by the next fight. "See the last scoreboard" is only
+---     possible if the numbers were copied out of it at the right moment.
+---  2. A picture is dead data: it has no secret value, no reference to an API table,
+---     and so it can be saved in the SavedVariables.
+---  3. One drawing path. A real run, a kept run and the simulation draw through the
+---     same code -- which makes the simulation count as a test of the real panel.
 local function CollectRows(rowCount)
     local stored = context and context.rows
     if not stored then return {} end
@@ -782,15 +782,15 @@ local function CollectRows(rowCount)
             values[c] = entry.values and entry.values[columns[c].key]
         end
         out[i] = {
-            source = entry,          -- nome, classe, ícone: o retrato tem os mesmos campos
+            source = entry,          -- name, class, icon: the picture has the same fields
             row = entry,
             values = values,
             best = {},
         }
     end
 
-    -- O realce sai do próprio `Data`, não de uma cópia da regra: se lá mudar o que conta como
-    -- liderança (hoje exige valor > 0 e pelo menos duas linhas), o placar acompanha sozinho.
+    -- The highlight comes from `Data` itself, not from a copy of the rule: if what counts as
+    -- leadership changes there (today it needs a value > 0 and at least two rows), the scoreboard follows by itself.
     if ns.Data.MarkColumnLeaders then
         local keys = {}
         for c = 1, #columns do keys[c] = columns[c].key end
@@ -800,8 +800,8 @@ local function CollectRows(rowCount)
     return out
 end
 
----Reordena as linhas já montadas. Só roda quando o valor é legível — em combate os campos são
----secret e comparar levanta erro.
+--- Re-sorts the rows already built. It only runs when the value is readable -- in combat the fields are
+--- secret and comparing raises an error.
 local function SortRows(list, columnIndex)
     local readable = true
     for i = 1, #list do
@@ -825,17 +825,17 @@ local function SortRows(list, columnIndex)
 end
 
 --------------------------------------------------------------------------------
--- Cabeçalho de colunas
+-- The column header
 --------------------------------------------------------------------------------
----O cabeçalho de colunas: cada coluna é uma CÉLULA com fundo próprio, texto branco pequeno
----encostado à esquerda.
+--- The column header: each column is a CELL with its own background, small white text
+--- against the left.
 ---
----A régua dourada que havia aqui saiu. O próprio fundo das células (preto a 0,5,
----`COLHEAD_TINT`), mais escuro que o das linhas, separa cabeçalho de linhas — e por isso a
----divisão aparece sem precisar de um risco.
+--- The gold rule that was here went away. The cells' own background (black at 0.5,
+--- `COLHEAD_TINT`), darker than the rows', separates header from rows -- and so the
+--- division shows without needing a line.
 ---
----O clique para ordenar FICA, e não muda nada do que se vê: a coluna ordenada troca o tom do
----fundo pelo tom de seleção (`COLHEAD_TINT_SORTED`).
+--- The click to sort STAYS, and changes nothing of what is seen: the sorted column swaps its
+--- background's tone for the selection tone (`COLHEAD_TINT_SORTED`).
 local function BuildColumnHeader()
     if not headerRow then
         headerRow = CreateFrame("Frame", nil, frame)
@@ -884,10 +884,10 @@ local function BuildColumnHeader()
                 if column.render and column.render ~= "score" then return end
                 local key = column.key
                 if sortBy == key then sortDesc = not sortDesc else sortBy, sortDesc = key, true end
-                -- Pela função pública, não por `Draw()` cru: `SafeDraw` é local e declarado
-                -- mais abaixo, então aqui ele nem seria visível — e um erro de desenho
-                -- disparado de dentro de um OnClick some sem deixar rastro quando
-                -- `scriptErrors` está desligado, que é o padrão do jogo.
+                -- Through the public function, not a raw `Draw()`: `SafeDraw` is local and declared
+                -- further down, so here it would not even be visible -- and a drawing error
+                -- fired from inside an OnClick vanishes without a trace when
+                -- `scriptErrors` is off, which is the game's default.
                 Scoreboard.Refresh()
             end)
             button:SetScript("OnEnter", function(self)
@@ -915,8 +915,8 @@ local function BuildColumnHeader()
         local sorted = group ~= nil and group == sortedGroup
         button.bg:SetVertexColor(unpack(sorted and COLHEAD_TINT_SORTED or COLHEAD_TINT))
 
-        -- Corpo 10, aplicado pela escada do addon para o seletor de fonte
-        -- continuar valendo.
+        -- Size 10, applied by the addon's ladder so the font picker
+        -- still holds.
         ns.ApplyScoreboardFont(button.text, 10 - ns.Skin.scoreboardFontSize, "")
         local def = not columns[c].custom and ns.Data.GetColumn(columns[c].key) or nil
         button.text:SetText(def and def.part or "")
@@ -980,12 +980,12 @@ end
 --------------------------------------------------------------------------------
 -- Linhas
 --------------------------------------------------------------------------------
----As peças de uma célula, por tipo de coluna. Cada construtor devolve o objeto que o desenho
----vai preencher, e todos vivem dentro de um frame de célula com a largura da coluna — assim
----quem muda a largura de uma coluna não precisa saber o que tem dentro dela.
+--- A cell's pieces, by column type. Each builder returns the object the drawing
+--- will fill, and all of them live inside a cell frame with the column's width -- so
+--- whoever changes a column's width does not need to know what is inside it.
 local CellBuilders = {}
 
----Retrato redondo + ícone de função + nível de item.
+--- A round portrait + role icon + item level.
 function CellBuilders.portrait(cell)
     local size = ROW_HEIGHT - PORTRAIT_INSET * 2
 
@@ -997,8 +997,8 @@ function CellBuilders.portrait(cell)
     cell.role:SetSize(ROLE_SIZE, ROLE_SIZE)
     cell.role:SetPoint("BOTTOMLEFT", cell.portrait, "BOTTOMRIGHT", ROLE_X, ROLE_Y)
 
-    -- A placa escura atrás do nível de item. `LoC-ShadowBG` é textura do próprio jogo, não
-    -- arte de addon.
+    -- The dark plate behind the item level. `LoC-ShadowBG` is the game's own texture, not
+    -- addon art.
     cell.ilvlBg = cell:CreateTexture(nil, "OVERLAY", nil, 5)
     cell.ilvlBg:SetTexture("Interface\\Cooldown\\LoC-ShadowBG")
     cell.ilvlBg:SetPoint("BOTTOMLEFT", cell.portrait, "BOTTOMLEFT", -ILVL_BG_INSET, -1)
@@ -1014,9 +1014,9 @@ function CellBuilders.spec(cell)
     cell.icon:SetSize(SPEC_ICON, SPEC_ICON)
     cell.icon:SetPoint("LEFT", COL_PADDING, 0)
 
-    -- Segunda textura porque especialização é id de ícone e classe é recorte de atlas, e
-    -- `SetMask` não convive com `SetTexCoord`. O placar antigo aplicava máscara aqui e o ícone
-    -- de classe sumia — é o defeito que aquela reescrita corrigiu, e ele não pode voltar.
+    -- A second texture because a specialization is an icon id and a class is an atlas cut, and
+    -- `SetMask` does not get along with `SetTexCoord`. The old scoreboard applied a mask here and the class
+    -- icon vanished -- it is the defect that rewrite fixed, and it cannot come back.
     cell.iconClass = cell:CreateTexture(nil, "OVERLAY")
     cell.iconClass:SetSize(SPEC_ICON, SPEC_ICON)
     cell.iconClass:SetPoint("LEFT", COL_PADDING, 0)
@@ -1031,7 +1031,7 @@ function CellBuilders.name(cell)
     cell.text:SetWordWrap(false)
 end
 
----Ícone da masmorra da pedra + nível.
+--- The keystone's dungeon icon + level.
 function CellBuilders.keystone(cell)
     -- (!) THE GAME'S OWN DUNGEON ICON, DRAWN AS THE GAME DRAWS IT (05/10). The user: *"as pedras
     -- (keystone) a imagem ta bem zoada, mal da pra entender que pedra e"*. The image is the 4th
@@ -1081,7 +1081,7 @@ function Scoreboard.__lootEnter(self)
     GameTooltip:Show()
 end
 
----Quadrado de saque: ícone 32 com borda na cor da qualidade e o nível do item por cima.
+--- The loot square: a 32 icon with a border in the quality's colour and the item's level on top.
 function CellBuilders.loot(cell)
     cell.icon = cell:CreateTexture(nil, "ARTWORK")
     cell.icon:SetSize(LOOT_ICON, LOOT_ICON)
@@ -1128,38 +1128,38 @@ function CellBuilders.loot(cell)
     cell.hit = hit
 end
 
----Célula de número — e de pontuação, que é número com o ganho colado.
+--- A number cell -- and the score's, which is a number with the gain stuck on.
 function CellBuilders.value(cell)
     cell.text = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     cell.text:SetPoint("LEFT", COL_PADDING, 0)
     cell.text:SetPoint("RIGHT", -COL_PADDING, 0)
-    -- À ESQUERDA, e é a mudança que mais se vê. O placar antigo alinhava número à direita, que
-    -- é o certo para comparar grandezas empilhadas; aqui tudo se alinha à esquerda, colado
-    -- ao rótulo da coluna.
+    -- ON THE LEFT, and it is the change that shows most. The old scoreboard aligned numbers to the right, which
+    -- is right for comparing stacked quantities; here everything aligns to the left, glued
+    -- to the column's label.
     cell.text:SetJustifyH("LEFT")
     cell.text:SetWordWrap(false)
 end
 
--- A CÉLULA DE PONTUAÇÃO É UMA CÉLULA DE NÚMERO, e faltava dizer isso ao construtor.
+-- THE SCORE CELL IS A NUMBER CELL, and the builder was not told so.
 --
--- Era o defeito do print de 07/09 20:22: a coluna declara `render = "score"`, existe um
--- `CellPainters.score` para escrever `2863 (+0)`, e **não existia `CellBuilders.score`**. O
--- `BuildRow` faz `CellBuilders[kind](cell)`, então na primeira linha ele chamava nil e o desenho
--- inteiro abortava — com o cabeçalho e os rótulos de coluna já na tela, porque eles são
--- desenhados antes. O painel abria bonito e **vazio**, que é o sintoma mais enganoso possível:
--- não parece erro de Lua, parece "não tem dado".
+-- It was the defect of the print of 07/09 20:22: the column declares `render = "score"`, there is a
+-- `CellPainters.score` to write `2863 (+0)`, and **there was no `CellBuilders.score`**. The
+-- `BuildRow` does `CellBuilders[kind](cell)`, so on the first row it called nil and the whole drawing
+-- aborted -- with the header and the column labels already on screen, because they are
+-- drawn before. The panel opened pretty and **empty**, the most misleading symptom possible:
+-- it does not look like a Lua error, it looks like "there is no data".
 --
--- O comentário logo acima já dizia "e de pontuação, que é número com o ganho colado". A intenção
--- estava escrita; só o roteamento não estava.
+-- The comment right above already said "and the score's, which is a number with the gain stuck on". The intent
+-- was written; only the routing was not.
 CellBuilders.score = CellBuilders.value
 
 local function BuildRow(index)
     local row = rows[index]
 
     if not row then
-        -- Frame, não Button: a linha do placar não faz nada ao ser clicada. Como Button ela
-        -- capturava o mouse e o painel deixava de ser arrastável em cima das linhas — que é
-        -- justamente onde a pessoa agarra.
+        -- A Frame, not a Button: the scoreboard's row does nothing when clicked. As a Button it
+        -- captured the mouse and the panel stopped being draggable over the rows -- which is
+        -- exactly where the person grabs it.
         row = CreateFrame("Frame", nil, frame)
         row:SetHeight(ROW_HEIGHT)
         row:EnableMouse(false)
@@ -1202,9 +1202,9 @@ local function BuildRow(index)
         local cell = row.cells[c]
         local kind = columns[c].render or "value"
 
-        -- A célula guarda o TIPO com que foi construída. As colunas mudam entre uma corrida de
-        -- chave e um placar de raide, e uma célula reaproveitada com o construtor errado
-        -- desenharia um retrato onde deveria haver um número — sem erro nenhum, só errado.
+        -- The cell keeps the TYPE it was built with. The columns change between a key's
+        -- run and a raid scoreboard, and a cell reused with the wrong builder
+        -- would draw a portrait where there should be a number -- with no error at all, just wrong.
         if cell and cell.kind ~= kind then
             cell:Hide()
             cell = nil
@@ -1236,20 +1236,20 @@ local function BuildRow(index)
     return row
 end
 
----Escreve a célula de pontuação: `2847 (+16)`, com o ganho em verde.
----O ganho só existe para quem o cliente sabe informar — na corrida real, só o próprio jogador
----(vem de `oldOverallDungeonScore`/`newOverallDungeonScore`). Sem ganho, mostra só o número.
+--- Writes the score cell: `2847 (+16)`, with the gain in green.
+--- The gain only exists for whoever the client can tell about -- in the real run, only the player himself
+--- (it comes from `oldOverallDungeonScore`/`newOverallDungeonScore`). With no gain, it shows only the number.
 local function ScoreText(entry, index)
     local value = entry.values[index]
     if value == nil then return "—" end
-    -- Secret vai INTEIRO para o FontString: o motor sabe renderizar, o Lua nao pode ler. Um
-    -- `math.floor` aqui derrubaria o desenho da linha inteira.
+    -- A secret goes WHOLE to the FontString: the engine can render it, Lua cannot read it. A
+    -- `math.floor` here would bring down the whole row's drawing.
     if issecretvalue(value) then return value end
     if type(value) ~= "number" then return tostring(value) end
 
     local text = tostring(math.floor(value + 0.5))
-    -- O ganho é por jogador no retrato: só o próprio jogador tem esse número (vem de
-    -- `oldOverallDungeonScore`/`newOverallDungeonScore`, que o cliente só informa de si).
+    -- The gain is per player in the picture: only the player himself has that number (it comes from
+    -- `oldOverallDungeonScore`/`newOverallDungeonScore`, which the client only gives about itself).
     local gain = entry.row and entry.row.scoreGain
     if gain and gain > 0 then
         text = text .. " |cff40d878(+" .. gain .. ")|r"
@@ -1258,18 +1258,18 @@ local function ScoreText(entry, index)
 end
 
 --------------------------------------------------------------------------------
--- Linha do tempo
+-- The timeline
 --------------------------------------------------------------------------------
----Desenha o rodapé: trilho da corrida, marcadores de boss e de morte, eixo de tempo e o baú.
+--- Draws the footer: the run's rail, the boss and death markers, the time axis and the chest.
 ---
----O verde/vermelho do trilho NÃO é ritmo da chave — é dentro/fora de combate. Verde é lutando,
----vermelho é andando. Quem diz "deu no tempo" é o baú no fim, verde ou vermelho.
+--- The rail's green/red is NOT the key's pace -- it is in/out of combat. Green is fighting,
+--- red is walking. What says "in time" is the chest at the end, green or red.
 local function DrawTimeline()
     if not timeline then return end
 
-    -- Baú de Cofre Grandioso, eixo de tempo e marcador de chave fechada são vocabulário de
-    -- Mítico+. Num placar de encontro de raide eles apareciam do mesmo jeito — um baú verde
-    -- dizendo "no tempo" embaixo de um boss que não tem cronômetro. O rodapé inteiro sai.
+    -- The Great Vault chest, the time axis and the closed-key marker are
+    -- Mythic+ vocabulary. On a raid encounter scoreboard they showed the same way -- a green chest
+    -- saying "in time" under a boss that has no timer. The whole footer goes.
     local total = context and context.durationSeconds
     if not IsKeystone() or not total or issecretvalue(total) or total <= 0 then
         timeline:Hide()
@@ -1279,8 +1279,8 @@ local function DrawTimeline()
 
     local limit = context.timeLimit
 
-    -- O eixo vai até o limite da chave quando ele é maior que a corrida: assim dá para ver
-    -- quanto tempo sobrou, que é a informação que o jogador procura primeiro.
+    -- The axis goes up to the key's limit when it is bigger than the run: so one can see
+    -- how much time was left, which is the information the player looks for first.
     local span = total
     if limit and limit > span then span = limit end
 
@@ -1296,9 +1296,9 @@ local function DrawTimeline()
     timeline.segments = timeline.segments or {}
     for _, seg in ipairs(timeline.segments) do seg:Hide() end
 
-    -- O TRECHO QUE O ADDON NAO VIU FICA NEUTRO, nem verde nem vermelho. Numa corrida retomada
-    -- o trilho pintava de vermelho -- "andando" -- os minutos anteriores ao `/reload`, que e a
-    -- mesma mentira do numero de fora-de-combate, so que desenhada.
+    -- THE STRETCH THE ADDON DID NOT SEE STAYS NEUTRAL, neither green nor red. In a resumed run
+    -- the rail painted red -- "walking" -- the minutes before the `/reload`, which is the
+    -- same lie as the out-of-combat number, only drawn.
     local desde = context.knownFrom or 0
     if desde > 0 then
         timeline.unknown = timeline.unknown or timeline:CreateTexture(nil, "ARTWORK")
@@ -1365,8 +1365,8 @@ local function DrawTimeline()
         marker.label:SetText(SecondsToClock(boss[1]))
         marker.label:SetTextColor(0.86, 0.87, 0.90)
 
-        -- Perto do fim do eixo o rótulo à direita sai do painel, e ainda esbarra no baú.
-        -- Vira para a esquerda do ícone; é o único lado que sobra.
+        -- Near the end of the axis the label on the right goes out of the panel, and still bumps into the chest.
+        -- It turns to the left of the icon; it is the only side left.
         local at = X(boss[1])
         marker.label:ClearAllPoints()
         if at > width - 56 then
@@ -1382,7 +1382,7 @@ local function DrawTimeline()
         marker:Show()
     end
 
-    -- Mortes, abaixo do trilho: são má notícia e não devem competir com os bosses.
+    -- Deaths, below the rail: they are bad news and must not compete with the bosses.
     timeline.deaths = timeline.deaths or {}
     for _, mark in ipairs(timeline.deaths) do mark:Hide() end
 
@@ -1393,21 +1393,21 @@ local function DrawTimeline()
             mark:SetSize(DEATH_ICON, DEATH_ICON)
             timeline.deaths[i] = mark
         end
-        -- ⚑ O ÍCONE DA CLASSE QUANDO SE SABE QUAL FOI, a caveira quando não se sabe. A classe só
-        -- chega aqui se `AttachDeathClasses` tiver conseguido provar a correspondência (as duas
-        -- listas com o mesmo tamanho) — então `death[2]` presente já significa "isto está certo".
+        -- ⚑ THE CLASS ICON WHEN IT IS KNOWN WHICH IT WAS, the skull when it is not. The class only
+        -- gets here if `AttachDeathClasses` managed to prove the match (the two
+        -- lists the same size) -- so `death[2]` present already means "this is right".
         --
-        -- A arte é a folha de classes do próprio jogo, recortada por `CLASS_ICON_TCOORDS`, que é
-        -- como o retrato da linha já faz neste arquivo. Sem inventar atlas: o recorte vem da mesma
-        -- tabela que a Blizzard usa na ficha do personagem.
+        -- The art is the game's own class sheet, cut by `CLASS_ICON_TCOORDS`, which is
+        -- how the row's portrait already does it in this file. No invented atlas: the cut comes from the same
+        -- table Blizzard uses on the character sheet.
         local classe = death[2]
         local coords = classe and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classe]
         if coords then
             mark:SetTexture("Interface\\WorldStateFrame\\ICONS-CLASSES")
             mark:SetTexCoord(unpack(coords))
         else
-            -- `SetTexCoord` fica pegajoso: uma textura que já foi ícone de classe guarda o
-            -- recorte, e o atlas seguinte sairia cortado no mesmo quadrado. Desfaz antes.
+            -- `SetTexCoord` is sticky: a texture that was once a class icon keeps the
+            -- cut, and the next atlas would come out cut in the same square. It undoes it first.
             mark:SetTexCoord(0, 1, 0, 1)
             if not Atlas(mark, "BossBanner-SkullCircle") then
                 mark:SetColorTexture(0.85, 0.25, 0.25, 0.9)
@@ -1418,7 +1418,7 @@ local function DrawTimeline()
         mark:Show()
     end
 
-    -- Baú do fim da corrida: verde se deu no tempo, vermelho se estourou.
+    -- The end-of-run chest: green if it was in time, red if it went over.
     local chest = timeline.chest
     local onTime = context.onTime
     if not Atlas(chest, onTime and "gficon-chest-evergreen-greatvault-collect"
@@ -1428,7 +1428,7 @@ local function DrawTimeline()
     chest:ClearAllPoints()
     chest:SetPoint("CENTER", timeline.rail, "LEFT", X(total), 0)
 
-    -- Eixo: uma marca a cada 5 minutos, mais o fim.
+    -- The axis: a mark every 5 minutes, plus the end.
     timeline.ticks = timeline.ticks or {}
     for _, tick in ipairs(timeline.ticks) do tick:Hide() end
 
@@ -1459,12 +1459,12 @@ local function DrawTimeline()
 end
 
 --------------------------------------------------------------------------------
--- Números do cabeçalho
+-- The header's numbers
 --------------------------------------------------------------------------------
----Quanto tempo da corrida foi passado FORA de combate.
+--- How much of the run was spent OUT of combat.
 ---
----Sai do mesmo eixo que desenha o trilho verde e vermelho, então os dois nunca podem discordar:
----o número no cabeçalho é a soma do que está pintado de vermelho embaixo.
+--- It comes from the same axis that draws the green and red rail, so the two can never disagree:
+--- the number in the header is the sum of what is painted red below.
 local function OutOfCombatSeconds()
     local total = context and context.durationSeconds
     if not total or issecretvalue(total) or total <= 0 then return nil end
@@ -1472,14 +1472,14 @@ local function OutOfCombatSeconds()
     local marks = context.combatTimeline
     if type(marks) ~= "table" or #marks == 0 then return nil end
 
-    -- REGISTRO INCOMPLETO NAO VIRA NUMERO. `knownFrom > 0` e uma corrida retomada depois de um
-    -- `/reload`: o addon sabe quanto a chave durou (o cronometro do mundo diz), mas so viu o
-    -- combate a partir dali. Somar o resto como "fora de combate" foi o que produziu
-    -- **"Fora de combate: 26:13"** numa chave de 26:13.
+    -- AN INCOMPLETE RECORD DOES NOT BECOME A NUMBER. `knownFrom > 0` is a run resumed after a
+    -- `/reload`: the addon knows how long the key lasted (the world timer says), but only saw the
+    -- combat from there on. Adding the rest as "out of combat" is what produced
+    -- **"Fora de combate: 26:13"** on a 26:13 key.
     --
-    -- Some da tela em vez de mostrar um numero qualificado: a faixa de cima tem quatro coisas
-    -- disputando espaco, e "8:12 (parcial)" pede uma explicacao que nao cabe ali. Ausencia se
-    -- entende sozinha; numero errado, nao.
+    -- It vanishes from the screen instead of showing a qualified number: the top strip has four things
+    -- competing for space, and "8:12 (partial)" asks for an explanation that does not fit there. Absence
+    -- explains itself; a wrong number does not.
     local desde = context.knownFrom or 0
     if desde > 0 then return nil end
 
@@ -1492,10 +1492,10 @@ local function OutOfCombatSeconds()
     return idle
 end
 
----Nível de item médio do grupo, pelos que o retrato conseguiu saber.
+--- The group's average item level, from the ones the picture managed to know.
 ---
----Média só do que se sabe, e nil quando não se sabe de ninguém. Contar quem não foi
----inspecionado como zero puxaria a média para baixo e daria um número errado com cara de certo.
+--- An average only of what is known, and nil when nothing is known of anyone. Counting whoever was not
+--- inspected as zero would pull the average down and give a wrong number that looks right.
 local function AverageItemLevel()
     local rows = context and context.rows
     if type(rows) ~= "table" then return nil end
@@ -1513,11 +1513,11 @@ local function AverageItemLevel()
 end
 
 --------------------------------------------------------------------------------
--- Construção do painel
+-- Building the panel
 --------------------------------------------------------------------------------
 local function CreateHeaderArt()
-    -- Estrela do nível: fica FORA do frame, mordendo a borda de cima. É ela que dá o ar de
-    -- painel oficial; sem ela o cabeçalho é só uma faixa escura com texto dourado.
+    -- The level star: it sits OUTSIDE the frame, biting the top edge. It is what gives the
+    -- official panel's air; without it the header is just a dark strip with gold text.
     frame.star = frame:CreateTexture(nil, "OVERLAY")
     frame.star:SetSize(STAR_SIZE, STAR_SIZE)
     frame.star:SetPoint("CENTER", frame, "TOP", 0, STAR_OFFSET_Y)
@@ -1537,7 +1537,7 @@ local function CreateHeaderArt()
         return tex
     end
 
-    -- Grafia `Fillagree` com dois L: é assim no cliente. `Filigree` some sem avisar.
+    -- The spelling `Fillagree` with two L's: that is how it is in the client. `Filigree` vanishes without warning.
     frame.filigreeLeft = Filigree("BossBanner-LeftFillagree",
         FILIGREE_SIDE_W, FILIGREE_SIDE_H, "BOTTOM", "TOP", -FILIGREE_SIDE_X, -2)
     frame.filigreeRight = Filigree("BossBanner-RightFillagree",
@@ -1553,8 +1553,8 @@ local function CreateTimeline()
     timeline:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SIDE - LINE_INSET * 2 - 1, 63)
     timeline:SetHeight(RAIL_HEIGHT)
 
-    -- Os dois gradientes são o que faz o eixo parecer arte em vez de um risco: escuro
-    -- descendo por cima e subindo por baixo, com o trilho no meio.
+    -- The two gradients are what makes the axis look like art instead of a line: dark
+    -- coming down from above and going up from below, with the rail in the middle.
     timeline.glowTop = timeline:CreateTexture(nil, "BACKGROUND")
     timeline.glowTop:SetPoint("BOTTOMLEFT", timeline, "TOPLEFT", 0, 0)
     timeline.glowTop:SetPoint("BOTTOMRIGHT", timeline, "TOPRIGHT", 0, 0)
@@ -1597,8 +1597,8 @@ local function CreatePanel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    -- Painel de leitura, não overlay: aqui o fundo é obrigatório, senão o texto disputa com o
-    -- cenário. `ns.Skin.scoreboardAlpha` é o valor reservado para isso.
+    -- A reading panel, not an overlay: here the background is required, or the text competes with the
+    -- scenery. `ns.Skin.scoreboardAlpha` is the value reserved for that.
     ns.DarkBody(frame, ns.Skin.scoreboardAlpha)
     frame:Hide()
 
@@ -1615,46 +1615,46 @@ local function CreatePanel()
 
     CreateHeaderArt()
 
-    -- ⚑ A PILHA CENTRAL VIROU DUAS COLUNAS, e a medição no print de 10/09 é o motivo.
+    -- ⚑ THE CENTRAL STACK BECAME TWO COLUMNS, and the measurement on the print of 10/09 is the reason.
     --
-    -- A pilha tinha três coisas no centro — título (-12, corpo 20), tempo (-8, corpo 16)
-    -- e, abaixo, o resultado. A fonte sai de `ns.Skin.scoreboardFontSize` com a família que o
-    -- jogador escolheu, e ela renderiza mais alta. A pilha não cabia nos 65 do cabeçalho, e o print mostra exatamente isso:
+    -- The stack had three things in the centre -- title (-12, size 20), time (-8, size 16)
+    -- and, below, the result. The font comes from `ns.Skin.scoreboardFontSize` with the family the
+    -- player chose, and it renders taller. The stack did not fit in the header's 65, and the print shows exactly that:
     --
-    --     faixa de cabeçalho de coluna ... y 80 a 106
-    --     "no tempo +1" .................. y 93 a 99   ← dentro dela
+    --     column header strip ........... y 80 to 106
+    --     "no tempo +1" .................. y 93 to 99   <- inside it
     --
-    -- Espremer os vãos consertaria um pixel e deixaria a mesma armadilha para o próximo que
-    -- mexesse no corpo da fonte. **Tirar do eixo resolve por construção**: o centro fica só com o
-    -- título, e o tempo — que é o número principal de uma corrida — vai para a DIREITA, com o
-    -- resultado embaixo dele. Foi o que o usuário pediu (*"o tempo da dungeon não está em um lugar
-    -- bom, pode ficar melhor alinhado na direita"*), e é também a saída certa: a esquerda já é uma
-    -- faixa de contexto (fora de combate, ilvl, mortes), então a direita era o vazio da tela.
+    -- Squeezing the gaps would fix one pixel and leave the same trap for the next one who
+    -- touched the font's size. **Taking it off the axis solves it by construction**: the centre keeps only the
+    -- title, and the time -- which is a run's main number -- goes to the RIGHT, with the
+    -- result under it. It is what the user asked for (*"o tempo da dungeon não está em um lugar
+    -- bom, pode ficar melhor alinhado na direita"*), and it is also the right way out: the left is already a
+    -- context strip (out of combat, ilvl, deaths), so the right was the screen's empty space.
     frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     frame.title:SetPoint("TOP", frame, "TOP", 0, TITLE_Y)
     frame.title:SetTextColor(1, 0.82, 0)
 
-    -- O TEMPO, à direita, alinhado pela borda. Abaixo do botão de fechar para não disputar com
-    -- ele, e com a mesma margem lateral do resto do painel.
+    -- THE TIME, on the right, aligned by the edge. Below the close button so as not to compete with
+    -- it, and with the same side margin as the rest of the panel.
     frame.clock = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     frame.clock:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -CLOCK_RIGHT_INSET, CLOCK_Y)
     frame.clock:SetJustifyH("RIGHT")
 
-    -- E o resultado logo abaixo dele, na mesma borda: os dois formam UM bloco, e o olho lê
-    -- "30:47 / no tempo +1" como uma coisa só, que é o que eles são.
+    -- And the result right below it, on the same edge: the two make ONE block, and the eye reads
+    -- "30:47 / no tempo +1" as one thing, which is what they are.
     frame.result = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     frame.result:SetPoint("TOPRIGHT", frame.clock, "BOTTOMRIGHT", 0, RESULT_GAP)
     frame.result:SetJustifyH("RIGHT")
 
-    -- CANTO SUPERIOR ESQUERDO: o relógio de tempo FORA de combate e o nível de item médio do
-    -- grupo. São as duas linhas de contexto da corrida, e as duas respondem perguntas que o resto do painel não responde: quanto tempo se
-    -- gastou andando, e com que equipamento o grupo entrou.
+    -- THE TOP LEFT CORNER: the clock of time OUT of combat and the group's average item
+    -- level. They are the run's two context lines, and both answer questions the rest of the panel does not: how much time was
+    -- spent walking, and with what gear the group came in.
     frame.idleIcon = frame:CreateTexture(nil, "ARTWORK")
     frame.idleIcon:SetSize(24, 24)
     frame.idleIcon:SetPoint("TOPLEFT", SIDE, -5)
-    -- `auctionhouse-icon-clock` nao e um relogio escolhido no olho: e o que a Blizzard usa em
-    -- tres lugares (`Blizzard_AuctionHouseUtil.lua:8`, `CovenantMissionTemplates.xml:588`,
-    -- `Blizzard_ProfessionsTemplates.lua:114`), conferido na fonte do 12.1.0.
+    -- `auctionhouse-icon-clock` is not a clock picked by eye: it is what Blizzard uses in
+    -- three places (`Blizzard_AuctionHouseUtil.lua:8`, `CovenantMissionTemplates.xml:588`,
+    -- `Blizzard_ProfessionsTemplates.lua:114`), checked in the 12.1.0 source.
     if not Atlas(frame.idleIcon, "auctionhouse-icon-clock") then
         frame.idleIcon:SetTexture("Interface\\Icons\\INV_Misc_PocketWatch_01")
     end
@@ -1668,8 +1668,8 @@ local function CreatePanel()
     frame.ilvlIcon = frame:CreateTexture(nil, "ARTWORK")
     frame.ilvlIcon:SetSize(20, 20)
     frame.ilvlIcon:SetPoint("LEFT", frame.idleIcon, "RIGHT", 260, 0)
-    -- `bags-icon-equipment` (`ContainerFrame.lua:219`): a arte que o jogo tem para isso e o
-    -- icone de equipamento das bolsas.
+    -- `bags-icon-equipment` (`ContainerFrame.lua:219`): the art the game has for this is the
+    -- bags' equipment icon.
     if not Atlas(frame.ilvlIcon, "bags-icon-equipment") then
         frame.ilvlIcon:SetTexture("Interface\\Icons\\INV_Chest_Cloth_17")
     end
@@ -1680,8 +1680,8 @@ local function CreatePanel()
     frame.ilvl:SetPoint("LEFT", frame.ilvlIcon, "RIGHT", 6, 0)
     frame.ilvl:SetJustifyH("LEFT")
 
-    -- Afixos: logo abaixo do relógio, pequenos. Eles e o resultado da chave em texto são duas
-    -- coisas que o painel já tinha antes da 0.66.0, e tirar seria PERDER informação.
+    -- Affixes: right below the clock, small. They and the key's result in text are two
+    -- things the panel already had before 0.66.0, and taking them out would be LOSING information.
     frame.affixes = {}
     for i = 1, 4 do
         local icon = frame:CreateTexture(nil, "OVERLAY")
@@ -1691,16 +1691,16 @@ local function CreatePanel()
         frame.affixes[i] = icon
     end
 
-    -- A CONTAGEM DE MORTES FICOU NO CABEÇALHO, e vale dizer por quê: o número de mortes virou
-    -- coluna, mas o **tempo perdido com elas** — o `(-00:10)` — não está em coluna nenhuma, e é
-    -- o dado que responde "as mortes custaram a chave?".
+    -- THE DEATH COUNT STAYED IN THE HEADER, and it is worth saying why: the number of deaths became a
+    -- column, but the **time lost with them** -- the `(-00:10)` -- is in no column, and it is
+    -- the data that answers "did the deaths cost the key?".
     --
-    -- Ela vai para a direita do nível de item, que é o espaço livre da faixa de cima.
+    -- It goes to the right of the item level, which is the free space of the top strip.
     frame.deaths = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.deaths:SetPoint("LEFT", frame.ilvl, "RIGHT", 24, 0)
     frame.deaths:SetJustifyH("LEFT")
 
-    -- Glifo chapado, não botão com moldura: a família de ícones do addon é plana.
+    -- A flat glyph, not a framed button: the addon's icon family is flat.
     local close = CreateFrame("Button", nil, frame)
     close:SetSize(16, 16)
     close:SetPoint("TOPRIGHT", -8, -8)
@@ -1712,18 +1712,18 @@ local function CreatePanel()
     close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
     close:SetScript("OnClick", function() frame:Hide() end)
 
-    -- A dica (e o aviso de simulação) vai no CABEÇALHO, não no rodapé: embaixo ela disputaria
-    -- espaço com o eixo de tempo, e o eixo é informação, a dica é só dica.
-    -- ⚑ O RODAPÉ FOI PARA O RODAPÉ, e isso é conserto de uma colisão que eu criei na 0.85.0.
+    -- The hint (and the simulation notice) goes in the HEADER, not in the footer: down there it would compete
+    -- for space with the time axis, and the axis is information, the hint is only a hint.
+    -- ⚑ THE FOOTER WENT TO THE FOOTER, and that fixes a collision I created in 0.85.0.
     --
-    -- Ele estava em `TOPRIGHT, -10, -38` — dentro do CABEÇALHO, apesar do nome — e era o único
-    -- ocupante da direita ali. Quando o tempo da corrida mudou para esse canto, os dois passaram a
-    -- disputar o mesmo espaço: o relato foi *"tem texto embaixo"*, e a conta bate — o resultado
-    -- ("no tempo +1") fecha por volta de −39 e ele começava em −38.
+    -- It sat at `TOPRIGHT, -10, -38` -- inside the HEADER, despite its name -- and was the only
+    -- occupant of the right there. When the run's time moved to that corner, the two came to
+    -- compete for the same space: the report was *"tem texto embaixo"*, and the arithmetic matches -- the result
+    -- ("no tempo +1") ends around −39 and it started at −38.
     --
-    -- O lugar certo é embaixo, e por dois motivos além de não colidir: é o que o nome dele diz, e
-    -- o que ele escreve — *"há 20 min"* ou a dica de arrastar — é a informação de menor prioridade
-    -- da tela. O eixo do tempo fica a 63 do fundo, então há faixa livre abaixo dele.
+    -- The right place is below, and for two reasons beyond not colliding: it is what its name says, and
+    -- what it writes -- *"há 20 min"* or the drag hint -- is the screen's lowest-priority
+    -- information. The time axis sits 63 from the bottom, so there is a free strip below it.
     frame.footer = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     frame.footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SIDE - 6, 6)
     frame.footer:SetJustifyH("RIGHT")
@@ -1738,13 +1738,13 @@ end
 -- Desenho
 --------------------------------------------------------------------------------
 local function DrawHeader()
-    -- Os corpos do cabeçalho, aplicados pela escada do addon para o seletor de fonte continuar
-    -- valendo: título 20, tempo 16, relógio de ocioso 11.
+    -- The header's sizes, applied by the addon's ladder so the font picker still
+    -- holds: title 20, time 16, idle clock 11.
     ns.ApplyScoreboardFont(frame.title, TITLE_SIZE - ns.Skin.scoreboardFontSize, "")
     ns.ApplyScoreboardFont(frame.clock, CLOCK_SIZE - ns.Skin.scoreboardFontSize, "")
-    -- O RESULTADO FICAVA DE FORA desta lista, e por isso era o único texto do cabeçalho que não
-    -- seguia a fonte escolhida pelo jogador — ficava no `GameFontNormalSmall` do template. Passou
-    -- despercebido porque "não seguir a fonte" não parece defeito, parece escolha.
+    -- THE RESULT WAS LEFT OUT of this list, and so it was the only header text that did not
+    -- follow the font the player chose -- it stayed on the template's `GameFontNormalSmall`. It went
+    -- unnoticed because "not following the font" does not look like a defect, it looks like a choice.
     ns.ApplyScoreboardFont(frame.result, RESULT_SIZE - ns.Skin.scoreboardFontSize, "")
     ns.ApplyScoreboardFont(frame.idle, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
     ns.ApplyScoreboardFont(frame.ilvl, IDLE_SIZE - ns.Skin.scoreboardFontSize, "")
@@ -1752,13 +1752,13 @@ local function DrawHeader()
 
     frame.title:SetText(context.title or L["Dungeon"])
 
-    -- A estrela é o selo de "que conteúdo é este". Em Mítico+ carrega o nível da pedra; em
-    -- raide, a inicial da dificuldade (N / H / M), que é a informação equivalente — sem ela o
-    -- placar de raide não diz se aquele boss caiu no normal ou no mítico.
+    -- The star is the seal of "what content this is". In Mythic+ it carries the keystone's level; in
+    -- a raid, the difficulty's initial (N / H / M), which is the equivalent information -- without it the
+    -- raid scoreboard does not say whether that boss fell on normal or on mythic.
     local badge = context.level and tostring(context.level) or context.badge
     if badge and badge ~= "" then
         frame.level:SetText(badge)
-        -- Três caracteres ("LFR") não cabem no mesmo corpo de um número de dois dígitos.
+        -- Three characters ("LFR") do not fit in the same size as a two-digit number.
         frame.level:SetFont(ns.Skin.font, #badge > 2 and 20 or 28, "OUTLINE")
         frame.level:Show()
         if frame.star:GetTexture() then frame.star:Show() end
@@ -1775,7 +1775,7 @@ local function DrawHeader()
         frame.clock:SetText("--:--")
     end
 
-    -- Resultado: sem atlas de "+1/+2/+3" no cliente, o painel oficial usa texto — e nós também.
+    -- The result: with no "+1/+2/+3" atlas in the client, the official panel uses text -- and so do we.
     if context.onTime == nil then
         -- (14/10) The subtitle was saved and never drawn: a raid boss's difficulty by name (the
         -- star has only its initial) and a session's "Overall" / "Current fight".
@@ -1788,17 +1788,17 @@ local function DrawHeader()
         frame.result:SetText("|cffe06060" .. L["over time"] .. "|r")
     end
 
-    -- TEMPO FORA DE COMBATE: soma dos trechos vermelhos do eixo, mostrado como
-    -- *"Not in combat"*. Ele responde a pergunta que a duração sozinha não
-    -- responde — quanto da corrida foi andando.
+    -- TIME OUT OF COMBAT: the sum of the axis's red stretches, shown as
+    -- *"Not in combat"*. It answers the question the duration alone does not
+    -- answer -- how much of the run was walking.
     local idle = OutOfCombatSeconds()
     frame.idle:SetShown(idle ~= nil)
     if idle then
         frame.idle:SetText(format(L["Not in combat: %s"], SecondsToClock(idle)))
     end
 
-    -- NÍVEL DE ITEM MÉDIO do grupo, do próprio retrato. Sem nenhum conhecido, some: um "0" ali
-    -- seria lido como um grupo pelado em vez de "não deu para inspecionar".
+    -- THE GROUP'S AVERAGE ITEM LEVEL, from the picture itself. With none known, it vanishes: a "0" there
+    -- would be read as a naked group instead of "could not inspect".
     local average = AverageItemLevel()
     frame.ilvlIcon:SetShown(average ~= nil)
     frame.ilvl:SetShown(average ~= nil)
@@ -1835,11 +1835,11 @@ local function DrawHeader()
 end
 
 --------------------------------------------------------------------------------
--- Desenho de uma célula, por tipo
+-- Drawing a cell, by type
 --------------------------------------------------------------------------------
--- `GetMicroIconForRole` (`Blizzard_SharedXMLBase/TextureUtil.lua:193`) é a global do jogo para
--- isto, e ela **levanta erro** para função desconhecida — daí a tabela ao lado dela
--- em vez de uma chamada direta com o que vier do retrato.
+-- `GetMicroIconForRole` (`Blizzard_SharedXMLBase/TextureUtil.lua:193`) is the game's global for
+-- this, and it **raises an error** for an unknown role -- hence the table beside it
+-- instead of a direct call with whatever comes from the picture.
 local ROLE_MICRO_ATLAS = {
     TANK = "UI-LFG-RoleIcon-Tank-Micro-GroupFinder",
     HEALER = "UI-LFG-RoleIcon-Healer-Micro-GroupFinder",
@@ -1848,11 +1848,11 @@ local ROLE_MICRO_ATLAS = {
 
 local CellPainters = {}
 
----Retrato: o rosto real de quem ainda está no grupo; o círculo da classe para o resto.
+--- The portrait: the real face of whoever is still in the group; the class circle for the rest.
 ---
----A degradação importa porque o
----placar guardado é aberto dias depois — quando `SetPortraitTexture` não tem mais unidade para
----consultar e a única identidade que sobrou é a classe.
+--- The degradation matters because the
+--- kept scoreboard is opened days later -- when `SetPortraitTexture` no longer has a unit to
+--- ask and the only identity left is the class.
 function CellPainters.portrait(cell, entry)
     local row = entry.row or {}
     local class = row.classFilename
@@ -1882,8 +1882,8 @@ function CellPainters.portrait(cell, entry)
         cell.role:Hide()
     end
 
-    -- Nível de item na cor da classe. Sem o número, um traço: a
-    -- placa escura fica, porque o buraco na coluna é pior que o traço.
+    -- The item level in the class colour. With no number, a dash: the
+    -- dark plate stays, because the hole in the column is worse than the dash.
     local ilevel = row.ilevel
     local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
     cell.ilvl:SetTextColor(color and color.r or 1, color and color.g or 1, color and color.b or 1)
@@ -1896,10 +1896,10 @@ end
 
 function CellPainters.name(cell, entry)
     local row = entry.row or {}
-    -- COR DE CLASSE NO NOME, que é o oposto da regra da janela de combate — lá a classe colore
-    -- a BARRA e o texto fica branco, porque texto na cor da classe SOME dentro de uma barra da
-    -- mesma cor. Aqui não há barra: o nome leva a cor e o
-    -- fundo é neutro, então a colisão que motivou aquela regra não existe.
+    -- A CLASS COLOUR ON THE NAME, which is the opposite of the combat window's rule -- there the class colours
+    -- the BAR and the text stays white, because text in the class colour VANISHES inside a bar of the
+    -- same colour. Here there is no bar: the name takes the colour and the
+    -- background is neutral, so the collision that motivated that rule does not exist.
     local color = row.classFilename and RAID_CLASS_COLORS and RAID_CLASS_COLORS[row.classFilename]
     cell.text:SetTextColor(color and color.r or 1, color and color.g or 1, color and color.b or 1)
     cell.text:SetText(ns.SplitName(row.name) or row.name or "?")
@@ -1922,9 +1922,9 @@ function CellPainters.keystone(cell, entry)
         end
     end
 
-    -- SEM PEDRA, A CÉLULA FICA VAZIA — e não com um ícone genérico apagado. O motivo é que aqui a ausência tem duas causas diferentes e indistinguíveis
-    -- na tela: o jogador pode não ter pedra, ou o RocketMeter pode não ter como saber
-    -- (ver `KeystoneFor`). Desenhar um ícone nos dois casos afirmaria a primeira.
+    -- WITH NO KEYSTONE, THE CELL STAYS EMPTY -- and not with a dimmed generic icon. The reason is that here the absence has two different causes that cannot be told apart
+    -- on screen: the player may have no keystone, or RocketMeter may have no way of knowing
+    -- (see `KeystoneFor`). Drawing an icon in both cases would state the first.
     cell.icon:SetShown(drew)
     if cell.frameArt then cell.frameArt:SetShown(drew) end
     cell.levelBg:SetShown(drew and level ~= nil and level > 0)
@@ -1956,9 +1956,9 @@ function CellPainters.loot(cell, entry)
         return
     end
 
-    -- `ContinueOnItemLoad` PORQUE O ITEM PODE NÃO ESTAR EM CACHE. Ler ícone e qualidade na hora
-    -- devolve nil para item que o cliente ainda não baixou, e o resultado é um quadrado vazio
-    -- que só se conserta reabrindo o painel — que é como este defeito apareceria.
+    -- `ContinueOnItemLoad` BECAUSE THE ITEM MAY NOT BE CACHED. Reading the icon and quality on the spot
+    -- returns nil for an item the client has not downloaded yet, and the result is an empty square
+    -- that is only fixed by reopening the panel -- which is how this defect would show.
     local ok, item = pcall(Item.CreateFromItemLink, Item, link)
     if not ok or not item then
         cell.icon:Hide(); cell.border:Hide(); cell.ilvlBg:Hide(); cell.ilvl:Hide()
@@ -1988,9 +1988,9 @@ function CellPainters.value(cell, entry, index)
     ns.SetCellText(cell.text, entry.values[index], columns[index].key)
 
     local best = entry.best and entry.best[index]
-    -- A cor de destaque: {230, 204, 128}/255. É creme, não dourado —
-    -- e a skill do workspace explica por que isso importa: creme não colide com cor de classe
-    -- nenhuma, então ele destaca sem ser lido como "este é ladino".
+    -- The highlight colour: {230, 204, 128}/255. It is cream, not gold --
+    -- and the workspace's skill explains why that matters: cream collides with no class colour
+    -- at all, so it highlights without being read as "this is a rogue".
     if best and ns.db.highlightBest ~= false then
         cell.text:SetTextColor(230 / 255, 204 / 255, 128 / 255)
     else
@@ -2034,8 +2034,8 @@ local function DrawRows(list, rowCount)
         if not entry then
             row:Hide()
         else
-            -- Fundo alternado, e só ele. A faixa de classe no rodapé da linha saiu. A identidade da classe
-            -- continua em três lugares na mesma linha — retrato, ícone e cor do nome.
+            -- The alternating background, and only it. The class strip at the foot of the row went away. The class's identity
+            -- stays in three places on the same row -- portrait, icon and the name's colour.
             row.bg:SetColorTexture(unpack(i % 2 == 1 and ROW_TINT_ODD or ROW_TINT_EVEN))
 
             for c = 1, #columns do
@@ -2055,11 +2055,11 @@ local function DrawRows(list, rowCount)
     end
 end
 
----As medidas do placar, para o teste poder conferi-las.
+--- The scoreboard's measures, so the test can check them.
 ---
----O que se trava com isto NÃO é "ficou bonito" — é que os números continuam sendo os medidos.
----Uma refatoração que mexa em qualquer um deles passa a reprovar, e é para isso que esta porta
----existe: medida sem conferência vira lembrança.
+--- What is locked with this is NOT "it looks nice" -- it is that the numbers are still the measured ones.
+--- A refactoring that touches any of them starts failing, and that is what this door
+--- exists for: a measure with no check becomes a memory.
 function Scoreboard.__frame()
     return frame
 end
@@ -2082,12 +2082,12 @@ function Scoreboard.DebugLayout()
         titleY = TITLE_Y,
         titleSize = TITLE_SIZE,
         clockSize = CLOCK_SIZE,
-        -- O corpo da faixa de contexto (fora de combate, ilvl, mortes). Entra porque o que o
-        -- harness trava agora e a HIERARQUIA entre os tres, e nao os numeros de cada um.
+        -- The context strip's size (out of combat, ilvl, deaths). It comes in because what the
+        -- harness locks now is the HIERARCHY between the three, and not each one's numbers.
         idleSize = IDLE_SIZE,
-        -- E o que o harness precisa para conferir que a pilha CABE na faixa de cabecalho, que e
-        -- o defeito que o print de 10/09 mostrou: "no tempo +1" desenhado dentro da faixa das
-        -- colunas. Sem estes tres, so daria para afirmar sobre corpos de fonte soltos.
+        -- And what the harness needs to check that the stack FITS in the header strip, which is
+        -- the defect the print of 10/09 showed: "no tempo +1" drawn inside the columns'
+        -- strip. Without these three, one could only state things about loose font sizes.
         clockY = CLOCK_Y,
         resultGap = RESULT_GAP,
         resultSize = RESULT_SIZE,
@@ -2104,9 +2104,9 @@ function Scoreboard.DebugLayout()
         end)(),
         panelHeight = HEADER_HEIGHT + COLHEAD_HEIGHT + 5 * (ROW_HEIGHT + ROW_SPACING) + FOOTER_HEIGHT,
 
-        -- Os TRES conjuntos que precisam fechar entre si: cada `render` declarado numa coluna
-        -- tem que ter um construtor e um pintor. Foi a falta desse fechamento que deixou a
-        -- coluna de pontuacao sem construtor e o painel sem corpo (print de 07/09 20:22).
+        -- The THREE sets that have to agree with each other: each `render` declared on a column
+        -- has to have a builder and a painter. It was the lack of that agreement that left the
+        -- score column without a builder and the panel without a body (print of 07/09 20:22).
         renders = (function()
             local vistos, out = {}, {}
             for c = 1, #ALL_COLUMNS do
@@ -2131,22 +2131,22 @@ function Scoreboard.DebugLayout()
     }
 end
 
----O que a faixa de cima esta MOSTRANDO. Existe porque a diferenca entre "o numero esta certo" e
----"o numero nao devia estar ai" so se ve perguntando ao widget.
----A corrida que está na tela, para o harness afirmar sobre ela.
+--- What the top strip is SHOWING. It exists because the difference between "the number is right" and
+--- "the number should not be there" can only be seen by asking the widget.
+--- The run that is on screen, for the harness to make assertions about it.
 ---
----`context` é local do arquivo e o teste do saque precisa ver a linha ANTES e DEPOIS de o item
----chegar — sem esta porta, ele teria que reabrir o painel e inferir pelo desenho, que é medir
----outra coisa.
+--- `context` is local to the file and the loot test needs to see the row BEFORE and AFTER the item
+--- arrives -- without this door, it would have to reopen the panel and infer from the drawing, which is measuring
+--- something else.
 function Scoreboard.DebugContext()
     return context
 end
 
----A ancoragem real dos textos do cabeçalho, lida dos widgets.
+--- The real anchoring of the header's texts, read from the widgets.
 ---
----⚑ NÃO SÃO AS CONSTANTES DE NOVO. O defeito de 10/09 foi de ARRANJO — três textos empilhados no
----mesmo eixo, o último caindo dentro da faixa das colunas —, e um teste que só soma constantes
----continuaria passando se alguém reempilhasse tudo. Aqui se lê onde o widget ficou de fato.
+--- ⚑ THEY ARE NOT THE CONSTANTS AGAIN. The defect of 10/09 was one of ARRANGEMENT -- three texts stacked on the
+--- same axis, the last falling inside the columns' strip --, and a test that only adds constants
+--- would keep passing if someone stacked everything again. Here what is read is where the widget really ended up.
 function Scoreboard.DebugHeaderAnchors()
     if not frame then return nil end
     local function ancora(fs)
@@ -2158,8 +2158,8 @@ function Scoreboard.DebugHeaderAnchors()
         title = ancora(frame.title),
         clock = ancora(frame.clock),
         result = ancora(frame.result),
-        -- O rodapé entra aqui porque ele DISPUTAVA este espaço: enquanto estava ancorado no topo
-        -- à direita, o bloco do tempo caía em cima dele. Só um teste que veja os dois pega isso.
+        -- The footer comes in here because it COMPETED for this space: while it was anchored at the top
+        -- right, the time block fell on it. Only a test that sees both catches that.
         footer = ancora(frame.footer),
         titleWidget = frame.title,
         clockWidget = frame.clock,
@@ -2176,7 +2176,7 @@ function Scoreboard.DebugHeader()
     }
 end
 
----As celulas desenhadas de uma linha, para o teste poder afirmar que ela existe de verdade.
+--- A row's drawn cells, so the test can state that it really exists.
 function Scoreboard.DebugRow(index)
     local row = rows and rows[index]
     return row and row.cells or nil
@@ -2185,7 +2185,7 @@ end
 function Scoreboard.Draw()
     if not frame or not context then return end
 
-    -- Antes de tudo: quais colunas esta corrida tem. Todo o resto do desenho lê de `columns`.
+    -- Before everything: which columns this run has. The whole rest of the drawing reads from `columns`.
     columns = ComputeColumns()
 
     local rowCount = context.rowCount or 5
@@ -2218,8 +2218,8 @@ function Scoreboard.Draw()
         frame.footer:SetText(L["Simulation — invented data."])
         frame.footer:SetTextColor(1, 0.72, 0.2)
     else
-        -- "há 2 dias" importa quando o painel mostra corrida guardada: sem isso não dá para
-        -- saber se aquilo é de agora ou da semana passada.
+        -- "há 2 dias" matters when the panel shows a kept run: without it there is no
+        -- knowing whether that is from now or from last week.
         local age = RunAge(context)
         frame.footer:SetText(age or L["Click a column header to sort. Drag to move."])
         frame.footer:SetTextColor(0.5, 0.5, 0.5)
@@ -2228,15 +2228,15 @@ function Scoreboard.Draw()
     DrawTimeline()
 end
 
----Envelope de segurança: um erro no laço de desenho não pode derrubar o painel inteiro sem
----deixar pista. Mesma defesa que a janela usa.
+--- A safety envelope: an error in the drawing loop cannot bring the whole panel down without
+--- leaving a clue. The same defence the window uses.
 ---
----É **função pública** porque o clique no cabeçalho de coluna precisa dela: chamar `Draw()` cru
----de dentro de um `OnClick` faz o erro sumir em silêncio quando `scriptErrors` está desligado
----(o padrão do jogo), e aí o usuário vê a coluna trocar de cor e as linhas não mudarem.
+--- It is a **public function** because the click on a column header needs it: calling a raw `Draw()`
+--- from inside an `OnClick` makes the error vanish silently when `scriptErrors` is off
+--- (the game's default), and then the user sees the column change colour and the rows not change.
 function Scoreboard.Refresh()
-    -- ⚑ NAO REENTRA. Ver a nota de `desenhando`: um desenho disparado de dentro de outro reescreve
-    -- os caches no meio do uso, e o erro sai em outro lugar, com outra cara.
+    -- ⚑ IT DOES NOT RE-ENTER. See the note on `desenhando`: a drawing fired from inside another rewrites
+    -- the caches in the middle of their use, and the error comes out somewhere else, with another face.
     if desenhando then return end
     desenhando = true
 
@@ -2273,21 +2273,21 @@ function Scoreboard.Toggle()
         return
     end
 
-    -- Depois de um `/reload` não há corrida em memória, mas pode haver em disco. Sem isto o
-    -- `/rm score` respondia "nenhuma corrida registrada" com a corrida gravada ali do lado.
+    -- After a `/reload` there is no run in memory, but there may be one on disk. Without this
+    -- `/rm score` answered "no run recorded" with the recorded run right beside it.
     if not context and Scoreboard.ShowMostRecent() then return end
 
     Scoreboard.Show()
 end
 
 --------------------------------------------------------------------------------
--- Simulação
+-- Simulation
 --------------------------------------------------------------------------------
----Abre o placar com uma corrida inventada.
+--- Opens the scoreboard with a made-up run.
 ---
----Não toca em nada real: `ns.Demo.Run` devolve uma tabela solta, e ela **não** é gravada em
----disco. Existe para ver o painel sem rodar uma masmorra — testar aparência de um placar de
----fim de M+ custava meia hora de jogo por ajuste.
+--- It touches nothing real: `ns.Demo.Run` returns a loose table, and it is **not** saved to
+--- disk. It exists to see the panel without running a dungeon -- testing the look of an
+--- end-of-M+ scoreboard cost half an hour of play per tweak.
 function Scoreboard.ShowDemo()
     if not ns.Demo then
         ns.Print(L["restart the client: the demo module was not loaded yet."])
@@ -2296,7 +2296,7 @@ function Scoreboard.ShowDemo()
     Scoreboard.Show(ns.Demo.Run())
 end
 
----Abre a última corrida guardada de um tipo ("mplus" ou "raid").
+--- Opens the last kept run of a type ("mplus" or "raid").
 function Scoreboard.ShowLast(kind)
     local run = Scoreboard.GetRun(kind)
     if not run then
@@ -2326,29 +2326,29 @@ function Scoreboard.HasRun(kind)
     return Scoreboard.GetRun(kind) ~= nil
 end
 
----Captura a corrida que acabou, guarda em disco e mostra.
+--- Captures the run that ended, keeps it on disk and shows it.
 ---
----A captura vai por `ns.RunWhenSafe`: em combate os números da sessão são secret e o retrato
----sairia vazio. A fila do `Core.lua` já drena no `PLAYER_REGEN_ENABLED`, então o placar de um
----boss de raide morto com adds ainda vivos aparece quando a luta realmente acaba — que é
----também quando ele é útil.
----A guarda das classes de morte, para o harness exercitar os dois ramos.
+--- The capture goes through `ns.RunWhenSafe`: in combat the session's numbers are secret and the picture
+--- would come out empty. `Core.lua`'s queue already drains on `PLAYER_REGEN_ENABLED`, so the scoreboard of a
+--- raid boss killed with adds still alive shows when the fight really ends -- which is
+--- also when it is useful.
+--- The death classes' guard, for the harness to exercise both branches.
 ---
----Gancho declarado, no estilo do `Picker.__probe`: ela roda dentro da captura, e sem esta porta o
----teste do ramo "as contagens discordam" teria que forjar uma corrida inteira para chegar nela.
+--- A declared hook, in the style of `Picker.__probe`: it runs inside the capture, and without this door the
+--- test of the "the counts disagree" branch would have to forge a whole run to get to it.
 Scoreboard.__attachDeathClasses = AttachDeathClasses
 
----A janela em que o placar continua reencostando as colunas que vêm de fora.
+--- The window in which the scoreboard keeps re-reading the columns that come from outside.
 ---
----⚑ ELA EXISTE PORQUE NÃO HÁ EVENTO PARA "O GRUPO TERMINOU DE ABRIR O BAÚ". A pedra nova de cada
----um chega quando ele abre; a pontuação, quando o servidor recalcula. O aviso da LibOpenRaid cobre
----a pedra de quem roda addon compatível — esta janela cobre o resto, e cobre também o caso de a
----lib não estar presente.
+--- ⚑ IT EXISTS BECAUSE THERE IS NO EVENT FOR "THE GROUP FINISHED OPENING THE CHEST". Each one's new keystone
+--- arrives when he opens it; the score, when the server recomputes. LibOpenRaid's notice covers
+--- the keystone of whoever runs a compatible addon -- this window covers the rest, and also covers the case of the
+--- lib not being present.
 ---
----Dois minutos, de 5 em 5 segundos, e **para assim que não falta mais nada**: enquanto houver
----linha sem pedra ou sem saque continua tentando; completou, encerra. (14/10) Na prática quase
----sempre vai até o fim: ficar sem saque é o normal para parte do grupo. O custo é um redesenho a
----cada 5 s por 2 minutos, uma vez por chave.
+--- Two minutes, every 5 seconds, and **it stops as soon as nothing is missing**: while there is a
+--- row with no keystone or no loot it keeps trying; once complete, it ends. (14/10) In practice it almost
+--- always goes to the end: being without loot is normal for part of the group. The cost is one redraw
+--- every 5 s for 2 minutes, once per key.
 local JANELA_EXTERNA_SEGUNDOS = 120
 local JANELA_EXTERNA_PASSO = 5
 
@@ -2445,8 +2445,8 @@ local function CaptureAndShow(base, kind, auto)
     end
     ns.RunWhenSafe(function()
         if ns.Log then ns.Log.Add("placar", { fase = "captura", segundos = Desde() }) end
-        -- A classe de cada morte entra ANTES do retrato, para viajar junto com ele para o disco:
-        -- uma corrida reaberta na semana que vem não tem mais sessão de medidor para consultar.
+        -- Each death's class goes in BEFORE the picture, to travel with it to disk:
+        -- a run reopened next week no longer has a meter session to ask.
         pcall(AttachDeathClasses, base)
 
         local ok, snapshot = pcall(Scoreboard.Snapshot, base)
@@ -2461,9 +2461,9 @@ local function CaptureAndShow(base, kind, auto)
         -- of this one stitched into that one.
         if not (frame and frame:IsShown()) then context = snapshot end
 
-        -- `auto == false` é a abertura pedida à mão (botão, `/rm score`): essa sempre mostra.
-        -- A automática obedece à caixa do tipo de conteúdo — são duas, porque quem quer o
-        -- resumo de toda chave não necessariamente quer o de todo chefe de raide.
+        -- `auto == false` is the opening asked for by hand (a button, `/rm score`): that one always shows.
+        -- The automatic one obeys the content type's box -- there are two, because whoever wants the
+        -- summary of every key does not necessarily want that of every raid boss.
         local wanted = kind == "mplus" and ns.db.autoScoreboardMPlus or ns.db.autoScoreboardRaid
         -- A KEY, opened by itself: wait for the chest (see above). The run is the current one
         -- already, so what arrives before the panel stitches into it.
@@ -2483,9 +2483,9 @@ local function CaptureAndShow(base, kind, auto)
             if ns.Log then ns.Log.Add("placar", { fase = "aberto", segundos = Desde() }) end
         end
 
-        -- E a partir daqui o placar continua vivo: pedra, saque e pontuação chegam nos minutos
-        -- seguintes, conforme cada um abre o baú. Só em Mítico+ — num chefe de raide essas três
-        -- colunas nem existem.
+        -- And from here on the scoreboard stays alive: keystone, loot and score arrive in the following
+        -- minutes, as each one opens the chest. Only in Mythic+ -- on a raid boss those three
+        -- columns do not even exist.
         if kind == "mplus" then
             IniciarReencosto()
         end
@@ -2502,8 +2502,8 @@ local function GroupRowCount()
 end
 
 function Scoreboard.OnChallengeCompleted()
-    -- No 12.1.0 esta função devolve UMA TABELA. O ramo posicional fica
-    -- porque o cliente já trocou a forma antes e o custo de manter é uma linha.
+    -- In 12.1.0 this function returns A TABLE. The positional branch stays
+    -- because the client already changed the shape before and the cost of keeping it is one line.
     local a, level, timeMs, onTime, upgrades, _, scoreBefore, scoreAfter =
         C_ChallengeMode.GetChallengeCompletionInfo()
 
@@ -2514,8 +2514,8 @@ function Scoreboard.OnChallengeCompleted()
         scoreBefore, scoreAfter = a.oldOverallDungeonScore, a.newOverallDungeonScore
     end
 
-    -- Guarda de sanidade: depois de um /reload dentro da masmorra o cliente devolve a tabela
-    -- com mapChallengeModeID = 0, e o painel abriria com uma corrida vazia.
+    -- A sanity guard: after a /reload inside the dungeon the client returns the table
+    -- with mapChallengeModeID = 0, and the panel would open with an empty run.
     if mapID == nil or mapID == 0 then return end
 
     local mapName, timeLimit
@@ -2530,19 +2530,19 @@ function Scoreboard.OnChallengeCompleted()
         if ok then deaths, timeLost = count, lost end
     end
 
-    -- Afixos: o 2º retorno de `GetActiveKeystoneInfo` é a lista de ids. Mas a chave é
-    -- consumida ao completar, então essa chamada pode voltar vazia justamente aqui — daí o
-    -- fallback para os afixos da semana, que vêm como lista de tabelas com campo `.id`.
-    -- Nunca hardcodar id de afixo: a família do Midnight não existia antes.
+    -- Affixes: `GetActiveKeystoneInfo`'s 2nd return is the list of ids. But the keystone is
+    -- consumed on completion, so this call may come back empty exactly here -- hence the
+    -- fallback to the week's affixes, which come as a list of tables with an `.id` field.
+    -- Never hard-code an affix id: Midnight's family did not exist before.
     local affixes
     if C_ChallengeMode.GetActiveKeystoneInfo then
         local ok, _, ids = pcall(C_ChallengeMode.GetActiveKeystoneInfo)
         if ok and type(ids) == "table" and #ids > 0 then affixes = ids end
     end
     if not affixes and C_MythicPlus and C_MythicPlus.GetCurrentAffixes then
-        -- `GetCurrentAffixes` devolve nil enquanto o cliente não pediu os dados ao servidor.
-        -- O pedido é assíncrono: não adianta esperar aqui, mas ele deixa a lista pronta para
-        -- a próxima corrida. `RequestMapInfo` é o gatilho.
+        -- `GetCurrentAffixes` returns nil while the client has not asked the server for the data.
+        -- The request is asynchronous: waiting here is no use, but it leaves the list ready for
+        -- the next run. `RequestMapInfo` is the trigger.
         if C_MythicPlus.RequestMapInfo then pcall(C_MythicPlus.RequestMapInfo) end
 
         local ok, week = pcall(C_MythicPlus.GetCurrentAffixes)
@@ -2579,12 +2579,12 @@ function Scoreboard.OnChallengeCompleted()
     }, "mplus")
 end
 
----Selo da estrela para uma dificuldade de raide: a inicial, como o jogo faz nos seus próprios
----indicadores (N / H / M).
+--- The star's seal for a raid difficulty: the initial, as the game does on its own
+--- indicators (N / H / M).
 ---
----Sai de `displayHeroic` / `displayMythic`, que são os campos que o cliente entrega justamente
----para isso — em vez de uma tabela de ids de dificuldade, que muda de expansão em expansão. A
----inicial do nome localizado é a reserva, e funciona em pt-BR (Normal, Heroico, Mítico).
+--- It comes from `displayHeroic` / `displayMythic`, which are the fields the client gives precisely
+--- for this -- instead of a table of difficulty ids, which changes from expansion to expansion. The
+--- localised name's initial is the fallback, and it works in pt-BR (Normal, Heroico, Mítico).
 local function DifficultyBadge(difficultyID)
     if not difficultyID or not GetDifficultyInfo then return nil, nil end
 
@@ -2663,8 +2663,8 @@ function Scoreboard.OnEncounterEnd(encounterName, difficultyID)
 
     CaptureAndShow({
         title = encounterName or L["Encounter"],
-        -- Sem nível de chave, a estrela carrega a dificuldade: é o mesmo papel, e sem ela o
-        -- placar de raide não diria se o boss caiu no normal ou no mítico.
+        -- With no key level, the star carries the difficulty: it is the same role, and without it the
+        -- raid scoreboard would not say whether the boss fell on normal or on mythic.
         badge = badge,
         subtitle = difficultyName,
         durationSeconds = seconds,
