@@ -424,3 +424,6 @@ L["Hits, critical hits and uptime exist only in the game's combat log file, whic
 L["The heals and the shields in one list, as Warcraft Logs shows them; a shield is the game's \"Absorbs\"."] =
     "As curas e os escudos numa lista só, como o Warcraft Logs mostra; escudo é o que o jogo chama de \"Absorções\"."
 L["This run was saved before the spells were kept with it."] = "Este combate é de antes de as magias serem guardadas com ele."
+-- (25/10) the game's own words (GlobalStrings ptBR: COMBAT_LOG, STAT_CATEGORY_ATTRIBUTES)
+L["Combat log"] = "Registro de combate"
+L["Attributes"] = "Atributos"
