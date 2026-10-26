@@ -1,13 +1,13 @@
 -- RocketMeter | Window.lua
 --
--- A linha é uma BARRA, não uma célula de planilha: fundo escuro, preenchimento na cor da
--- classe proporcional ao valor, ícone e nome por cima, número à direita — o formato do medidor
--- nativo do jogo. As métricas extras entram como colunas à direita, que é o ganho sobre abrir
--- uma janela por métrica.
+-- The row is a BAR, not a spreadsheet cell: a dark background, a fill in the class colour
+-- proportional to the value, the icon and name on top, the number on the right -- the format of the game's
+-- native meter. The extra metrics come in as columns on the right, which is the gain over opening
+-- one window per metric.
 --
--- Fonte, tamanho e contorno de cada texto, distâncias e largura são configuráveis; a janela
--- redimensiona pela alça do canto. Não há X: esconde pelo `/rm`, pelo minimapa ou pelo
--- compartimento de addons — e nunca no ESC.
+-- Each text's font, size and outline, the distances and the width are configurable; the window
+-- resizes by the corner handle. There is no X: it hides through `/rm`, the minimap or the
+-- addon compartment -- and never on ESC.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -16,27 +16,27 @@ ns.Window = Window
 
 -- (14/10) The constants below are the skin (it follows the game's own meter); the player's
 -- choices (font, sizes, outline, distances) live in `ns.db` and `ROLE_DEFAULTS`.
--- A FONTE DO CHAT DO JOGO, porque foi a referência que o usuário deu: *"olha na primeira
+-- THE GAME'S CHAT FONT, because it was the reference the user gave: *"olha na primeira
 -- imagem como tá o meu chat, como fica bem legível ele"*.
 --
--- Não é palpite sobre qual é: `ChatFontNormal` herda de `NumberFont_Shadow_Med`, que é
--- `Fonts\ARIALN.TTF` com `height="14"` e sombra (1,−1) preta
--- (`Blizzard_Fonts_Shared/Mainline/Fonts.xml:775-777`). A sombra já era a nossa; faltavam a
--- família e o corpo.
+-- It is not a guess about which it is: `ChatFontNormal` inherits from `NumberFont_Shadow_Med`, which is
+-- `Fonts\ARIALN.TTF` with `height="14"` and a black (1,−1) shadow
+-- (`Blizzard_Fonts_Shared/Mainline/Fonts.xml:775-777`). The shadow was already ours; the
+-- family and the size were missing.
 --
--- A troca de família resolve a tensão que a 0.50.0 deixou registrada. Lá, copiar o corpo do
--- medidor nativo (16, em Friz) foi reprovado in-game: a janela dele mostra UMA métrica, a nossa
--- mostra seis colunas, e mais corpo virava mais tinta. Arial Narrow é **condensada** — rende
--- caixa alta maior (12px contra os 9px do Friz 13) gastando MENOS largura por caractere. Cresce
--- na altura, que é onde faltava, e encolhe na largura, que é onde faltava espaço.
+-- Swapping the family settles the tension 0.50.0 left recorded. There, copying the native
+-- meter's size (16, in Friz) was rejected in the game: its window shows ONE metric, ours
+-- shows six columns, and more size became more ink. Arial Narrow is **condensed** -- it gives
+-- a taller cap height (12px against Friz 13's 9px) spending LESS width per character. It grows
+-- in height, which is where it was missing, and shrinks in width, which is where space was missing.
 local FONT = "Fonts\\ARIALN.TTF"
 
--- AS FONTES QUE O JOGO TRAZ, para o alfabeto romano. Só entram nomes que aparecem nas
--- declarações de `Blizzard_Fonts_Shared` — inventar caminho de fonte não dá erro visível, dá
--- texto que some.
+-- THE FONTS THE GAME BRINGS, for the Roman alphabet. Only names that appear in the
+-- declarations of `Blizzard_Fonts_Shared` come in -- inventing a font path gives no visible error, it gives
+-- text that vanishes.
 --
--- Morpheus e Skurri são decorativas (título de missão e texto de combate) e ficam ruins numa
--- coluna de números; entram porque a escolha é do jogador, não minha.
+-- Morpheus and Skurri are decorative (quest titles and combat text) and look bad in a
+-- column of numbers; they come in because the choice is the player's, not mine.
 ns.FONT_CHOICES = {
     { path = "Fonts\\ARIALN.TTF",   label = "Arial Narrow" },
     { path = "Fonts\\FRIZQT__.TTF", label = "Friz Quadrata" },
@@ -44,118 +44,118 @@ ns.FONT_CHOICES = {
     { path = "Fonts\\skurri.ttf",   label = "Skurri" },
 }
 
--- Contorno: os três níveis que o WoW tem, com os nomes que o jogador entende. Mesma escala do
--- chat que o usuário deu como referência (nenhum / fino / grosso).
--- A ESPESSURA DO MEIO-TERMO, e ela e continua: as copias ficam a 1px do glifo, entao o envelope
+-- Outline: the three levels WoW has, with names the player understands. The same scale as the
+-- chat the user gave as reference (none / thin / thick).
+-- THE THICKNESS OF THE MIDDLE GROUND, and it is continuous: the copies sit 1px from the glyph, so the envelope
 ns.OUTLINE_CHOICES = {
     { value = "none",  flags = "" },
     { value = "thin",  flags = "OUTLINE" },
     { value = "thick", flags = "THICKOUTLINE" },
 }
--- Medido no print oficial lado a lado: os dígitos do medidor nativo têm 11px de altura de
--- caixa alta; os nossos, com corpo 13, tinham 9px. FRIZQT rende ~0,69px de caixa por ponto,
--- então 11px pediria corpo 16 — e 16 foi testado in-game e reprovado por ficar grande.
+-- Measured on the official print side by side: the native meter's digits have an 11px cap
+-- height; ours, at size 13, had 9px. FRIZQT gives ~0.69px of cap per point,
+-- so 11px would ask for size 16 -- and 16 was tested in the game and rejected for being big.
 --
--- O motivo de não copiar o número dele: a janela da Blizzard mostra **uma** métrica, a nossa
--- mostra seis colunas de números. A mesma altura de letra rende muito mais tinta aqui, e o
--- que lá é confortável aqui vira bloco. Igualar o corpo não igualaria a densidade.
+-- The reason for not copying its number: Blizzard's window shows **one** metric, ours
+-- shows six columns of numbers. The same letter height gives much more ink here, and
+-- what is comfortable there becomes a block here. Matching the size would not match the density.
 --
--- A busca foi 16 -> 14 -> 13 -> 12 -> **13**, cada degrau visto in-game. O 12 foi testado e o
--- usuário voltou: "aumenta para 13px, acho que fica melhor o tamanho do texto para a janela de
--- combate". (14/10: depois disso o padrão do corpo virou 16, `ROLE_DEFAULTS.body`, com Arial
--- Narrow; o 13 vale como história da busca, não como o número de hoje.)
+-- The search was 16 -> 14 -> 13 -> 12 -> **13**, each step seen in the game. 12 was tested and the
+-- user went back: "aumenta para 13px, acho que fica melhor o tamanho do texto para a janela de
+-- combate". (14/10: after that the body's default became 16, `ROLE_DEFAULTS.body`, with Arial
+-- Narrow; the 13 holds as the search's history, not as today's number.)
 --
--- Vale para a linha INTEIRA: nome e todas as células, com ou sem realce, na coluna ordenada ou
--- não. Isso tira o corpo de fonte da lista de sinais de realce — o que sobra para marcar o
--- líder de uma coluna é a cor (a da própria classe, clareada) e, para a coluna ordenada, o
--- dourado no cabeçalho. Tamanho variando dentro da mesma linha fazia a régua dos números dançar.
+-- It holds for the WHOLE row: the name and every cell, highlighted or not, in the sorted column or
+-- not. That takes the font size off the list of highlight signals -- what is left to mark the
+-- leader of a column is the colour (the class's own, lightened) and, for the sorted column, the
+-- gold in the header. A size varying within the same row made the numbers' ruler dance.
 --
--- Em px de caixa alta, pela taxa medida (~0,69px por ponto): 13 rende 9px, 12 rendia ~8px.
--- CORPO PADRÃO. 16, e não os 17 do chat: o chat ocupa a largura da tela com uma coluna de
--- texto, e esta janela carrega seis colunas de número na mesma altura de linha. É a mesma
--- correção que a 0.50.0 fez na outra direção — medida de fora vale como ponto de partida, não
--- como alvo, porque a densidade das duas telas é diferente.
+-- In px of cap height, by the measured rate (~0.69px per point): 13 gives 9px, 12 gave ~8px.
+-- THE DEFAULT SIZE. 16, and not the chat's 17: the chat takes the screen's width with one column of
+-- text, and this window carries six columns of numbers at the same row height. It is the same
+-- correction 0.50.0 made in the other direction -- a measure from outside counts as a starting point, not
+-- as a target, because the density of the two screens is different.
 local FONT_SIZE_DEFAULT = 16
 
--- LIMITES DO CORPO CONFIGURÁVEL, e os dois saem de conta, não de gosto.
+-- THE CONFIGURABLE SIZE'S LIMITS, and both come from arithmetic, not taste.
 --
--- TETO 20 — vem da LARGURA DA CÉLULA. A célula tem 50px (`COLUMN_WIDTH_FIXED` menos 8), e o
--- texto mais longo que `Data.FormatAmount` produz tem 5 caracteres ("-339M", "10.0K"). Em Arial
--- Narrow um dígito avança ~0,5 do corpo, então 5 dígitos ocupam ~2,5×corpo:
+-- CEILING 20 -- it comes from the CELL'S WIDTH. The cell is 50px (`COLUMN_WIDTH_FIXED` minus 8), and the
+-- longest text `Data.FormatAmount` produces has 5 characters ("-339M", "10.0K"). In Arial
+-- Narrow a digit advances ~0.5 of the size, so 5 digits take ~2.5×size:
 --
---     2,5 × 20 = 50px   ← exatamente a célula
+--     2.5 × 20 = 50px   <- exactly the cell
 --
--- Um ponto acima disso e o número volta a virar reticências, que foi a reclamação da 0.54.0.
--- Por isso o teto é 20 e não um número redondo escolhido no olho.
+-- One point above that and the number turns into an ellipsis again, which was the complaint of 0.54.0.
+-- That is why the ceiling is 20 and not a round number chosen by eye.
 --
--- PISO 10 — abaixo daí a caixa alta fica em ~7px e o texto deixa de ser lido de relance numa
--- janela que fica no canto da tela. Não há razão aritmética exata aqui; é o ponto onde a
--- própria função do addon se perde.
--- Geometria da linha. Sobe para ca porque `ns.RowHeightFor` a usa, e `local` declarado depois
--- de uma funcao resolve como GLOBAL dentro dela -- ou seja, nil.
--- QUANTO O NUMERO E A TAXA RESERVAM a direita da barra. E reserva fixa, nao medicao: medir o
--- texto a cada quadro daria uma largura que muda conforme o numero cresce ("9K" -> "12K" ->
--- "134K"), e o nome ficaria pulando de tamanho no meio da luta.
+-- FLOOR 10 -- below it the cap height is ~7px and the text stops being read at a glance in a
+-- window that sits in the corner of the screen. There is no exact arithmetic reason here; it is the point where
+-- the addon's very function gets lost.
+-- The row's geometry. It moves up here because `ns.RowHeightFor` uses it, and a `local` declared after
+-- a function resolves as a GLOBAL inside it -- that is, nil.
+-- HOW MUCH THE NUMBER AND THE RATE RESERVE to the right of the bar. It is a fixed reserve, not a measure: measuring the
+-- text at every frame would give a width that changes as the number grows ("9K" -> "12K" ->
+-- "134K"), and the name would jump in size in the middle of the fight.
 --
--- 96 = ~56 para o total (cabe "1.2B") + ~34 para a taxa + a folga entre os dois.
--- A CALHA entre o fim do nome e a primeira coluna. Ela ja existia como um `10` solto dentro da
--- conta do nome; virou constante porque agora DUAS contas dependem dela -- a area do nome e a
--- largura minima da janela --, e um `10` digitado em dois lugares e a receita para elas
--- divergirem, que e exatamente o defeito que este arquivo acabou de ter.
+-- 96 = ~56 for the total (fits "1.2B") + ~34 for the rate + the slack between the two.
+-- THE GUTTER between the end of the name and the first column. It already existed as a loose `10` inside the
+-- name's arithmetic; it became a constant because now TWO sums depend on it -- the name's area and the
+-- window's minimum width --, and a `10` typed in two places is the recipe for them to
+-- drift apart, which is exactly the defect this file just had.
 local NAME_GUTTER = 10
 
 local NUMBER_RESERVE = 96
 
--- A CELULA DE COLUNA, agora que ela e uma barra.
+-- THE COLUMN CELL, now that it is a bar.
 --
--- `CELL_GAP` separa uma coluna da vizinha: sem ele as barras encostam e viram uma faixa continua,
--- e o olho perde onde uma metrica termina e a outra comeca -- que e justamente a leitura que este
--- desenho existe para dar.
+-- `CELL_GAP` separates a column from its neighbour: without it the bars touch and become one continuous strip,
+-- and the eye loses where one metric ends and the other begins -- which is exactly the reading this
+-- design exists to give.
 --
--- `CELL_INSET` deixa a barra um pouco mais baixa que a linha, para as barras de linhas vizinhas
--- nao se tocarem na vertical.
+-- `CELL_INSET` leaves the bar a bit lower than the row, so the bars of neighbouring rows
+-- do not touch vertically.
 --
--- O TRILHO ESCURO ATRAS DA BARRA SAIU, a pedido do usuario: *"tira o fundo preto com algum
+-- THE DARK TRACK BEHIND THE BAR WENT AWAY, at the user's request: *"tira o fundo preto com algum
 -- percentual de opacidade"*.
 --
--- Ele existia para dar chao ao numero na parte VAZIA da barra -- que e onde o numero cai para
--- todo mundo menos o lider da coluna. Sem ele, essa parte e o cenario do jogo.
+-- It existed to give the number ground on the EMPTY part of the bar -- which is where the number falls for
+-- everyone but the column's leader. Without it, that part is the game's scenery.
 --
--- ⚠️ Entao o que sustenta a leitura passa a ser SO a sombra do texto. E a mesma aposta que a
--- janela ja faz no nome e no relogio (`ROW_BG_ALPHA = 0`, `WINDOW_ALPHA = 0`) e que o usuario ja
--- aprovou la; se o numero ficar ruim sobre cenario claro, o conserto e o contorno/sombra DELE, e
--- nao trazer a caixa de volta -- foi ela que ele mandou tirar.
--- A FOLGA ENTRE FAMILIAS. Queixa do usuario: *"me incomodou a divisao das colunas, ta muito em
+-- ⚠️ So what holds the reading becomes ONLY the text's shadow. It is the same bet the
+-- window already makes on the name and the clock (`ROW_BG_ALPHA = 0`, `WINDOW_ALPHA = 0`) and that the user already
+-- approved there; if the number reads badly over light scenery, the fix is ITS outline/shadow, and
+-- not bringing the box back -- it was the box he had taken out.
+-- THE SLACK BETWEEN FAMILIES. The user's complaint: *"me incomodou a divisao das colunas, ta muito em
 -- cima da anterior o comando da proxima, mais ainda o interrupt, comeca em cima do CPS"*.
 --
--- Ele esta descrevendo a lei da proximidade quebrada. Dano+DPS sao UMA barra e Cura+CPS sao
--- outra, mas o espaco entre as duas familias era o mesmo 4px que separava qualquer coisa: sem
--- diferenca de vao, o olho nao tem como saber onde uma metrica acaba e a outra comeca.
+-- He is describing the law of proximity broken. Damage+DPS are ONE bar and Healing+HPS are
+-- another, but the space between the two families was the same 4px that separated anything: with no
+-- difference of gap, the eye has no way of knowing where one metric ends and the other begins.
 --
--- 10 nao e numero novo: e o `NAME_GUTTER`, que ja e a calha entre o NOME e as metricas -- ou
--- seja, o vao que este addon ja usa para dizer "aqui muda de assunto". Uma familia e outro
--- assunto pelo mesmo motivo. Um vocabulario de vao so, em vez de dois.
+-- 10 is not a new number: it is `NAME_GUTTER`, which is already the gutter between the NAME and the metrics --
+-- that is, the gap this addon already uses to say "here the subject changes". A family is another
+-- subject for the same reason. One gap vocabulary, instead of two.
 --
--- ⚑ E ELE SAI DA ESQUERDA DO GRUPO, nao dos dois lados. Tirando dos dois, a borda direita da
--- barra se afastaria da borda direita da coluna e o CABECALHO (que e ancorado na coluna, nao no
--- grupo) deixaria de ficar em cima do numero que ele nomeia. Saindo so da esquerda, o vao aparece
--- exatamente onde ele precisa aparecer -- entre uma familia e a anterior -- e o alinhamento de
--- cabecalho com numero fica intacto.
+-- ⚑ AND IT COMES OFF THE GROUP'S LEFT, not both sides. Taking it from both, the bar's right edge
+-- would move away from the column's right edge and the HEADER (which is anchored on the column, not on the
+-- group) would stop sitting over the number it names. Coming only off the left, the gap shows
+-- exactly where it needs to show -- between one family and the previous -- and the alignment of
+-- header with number stays intact.
 --
--- ⚑ 09/09/2026: VIROU CONFIGURÁVEL, com padrão **8** (o número que o usuário deu). O 10 antigo
--- passa a ser só o ponto de partida histórico.
+-- ⚑ 09/09/2026: IT BECAME CONFIGURABLE, with a default of **8** (the number the user gave). The old 10
+-- becomes only the historical starting point.
 --
--- O que o padrão respeita, e o slider não pode fazer respeitar: a razão sobre o `CELL_GAP` de 4.
--- É ela — e não o valor absoluto — que faz o vão ser lido como "muda de assunto", e o piso
--- praticado é **2×**. Em 8 a razão é exatamente 2,0; em 6 seria 1,5, que é literalmente a razão
--- que produziu a queixa original. Quem descer o slider abaixo de 8 está escolhendo isso, e o
--- mínimo do controle (4) existe para que a escolha seja possível sem ser acidental.
+-- What the default respects, and the slider cannot make respected: the ratio over the `CELL_GAP` of 4.
+-- It is that -- and not the absolute value -- that makes the gap read as "the subject changes", and the floor
+-- practised is **2×**. At 8 the ratio is exactly 2.0; at 6 it would be 1.5, which is literally the ratio
+-- that produced the original complaint. Whoever takes the slider below 8 is choosing that, and the
+-- control's minimum (4) exists so the choice is possible without being accidental.
 local GROUP_GAP_DEFAULT = 8
 local GROUP_GAP_MIN, GROUP_GAP_MAX = 4, 20
 local CELL_GAP = 4
 local CELL_INSET = 2
 
----A folga entre famílias, como o jogador deixou.
+--- The slack between families, as the player left it.
 local function GroupGap()
     local v = ns.db and ns.db.groupGap
     if type(v) ~= "number" then return GROUP_GAP_DEFAULT end
@@ -165,17 +165,17 @@ local function GroupGap()
 end
 
 local TOTAL_WIDTH_DEFAULT = 84
--- 50 e 99 a pedido (10/09/2026). O padrão de 84 fica confortavelmente dentro da faixa.
+-- 50 and 99 by request (10/09/2026). The default of 84 sits comfortably inside the range.
 --
--- ⚑ O QUE MUDA COM O PISO EM 50, dito porque não dá para consertar daqui: `ColumnWidthFor` devolve
--- `math.max(resolução, texto medido)`, então a coluna nunca fica menor do que o número precisa. O
--- deslizador não quebra nada abaixo do pedido do texto — ele **para de ter efeito**, porque o
--- texto passa a mandar. Medido no print de 09/09 (1:1 com o jogo), "999.9M" na Arial Narrow 16
--- pede ~51 px com os recuos, então em 50 o fim do curso já é o piso real.
+-- ⚑ WHAT CHANGES WITH THE FLOOR AT 50, said because it cannot be fixed from here: `ColumnWidthFor` returns
+-- `math.max(resolution, measured text)`, so the column never gets smaller than the number needs. The
+-- slider breaks nothing below the text's demand -- it **stops having an effect**, because the
+-- text comes to rule. Measured on the print of 09/09 (1:1 with the game), "999.9M" in Arial Narrow 16
+-- asks for ~51 px with the insets, so at 50 the end of the travel is already the real floor.
 --
--- E a faixa muda com a tipografia: numa fonte larga, ou no corpo 20, o texto pede mais e o trecho
--- mudo do deslizador cresce. Isso já era verdade com o piso em 56 — o pedido só o torna um pouco
--- mais visível. Se ele arrastar até o fim e a janela não encolher mais, é isto, e não um defeito.
+-- And the range changes with the typography: in a wide font, or at size 20, the text asks more and the
+-- slider's silent stretch grows. That was already true with the floor at 56 -- the request only makes it a bit
+-- more visible. If he drags to the end and the window does not shrink any more, it is this, and not a defect.
 local TOTAL_WIDTH_MIN, TOTAL_WIDTH_MAX = 50, 99
 
 ---A largura da coluna de total, como o jogador deixou.
@@ -189,31 +189,31 @@ end
 
 local ROW_HEIGHT_FIXED = 25   -- medido no nativo: linha de y=68 a y=92
 local COLUMN_WIDTH_FIXED = 58
--- ⚑ ESTES 3px ERAM A FAIXA DE COR DE CLASSE no rodape da linha, removida a pedido do usuario
--- em 08/09/2026 (*"remove a linha da cor da classe da coluna do nome"*). Eles FICARAM, e de
--- proposito: tira-los reduz a altura da linha de 29 para 26 no corpo padrao e re-espaca a janela
--- inteira -- uma mudanca visivel que ninguem pediu. Hoje sao respiro no rodape.
+-- ⚑ THESE 3px WERE THE CLASS COLOUR STRIP at the foot of the row, removed at the user's request
+-- on 08/09/2026 (*"remove a linha da cor da classe da coluna do nome"*). They STAYED, and on
+-- purpose: taking them out reduces the row's height from 29 to 26 at the default size and re-spaces the whole
+-- window -- a visible change nobody asked for. Today they are breathing room at the foot.
 --
--- O nome mudou junto: constante que descreve o que nao existe mais e a forma mais barata de a
--- proxima pessoa procurar uma faixa que nao esta la.
+-- The name changed with it: a constant that describes what no longer exists is the cheapest way for the
+-- next person to look for a strip that is not there.
 local ROW_BOTTOM_ROOM = 3
 
 local FONT_SIZE_MIN = 10
 local FONT_SIZE_MAX = 20
 
--- Abaixo daqui o contorno SAI sozinho. Um contorno de 1px sobre uma caixa alta de ~9px é 11% da
--- altura da letra e fecha os vazados do "a", do "e" e do "8" — vira mancha. É a mesma razão pela
--- qual o placar (corpo 12) nunca teve contorno.
+-- Below here the outline GOES by itself. A 1px outline over a ~9px cap height is 11% of the
+-- letter's height and closes the holes of the "a", the "e" and the "8" -- it becomes a blot. It is the same reason
+-- why the scoreboard (size 12) never had an outline.
 local OUTLINE_MIN_SIZE = 13
 
--- TRÊS TEXTOS INDEPENDENTES, cada um com corpo, contorno e sombra próprios.
+-- THREE INDEPENDENT TEXTS, each with its own size, outline and shadow.
 --
--- Eles eram deltas de um corpo único (−2, −3, −4), e o usuário reprovou pelo motivo certo:
--- *"mudo um e ele faz pra tudo e fica ruim"*. Um cabeçalho de coluna e o corpo de uma linha
--- de número não têm por que andar juntos — o primeiro é rótulo estático que se lê uma vez, o
--- segundo muda a cada segundo e é o que se lê de relance.
+-- They were deltas of a single size (−2, −3, −4), and the user rejected it for the right reason:
+-- *"mudo um e ele faz pra tudo e fica ruim"*. A column header and the body of a row
+-- of numbers have no reason to go together -- the first is a static label read once, the
+-- second changes every second and is what is read at a glance.
 --
--- Os deltas viram apenas o PADRÃO de cada papel; a partir daí cada um é seu.
+-- The deltas become only each role's DEFAULT; from there each one is its own.
 local ROLES = { "body", "title", "header" }
 
 local ROLE_DEFAULTS = {
@@ -222,29 +222,29 @@ local ROLE_DEFAULTS = {
     header = { size = 12, outline = "none", shadow = true },
 }
 
--- O relógio mora na barra de título e acompanha o título, um ponto abaixo. Não virou um quarto
--- controle porque ninguém pensa nele como um texto separado — é a hora do título.
+-- The clock lives in the title bar and follows the title, one point below. It did not become a fourth
+-- control because nobody thinks of it as a separate text -- it is the title's time.
 local CLOCK_DELTA = -1
 
----Altura da linha para um dado corpo.
+--- The row height for a given size.
 ---
----25px é a medida tirada do medidor nativo e continua sendo o **piso**. Com o corpo
----configurável ela não pode ser só isso: em 20 o texto passa de 20px entre caixa alta,
----descendentes e contorno, e ainda há 3px de respiro no rodapé — sem crescer junto, o texto
----encostaria na linha de baixo e na de cima.
+--- 25px is the measure taken from the native meter and is still the **floor**. With a
+--- configurable size it cannot be only that: at 20 the text passes 20px between cap height,
+--- descenders and outline, and there are still 3px of breathing room at the foot -- without growing along, the text
+--- would touch the row below and the one above.
 ---
----O fator 1,45 cobre caixa alta + descendente em Arial Narrow; os +2 são a folga do contorno.
+--- The factor 1.45 covers cap height + descender in Arial Narrow; the +2 are the outline's slack.
 function ns.RowHeightFor(size)
     local needed = math.ceil(size * 1.45) + 2 + ROW_BOTTOM_ROOM
     if needed > ROW_HEIGHT_FIXED then return needed end
     return ROW_HEIGHT_FIXED
 end
 
----Reescreve em `ns.Skin` os valores que dependem do corpo.
+--- Rewrites in `ns.Skin` the values that depend on the size.
 ---
----`ns.Skin` é uma TABELA lida por outras telas, e elas leem o campo, não uma função. Com o
----corpo fixo isso bastava; agora precisa ser refeito a cada mudança, senão o placar continuaria
----calculando o delta dele contra o corpo antigo.
+--- `ns.Skin` is a TABLE read by other screens, and they read the field, not a function. With a
+--- fixed size that was enough; now it has to be redone at each change, or the scoreboard would keep
+--- computing its delta against the old size.
 function ns.RefreshSkin()
     ns.Skin.font = ns.FontPath()
     ns.Skin.fontSize = ns.RoleSize("body")
@@ -255,35 +255,35 @@ function ns.RefreshSkin()
     ns.Skin.rowHeight = ns.RowHeightFor(ns.RoleSize("body"))
 end
 
----A configuracao de um papel, sempre completa e sempre dentro dos limites.
+--- A role's settings, always complete and always within the limits.
 ---
----Le da configuracao a cada chamada em vez de guardar: assim o passo do configurador aparece
----na tela sem `/reload`. E cai no padrao do papel quando a chave nao existe -- que e o caso de
----quem atualiza o addon antes de a migracao rodar.
----A configuracao de um papel de texto. **Ela nunca devolve tabela incompleta** -- e a garantia
----existe porque a falta dela virou travamento intermitente.
+--- It reads from the settings at every call instead of keeping them: so the configurator's step shows
+--- on screen without `/reload`. And it falls back on the role's default when the key does not exist -- which is the case of
+--- whoever updates the addon before the migration runs.
+--- A text role's settings. **It never returns an incomplete table** -- and the guarantee
+--- exists because its absence became an intermittent lock-up.
 ---
----⚠️ SINTOMA NAO EXPLICADO, e fica registrado assim de proposito. Em ~3 de 12 rodadas do harness,
----`ns.OutlineFor("body")` recebia daqui um `config` com `size` E `outline` nil e estourava em
----`size < OUTLINE_MIN_SIZE` ("attempt to compare nil with number"), sempre em pontos diferentes
----do teste. Investiguei com instrumentacao, nao com teoria:
+--- ⚠️ AN UNEXPLAINED SYMPTOM, and it stays recorded so on purpose. In ~3 of 12 harness rounds,
+--- `ns.OutlineFor("body")` got from here a `config` with `size` AND `outline` nil and blew up at
+--- `size < OUTLINE_MIN_SIZE` ("attempt to compare nil with number"), always at different points
+--- of the test. I investigated with instrumentation, not with theory:
 ---
----  * `ns.db.text.body` estava INTEGRO no instante da falha (size 16, outline "thin");
----  * `ROLE_DEFAULTS.body` tambem: 25 rodadas com uma armadilha de escrita e nenhuma disparou,
----    e uma checagem dentro desta funcao nunca viu `base.size` deixar de ser numero.
+---  * `ns.db.text.body` was INTACT at the instant of the failure (size 16, outline "thin");
+---  * `ROLE_DEFAULTS.body` too: 25 rounds with a write trap and none fired,
+---    and a check inside this function never saw `base.size` stop being a number.
 ---
----Ou seja: as duas fontes estavam certas e a saida veio errada. Nao encontrei o mecanismo, e por
----isso o comentario diz isso em vez de inventar uma causa -- a proxima pessoa merece saber que a
----blindagem abaixo e uma REDE, e que o buraco continua aberto.
+--- That is: both sources were right and the output came out wrong. I did not find the mechanism, and so
+--- the comment says so instead of inventing a cause -- the next person deserves to know that the
+--- armour below is a NET, and that the hole is still open.
 ---
----A rede e barata e correta por si: quem le uma configuracao tem direito a uma configuracao
----completa, e nenhum caminho daqui deveria produzir campo faltando.
----O CORPO de um papel, garantidamente numero.
+--- The net is cheap and right on its own: whoever reads settings has the right to complete
+--- settings, and no path from here should produce a missing field.
+--- A role's SIZE, guaranteed to be a number.
 ---
----Existe porque `ns.RoleConfig(role).size` chegou nil em TRES chamadores diferentes
----(`ApplyRoleFont` e `OutlineFor`), em ~3 de 30 rodadas do harness, e a
----investigacao nao achou o mecanismo -- ver o comentario longo em `RoleConfig`. Enquanto ele nao
----for achado, ninguem le `.size` cru: le por aqui.
+--- It exists because `ns.RoleConfig(role).size` arrived nil at THREE different callers
+--- (`ApplyRoleFont` and `OutlineFor`), in ~3 of 30 harness rounds, and the
+--- investigation did not find the mechanism -- see the long comment in `RoleConfig`. Until it
+--- is found, nobody reads a raw `.size`: they read through here.
 function ns.RoleSizeSafe(role)
     local config = ns.RoleConfig(role)
     local size = config and config.size
@@ -321,16 +321,16 @@ end
 ns.ROLES = ROLES
 ns.ROLE_DEFAULTS = ROLE_DEFAULTS
 
----O contorno de um PAPEL, ja considerando o corpo dele.
+--- A ROLE's outline, already considering its size.
 ---
----Recebe o papel e nao o tamanho porque agora cada texto tem contorno proprio -- era isso que
----faltava, e o usuario reprovou o contorno unico com a razao certa: "quero mexer no contorno de
----cada um tambem".
+--- It takes the role and not the size because now each text has its own outline -- that was what
+--- was missing, and the user rejected the single outline with the right reason: "quero mexer no contorno de
+--- cada um tambem".
 function ns.OutlineFor(role)
     local config = ns.RoleConfig(role)
-    -- CINTO ALEM DO SUSPENSORIO, e o motivo esta no comentario de `RoleConfig`: esta comparacao
-    -- estourou em producao com `size` nil, e a origem nao foi encontrada. Enquanto ela nao for,
-    -- a janela nao pode deixar de desenhar por causa disso.
+    -- BELT AND BRACES, and the reason is in `RoleConfig`'s comment: this comparison
+    -- blew up in production with a nil `size`, and the origin was not found. Until it is,
+    -- the window cannot stop drawing because of it.
     local size = ns.RoleSizeSafe(role)
     local wanted = config.outline
 
@@ -339,10 +339,10 @@ function ns.OutlineFor(role)
         if choice.value == wanted then flags = choice.flags end
     end
 
-    -- DEGRAU ABAIXO DO LIMIAR, em vez de obedecer cru. O jogador escolhe a intenção; o que ele
-    -- não tem como prever é que o cabeçalho de coluna sai quatro pontos menor que a linha, e
-    -- que num corpo pequeno o contorno fecha os vazados do "a", do "e" e do "8". Então cada
-    -- texto que cair abaixo do limiar desce um nível — só ele, não a janela toda.
+    -- ONE STEP DOWN BELOW THE THRESHOLD, instead of obeying raw. The player chooses the intent; what he
+    -- has no way of predicting is that the column header comes out four points smaller than the row, and
+    -- that at a small size the outline closes the holes of the "a", the "e" and the "8". So each
+    -- text that falls below the threshold goes down one level -- only it, not the whole window.
     if size < OUTLINE_MIN_SIZE then
         if flags == "THICKOUTLINE" then return "OUTLINE" end
         return ""
@@ -350,139 +350,139 @@ function ns.OutlineFor(role)
     return flags
 end
 
----A sombra de um papel: alfa 0.8 quando ligada, 0 quando nao.
+--- A role's shadow: alpha 0.8 when on, 0 when not.
 function ns.ShadowAlphaFor(role)
     return ns.RoleConfig(role).shadow and 0.8 or 0
 end
 
----O corpo escolhido, sempre dentro dos limites.
+--- The chosen size, always within the limits.
 ---
----Lê da configuração a cada chamada em vez de guardar numa constante: assim o passo do
----configurador aparece na tela sem `/reload`.
+--- It reads from the settings at every call instead of keeping it in a constant: so the
+--- configurator's step shows on screen without `/reload`.
 local FontSize
 
----O corpo das LINHAS. Ficou como atalho para `ns.RoleSize("body")` porque metade do arquivo já
----o chamava, e trocar tudo por um nome mais longo só faria diferença de digitação.
+--- The ROWS' size. It stayed as a shortcut to `ns.RoleSize("body")` because half the file already
+--- called it, and swapping everything for a longer name would only make a typing difference.
 function FontSize()
     return ns.RoleSize("body")
 end
 
--- O PLACAR não segue esta janela. Ele foi visto e aprovado com corpo 12, e a subida para 13
--- foi pedida para "a janela de combate" — mudar as duas juntas desfaria uma aprovação que já
--- existe. Mesma razão de `PANEL_FONT_SIZE`: tela diferente, densidade diferente, corpo próprio.
+-- THE SCOREBOARD does not follow this window. It was seen and approved at size 12, and the rise to 13
+-- was asked for "a janela de combate" -- changing both together would undo an approval that already
+-- exists. The same reason as `PANEL_FONT_SIZE`: a different screen, a different density, a size of its own.
 local SCOREBOARD_FONT_SIZE = 12
--- O título da faixa e o cabeçalho de colunas são valores ABSOLUTOS, não deltas: não seguem o
--- corpo da linha. No nativo o título mede 9px de caixa contra 11px da linha, e é essa diferença
--- que dá a hierarquia da janela dele.
+-- The strip's title and the column header are ABSOLUTE values, not deltas: they do not follow the
+-- row's size. In the native one the title measures 9px of cap against the row's 11px, and it is that difference
+-- that gives its window's hierarchy.
 --
--- TÍTULO, RELÓGIO E CABEÇALHO ACOMPANHAM A LINHA, como deltas — não como números soltos.
+-- TITLE, CLOCK AND HEADER FOLLOW THE ROW, as deltas -- not as loose numbers.
 --
--- Eram três absolutos, herdados de quando a linha era 13. Toda vez que o corpo da linha mudava
--- (e ele mudou seis vezes), a hierarquia se desfazia sozinha: chegou ao ponto de o título (13)
--- **empatar** com a linha (13), quando no medidor nativo ele é menor — é justamente o menor que
--- dá a hierarquia. O comentário antigo aqui dizia "se ficar gritando, o conserto é aqui", o que
--- é a descrição de um valor que devia ser derivado e não era.
+-- They were three absolutes, inherited from when the row was 13. Every time the row's size changed
+-- (and it changed six times), the hierarchy came undone by itself: it got to the point of the title (13)
+-- **tying** with the row (13), when in the native meter it is smaller -- it is exactly the smaller that
+-- gives the hierarchy. The old comment here said "if it ends up shouting, the fix is here", which
+-- is the description of a value that should have been derived and was not.
 --
--- Como delta, a relação sobrevive à próxima mudança de corpo sem ninguém lembrar dela. Medido
--- no nativo: título ~0,82 do conteúdo, que com a linha em 16 dá 13–14.
+-- As a delta, the relation survives the next size change without anyone remembering it. Measured
+-- in the native one: title ~0.82 of the content, which with the row at 16 gives 13-14.
 
--- Calculados no momento da leitura, nao uma vez na carga: com o corpo configuravel, guardar
--- o resultado congelaria a hierarquia no valor que valia quando o arquivo carregou.
--- O painel de detalhamento não tem equivalente no medidor da Blizzard, então não segue o corpo
--- da linha: ele mantém o próprio, que é o que já estava aprovado. Crescer junto por herança
--- seria mudar uma tela que ninguém pediu para mudar.
+-- Computed at reading time, not once at load: with a configurable size, keeping
+-- the result would freeze the hierarchy at the value that held when the file loaded.
+-- The breakdown panel has no equivalent in Blizzard's meter, so it does not follow the
+-- row's size: it keeps its own, which is what was already approved. Growing along by inheritance
+-- would be changing a screen nobody asked to change.
 local PANEL_FONT_SIZE = 13
 local PANEL_ROW_HEIGHT = 22
--- CONTORNO LIGADO, e a decisão é do usuário — não minha inferência.
+-- OUTLINE ON, and the decision is the user's -- not my inference.
 --
--- Eu tinha medido o print do chat dele e concluído "não tem contorno, só sombra". Errado: o
--- chat não é o da Blizzard, é um addon de chat, e a fonte foi ajustada por ele. A configuração
--- está em disco e diz o que ele escolheu:
+-- I had measured the print of his chat and concluded "no outline, only a shadow". Wrong: the
+-- chat is not Blizzard's, it is a chat addon, and the font was tuned by him. The setting
+-- is on disk and says what he chose:
 --
---     fonte     = ChatFontNormal
---     corpo     = 17           -- GetFontScalingFactor() = 17/14
---     contorno  = fino         -- -> "OUTLINE"
---     sombra    = sim          -- -> "SHADOW"
+--     font      = ChatFontNormal
+--     size      = 17           -- GetFontScalingFactor() = 17/14
+--     outline   = thin         -- -> "OUTLINE"
+--     shadow    = yes          -- -> "SHADOW"
 --
--- Ou seja: `OUTLINE` **de verdade**, mais sombra, em corpo 17. Isso reverte duas conclusões
--- anteriores deste arquivo, e vale registrar por quê:
+-- That is: a **real** `OUTLINE`, plus a shadow, at size 17. That reverses two earlier
+-- conclusions of this file, and it is worth recording why:
 --
---   * "`OUTLINE` em tudo ficou pesado" (0.48.0) foi medido em **Friz 13**. Em Arial Narrow 17
---     o traço do contorno é o mesmo 1px sobre um glifo bem maior — proporcionalmente muito
---     mais leve. O que pesava era a razão contorno/glifo, não o contorno.
---   * O halo desenhado existia para dar meio-termo entre "nada" e `OUTLINE`. Com o corpo maior
---     o meio-termo deixou de ser necessário, e ele continua desligado — somar os dois dobraria
---     o traço.
--- Não há mais constante de contorno: quem decide é `ns.OutlineFor(corpo)`, porque com o corpo
--- configurável a resposta certa depende do tamanho de cada texto. Chamar `ns.ApplyFont` sem o
--- terceiro argumento é o jeito normal; passar `""` é para quem quer explicitamente nenhum
--- (as cópias do halo).
--- O nome do reino entra sempre um ponto abaixo do nome do personagem. Fora do próprio reino o
--- servidor devolve "Nome-Reino", e no corpo cheio os dois competiam: o print de 05/09 mostrava
--- "Magicpandá-Tic…" — nome e reino brigando pela mesma largura, e as reticências comendo os
--- dois. Hierarquia por corpo resolve sem esconder de onde a pessoa é.
+--   * "`OUTLINE` on everything got heavy" (0.48.0) was measured in **Friz 13**. In Arial Narrow 17
+--     the outline's stroke is the same 1px over a much bigger glyph -- proportionally much
+--     lighter. What weighed was the outline/glyph ratio, not the outline.
+--   * The drawn halo existed to give a middle ground between "nothing" and `OUTLINE`. With the bigger size
+--     the middle ground stopped being needed, and it stays off -- adding the two would double
+--     the stroke.
+-- There is no outline constant any more: `ns.OutlineFor(size)` decides, because with a
+-- configurable size the right answer depends on each text's size. Calling `ns.ApplyFont` without the
+-- third argument is the normal way; passing `""` is for whoever explicitly wants none
+-- (the halo's copies).
+-- The realm's name always comes one point below the character's name. Outside one's own realm the
+-- server returns "Name-Realm", and at full size the two competed: the print of 05/09 showed
+-- "Magicpandá-Tic…" -- name and realm fighting over the same width, and the ellipsis eating
+-- both. Hierarchy by size solves it without hiding where the person is from.
 local REALM_FONT_DELTA = -1
 ns.REALM_FONT_DELTA = REALM_FONT_DELTA
--- Medição do print lado a lado corrige o que eu havia concluído antes: a linha do medidor
--- nativo mede RGB(23,42,51) e o cenário ao lado dela RGB(27,46,54) — ou seja, **ela também é
--- transparente**. Então o preto ao redor das letras dele não vem de fundo escuro: é contorno
--- de verdade. Entorno dos glifos: mediana 10 no nome e 0 nos números. O nosso nome já mede 0,
--- os números mediam 34 — o halo estava certo, faltava corpo de fonte para ele cobrir.
+-- Measuring the print side by side corrects what I had concluded before: the native meter's row
+-- measures RGB(23,42,51) and the scenery beside it RGB(27,46,54) -- that is, **it is
+-- transparent too**. So the black around its letters does not come from a dark background: it is a real
+-- outline. Around the glyphs: median 10 in the name and 0 in the numbers. Our name already measures 0,
+-- the numbers measured 34 -- the halo was right, it lacked font size to cover.
 local BAR_TEXTURE = "Interface\\Buttons\\WHITE8X8"
--- Os números de partida, escolhidos para imitar o medidor nativo:
---   0.4 -> fundo da janela
---   0.4 -> fundo escuro atrás do preenchimento
---   barra de 20, 1 entre barras, fonte 12
+-- The starting numbers, chosen to imitate the native meter:
+--   0.4 -> the window's background
+--   0.4 -> the dark background behind the fill
+--   a bar of 20, 1 between bars, font 12
 local BAR_BRIGHTNESS = 0.7          -- escurece a cor da classe para o texto branco ler
--- A faixa fina do nativo **não é chapada**. Medida ao longo dela, sobre a mesma cor de classe
--- que a nossa usa (163,164,255): 52% na ponta esquerda, 67% no meio, 84% na direita. A nossa
--- estava chapada em 100% — era exatamente essa a diferença de "o nosso tá mais claro".
--- A PISTA e a FAISCA.
+-- The native one's thin strip **is not flat**. Measured along it, over the same class colour
+-- ours uses (163,164,255): 52% at the left end, 67% in the middle, 84% on the right. Ours
+-- was flat at 100% -- that was exactly the difference of "o nosso tá mais claro".
+-- THE TRACK and the SPARK.
 --
--- `TRACK_ALPHA` = 0,15: a pista tinge o fundo da linha com a cor da classe, e discreta porque
--- divide espaco com os numeros.
+-- `TRACK_ALPHA` = 0.15: the track tints the row's background with the class colour, and discreetly because
+-- it shares space with the numbers.
 --
--- `SPARK_ALPHA` = 0,35 e o pico do degrade, no lado da ponta.
+-- `SPARK_ALPHA` = 0.35 is the gradient's peak, on the tip's side.
 --
--- Ele CAIU de 0,55 quando o brilho deixou de ter largura fixa. Com 10px de rastro, 0,55 era o
--- pico de uma manchinha; agora o degrade se estica pelo preenchimento inteiro, e o mesmo 0,55
--- lavaria a barra do lider de branco. 0,35 mantem a ponta nitidamente mais clara que o meio sem
--- apagar a cor da classe embaixo -- que e o que a barra tem para dizer quem e quem.
--- O respiro entre o numero e a borda da barra. 3px e o mesmo recuo que o texto ja tinha
--- quando era alinhado a direita -- o que mudou foi a ponta, nao a margem.
+-- It DROPPED from 0.55 when the glow stopped having a fixed width. With a 10px trail, 0.55 was the
+-- peak of a small smudge; now the gradient stretches over the whole fill, and the same 0.55
+-- would wash the leader's bar white. 0.35 keeps the tip clearly lighter than the middle without
+-- erasing the class colour underneath -- which is what the bar has to say who is who.
+-- The breathing room between the number and the bar's edge. 3px is the same inset the text already had
+-- when it was right-aligned -- what changed was the tip, not the margin.
 local TEXT_INSET = 3
 
--- O respiro ALEM do recuo, para o numero nao encostar no vizinho quando a fonte e larga. 4px e a
--- mesma folga que separa duas celulas hoje (`CELL_GAP`), aplicada ao texto.
+-- The breathing room BEYOND the inset, so the number does not touch its neighbour when the font is wide. 4px is the
+-- same slack that separates two cells today (`CELL_GAP`), applied to the text.
 local TEXT_ROOM = 4
 
--- ⚑ O CORPO DA FONTE NAO E UM SINAL. Nao virou um agora, e nao pode voltar a ser.
+-- ⚑ THE FONT SIZE IS NOT A SIGNAL. It did not become one now, and it cannot go back to being one.
 --
--- E decisao do usuario de 05/09/2026, ja escrita neste arquivo -- e que eu desrespeitei em 09/09
--- ao por o companheiro do par tres pontos menor. Ele mandou desfazer no mesmo dia, com print:
+-- It is the user's decision of 05/09/2026, already written in this file -- and which I disrespected on 09/09
+-- by making the pair's companion three points smaller. He had it undone the same day, with a print:
 -- *"o texto cada um parece em uma escala ou tamanho de fonte diferente, ficou bizarro, esse tipo
 -- de erro nao pode mais acontecer"*.
 --
--- Duas razoes, e a segunda so apareceu na tela:
+-- Two reasons, and the second only showed on screen:
 --
--- 1. **A regua vertical danca.** Numeros de uma mesma coluna mudando de tamanho de linha para
---    linha tiram a referencia que faz uma tabela ser legivel de relance.
--- 2. **O degrau cruzava o limiar do CONTORNO.** Com corpo 13 e `OUTLINE_MIN_SIZE` tambem 13, o
---    companheiro caia para 10 e perdia o contorno JUNTO com o tamanho -- duas mudancas de uma
---    vez, e e por isso que leu como "escalas diferentes" em vez de hierarquia.
+-- 1. **The vertical ruler dances.** Numbers of the same column changing size from row to
+--    row take away the reference that makes a table readable at a glance.
+-- 2. **The step crossed the OUTLINE's threshold.** With size 13 and `OUTLINE_MIN_SIZE` also 13, the
+--    companion dropped to 10 and lost the outline ALONG with the size -- two changes at
+--    once, and that is why it read as "different scales" instead of hierarchy.
 --
--- A hierarquia que sobra e a COR, que nao mexe em metrica nenhuma. Mais fraca de proposito: e o
--- preco de nao mexer no corpo, e o corpo nao esta em jogo.
+-- The hierarchy left is COLOUR, which touches no metric. Weaker on purpose: it is the
+-- price of not touching the size, and the size is not in play.
 --
--- A constante fica em ZERO, e nao some, para o proximo que pensar em usar o corpo como sinal ler
--- isto antes de tentar.
+-- The constant stays at ZERO, and does not go away, so the next one who thinks of using the size as a signal reads
+-- this before trying.
 local PAIR_DELTA = 0
 
--- O SEPARADOR do trio. Um ponto medio, na cor apagada, entre numeros vizinhos.
+-- The trio's SEPARATOR. A middle dot, in the dimmed colour, between neighbouring numbers.
 --
--- So aparece com TRES membros, a pedido do usuario. Com dois ele seria pior que nada: eles estao
--- nas duas pontas da barra, longe um do outro, e um ponto solto no meio nao separaria nada --
--- pareceria sujeira. Com tres, os vizinhos se aproximam e a marca passa a ter trabalho.
+-- It only shows with THREE members, at the user's request. With two it would be worse than nothing: they are
+-- at the two ends of the bar, far from each other, and a loose dot in the middle would separate nothing --
+-- it would look like dirt. With three, the neighbours come closer and the mark gets a job.
 local DOT_TEXT = "\194\183"     -- U+00B7 MIDDLE DOT, em UTF-8
 local DOT_DELTA = -4
 
@@ -491,44 +491,44 @@ local SPARK_ALPHA = 0.35
 
 local BAR_GRADIENT_MIN = 0.52
 local BAR_GRADIENT_MAX = 0.84
--- Fundo da linha totalmente transparente: com a janela sem fundo, um preto parcial atrás de
--- cada linha é meio-termo — aparece como um retângulo cinza flutuando sobre o cenário. Quem
--- sustenta a leitura é a sombra do texto, e a separação entre linhas vem da faixa de progresso.
+-- The row's background fully transparent: with the window without a background, a partial black behind
+-- each row is a halfway thing -- it shows as a grey rectangle floating over the scenery. What
+-- holds the reading is the text's shadow, and the separation between rows comes from the progress strip.
 local ROW_BG_ALPHA = 0
 
--- Fundo invisível: a variante "No Background" aprovada pelo usuário, como o medidor nativo.
--- Quem sustenta a leitura é a sombra do texto; a separação vem da faixa de progresso.
+-- An invisible background: the "No Background" variant approved by the user, like the native meter.
+-- What holds the reading is the text's shadow; the separation comes from the progress strip.
 local WINDOW_ALPHA = 0
 
--- Proporção: numa faixa de 32px com texto de 13pt, o texto ocupa ~40% da altura. Com 20px e 13pt eu tinha 65% — daí a sensação de apertado.
--- Exposto para os outros painéis (detalhamento, placar) seguirem a mesma linguagem sem
--- copiar valores — cópia é o que faz as telas divergirem com o tempo.
+-- Proportion: in a 32px strip with 13pt text, the text takes ~40% of the height. With 20px and 13pt I had 65% -- hence the cramped feeling.
+-- Exposed for the other panels (breakdown, scoreboard) to follow the same language without
+-- copying values -- copying is what makes screens drift apart over time.
 ns.Skin = {
     font = FONT,
     fontSize = ROLE_DEFAULTS.body.size,
-    -- O contorno da JANELA DE COMBATE. O placar (corpo 12) e o painel de detalhamento (13)
-    -- passam `""` de propósito: 1px de contorno sobre um glifo de ~8px fecha os vazados da
-    -- letra, e os dois já foram vistos e aprovados sem ele. Se um dia tiverem que acompanhar,
-    -- o conserto é trocar o `""` deles por `ns.Skin.fontOutline`.
+    -- The COMBAT WINDOW's outline. The scoreboard (size 12) and the breakdown panel (13)
+    -- pass `""` on purpose: a 1px outline over a ~8px glyph closes the letter's holes,
+    -- and both were already seen and approved without it. If one day they have to follow,
+    -- the fix is swapping their `""` for `ns.Skin.fontOutline`.
     fontOutline = "OUTLINE",
-    -- Corpos com valor próprio, expostos para as outras telas não redigitarem o literal: o
-    -- placar tinha um `11` cravado no código que precisaria ser caçado à mão se este mudasse.
+    -- Sizes with a value of their own, exposed so the other screens do not retype the literal: the
+    -- scoreboard had an `11` hard-coded that would have had to be hunted by hand if this changed.
     colheadFontSize = ROLE_DEFAULTS.header.size,
     titleFontSize = ROLE_DEFAULTS.title.size,
     clockFontSize = ROLE_DEFAULTS.title.size + CLOCK_DELTA,
-    -- Limites do corpo, expostos para o configurador não redigitar os números.
+    -- The size's limits, exposed so the configurator does not retype the numbers.
     fontSizeMin = FONT_SIZE_MIN,
     fontSizeMax = FONT_SIZE_MAX,
     rowsMin = 1,
     rowsMax = 20,
-    -- Os limites das duas distancias configuraveis. Expostos pelo mesmo motivo dos de fonte: a
-    -- tela le daqui, entao nao ha como o deslizador oferecer um valor que o desenho recusa.
+    -- The limits of the two configurable distances. Exposed for the same reason as the font's: the
+    -- screen reads from here, so there is no way for the slider to offer a value the drawing refuses.
     groupGapMin = GROUP_GAP_MIN,
     groupGapMax = GROUP_GAP_MAX,
     totalWidthMin = TOTAL_WIDTH_MIN,
     totalWidthMax = TOTAL_WIDTH_MAX,
-    -- Exposta porque é dela que sai o teto do corpo: o texto mais longo de uma célula tem que
-    -- caber aqui, e é isso que o harness confere.
+    -- Exposed because the size's ceiling comes from it: a cell's longest text has to
+    -- fit here, and that is what the harness checks.
     columnWidth = COLUMN_WIDTH_FIXED,
     -- A folga entre familias de metrica. Exposta porque o teste afirma sobre ela, e travar
     -- o numero no teste faria a proxima mudanca de folga reprovar por design.
@@ -540,38 +540,38 @@ ns.Skin = {
     panelRowHeight = PANEL_ROW_HEIGHT,
     rowSpacing = 1,
     rowBackground = { 0, 0, 0, ROW_BG_ALPHA },
-    -- O painel de leitura tem fundo próprio, então lá as linhas ganham um preto leve para
-    -- se separarem. Na janela transparente isso viraria listra cinza — por isso dois valores.
+    -- The reading panel has a background of its own, so there the rows get a light black to
+    -- separate. In the transparent window that would become a grey stripe -- hence two values.
     panelRowBackground = { 0, 0, 0, 0.25 },
     windowAlpha = WINDOW_ALPHA,
-    -- A janela é overlay sobre o jogo e fica transparente; painel de leitura pede fundo,
-    -- senão o texto disputa com o cenário. Daí dois alfas em vez de um.
+    -- The window is an overlay over the game and stays transparent; a reading panel asks for a background,
+    -- or the text competes with the scenery. Hence two alphas instead of one.
     panelAlpha = 0.70,
-    -- O placar é o mais opaco dos três: ele abre por cima de tudo no fim da corrida, ocupa
-    -- meia tela e carrega arte de fundo da masmorra. Valor próprio, não `panelAlpha + 0.22`
-    -- somado no lugar de uso — token que vira conta perde a função de fonte única de verdade.
+    -- The scoreboard is the most opaque of the three: it opens over everything at the end of the run, takes
+    -- half the screen and carries the dungeon's background art. A value of its own, not `panelAlpha + 0.22`
+    -- added at the place of use -- a token that becomes a sum loses its role as the single source of truth.
     scoreboardAlpha = 0.92,
     headerAtlas = "ui-damagemeters-header-bar",
-    -- SEM RECORTE NENHUM — nem vertical nem horizontal.
+    -- NO CROPPING AT ALL -- neither vertical nor horizontal.
     --
-    -- Vertical: o recorte de 4/60 que eu usava comia as fileiras de borda do atlas. No nativo
-    -- elas aparecem inteiras — dourado fraco de 2px em cima e forte de 2px embaixo, pico
-    -- RGB(197,169,3); com o recorte o nosso pico caía para 131.
+    -- Vertical: the 4/60 crop I used ate the atlas's edge rows. In the native one
+    -- they show whole -- a faint 2px gold on top and a strong 2px one at the bottom, peak
+    -- RGB(197,169,3); with the crop our peak fell to 131.
     --
-    -- Horizontal: o 0.045..0.965 que eu usava ficou sem conferir,
-    -- com a justificativa de que "as pontas são os cantos". Medido no PNG do próprio atlas
-    -- (`ui-damagemeters-header-bar`, 560x56), as pontas são
-    -- **a rampa de alfa** — o afunilamento que faz a faixa parecer uma fita:
+    -- Horizontal: the 0.045..0.965 I used went unchecked,
+    -- with the excuse that "the ends are the corners". Measured in the atlas's own PNG
+    -- (`ui-damagemeters-header-bar`, 560x56), the ends are
+    -- **the alpha ramp** -- the tapering that makes the strip look like a ribbon:
     --
-    --     x 0..16    alfa 0        (padding transparente)
-    --     x 17..~70  alfa 0 -> 154 (a rampa: a ponta afunilada)
-    --     x ~70..484 alfa 154      (o corpo)
-    --     x 484..545 alfa 154 -> 0 (a rampa do outro lado)
+    --     x 0..16    alpha 0        (transparent padding)
+    --     x 17..~70  alpha 0 -> 154 (the ramp: the tapered tip)
+    --     x ~70..484 alpha 154      (the body)
+    --     x 484..545 alpha 154 -> 0 (the ramp on the other side)
     --
-    -- 0.045 de 560 é x=25, ou seja **no meio da rampa**, onde o alfa já vale 40. Cortar ali
-    -- descarta o afunilamento e deixa uma parede vertical de alfa 40 — o corte reto que o
-    -- usuário circulou no print de 05/09 comparando com o rastreador de missões, que mostra
-    -- a mesma arte com a ponta inteira.
+    -- 0.045 of 560 is x=25, that is **in the middle of the ramp**, where the alpha is already 40. Cutting there
+    -- throws away the tapering and leaves a vertical wall of alpha 40 -- the straight cut the
+    -- user circled on the print of 05/09 comparing with the quest tracker, which shows
+    -- the same art with the whole tip.
     headerCrop = { 0, 1, 0, 1 },
     gold = { 1, 0.82, 0 },
     cream = { 1, 0.88, 0.62 },
@@ -579,7 +579,7 @@ ns.Skin = {
     dim = { 0.68, 0.69, 0.72 },
 }
 
----Aplica a arte do cabeçalho da Blizzard numa textura, com o recorte medido no próprio atlas.
+--- Applies Blizzard's header art to a texture, with the crop measured in the atlas itself.
 function ns.ApplyHeaderArt(texture)
     local info = C_Texture and C_Texture.GetAtlasInfo
         and C_Texture.GetAtlasInfo(ns.Skin.headerAtlas)
@@ -592,10 +592,10 @@ function ns.ApplyHeaderArt(texture)
         local crop = ns.Skin.headerCrop
         texture:SetTexCoord(l + w * crop[1], l + w * crop[2], t + h * crop[3], t + h * crop[4])
 
-        -- Sem tingimento: a arte é a mesma do medidor nativo, e ele a desenha crua. O 0.78
-        -- que eu aplicava para escurecer o corpo da faixa apagava as bordas douradas junto —
-        -- corpo nosso 32 contra 35 dele (acerto de 3), borda nossa 131 contra 197 dele (erro
-        -- de 66). Trocar acerto de 3 por erro de 66 é o negócio errado.
+        -- No tinting: the art is the same as the native meter's, and it draws it raw. The 0.78
+        -- I applied to darken the strip's body erased the gold edges along with it --
+        -- our body 32 against its 35 (a hit of 3), our edge 131 against its 197 (a miss
+        -- of 66). Trading a hit of 3 for a miss of 66 is the wrong deal.
         texture:SetVertexColor(1, 1, 1)
         return true
     end
@@ -607,42 +607,42 @@ end
 local HEADER_HEIGHT = 27        -- medido no nativo: faixa de y=41 a y=67
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
--- Largura minima do botao que troca sessao ("Combate atual" / "Geral"). E MINIMA, nao fixa:
--- quando o indicador de rolagem entra no texto o botao cresce junto (ver Window.Draw).
+-- The minimum width of the button that switches session ("Combate atual" / "Geral"). It is a MINIMUM, not fixed:
+-- when the scroll indicator goes into the text the button grows along (see Window.Draw).
 local SEGMENT_MIN_WIDTH = 120
 local PADDING = 3
--- No nativo o texto fica **centrado na linha**, não erguido: centro dos glifos em y=81 contra
--- centro da linha em y=80,5. A folga até a faixa colorida sai de a linha ser mais alta (25px),
--- não de empurrar o texto para cima — lá sobra 1px entre a base da letra e a faixa.
+-- In the native one the text sits **centred on the row**, not raised: the glyphs' centre at y=81 against
+-- the row's centre at y=80.5. The slack to the coloured strip comes from the row being taller (25px),
+-- not from pushing the text up -- there 1px is left between the letter's base and the strip.
 local TEXT_LIFT = 0
-local MIN_ROWS = 1              -- uma linha ainda é útil: só você, no boneco de treino
-local MAX_ROWS = 20             -- tamanho de uma raide; acima disso a janela toma a tela
+local MIN_ROWS = 1              -- one row is still useful: only you, on the training dummy
+local MAX_ROWS = 20             -- a raid's size; above that the window takes the screen
 local GRIP = 14
 
--- O CADEADO PRECISA MUDAR DE FORMA, NÃO DE COR.
+-- THE PADLOCK HAS TO CHANGE SHAPE, NOT COLOUR.
 --
--- Até a 0.54.0 os dois estados usavam a MESMA textura e só trocavam o tom: dourado quando
--- travado, cinza quando não. Num glifo de 14px isso não se lê — o usuário disse que não
--- conseguia perceber. E a lição já estava registrada neste projeto, na saga do realce de
--- líder: **cor sozinha ficou fraca**.
+-- Until 0.54.0 the two states used the SAME texture and only swapped the tone: gold when
+-- locked, grey when not. On a 14px glyph that cannot be read -- the user said he could not
+-- tell. And the lesson was already recorded in this project, in the saga of the leader
+-- highlight: **colour alone was weak**.
 --
--- Não existe cadeado na família `common-icon-*` (conferido: são 26 glifos e nenhum é).
--- `Interface\Buttons\LockButton-Locked-Up` / `-Unlocked-Up` existem e formam par aberto/
--- fechado, mas são **arte de botão** com moldura e relevo — foram reprovados na 0.43.1 pelo
--- efeito "botão de Windows XP no meio de ícones planos".
+-- There is no padlock in the `common-icon-*` family (checked: they are 26 glyphs and none is).
+-- `Interface\Buttons\LockButton-Locked-Up` / `-Unlocked-Up` exist and make an open/
+-- closed pair, but they are **button art** with a frame and relief -- they were rejected in 0.43.1 for the
+-- "Windows XP button in the middle of flat icons" effect.
 --
--- A saída é dizer a mesma coisa por outro par:
+-- The way out is saying the same thing with another pair:
 --
---   destravado → `common-icon-move`, a cruz de setas. Glifo plano, da MESMA família dos
---                outros botões do cabeçalho, e diz exatamente o que o estado significa:
---                "dá para arrastar". Confirmado na fonte do 12.1.0, em
---                `Blizzard_HouseEditor/Blizzard_HouseEditorLayoutModePin.xml:289`, usado
---                como `iconAtlas`.
---   travado    → o cadeado de sempre, que já está na tela e portanto é sabidamente válido.
+--   unlocked -> `common-icon-move`, the cross of arrows. A flat glyph, of the SAME family as the
+--               header's other buttons, and it says exactly what the state means:
+--               "it can be dragged". Confirmed in the 12.1.0 source, in
+--               `Blizzard_HouseEditor/Blizzard_HouseEditorLayoutModePin.xml:289`, used
+--               as `iconAtlas`.
+--   locked   -> the usual padlock, which is already on screen and therefore known valid.
 --
--- As duas formas são inconfundíveis a 14px. Se o atlas não existir neste cliente, a reserva
--- é o comportamento antigo (mesmo ícone, tons diferentes) — nunca um botão vazio. `/rm atlas`
--- diz qual dos dois caminhos está valendo.
+-- The two shapes are unmistakable at 14px. If the atlas does not exist in this client, the fallback
+-- is the old behaviour (the same icon, different tones) -- never an empty button. `/rm atlas`
+-- says which of the two paths holds.
 local LOCK_ICON = "Interface\\PetBattles\\PetBattle-LockIcon"
 local UNLOCK_ATLAS = "common-icon-move"
 
@@ -652,28 +652,28 @@ function ns.BarTexture()
     return BAR_TEXTURE
 end
 
----Este atlas existe neste cliente?
+--- Does this atlas exist in this client?
 ---
----`SetAtlas` com um nome que não existe **falha em silêncio**: a textura fica como estava e
----nada avisa. Perguntar antes é o que separa "o ícone mudou" de "o ícone continua igual e eu
----não sei por quê". Mesma guarda que o placar já usa; `/rm atlas` lista os nomes conferidos.
+--- `SetAtlas` with a name that does not exist **fails silently**: the texture stays as it was and
+--- nothing warns. Asking first is what separates "the icon changed" from "the icon stays the same and I
+--- do not know why". The same guard the scoreboard already uses; `/rm atlas` lists the checked names.
 function ns.AtlasExists(name)
     if name == nil then return false end
     local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(name)
     return info ~= nil
 end
 
--- Onde cada coluna mora dentro do grupo dela, do ultimo desenho do cabecalho. Guardado para a
--- porta de teste poder comparar o rotulo com o numero -- sem isso, "eles comecam no mesmo x"
--- seria uma conta refeita, e conta refeita concorda consigo mesma.
+-- Where each column lives inside its group, from the header's last drawing. Kept so the
+-- test door can compare the label with the number -- without it, "they start at the same x"
+-- would be a sum redone, and a sum redone agrees with itself.
 local ondeFicaCache = {}
 
----A margem DIREITA de um frame, lida das ancoras dele.
+--- A frame's RIGHT margin, read from its anchors.
 ---
----⚑ EXISTE PARA AS PORTAS DE TESTE NAO MEDIREM A FORMULA. A primeira versao de `inkX` repetia
----`PADDING` a mao dos dois lados -- e com isso a sabotagem "o cabecalho volta a ter margem
----propria" passava batida: mudar o `SetPoint` do `headerRow` nao mexia num numero que nao vinha
----dele. Conta refeita concorda consigo mesma.
+--- ⚑ IT EXISTS SO THE TEST DOORS DO NOT MEASURE THE FORMULA. The first version of `inkX` repeated
+--- `PADDING` by hand on both sides -- and so the sabotage "the header gets its own margin
+--- back" went unnoticed: changing `headerRow`'s `SetPoint` did not touch a number that did not come
+--- from it. A sum redone agrees with itself.
 local function MargemDireita(frame_)
     for i = 1, (frame_.GetNumPoints and frame_:GetNumPoints() or 0) do
         local ponto, _, _, x = frame_:GetPoint(i)
@@ -693,24 +693,24 @@ local totalRows = 0         -- quantos atores existem ao todo, para limitar a ro
 --------------------------------------------------------------------------------
 -- Fonte e cor
 --------------------------------------------------------------------------------
----A fonte escolhida, ou a padrão se a escolhida não estiver mais disponível.
+--- The chosen font, or the default one if the chosen one is no longer available.
 ---
----Uma fonte vinda de outro addon (via LibSharedMedia) some quando aquele addon é desinstalado,
----e o caminho gravado aqui continua apontando para um arquivo que não existe. `SetFont` com
----caminho inválido **não desenha** — o texto some, sem erro. Por isso a escolha é sempre
----validada antes de virar o padrão de desenho (ver `ns.ApplyFont`).
+--- A font coming from another addon (through LibSharedMedia) goes away when that addon is uninstalled,
+--- and the path saved here keeps pointing at a file that does not exist. `SetFont` with an
+--- invalid path **does not draw** -- the text vanishes, with no error. That is why the choice is always
+--- validated before becoming the drawing default (see `ns.ApplyFont`).
 function ns.FontPath()
     local chosen = ns.db and ns.db.font
     if type(chosen) == "string" and chosen ~= "" then return chosen end
     return FONT
 end
 
----A fonte que REALMENTE desenha. Se a escolhida falhar, cai na padrão e avisa uma vez.
+--- The font that REALLY draws. If the chosen one fails, it falls back on the default and warns once.
 local fontWarned
 local function SafeSetFont(fontString, path, size, flags)
     local ok = pcall(fontString.SetFont, fontString, path, size, flags)
-    -- `SetFont` devolve `false` quando o arquivo não serve (`RequiresValidFontAsset = true` na
-    -- documentação da API). Testar os dois cobre as duas formas de falhar.
+    -- `SetFont` returns `false` when the file does not serve (`RequiresValidFontAsset = true` in the
+    -- API documentation). Testing both covers both ways of failing.
     if ok and fontString:GetFont() then return true end
 
     if path ~= FONT then
@@ -724,12 +724,12 @@ local function SafeSetFont(fontString, path, size, flags)
     return false
 end
 
----Aplica a fonte de um PAPEL. `delta` ajusta o corpo para textos secundários do mesmo papel
----(o relógio, o reino), que continuam acompanhando o papel a que pertencem.
+--- Applies a ROLE's font. `delta` adjusts the size for secondary texts of the same role
+--- (the clock, the realm), which keep following the role they belong to.
 ---
----A assinatura leva o papel, e não o tamanho, e é isso que permite os três textos
----independentes: cada chamada diz **quem ela é**, e a configuração daquele papel decide corpo,
----contorno e sombra. Com um corpo só, mexer num mexia em todos — que foi a reprovação.
+--- The signature takes the role, and not the size, and that is what allows the three independent
+--- texts: each call says **who it is**, and that role's settings decide size,
+--- outline and shadow. With one size only, changing one changed all -- which was the rejection.
 function ns.ApplyRoleFont(fontString, role, delta, flagsOverride)
     local config = ns.RoleConfig(role)
     local size = ns.RoleSizeSafe(role) + (delta or 0)
@@ -740,17 +740,17 @@ function ns.ApplyRoleFont(fontString, role, delta, flagsOverride)
 
     SafeSetFont(fontString, ns.FontPath(), size, flags)
 
-    -- Sombra de 1px carrega o texto branco sobre a barra colorida sem o peso do contorno.
-    -- Alfa 0.8, não 1: é o que o chat de referência usa na sombra, e a
-    -- referência de legibilidade foi essa janela de chat. Preto cheio somado ao contorno
-    -- engrossa o traço duas vezes no mesmo pixel.
+    -- A 1px shadow carries the white text over the coloured bar without the outline's weight.
+    -- Alpha 0.8, not 1: it is what the reference chat uses on the shadow, and the
+    -- legibility reference was that chat window. Full black added to the outline
+    -- thickens the stroke twice on the same pixel.
     fontString:SetShadowOffset(1, -1)
     fontString:SetShadowColor(0, 0, 0, config.shadow and 0.8 or 0)
 
 end
 
----O corpo das linhas, para quem tem corpo próprio e só precisa herdar contorno e sombra: o
----placar e o painel de detalhamento entram por aqui.
+--- The rows' size, for whoever has a size of its own and only needs to inherit outline and shadow: the
+--- scoreboard and the breakdown panel come in here.
 function ns.ApplyFont(fontString, delta, flags)
     local size = ns.RoleSize("body") + (delta or 0)
     if size < 6 then size = 6 end
@@ -762,107 +762,107 @@ function ns.ApplyFont(fontString, delta, flags)
     fontString:SetShadowColor(0, 0, 0, ns.ShadowAlphaFor("body"))
 end
 
----Fonte do painel de leitura, que tem corpo próprio (ver `PANEL_FONT_SIZE`).
+--- The reading panel's font, which has a size of its own (see `PANEL_FONT_SIZE`).
 function ns.ApplyPanelFont(fontString, delta, flags)
-    -- `FontSize()`, nao a constante: o delta e relativo ao corpo VIGENTE da janela. Com a
-    -- constante, mexer no corpo da janela arrastaria junto um painel que tem corpo proprio.
+    -- `FontSize()`, not the constant: the delta is relative to the window's CURRENT size. With the
+    -- constant, changing the window's size would drag along a panel that has its own size.
     ns.ApplyFont(fontString, (delta or 0) + PANEL_FONT_SIZE - FontSize(), flags)
 end
 
----Fonte do placar de fim de corrida, que também tem corpo próprio.
+--- The end-of-run scoreboard's font, which also has a size of its own.
 function ns.ApplyScoreboardFont(fontString, delta, flags)
     ns.ApplyFont(fontString, (delta or 0) + SCOREBOARD_FONT_SIZE - FontSize(), flags)
 end
 
 --------------------------------------------------------------------------------
--- Contorno com espessura ajustável
+-- An outline with an adjustable thickness
 --------------------------------------------------------------------------------
--- O WoW só tem três níveis de contorno (nenhum, `OUTLINE`, `THICKOUTLINE`) — nada entre eles.
--- Para um meio-termo, o contorno é **desenhado**: cópias pretas do texto deslocadas 1px atrás
+-- WoW only has three outline levels (none, `OUTLINE`, `THICKOUTLINE`) -- nothing in between.
+-- For a middle ground, the outline is **drawn**: black copies of the text shifted 1px behind
 
 --
--- ESTÁ DESLIGADO (lista vazia), e o motivo é medido, não de gosto.
+-- IT IS OFF (an empty list), and the reason is measured, not taste.
 --
--- O usuário apontou a janela de chat dele como o padrão de legibilidade — "olha na primeira
--- imagem como tá o meu chat". Medido no print de 05/09/2026: o chat **não tem contorno**, só
--- `SetShadowOffset(1, -1)` preto, que é exatamente a sombra que `ns.ApplyFont` já aplica. O
--- que sobrava aqui era o halo POR CIMA dela.
+-- The user pointed at his chat window as the legibility standard -- "olha na primeira
+-- imagem como tá o meu chat". Measured on the print of 05/09/2026: the chat **has no outline**, only
+-- a black `SetShadowOffset(1, -1)`, which is exactly the shadow `ns.ApplyFont` already applies. What
+-- was left here was the halo ON TOP of it.
 --
--- E ele era assimétrico: `{-1,0}` e `{0,1}` põem cópia à esquerda e acima, enquanto a sombra
--- fica embaixo à direita. Três lados cobertos, um não — daí "umas colunas parece tá com mais
--- borda a fonte, outras não". Não era impressão: dependia de qual lado do glifo encostava no
--- vizinho, e mudava de coluna para coluna.
+-- And it was lopsided: `{-1,0}` and `{0,1}` put a copy to the left and above, while the shadow
+-- sits below and to the right. Three sides covered, one not -- hence "umas colunas parece tá com mais
+-- borda a fonte, outras não". It was not an impression: it depended on which side of the glyph touched the
+-- neighbour, and changed from column to column.
 --
--- Isso foi escrito na 0.49.0 e terminava em "se um dia fizer falta". Fez: o usuário testou os
--- dois contornos e pediu o meio-termo — "são bem gritantes as diferenças, senti falta de um
--- 'meio termo' dos dois". A máquina volta, com as DUAS correções que a desligaram:
+-- That was written in 0.49.0 and ended in "if one day it is missed". It was: the user tested the
+-- two outlines and asked for the middle ground -- "são bem gritantes as diferenças, senti falta de um
+-- 'meio termo' dos dois". The machine comes back, with the TWO fixes that had turned it off:
 --
---   1. Simetria: os dois deslocamentos de antes ({-1,0} e {0,1}) cobriam esquerda e topo e
---      deixavam direita e base para a sombra — três lados de um jeito, um de outro. Era isso o
---      "umas colunas parece tá com mais borda a fonte, outras não": não era impressão,
---      dependia de qual lado do glifo encostava no vizinho.
---   2. Só entra quando o papel pede ("medium"). Antes ele somava com a sombra em todo texto, e
---      dois traços no mesmo pixel engrossam duas vezes.
+--   1. Symmetry: the two offsets before ({-1,0} and {0,1}) covered left and top and
+--      left right and bottom to the shadow -- three sides one way, one another. That was the
+--      "umas colunas parece tá com mais borda a fonte, outras não": it was not an impression,
+--      it depended on which side of the glyph touched the neighbour.
+--   2. It only comes in when the role asks ("medium"). Before it added to the shadow on every text, and
+--      two strokes on the same pixel thicken twice.
 --
--- E A PRIMEIRA TENTATIVA DO MÉDIO ESTAVA GEOMETRICAMENTE ERRADA — relato: "o contorno médio tá
--- igual ao fino". Estava mesmo, e por construção. Ela punha quatro cópias deslocadas **1px**,
--- que é EXATAMENTE onde o `OUTLINE` do próprio texto já pinta preto sólido. As cópias caíam
--- debaixo do que já estava lá e não podiam aparecer. Deslocar não engrossa nada enquanto o
--- deslocamento couber dentro do contorno que já existe.
+-- AND THE MEDIUM'S FIRST ATTEMPT WAS GEOMETRICALLY WRONG -- the report: "o contorno médio tá
+-- igual ao fino". It was, and by construction. It put four copies shifted **1px**,
+-- which is EXACTLY where the text's own `OUTLINE` already paints solid black. The copies fell
+-- under what was already there and could not show. Shifting thickens nothing while the
+-- shift fits inside the outline that already exists.
 --
--- A CONSTRUÇÃO CERTA NÃO DESLOCA: ela empilha. `OUTLINE` pinta um anel de 1px; `THICKOUTLINE`
--- pinta um de 2px. O meio-termo é o anel de 2px **em opacidade parcial** por baixo do de 1px
--- sólido:
+-- THE RIGHT CONSTRUCTION DOES NOT SHIFT: it stacks. `OUTLINE` paints a 1px ring; `THICKOUTLINE`
+-- paints a 2px one. The middle ground is the 2px ring **at partial opacity** under the solid
+-- 1px one:
 --
---     cópia  (atrás, alfa α):  THICKOUTLINE  → preto de 0 a 2px
---     texto  (na frente):      OUTLINE       → preto de 0 a 1px, sólido, + o glifo por cima
---     visto:                   sólido até 1px, α de 1px a 2px
+--     copy  (behind, alpha α):  THICKOUTLINE  -> black from 0 to 2px
+--     text  (in front):         OUTLINE       -> black from 0 to 1px, solid, + the glyph on top
+--     seen:                     solid up to 1px, α from 1px to 2px
 --
--- O corpo preto da cópia fica escondido debaixo do glifo do original, que é do mesmo tamanho,
--- mesma fonte e mesma posição — sobra só o anel externo, que é o que se queria. E custa **uma**
--- cópia, não quatro: com deslocamento zero não há lado descoberto, então a simetria deixa de ser
--- um problema a resolver e passa a ser consequência.
----Separa `"Nome-Reino"` em nome e reino.
+-- The copy's black body stays hidden under the original's glyph, which has the same size,
+-- same font and same position -- only the outer ring is left, which is what was wanted. And it costs **one**
+-- copy, not four: with zero shift there is no uncovered side, so symmetry stops being
+-- a problem to solve and becomes a consequence.
+--- Splits `"Name-Realm"` into name and realm.
 ---
----O reino **não some**. A primeira tentativa foi apagá-lo com `Ambiguate`, e estava errada: o
----usuário quer ver de onde a pessoa é (decisão de 05/09/2026). O problema do print daquele dia
----— `Magicpandá-Tic…`, `Huntwave-Stor…` — não era o reino existir, era ele ocupar a mesma
----largura de letra do nome e empurrar os dois para as reticências. A solução é hierarquia, não
----remoção: o reino entra **um ponto menor** que o nome.
+--- The realm **does not vanish**. The first attempt erased it with `Ambiguate`, and it was wrong: the
+--- user wants to see where the person is from (decision of 05/09/2026). The problem in that day's print
+--- -- `Magicpandá-Tic…`, `Huntwave-Stor…` -- was not the realm existing, it was the realm taking the same
+--- letter width as the name and pushing both into the ellipsis. The solution is hierarchy, not
+--- removal: the realm comes in **one point smaller** than the name.
 ---
----Em combate o nome pode ser secret. `string.match` num secret é proibido, então nesse caso ele
----volta inteiro no primeiro retorno e sem reino — o widget sabe desenhar o valor cru, que é
----exatamente o comportamento certo.
----@return string|nil name
----@return string|nil realm  sem o hífen; nil quando não há reino no nome
+--- In combat the name can be secret. `string.match` on a secret is forbidden, so in that case it
+--- comes back whole in the first return and with no realm -- the widget knows how to draw the raw value, which is
+--- exactly the right behaviour.
+--- @return string|nil name
+--- @return string|nil realm  without the hyphen; nil when the name has no realm
 function ns.SplitName(full)
     if full == nil or issecretvalue(full) or type(full) ~= "string" then
         return full, nil
     end
 
-    -- O hífen separa; nome de personagem não tem hífen, nome de reino pode ter espaço.
+    -- The hyphen separates; a character name has no hyphen, a realm name may have a space.
     local name, realm = full:match("^([^%-]+)%-(.+)$")
     if name and realm ~= "" then return name, realm end
     return full, nil
 end
 
----Escreve nome e reino numa linha, repartindo a largura entre os dois.
+--- Writes name and realm on one row, splitting the width between the two.
 ---
----A repartição não dá para ser fixa: ela depende do texto. `row.name` recebe a largura do
----próprio texto (limitada pela área) para o reino colar logo depois; sem isso o reino
----apareceria no fim da caixa do nome, com um vão no meio. O que sobra vai para o reino, que
----corta em reticências quando não couber — cortar o reino é aceitável, cortar o nome não.
+--- The split cannot be fixed: it depends on the text. `row.name` gets the width of its
+--- own text (limited by the area) so the realm sticks right after it; without that the realm
+--- would show at the end of the name's box, with a gap in the middle. What is left goes to the realm, which
+--- cuts into an ellipsis when it does not fit -- cutting the realm is acceptable, cutting the name is not.
 ---
----Quem tem os dois campos é `row` porque a janela e o placar montam a linha do mesmo jeito;
----a função vive aqui para as duas telas não divergirem.
----@param row table linha com `name`, `realm` e `nameArea`
----Escreve o nome (e, se o jogador quiser, o reino) dentro da área da linha.
+--- Whoever has both fields is `row` because the window and the scoreboard build the row the same way;
+--- the function lives here so the two screens do not drift apart.
+--- @param row table a row with `name`, `realm` and `nameArea`
+--- Writes the name (and, if the player wants, the realm) inside the row's area.
 ---
----**A largura do halo tem que ser mexida junto com a do texto, nos DOIS ramos.** Só o ramo
----com reino fazia isso; o ramo sem reino trocava a largura do texto e deixava as cópias
----pretas com a largura da linha anterior. Como o halo é o contorno, o efeito era o nome sair
----com um traçado diferente dos outros — e aparecia justamente no personagem do próprio
----jogador, que é quem costuma estar no mesmo reino e portanto não tem sufixo.
+--- **The halo's width has to be changed along with the text's, in BOTH branches.** Only the branch
+--- with a realm did it; the branch without one changed the text's width and left the black
+--- copies with the previous row's width. Since the halo is the outline, the effect was the name coming out
+--- with a stroke different from the others -- and it showed precisely on the player's own
+--- character, who usually is on the same realm and therefore has no suffix.
 local function SetNameWidth(row, width)
     row.name:SetWidth(width)
 
@@ -876,9 +876,9 @@ end
 function ns.DrawName(row, full)
     local name, realm = ns.SplitName(full)
 
-    -- O reino é opcional e vem DESLIGADO: ele come a largura do que importa e, com a coluna
-    -- estreita, transformava "Frenchmiku-Tichondrius" em "Frenchmiku-Tich…". Quem joga em
-    -- grupo cross-realm e quer ver de onde a pessoa é liga em `/rm columns`.
+    -- The realm is optional and comes OFF: it eats the width of what matters and, with a narrow
+    -- column, turned "Frenchmiku-Tichondrius" into "Frenchmiku-Tich…". Whoever plays in
+    -- cross-realm groups and wants to see where the person is from turns it on in `/rm columns`.
     if not ns.db.showRealm then realm = nil end
 
     local area = row.nameArea or 0
@@ -892,16 +892,16 @@ function ns.DrawName(row, full)
         return
     end
 
-    -- `GetStringWidth` mede o texto ignorando a caixa, então serve para saber quanto ele
-    -- realmente ocupa antes de decidir a divisão.
+    -- `GetStringWidth` measures the text ignoring the box, so it tells how much it
+    -- really takes before deciding the split.
     local used = row.name:GetStringWidth() or 0
     if used > area then used = area end
     SetNameWidth(row, used)
 
     local left = area - used
     if left < 12 then
-        -- Nome sozinho já toma a área: o reino não cabe e some. Melhor sumir inteiro do que
-        -- aparecer como um hífen solto seguido de reticências.
+        -- The name alone already takes the area: the realm does not fit and goes away. Better to vanish whole than
+        -- show up as a loose hyphen followed by an ellipsis.
         row.realm:SetText("")
         SetRealmWidth(row, 0)
         return
@@ -912,7 +912,7 @@ function ns.DrawName(row, full)
     row.realm:SetTextColor(unpack(ns.Skin.dim))
 end
 
----Em combate `classFilename` pode ser secret, e indexar tabela com chave secret é proibido.
+--- In combat `classFilename` can be secret, and indexing a table with a secret key is forbidden.
 local function SafeClass(classFilename)
     if classFilename == nil or issecretvalue(classFilename) then
         return nil
@@ -929,13 +929,13 @@ function ns.ClassColor(classFilename)
     return 0.45, 0.5, 0.62
 end
 
----Pinta a faixa fina com o degradê horizontal do medidor nativo.
+--- Paints the thin strip with the native meter's horizontal gradient.
 ---
----A faixa dele escurece para a esquerda: 52% da cor da classe no início, 84% no fim. Chapar em
----100%, como eu fazia, é o que deixava a nossa visivelmente mais clara que a dele.
+--- Its strip darkens to the left: 52% of the class colour at the start, 84% at the end. Flat at
+--- 100%, as I did, is what made ours visibly lighter than its.
 ---
----Ordem importa: `SetStatusBarColor` mexe na cor de vértice, e é ela que o degradê substitui —
----chamar na ordem inversa apagaria o degradê.
+--- Order matters: `SetStatusBarColor` touches the vertex colour, and that is what the gradient replaces --
+--- calling them in the reverse order would erase the gradient.
 function ns.ApplyBarColor(bar, classFilename)
     local r, g, b = ns.ClassColor(classFilename)
     local texture = bar:GetStatusBarTexture()
@@ -949,20 +949,20 @@ function ns.ApplyBarColor(bar, classFilename)
         return
     end
 
-    -- Cliente sem degradê: a média das duas pontas é o tom que o olho lê no conjunto.
+    -- A client without gradients: the average of the two ends is the tone the eye reads overall.
     local k = (BAR_GRADIENT_MIN + BAR_GRADIENT_MAX) / 2
     bar:SetStatusBarColor(r * k, g * k, b * k)
 end
 
----A PISTA de uma barra: o caminho todo, na cor da classe, bem apagado.
+--- A bar's TRACK: the whole path, in the class colour, very faded.
 ---
----⚠️ NÃO É O FUNDO PRETO. O usuário reprovou aquele duas vezes (*"tira o fundo preto com algum
----percentual de opacidade"*, *"o fundo preto é feio"*) e pediu esta (*"eu quero ... Pista
----tingida. Sem fundo preto"*). A diferença não é de opacidade, é de cor: preto empilha um bloco
----escuro por linha e some com a transparência da janela; a cor da classe apagada lê como o
----**resto do caminho** da própria barra.
+--- ⚠️ IT IS NOT THE BLACK BACKGROUND. The user rejected that one twice (*"tira o fundo preto com algum
+--- percentual de opacidade"*, *"o fundo preto é feio"*) and asked for this one (*"eu quero ... Pista
+--- tingida. Sem fundo preto"*). The difference is not of opacity, it is of colour: black stacks a dark
+--- block per row and kills the window's transparency; the faded class colour reads as the
+--- **rest of the path** of the bar itself.
 ---
----`mostrar = false` deixa a pista invisível — é o caso "zerado", em que não há caminho nenhum.
+--- `mostrar = false` leaves the track invisible -- that is the "zeroed" case, where there is no path at all.
 function ns.ApplyTrackColor(texture, classFilename, mostrar)
     if not mostrar then
         texture:SetColorTexture(0, 0, 0, 0)
@@ -972,18 +972,18 @@ function ns.ApplyTrackColor(texture, classFilename, mostrar)
     texture:SetColorTexture(r, g, b, TRACK_ALPHA)
 end
 
----A FAÍSCA: o preenchimento se acende em direção à ponta.
+--- THE SPARK: the fill lights up towards the tip.
 ---
----Ela é branca e aditiva, com o alfa subindo da esquerda para a direita — o brilho mora no
----**fim**, que é onde a barra chegou. E ela ocupa exatamente o preenchimento, nem mais nem
----menos: as duas pontas são presas nele, então uma barra de 2px tem 2px de brilho. Não é cor de classe: cor de classe é vocabulário reservado
----neste projeto (dourado lê como "ladino", não como "líder"), e branco aditivo sobre a própria
----barra clareia a cor que já está lá em vez de introduzir outra.
+--- It is white and additive, with the alpha rising from left to right -- the glow lives at the
+--- **end**, which is where the bar got to. And it takes exactly the fill, no more no
+--- less: both ends are pinned to it, so a 2px bar has 2px of glow. It is not a class colour: class colour is reserved vocabulary
+--- in this project (gold reads as "rogue", not as "leader"), and additive white over the bar itself
+--- lightens the colour already there instead of introducing another.
 ---
----A amplitude sai da escada medida no cliente: a Blizzard usa alfa até **0,15** para "disponível,
----discreto" (talento selecionável) e **0,45→0,55 em 14s** para ambiente, contra 0,75→0,20 em meio
----segundo para vida baixa. Um destaque que aparece em vinte linhas ao mesmo tempo pertence ao
----primeiro grupo, não ao terceiro.
+--- The amplitude comes from the scale measured in the client: Blizzard uses alpha up to **0.15** for "available,
+--- discreet" (a selectable talent) and **0.45->0.55 over 14s** for ambience, against 0.75->0.20 in half
+--- a second for low health. A highlight that shows on twenty rows at once belongs to the
+--- first group, not the third.
 function ns.ApplySparkColor(texture, classFilename, mostrar)
     if not mostrar then
         texture:Hide()
@@ -995,25 +995,25 @@ function ns.ApplySparkColor(texture, classFilename, mostrar)
         texture:SetGradient("HORIZONTAL",
             CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, SPARK_ALPHA))
     else
-        -- Cliente sem degradê: o rastro vira um brilho chapado, mais fraco para compensar.
+        -- A client without gradients: the trail becomes a flat glow, weaker to compensate.
         texture:SetColorTexture(1, 1, 1, SPARK_ALPHA * 0.5)
     end
     texture:Show()
 end
 
----Fundo da linha: a mesma cor, bem apagada, para a parte vazia não ser um buraco preto.
----Fundo da linha: **preto fixo**, não tingido pela classe.
----Tingir pela classe, como eu fazia, deixava a parte
----vazia da barra colorida e embaralhava a leitura de quem tinha pouco.
+--- The row's background: the same colour, very faded, so the empty part is not a black hole.
+--- The row's background: **fixed black**, not tinted by the class.
+--- Tinting by the class, as I did, left the empty part
+--- of the bar coloured and scrambled the reading of whoever had little.
 function ns.RowBackdropColor()
     return 0, 0, 0, ROW_BG_ALPHA
 end
 
----Ícone da linha: especialização por padrão (diz mais que a classe — quem é o healer, quem
----tanka), com a classe como reserva quando a spec não veio.
--- `SetMask` e `SetTexCoord` não convivem ("Cannot set tex coords when texture has mask"); o
--- formato redondo usa `AddMaskTexture` (abaixo). Duas texturas por linha: uma para o
--- ícone de especialização (id inteiro) e outra para o de classe (recorte de atlas).
+--- The row's icon: specialization by default (it says more than the class -- who is the healer, who
+--- tanks), with the class as the fallback when the spec did not come.
+-- `SetMask` and `SetTexCoord` do not live together ("Cannot set tex coords when texture has mask"); the
+-- round shape uses `AddMaskTexture` (below). Two textures per row: one for the
+-- specialization icon (a whole id) and another for the class one (an atlas crop).
 
 -- (19/10) The icon's shape is a choice: square by default, round as an option (the user asked for
 -- both). Round is drawn the game's way: the portrait mask over the icon, clamped to black outside
@@ -1043,15 +1043,15 @@ local function ApplyShape(texture)
     end
 end
 
----@param spec texture para o ícone de especialização (id inteiro)
----@param class texture com texcoord, para o recorte do atlas de classes
+--- @param spec texture for the specialization icon (a whole id)
+--- @param class texture with texcoord, for the class atlas crop
 function ns.ApplyRowIcon(spec, class, source)
     ApplyShape(spec)
     ApplyShape(class)
     local specIcon = source.specIconID
     if specIcon ~= nil and not issecretvalue(specIcon) and specIcon ~= 0 then
         spec:SetTexture(specIcon)
-        spec:SetTexCoord(0.08, 0.92, 0.08, 0.92)   -- tira a borda preta do ícone
+        spec:SetTexCoord(0.08, 0.92, 0.08, 0.92)   -- removes the icon's black border
         spec:Show()
         class:Hide()
         return
@@ -1078,82 +1078,82 @@ local function RowHeight()
     return ns.RowHeightFor(FontSize())
 end
 
--- A LARGURA DE CADA COLUNA, POR FAMILIA DE FORMATO.
+-- THE WIDTH OF EACH COLUMN, BY FORMAT FAMILY.
 --
--- Pedido do usuario: *"precisa aumentar um pouco a largura das colunas, principalmente nas colunas
+-- The user's request: *"precisa aumentar um pouco a largura das colunas, principalmente nas colunas
 -- onde o resultado e maior, Dano e Cura por exemplo"*.
 --
--- Ele apontou o defeito pela consequencia: a largura era **uma so para todas** (58), entao a
--- coluna que escreve "339M" e a que escreve "8" recebiam o mesmo espaco -- a primeira apertada, a
--- segunda com metade dela vazia. Largura uniforme so faz sentido com conteudo uniforme.
+-- He pointed at the defect through its consequence: the width was **one for all** (58), so the
+-- column that writes "339M" and the one that writes "8" got the same space -- the first cramped, the
+-- second half empty. A uniform width only makes sense with uniform content.
 --
--- ⚠️ OS NUMEROS SAO RELATIVOS AOS 58 QUE JA ESTAVAM NA TELA, e nao uma medicao de glifo. Eu tentei
--- derivar de largura de caractere primeiro e a conta deu larguras MENORES que as atuais -- porque
--- a largura do digito depende da fonte escolhida (o padrao hoje e Arial Narrow, e o jogador
--- pode trocar), e isso eu nao consigo medir daqui. Ancorar no valor que ja funcionava e honesto;
--- inventar uma medicao seria pior que assumir a referencia.
+-- ⚠️ THE NUMBERS ARE RELATIVE TO THE 58 THAT WERE ALREADY ON SCREEN, not a glyph measurement. I tried
+-- to derive them from character width first and the arithmetic gave widths SMALLER than the current ones -- because
+-- the digit's width depends on the chosen font (the default today is Arial Narrow, and the player
+-- can swap it), and that I cannot measure from here. Anchoring on the value that already worked is honest;
+-- inventing a measurement would be worse than assuming the reference.
 --
---   total      "339M", "1.2B"   -> +18   e a coluna que ele citou (Dano, Cura, Recebido)
---   perSecond  "299K"           -> +6    um digito a menos que o total
+--   total      "339M", "1.2B"   -> +18   it is the column he mentioned (Damage, Healing, Taken)
+--   perSecond  "299K"           -> +6    one digit less than the total
 --   percent    "100%"           -> +6
---   count      "19"             -> −10   dois digitos nao precisam de 58
--- A LARGURA POR FORMATO, e os tres pedidos de 08/09 cabem nesta tabela e no `DEFAULT_SLACK`:
+--   count      "19"             -> −10   two digits do not need 58
+-- THE WIDTH BY FORMAT, and the three requests of 08/09 fit in this table and in `DEFAULT_SLACK`:
 -- *"a coluna do nome ta meio grande, acho que da pra reduzir um pouco so e aumentar as outras,
 -- alem de deixa os nomes das colunas mescladas um pouco mais perto"*.
 --
--- **O TOTAL CRESCE** (76 -> 92) porque e onde a barra mora. A largura aqui nao e sobre caber o
--- texto -- "1.2B" sempre coube -- e sobre RESOLUCAO da barra: 16px a mais e a diferenca entre
--- distinguir 78% de 84% e nao distinguir.
+-- **THE TOTAL GROWS** (76 -> 92) because it is where the bar lives. The width here is not about fitting the
+-- text -- "1.2B" always fit -- it is about the bar's RESOLUTION: 16px more is the difference between
+-- telling 78% from 84% and not telling.
 --
--- **A TAXA ENCOLHE** (64 -> 56), e e isso que aproxima os rotulos. O cabecalho e alinhado a
--- direita da coluna dele, entao o que separa "Dano" de "DPS" e exatamente a largura da coluna do
--- DPS: estreita-la puxa os dois um para o outro. Os dois numeros do par passam a se agrupar na
--- metade direita da barra, que e como o par deve ser lido -- uma dupla, nao duas colunas.
+-- **THE RATE SHRINKS** (64 -> 56), and that is what brings the labels closer. The header is aligned to
+-- the right of its column, so what separates "Dano" from "DPS" is exactly the width of the
+-- DPS column: narrowing it pulls the two towards each other. The pair's two numbers come to group in the
+-- right half of the bar, which is how the pair should be read -- a duo, not two columns.
 --
--- **A CONTAGEM CRESCE** (48 -> 56) porque ela era a mais apertada e e onde o par nao existe.
+-- **THE COUNT GROWS** (48 -> 56) because it was the most cramped one and it is where the pair does not exist.
 --
--- A conta fecha na largura de hoje: 92+56+92+56+56 = 352 contra 328, e os 24 a mais saem do
--- `DEFAULT_SLACK`. A janela continua em 517.
--- ⚑ O TOTAL SAIU DAQUI E VIROU CONFIGURÁVEL (`ns.db.totalWidth`, padrão **84**), porque o que ele
--- controla não é a largura de uma coluna qualquer: é **a distância entre os dois valores de uma
--- coluna dupla**. Pedido de 09/09/2026, com print: *"são das distância entre colunas e entre
+-- The arithmetic closes at today's width: 92+56+92+56+56 = 352 against 328, and the extra 24 come out of
+-- `DEFAULT_SLACK`. The window stays at 517.
+-- ⚑ THE TOTAL LEFT HERE AND BECAME CONFIGURABLE (`ns.db.totalWidth`, default **84**), because what it
+-- controls is not the width of just any column: it is **the distance between the two values of a
+-- double column**. Request of 09/09/2026, with a print: *"são das distância entre colunas e entre
 -- valores nas colunas mescladas"*.
 --
--- POR QUE ELE, E NÃO UM ESPAÇAMENTO PRÓPRIO. O par é UMA barra só, com um número ancorado em cada
--- ponta dela (ver `MemberAlign`). Então o vão entre os dois é a largura da barra menos a tinta dos
--- dois números — não existe um "espaço entre valores" para ajustar. Encurtar a barra é o único
--- jeito de aproximá-los, e a barra é a soma das duas colunas do par.
+-- WHY IT, AND NOT A SPACING OF ITS OWN. The pair is ONE bar, with a number anchored at each
+-- end of it (see `MemberAlign`). So the gap between the two is the bar's width minus the ink of the
+-- two numbers -- there is no "space between values" to adjust. Shortening the bar is the only
+-- way to bring them closer, and the bar is the sum of the pair's two columns.
 --
--- Medido no print de 09/09, que saiu 1:1 com o jogo: barra de x=217 a x=355 (138 px), "93.2M"
--- terminando em 255, "116K" começando em 321 — **65 px de vão**, com o total em 92. A tinta dos
--- dois números mais os recuos come 74 px fixos, então o vão é `total + 56 - groupGap - 74`. Em 84
--- com folga 8 dá **58 px**, que é o "60" que ele pediu, dentro do erro de quem mede na tela.
+-- Measured on the print of 09/09, which came out 1:1 with the game: a bar from x=217 to x=355 (138 px), "93.2M"
+-- ending at 255, "116K" starting at 321 -- **a 65 px gap**, with the total at 92. The ink of the
+-- two numbers plus the insets eats a fixed 74 px, so the gap is `total + 56 - groupGap - 74`. At 84
+-- with a slack of 8 it gives **58 px**, which is the "60" he asked for, within the error of whoever measures on screen.
 --
--- O QUE ISSO CUSTA, dito na mesma linha em que se cobra: os 92 existiam pela RESOLUÇÃO DA BARRA,
--- não pelo texto (*"92px contra 56px é a diferença entre distinguir 78% de 84% e não distinguir"*).
--- Em 84 a fatia do dano cai de 86 para 79 px — 1 px passa a valer 1,3% em vez de 1,2%.
+-- WHAT IT COSTS, said in the same line where it is charged: the 92 existed for the BAR'S RESOLUTION,
+-- not for the text (*"92px contra 56px é a diferença entre distinguir 78% de 84% e não distinguir"*).
+-- At 84 the damage slice drops from 86 to 79 px -- 1 px comes to be worth 1.3% instead of 1.2%.
 --
--- ⚑ E O PISO DE 56 NÃO É ESTÉTICO. `ColumnWidthFor` devolve `math.max(resolução, texto medido)`, e
--- "999.9M" na Arial Narrow 16 pede ~50 px com o respiro; numa fonte larga, mais. Abaixo disso o
--- texto passa a mandar e **o slider deixa de ter efeito na tela** — o jogador arrastaria e nada
--- mudaria. O mínimo do controle existe para que esse fundo não seja alcançável por acidente.
+-- ⚑ AND THE FLOOR OF 56 IS NOT AESTHETIC. `ColumnWidthFor` returns `math.max(resolution, measured text)`, and
+-- "999.9M" in Arial Narrow 16 asks for ~50 px with the breathing room; in a wide font, more. Below that the
+-- text comes to rule and **the slider stops having an effect on screen** -- the player would drag and nothing
+-- would change. The control's minimum exists so that bottom cannot be reached by accident.
 local COLUMN_WIDTH_BY_FIELD = {
-    total = TOTAL_WIDTH_DEFAULT,   -- só o padrão; quem manda em tempo de desenho é `TotalWidth()`
+    total = TOTAL_WIDTH_DEFAULT,   -- only the default; what rules at drawing time is `TotalWidth()`
     perSecond = 56,
     percent = 56,
     count = 56,
 }
 
----A largura de UMA coluna, pelo formato do que ela escreve.
+--- The width of ONE column, by the format of what it writes.
 ---
----Acompanha o corpo da fonte: quem aumenta o texto aumenta a coluna junto, senao o numero cresce
----dentro de uma caixa que nao cresceu -- que e o mesmo defeito, so que causado pela configuracao.
----Os GRUPOS que a janela desenha, em cache por desenho.
+--- It follows the font size: whoever enlarges the text enlarges the column along, or the number grows
+--- inside a box that did not grow -- which is the same defect, only caused by the settings.
+--- The GROUPS the window draws, cached per drawing.
 ---
----`ns.db.columns` continua sendo a lista que o jogador marca; o que vai para a tela e o
----agrupamento dela por metrica. Recalcular a cada uso seria barato, mas o cache mantem os quatro
----consumidores (offsets, cabecalho, celula, desenho) olhando exatamente a mesma lista -- e foi
----justamente duas contas divergirem que custou a versao passada.
+--- `ns.db.columns` is still the list the player ticks; what goes on screen is its
+--- grouping by metric. Recomputing at every use would be cheap, but the cache keeps the four
+--- consumers (offsets, header, cell, drawing) looking at exactly the same list -- and it was
+--- precisely two calculations drifting apart that cost the last version.
 local grupos = {}
 
 local function RefreshGroups()
@@ -1166,17 +1166,17 @@ local function Groups()
     return grupos
 end
 
----O que a CELULA de um grupo escreve: "65.1M - 48K".
+--- What a group's CELL writes: "65.1M - 48K".
 ---
----Cada metrica formata o proprio numero (`SetCellText` sabe de porcentagem, de valor secret e das
----faixas K/M/B), e o resultado e juntado com o mesmo separador do cabecalho -- e o que faz o
----jogador ler "Dano - DPS" em cima e "65.1M - 48K" embaixo como a mesma dupla.
+--- Each metric formats its own number (`SetCellText` knows about percentage, secret values and the
+--- K/M/B ranges), and the result is joined with the same separator as the header -- it is what makes the
+--- player read "Dano - DPS" on top and "65.1M - 48K" below as the same duo.
 ---
----O grupo contem esta coluna?
+--- Does the group contain this column?
 ---
----Serve a barra unica: ela precisa saber se a metrica que ORDENA a janela e uma das dela, para
----desenhar a proporcao daquela -- e nao a do total, que daria a barra mais longa a quem nao esta
----no topo da lista.
+--- It serves the single bar: it needs to know whether the metric that SORTS the window is one of its own, to
+--- draw that one's proportion -- and not the total's, which would give the longest bar to whoever is not
+--- at the top of the list.
 local function GroupHas(grupo, key)
     for i = 1, #grupo.keys do
         if grupo.keys[i] == key then return true end
@@ -1184,14 +1184,14 @@ local function GroupHas(grupo, key)
     return false
 end
 
----O indice do GRUPO a que uma coluna pertence.
+--- The index of the GROUP a column belongs to.
 ---
----⚑ EXISTE PORQUE O CABECALHO E MOVER FALAM LINGUAS DIFERENTES. `button.columnIndex` e posicao
----em `ns.db.columns`; `Window.MoveColumn` indexa a lista de GRUPOS. Com um par total+taxa ligado
----as duas listas tem tamanhos diferentes -- sempre -- e o clique passava o indice errado.
+--- ⚑ IT EXISTS BECAUSE THE HEADER AND MOVE SPEAK DIFFERENT LANGUAGES. `button.columnIndex` is a position
+--- in `ns.db.columns`; `Window.MoveColumn` indexes the list of GROUPS. With a total+rate pair on,
+--- the two lists have different sizes -- always -- and the click passed the wrong index.
 ---
----O mesmo defeito ja tinha sido corrigido na tela de configuracao (`Picker.IndexOf`) e voltou
----pelo cabecalho quando ele deixou de ser por grupo. A traducao mora aqui agora, num lugar so.
+--- The same defect had already been fixed in the settings screen (`Picker.IndexOf`) and came back
+--- through the header when it stopped being per group. The translation lives here now, in one place.
 local function GroupIndexFor(key)
     local lista = ns.Data.GroupColumns(ns.db.columns)
     for i = 1, #lista do
@@ -1200,8 +1200,8 @@ local function GroupIndexFor(key)
     return nil
 end
 
--- O TEXTO MAIS LONGO que cada formato chega a escrever. Nao e chute: sao as faixas que
--- `Data.FormatAmount` produz (uma casa decimal, corte em K/M/B) e `Data.FormatPercent`.
+-- THE LONGEST TEXT each format gets to write. It is not a guess: they are the ranges
+-- `Data.FormatAmount` produces (one decimal place, cut at K/M/B) and `Data.FormatPercent`.
 local COLUMN_SAMPLE = {
     total = "999.9M",
     perSecond = "999.9K",
@@ -1209,8 +1209,8 @@ local COLUMN_SAMPLE = {
     count = "999",
 }
 
--- A REGUA: uma FontString escondida, so para medir. O resultado e cacheado por
--- fonte+corpo, entao a medicao acontece uma vez por mudanca de aparencia -- nao por desenho.
+-- THE RULER: a hidden FontString, only for measuring. The result is cached per
+-- font+size, so the measuring happens once per change of look -- not per drawing.
 local regua, larguraCache, larguraChave = nil, {}, nil
 
 local function MedirTexto(texto)
@@ -1224,37 +1224,37 @@ local function MedirTexto(texto)
     return (type(w) == "number" and w > 0) and w or nil
 end
 
----A largura de UMA coluna.
+--- The width of ONE column.
 ---
----⚑ ELA DEIXOU DE ESCALAR COM O CORPO DA FONTE, e passou a MEDIR o texto. Queixa do usuario,
----08/09: *"percebi que trocar tamanho de fonte e a fonte bagunca muito a largura das colunas, as
----vezes ate desproporcional"*.
+--- ⚑ IT STOPPED SCALING WITH THE FONT SIZE, and came to MEASURE the text. The user's complaint,
+--- 08/09: *"percebi que trocar tamanho de fonte e a fonte bagunca muito a largura das colunas, as
+--- vezes ate desproporcional"*.
 ---
----Ele descreveu o sintoma; a causa sao dois erros na mesma linha antiga
----(`base * RoleSizeSafe("body") / 16`):
+--- He described the symptom; the cause is two errors in the same old line
+--- (`base * RoleSizeSafe("body") / 16`):
 ---
----1. **A largura escalava com o CORPO**, mas ela existe para dar RESOLUCAO A BARRA -- 92px contra
----   56px e a diferenca entre distinguir 78% de 84% e nao distinguir. Resolucao de barra nao tem
----   nada a ver com o tamanho da letra. Escalando, trocar o corpo de 13 para 20 inflava a janela
----   inteira em ~54%, e era isso o "desproporcional".
----2. **A FAMILIA da fonte nao entrava na conta.** O fator saia de 16 assumindo as proporcoes da
----   Arial Narrow; numa fonte larga (FRIZQT, Morpheus) o mesmo corpo pede muito mais tinta, e o
----   texto transbordava sem nada avisar. Numa estreita, sobrava ar.
+--- 1. **The width scaled with the SIZE**, but it exists to give the BAR RESOLUTION -- 92px against
+---   56px is the difference between telling 78% from 84% and not telling. Bar resolution has
+---   nothing to do with the letter's size. Scaling, changing the size from 13 to 20 inflated the whole
+---   window by ~54%, and that was the "desproporcional".
+--- 2. **The font's FAMILY did not enter the arithmetic.** The factor came from 16 assuming the proportions of
+---   Arial Narrow; in a wide font (FRIZQT, Morpheus) the same size asks for much more ink, and the
+---   text overflowed with nothing warning. In a narrow one, air was left over.
 ---
----Agora sao duas exigencias independentes, e a largura e a maior das duas:
+--- Now they are two independent demands, and the width is the bigger of the two:
 ---
----    resolucao   -- `COLUMN_WIDTH_BY_FIELD`, FIXA, porque e sobre a barra
----    o texto     -- MEDIDO na fonte e no corpo que estao valendo, mais o respiro
+---    resolution  -- `COLUMN_WIDTH_BY_FIELD`, FIXED, because it is about the bar
+---    the text    -- MEASURED in the font and size in effect, plus the breathing room
 ---
----Isso responde tambem o que ele ofereceu como alternativa (*"podemos por limite no tamanho da
----fonte... o limite por fonte pode mudar"*): com a coluna medindo o proprio texto, o limite deixa
----de ser necessario -- ela acompanha qualquer fonte em qualquer corpo, em vez de supor uma.
+--- That also answers what he offered as an alternative (*"podemos por limite no tamanho da
+--- fonte... o limite por fonte pode mudar"*): with the column measuring its own text, the limit stops
+--- being needed -- it follows any font at any size, instead of assuming one.
 local function ColumnWidthFor(key)
     local def = ns.Data.GetColumn(key)
 
-    -- METRICA DE CONTAGEM VEM PRIMEIRO, e nao pelo `field`: interrupcoes e dissipacoes tambem sao
-    -- `total`, so que de uma contagem -- entao classificar por formato dava a elas a largura de
-    -- "1.2B" para escrever "8". Quem sabe disso e o catalogo, que marca a metrica com `counts`.
+    -- A COUNT METRIC COMES FIRST, and not by `field`: interrupts and dispels are also
+    -- `total`, only of a count -- so classifying by format gave them the width of
+    -- "1.2B" to write "8". Whoever knows that is the catalogue, which marks the metric with `counts`.
     local formato = "total"
     if def and def.counts then
         formato = "count"
@@ -1262,9 +1262,9 @@ local function ColumnWidthFor(key)
         formato = def.field
     end
 
-    -- ⚑ A LARGURA CONFIGURADA ENTRA NA CHAVE DO CACHE. Sem ela, arrastar o deslizador não muda
-    -- nada na tela até a próxima troca de fonte — o valor velho fica cacheado e o jogador conclui
-    -- que a opção não funciona. É o mesmo tipo de defeito de um `SetAtlas` que falha calado.
+    -- ⚑ THE CONFIGURED WIDTH GOES INTO THE CACHE KEY. Without it, dragging the slider changes
+    -- nothing on screen until the next font change -- the old value stays cached and the player concludes
+    -- the option does not work. It is the same kind of defect as a `SetAtlas` that fails silently.
     local chave = tostring(ns.FontPath()) .. ":" .. tostring(ns.RoleSizeSafe("body"))
         .. ":" .. tostring(TotalWidth())
     if chave ~= larguraChave then
@@ -1275,27 +1275,27 @@ local function ColumnWidthFor(key)
     local resolucao = COLUMN_WIDTH_BY_FIELD[formato] or COLUMN_WIDTH_FIXED
     if formato == "total" then resolucao = TotalWidth() end
 
-    -- O TEXTO, medido. Se a regua nao responder (cliente sem `GetStringWidth`, fonte que nao
-    -- carregou), a resolucao sozinha decide -- que e exatamente o comportamento de antes desta
-    -- mudanca. Reserva que piora nada.
+    -- THE TEXT, measured. If the ruler does not answer (a client without `GetStringWidth`, a font that did not
+    -- load), the resolution alone decides -- which is exactly the behaviour before this
+    -- change. A fallback that makes nothing worse.
     local tinta = MedirTexto(COLUMN_SAMPLE[formato] or COLUMN_SAMPLE.total)
     local pedidoDoTexto = tinta and math.ceil(tinta + TEXT_INSET * 2 + TEXT_ROOM) or 0
 
     local largura = math.max(resolucao, pedidoDoTexto)
 
-    -- PISO: abaixo disto o rotulo do cabecalho ("Interr", "Dissip") nao cabe, e coluna cujo nome
-    -- nao se le nao serve para nada.
+    -- FLOOR: below this the header's label ("Interr", "Dissip") does not fit, and a column whose name
+    -- cannot be read serves no purpose.
     if largura < 44 then largura = 44 end
 
     larguraCache[formato] = largura
     return largura
 end
 
----A largura de um GRUPO: a SOMA das colunas dele.
+--- A GROUP's width: the SUM of its columns.
 ---
----Cada coluna volta a ter o proprio numero (a versao que juntava os dois numa string so foi
----desfeita a pedido), entao o grupo ocupa exatamente o espaco das colunas dele. O que ele ganha e
----outra coisa: **uma barra so**, que atravessa da coluna do total ate a da taxa.
+--- Each column has its own number again (the version that joined the two in a single string was
+--- undone on request), so the group takes exactly its columns' space. What it gains is
+--- something else: **a single bar**, crossing from the total's column to the rate's.
 local function GroupWidth(grupo)
     local largura = 0
     for i = 1, #grupo.keys do
@@ -1304,35 +1304,35 @@ local function GroupWidth(grupo)
     return largura
 end
 
----O deslocamento de cada coluna a partir da DIREITA, e a largura total.
+--- Each column's offset from the RIGHT, and the total width.
 ---
----Cada coluna tem a largura DELA agora, entao o deslocamento acumulado nao e mais
----`indice * largura`: e a soma das larguras das colunas a direita dela.
----ONDE CADA NUMERO DE UM GRUPO FICA DENTRO DA BARRA DELE.
+--- Each column has ITS OWN width now, so the accumulated offset is no longer
+--- `index * width`: it is the sum of the widths of the columns to its right.
+--- WHERE EACH NUMBER OF A GROUP SITS INSIDE ITS BAR.
 ---
----Ideia do usuario, 08/09: *"se cada um ficasse alinhado em cada canto, ou seja, dano a esquerda,
----dps a direita"*, e logo depois *"quando a coluna tiver apenas um valor, fica centralizado"*.
+--- The user's idea, 08/09: *"se cada um ficasse alinhado em cada canto, ou seja, dano a esquerda,
+--- dps a direita"*, and right after *"quando a coluna tiver apenas um valor, fica centralizado"*.
 ---
----⚑ O QUE MUDA E O PRINCIPIO QUE UNE OS DOIS NUMEROS. Antes eles eram alinhados a direita, cada
----um na caixa da coluna dele, e o que os juntava seria a PROXIMIDADE -- so que nao juntava: o vao
----entre eles era o RESIDUO da largura da taxa, media 35,8px e variava 11px por linha, enquanto o
----vao entre familias diferentes era 33. Dois numeros da mesma familia ficavam mais longe entre si
----que dois de familias diferentes -- razao 0,92, invertida.
+--- ⚑ WHAT CHANGES IS THE PRINCIPLE THAT BINDS THE TWO NUMBERS. Before they were right-aligned, each
+--- in its column's box, and what joined them would be PROXIMITY -- except it did not join them: the gap
+--- between them was the REMAINDER of the rate's width, averaged 35.8px and varied 11px per row, while the
+--- gap between different families was 33. Two numbers of the same family sat farther apart
+--- than two of different families -- a ratio of 0.92, inverted.
 ---
----Agora eles vao para as PONTAS, e quem os une e a REGIAO COMUM: duas coisas nas duas
----extremidades de um recipiente pertencem ao recipiente. So funciona porque a barra ganhou pista
----tingida na 0.73.0 -- sem recipiente visivel, seriam dois numeros soltos no escuro.
+--- Now they go to the ENDS, and what binds them is the COMMON REGION: two things at the two
+--- ends of a container belong to the container. It only works because the bar gained a tinted track
+--- in 0.73.0 -- without a visible container, they would be two loose numbers in the dark.
 ---
----E a regra se estende sozinha, o que e o teste de que ela e uma regra e nao um caso:
+--- And the rule extends by itself, which is the test that it is a rule and not a case:
 ---
----    1 membro   -> centro                 (interrupcoes, mortes, absorvido)
----    2 membros  -> esquerda, direita      (dano + DPS)
----    3 membros  -> esquerda, centro, direita  (dano + DPS + dano%, que vem em duas predefinicoes)
+---    1 member   -> centre                 (interrupts, deaths, absorbed)
+---    2 members  -> left, right            (damage + DPS)
+---    3 members  -> left, centre, right    (damage + DPS + damage%, which comes in two presets)
 ---
----Sem isso a janela ficaria com duas gramaticas -- uma para quem tem par e outra para quem nao
----tem --, que costuma sair pior que o problema original.
+--- Without that the window would have two grammars -- one for whoever has a pair and another for whoever does not
+--- --, which usually comes out worse than the original problem.
 ---
----@return string justificacao "LEFT", "CENTER" ou "RIGHT"
+--- @return string justification "LEFT", "CENTER" or "RIGHT"
 local function MemberAlign(indice, total)
     if total <= 1 then return "CENTER" end
     if indice == 1 then return "LEFT" end
@@ -1340,17 +1340,17 @@ local function MemberAlign(indice, total)
     return "CENTER"
 end
 
----A FATIA de um membro dentro da barra do grupo: onde ela comeca (da direita) e quanto ocupa.
+--- A member's SLICE inside the group's bar: where it starts (from the right) and how much it takes.
 ---
----Serve ao CABECALHO, e por isso existe. O rotulo tem que ficar em cima do numero que ele nomeia
----e o botao em cima da fatia que ele ordena -- senao clicar em "DPS" ordenaria por dano, que e
----exatamente o defeito que ja voltou uma vez por aqui.
+--- It serves the HEADER, and that is why it exists. The label has to sit on top of the number it names
+--- and the button on top of the slice it sorts -- otherwise clicking "DPS" would sort by damage, which is
+--- exactly the defect that already came back once through here.
 ---
----A fatia e proporcional a largura declarada da coluna (`COLUMN_WIDTH_BY_FIELD`), e nao um terco
----cego: assim o total, que pede mais espaco, tambem ganha o alvo de clique maior -- e ele e o
----primario da familia.
+--- The slice is proportional to the column's declared width (`COLUMN_WIDTH_BY_FIELD`), and not a blind
+--- third: that way the total, which asks for more space, also gains the bigger click target -- and it is the
+--- family's primary.
 ---
----@return number offset a partir da direita da faixa, number largura
+--- @return number offset from the strip's right, number width
 local function MemberSlice(grupo, indice, larguraFaixa)
     local soma = 0
     for _, key in ipairs(grupo.keys) do soma = soma + ColumnWidthFor(key) end
@@ -1367,11 +1367,11 @@ local function MemberSlice(grupo, indice, larguraFaixa)
     return offset, largura
 end
 
----O deslocamento de cada COLUNA a partir da direita, e a largura total.
+--- Each COLUMN's offset from the right, and the total width.
 ---
----E por coluna outra vez: o cabecalho e o numero voltaram a ser um por coluna. O que anda por
----grupo e so a barra, e o vao dela sai de `GroupSpans`, que le estes mesmos offsets -- as duas
----contas nao podem divergir porque so existe uma.
+--- It is per column again: the header and the number went back to being one per column. What goes per
+--- group is only the bar, and its span comes from `GroupSpans`, which reads these same offsets -- the two
+--- calculations cannot diverge because only one exists.
 local function ColumnOffsets()
     local columns = ns.db.columns
     local offsets, running = {}, 0
@@ -1382,18 +1382,18 @@ local function ColumnOffsets()
     return offsets, running
 end
 
----O VAO DE CADA GRUPO: onde a barra unica comeca e quanto ela atravessa.
+--- EACH GROUP'S SPAN: where the single bar starts and how far it crosses.
 ---
----Ideia do usuario: *"a barra que progride conforme quem ta melhor, ela vai desde a coluna de
----dano ate o DPS, e mesma coisa pra Cura e CPS, como se fosse apenas uma barra"*.
+--- The user's idea: *"a barra que progride conforme quem ta melhor, ela vai desde a coluna de
+--- dano ate o DPS, e mesma coisa pra Cura e CPS, como se fosse apenas uma barra"*.
 ---
----⚑ ISTO SO FECHA PORQUE A ORDEM E TRAVADA. As colunas de uma familia sao contiguas em
----`ns.db.columns` (`Data.NormalizeColumns` garante), entao um grupo e uma FAIXA CONTINUA -- da
----borda direita da ultima coluna dele ate a borda esquerda da primeira. Com a lista intercalada
----que a versao anterior permitia ({dano, cura, DPS}), a barra do dano teria que atravessar por
----baixo de um numero de cura, e "uma barra so" deixaria de querer dizer alguma coisa.
+--- ⚑ THIS ONLY CLOSES BECAUSE THE ORDER IS LOCKED. A family's columns are contiguous in
+--- `ns.db.columns` (`Data.NormalizeColumns` guarantees it), so a group is a CONTINUOUS STRIP -- from the
+--- right edge of its last column to the left edge of its first. With the interleaved list
+--- the previous version allowed ({damage, healing, DPS}), the damage bar would have to cross
+--- under a healing number, and "one single bar" would stop meaning anything.
 ---
----@return table vaos `{ grupo, offset (da direita), width }`, na ordem da tela
+--- @return table spans `{ group, offset (from the right), width }`, in screen order
 local function GroupSpans()
     local offsets = ColumnOffsets()
     local columns = ns.db.columns
@@ -1418,57 +1418,57 @@ local function GroupSpans()
     return vaos
 end
 
----A largura minima da janela.
+--- The window's minimum width.
 ---
----Ela somava a largura das colunas (7 x 58 = 406), o que fazia a janela nascer com 508px de
----largura minima por causa de colunas que nao sao mais desenhadas. Agora e o que a LINHA precisa:
----icone, um nome legivel e o espaco do numero.
----A largura minima: abaixo dela a janela nao cabe o que ela desenha.
+--- It summed the columns' width (7 x 58 = 406), which made the window be born with a 508px
+--- minimum width because of columns that are no longer drawn. Now it is what the ROW needs:
+--- icon, a readable name and the number's space.
+--- The minimum width: below it the window does not fit what it draws.
 ---
----⚠️ ELA VOLTOU A SOMAR AS COLUNAS, e a historia disso e a licao: quando o desenho em SECOES
----tirou as colunas da tela, eu tirei a soma delas daqui -- e escrevi no comentario que "as
----colunas nao sao mais desenhadas". Depois o desenho voltou a ter colunas e a soma nao voltou
----junto. **A premissa venceu e o comentario ficou**, afirmando como fato uma coisa que deixara de
----ser verdade.
+--- ⚠️ IT WENT BACK TO SUMMING THE COLUMNS, and the story of that is the lesson: when the drawing in SECTIONS
+--- took the columns off the screen, I took their sum out of here -- and wrote in the comment that "the
+--- columns are no longer drawn". Later the drawing went back to having columns and the sum did not come back
+--- along. **The premise lapsed and the comment stayed**, stating as fact something that had stopped
+--- being true.
 ---
----O estrago era grande e silencioso: com o conjunto padrao de Mitico+ (7 colunas x 58 = 406px)
----numa janela de 340, a area do nome dava **−111** e o clamp a punha em 40px; a primeira celula
----era ancorada em x = −70, ou seja INTEIRA fora da janela, e como nada recorta, ela desenhava por
----cima do icone, do nome e do cenario. Quatro das sete colunas caiam fora.
+--- The damage was big and silent: with the default Mythic+ set (7 columns x 58 = 406px)
+--- in a 340 window, the name's area gave **−111** and the clamp put it at 40px; the first cell
+--- was anchored at x = −70, that is ENTIRELY outside the window, and since nothing clips, it drew over
+--- the icon, the name and the scenery. Four of the seven columns fell outside.
 ---
----E nao era so instalacao limpa: com a largura que o usuario ja tinha arrastado (491px, 6
----colunas), trocar para o conjunto de Mitico+ dava area de nome 44 -- dentro do clamp, nomes
----cortados, sem nenhum reset.
+--- And it was not only a clean install: with the width the user had already dragged (491px, 6
+--- columns), switching to the Mythic+ set gave a name area of 44 -- inside the clamp, names
+--- cut, with no reset at all.
 ---
----A CALHA ENTRA NA CONTA, e esquece-la reproduz um defeito que este arquivo ja documentou: sem
----ela o minimo garante 96 para o nome, mas o layout desconta a calha DESSES 96 e sobram 86 -- o
----mesmo 86 do comentario de `DEFAULT_WIDTH`.
+--- THE GUTTER GOES INTO THE ARITHMETIC, and forgetting it reproduces a defect this file already documented: without
+--- it the minimum guarantees 96 for the name, but the layout takes the gutter OUT OF THOSE 96 and 86 are left -- the
+--- same 86 of `DEFAULT_WIDTH`'s comment.
 local function MinWidth()
     local _, columnsWidth = ColumnOffsets()
     return PADDING * 2 + RowHeight() + NAME_GUTTER + NAME_MIN_WIDTH + columnsWidth
 end
 
--- A FOLGA da largura padrao sobre o minimo.
+-- The default width's SLACK over the minimum.
 --
--- A padrao NAO PODE SER O MINIMO: o minimo garante `NAME_MIN_WIDTH` (96) para o nome, que e o
--- piso de legibilidade, nao um tamanho confortavel. Nascer no piso significa nascer no limite.
+-- The default CANNOT BE THE MINIMUM: the minimum guarantees `NAME_MIN_WIDTH` (96) for the name, which is the
+-- legibility floor, not a comfortable size. Being born at the floor means being born at the limit.
 --
--- 48 sai de medicao: "Frenchmiku-Tichondrius" -- nome com reino, que e o caso longo real do grupo
--- do usuario -- mede ~139px em Arial Narrow 16, contra os 96 do piso. A folga cobre a diferenca.
+-- 48 comes from measurement: "Frenchmiku-Tichondrius" -- a name with a realm, which is the real long case of the user's
+-- group -- measures ~139px in Arial Narrow 16, against the floor's 96. The slack covers the difference.
 --
--- E ela e SOMADA ao minimo, nao um numero absoluto: o minimo depende de quantas colunas o jogador
--- marcou, entao uma largura padrao fixa voltaria a nao caber assim que ele marcasse mais uma.
--- A FOLGA DA LARGURA PADRAO, e ela vai INTEIRA para o nome.
+-- And it is ADDED to the minimum, not an absolute number: the minimum depends on how many columns the player
+-- ticked, so a fixed default width would stop fitting again as soon as he ticked one more.
+-- THE DEFAULT WIDTH'S SLACK, and it goes ENTIRELY to the name.
 --
--- ⚑ E POR ISSO QUE A COLUNA DO NOME NAO E UMA CONSTANTE. Ela e o que sobra:
--- `nameArea = largura - colunas - icone - calha`, e a largura padrao e `MinWidth + DEFAULT_SLACK`
--- -- onde `MinWidth` ja embute `NAME_MIN_WIDTH`. Substituindo, a area do nome na largura padrao e
--- sempre `NAME_MIN_WIDTH + DEFAULT_SLACK`, **independente do tamanho das colunas**. Aumentar as
--- colunas sozinho nao encolheria o nome em um pixel: a janela cresceria junto.
+-- ⚑ THAT IS WHY THE NAME COLUMN IS NOT A CONSTANT. It is what is left:
+-- `nameArea = width - columns - icon - gutter`, and the default width is `MinWidth + DEFAULT_SLACK`
+-- -- where `MinWidth` already includes `NAME_MIN_WIDTH`. Substituting, the name's area at the default width is
+-- always `NAME_MIN_WIDTH + DEFAULT_SLACK`, **regardless of the columns' size**. Enlarging the
+-- columns alone would not shrink the name by one pixel: the window would grow along.
 --
--- Entao o pedido *"a coluna do nome ta meio grande"* se atende aqui, e so aqui. 24 deixa a area
--- em 120px: um nome de 12 caracteres (o limite do jogo) ocupa ~77px no corpo padrao, entao ainda
--- sobram 43 para o reino e para o respiro. 48 era mais ar do que o nome mais longo pede.
+-- So the request *"a coluna do nome ta meio grande"* is met here, and only here. 24 leaves the area
+-- at 120px: a 12-character name (the game's limit) takes ~77px at the default size, so there are still
+-- 43 left for the realm and the breathing room. 48 was more air than the longest name asks for.
 local DEFAULT_SLACK = 24
 
 local function WindowWidth()
@@ -1482,43 +1482,43 @@ local function ColumnHeaderHeight()
     return COLHEAD_HEIGHT
 end
 
----Altura da janela para N linhas.
+--- The window's height for N rows.
 ---
----A janela **mantém o tamanho que o usuário deu**: as barras preenchem de cima
----para baixo e o resto fica de fundo. Encolher para o conteúdo, como eu tinha feito, tornava a
----alça inútil — com um jogador só, arrastar não mudava nada e parecia travado.
+--- The window **keeps the size the user gave it**: the bars fill from top
+--- to bottom and the rest is background. Shrinking to the content, as I had done, made the
+--- handle useless -- with a single player, dragging changed nothing and looked stuck.
 local function WindowHeight(rowCount)
     return HEADER_HEIGHT + ColumnHeaderHeight() + rowCount * (RowHeight() + 1) + PADDING
 end
 
--- A altura que o ultimo desenho aplicou. Ela vem ANTES de quem a le -- foi a setima armadilha de
--- declaracao abaixo do uso desta sessao, e a que deixou uma correcao inteira inerte.
+-- The height the last drawing applied. It comes BEFORE whoever reads it -- it was the seventh trap of
+-- declaration below use in this session, and the one that left a whole fix inert.
 local alturaDesenhada
 
----A altura que a janela deve ter AGORA. Quatro caminhos (soltar a alca, mudar colunas, mudar a
----fonte, arrastar) chamavam a formula direto e discordavam do desenho; um lugar so decide, e ele
----pergunta ao que foi desenhado.
+--- The height the window should have NOW. Four paths (releasing the handle, changing columns, changing the
+--- font, dragging) called the formula directly and disagreed with the drawing; one place decides, and it
+--- asks what was drawn.
 local function CurrentHeight()
     return alturaDesenhada or WindowHeight(ns.db.rows)
 end
 
 Window.__WindowHeight = WindowHeight
 
----Quanto uma linha ocupa de altura, com a separação.
+--- How much height a row takes, with the separation.
 local function RowStep()
     return RowHeight() + 1
 end
 
----Quantas linhas INTEIRAS cabem nesta altura.
+--- How many WHOLE rows fit in this height.
 ---
----E a INVERSA EXATA de `WindowHeight`, e tem que continuar sendo: a alca chama esta, o desenho
----chama aquela, e se as duas discordarem o arraste nao converge -- a janela cresce, o desenho
----cresce mais, e a alca pede mais ainda. Foi o que aconteceu enquanto uma delas media secoes e a
----outra media colunas.
+--- It is the EXACT INVERSE of `WindowHeight`, and it has to stay so: the handle calls this one, the drawing
+--- calls that one, and if the two disagree the drag does not converge -- the window grows, the drawing
+--- grows more, and the handle asks for even more. That is what happened while one of them measured sections and the
+--- other measured columns.
 ---
----`floor`, e nao `floor(x + 0.5)`: arredondar para o mais proximo aceita uma altura em que a
----ultima linha **nao cabe**, e o jogador ve meia linha. O pedido foi literal -- "para nao cortar
----a linha de um jogador".
+--- `floor`, and not `floor(x + 0.5)`: rounding to the nearest accepts a height in which the
+--- last row **does not fit**, and the player sees half a row. The request was literal -- "para não cortar
+--- a linha de um jogador".
 local function RowsThatFit(height)
     local usable = height - HEADER_HEIGHT - ColumnHeaderHeight() - PADDING
     local n = math.floor(usable / RowStep())
@@ -1527,37 +1527,37 @@ local function RowsThatFit(height)
     return n
 end
 
--- Ganchos para o harness: a geometria é a parte testável desta tela, e sem isso o teste teria
--- que recalcular as fórmulas por fora — o que confirmaria a cópia, não o código.
+-- Hooks for the harness: the geometry is the testable part of this screen, and without them the test would have
+-- to recompute the formulas from outside -- which would confirm the copy, not the code.
 Window.__WindowHeight = WindowHeight
 Window.__RowsThatFit = RowsThatFit
 Window.__RowStep = RowStep
 
 --------------------------------------------------------------------------------
--- Cabeçalho das colunas
+-- Column header
 --------------------------------------------------------------------------------
 
 local function BuildColumnHeader()
     if not headerRow then
         headerRow = CreateFrame("Frame", nil, frame)
         headerRow.labels = {}
-        -- Sem fundo: com a janela transparente, uma faixa escura aqui vira um segundo
-        -- retângulo opaco logo abaixo do título e pesa a tela.
+        -- No background: with the window transparent, a dark strip here becomes a second
+        -- opaque rectangle right below the title and weighs the screen down.
         headerRow.bg = headerRow:CreateTexture(nil, "BACKGROUND")
         headerRow.bg:SetAllPoints()
         headerRow.bg:SetColorTexture(0, 0, 0, 0)
     end
 
     headerRow:ClearAllPoints()
-    -- ⚑ A MESMA MARGEM DA LINHA, e nao `PADDING + 2`.
+    -- ⚑ THE SAME MARGIN AS THE ROW, and not `PADDING + 2`.
     --
-    -- Enquanto o numero era alinhado a direita e o rotulo tambem, 2px de diferenca passavam
-    -- despercebidos. Com os dois encostando na ESQUERDA (0.76.0), a diferenca virou desencontro
-    -- visivel -- e foi o que o usuario relatou com print em 09/09: *"o alinhamento do titulo do
+    -- While the number was right-aligned and the label too, 2px of difference went
+    -- unnoticed. With both touching the LEFT (0.76.0), the difference became a visible
+    -- misalignment -- and that is what the user reported with a print on 09/09: *"o alinhamento do titulo do
     -- header com o comeco no inicio da barra, nao ta bem alinhado"*.
     --
-    -- Duas referencias diferentes para coisas que precisam se alinhar e divergencia esperando
-    -- acontecer. Agora o cabecalho e a linha partem do mesmo `PADDING`.
+    -- Two different references for things that need to line up is divergence waiting to
+    -- happen. Now the header and the row start from the same `PADDING`.
     headerRow:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, -HEADER_HEIGHT)
     headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -HEADER_HEIGHT)
     headerRow:SetHeight(COLHEAD_HEIGHT)
@@ -1568,9 +1568,9 @@ local function BuildColumnHeader()
 
     local offsets = ColumnOffsets()
 
-    -- ONDE CADA COLUNA MORA DENTRO DO GRUPO DELA. O cabecalho deixou de poder ser posicionado
-    -- pelo acumulado das colunas: os numeros agora vao para as PONTAS da barra, e o rotulo tem
-    -- que ir junto.
+    -- WHERE EACH COLUMN LIVES INSIDE ITS GROUP. The header can no longer be positioned
+    -- by the columns' running sum: the numbers now go to the bar's ENDS, and the label has
+    -- to go along.
     ondeFicaCache = {}
     local ondeFica = ondeFicaCache
     for _, vao in ipairs(GroupSpans()) do
@@ -1578,10 +1578,10 @@ local function BuildColumnHeader()
         for i, key in ipairs(vao.grupo.keys) do
             local off, larg = MemberSlice(vao.grupo, i, larguraFaixa)
             ondeFica[key] = {
-                -- ⚑ SEM `GROUP_GAP / 2`. A folga entre familias sai INTEIRA da esquerda do
-                -- grupo (`faixa:SetPoint("RIGHT", ..., -vao.offset)`), e este calculo tinha ficado
-                -- no modelo antigo, que a dividia entre os dois lados. Sao 5px que deslocavam
-                -- todo rotulo para a esquerda do numero que ele nomeia.
+                -- ⚑ WITHOUT `GROUP_GAP / 2`. The slack between families comes ENTIRELY off the group's
+                -- left (`faixa:SetPoint("RIGHT", ..., -vao.offset)`), and this calculation had stayed
+                -- on the old model, which split it between the two sides. They were 5px that shifted
+                -- every label to the left of the number it names.
                 offset = vao.offset + off,
                 largura = larg,
                 lado = MemberAlign(i, #vao.grupo.keys),
@@ -1598,14 +1598,14 @@ local function BuildColumnHeader()
             button.text:SetPoint("RIGHT", -4, 0)
 
             button:SetScript("OnClick", function(self)
-                -- `columnIndex` e `sortKey` voltaram a falar da mesma coluna: ha um cabecalho
-                -- por coluna outra vez. O `sortKey` fica porque e ele que separa "qual posicao na
-                -- tela" de "qual metrica" -- ler `ns.db.columns[indice]` aqui dentro foi o que
-                -- quebrou quando o indice passou a ser de grupo.
+                -- `columnIndex` and `sortKey` went back to speaking of the same column: there is one header
+                -- per column again. `sortKey` stays because it is what separates "which position on
+                -- screen" from "which metric" -- reading `ns.db.columns[index]` in here was what
+                -- broke when the index came to be a group's.
                 local key = self.sortKey
                 if IsShiftKeyDown() then
-                    -- O GRUPO da coluna clicada, nao a posicao dela na lista: total e taxa andam
-                    -- juntos, entao mover e sempre operacao de familia.
+                    -- The clicked column's GROUP, not its position in the list: total and rate go
+                    -- together, so moving is always a family operation.
                     local g = GroupIndexFor(key)
                     if g then Window.MoveColumn(g, -1) end
                 elseif IsControlKeyDown() then
@@ -1636,8 +1636,8 @@ local function BuildColumnHeader()
         end
 
         local key = ns.db.columns[c]
-        -- Posicao na TELA (uma por coluna), que e o que o teste clica. Nao serve para mover:
-        -- para isso existe `GroupIndexFor`.
+        -- Position on SCREEN (one per column), which is what the test clicks. It does not serve for moving:
+        -- for that there is `GroupIndexFor`.
         button.columnIndex = c
         button.sortKey = key
         local onde = ondeFica[key] or { offset = offsets[c],
@@ -1646,9 +1646,9 @@ local function BuildColumnHeader()
         button:ClearAllPoints()
         button:SetPoint("RIGHT", headerRow, "RIGHT", -onde.offset, 0)
 
-        -- O ROTULO ENCOSTA NA MESMA PONTA QUE O NUMERO. Sem isto o botao estaria no lugar certo
-        -- e o texto dele nao -- "Dano" apareceria a direita da fatia do dano, colado no "DPS", e
-        -- os dois rotulos voltariam a se juntar no meio enquanto os numeros ficam nas pontas.
+        -- THE LABEL TOUCHES THE SAME END AS THE NUMBER. Without this the button would be in the right place
+        -- and its text would not -- "Dano" would show to the right of the damage slice, stuck to "DPS", and
+        -- the two labels would gather in the middle again while the numbers sit at the ends.
         button.text:ClearAllPoints()
         button.text:SetJustifyH(onde.lado)
         if onde.lado == "LEFT" then
@@ -1662,8 +1662,8 @@ local function BuildColumnHeader()
 
         local label = ns.Data.GetShortLabel(key)
         if key == ns.db.sortBy then
-            -- Só a cor marca a coluna ordenada: o dourado já diz tudo, e uma seta aqui
-            -- repetia a informação ocupando espaço.
+            -- Only the colour marks the sorted column: the gold already says it all, and an arrow here
+            -- repeated the information while taking space.
             button.text:SetText(label)
             button.text:SetTextColor(1, 0.82, 0)
         else
@@ -1675,23 +1675,23 @@ local function BuildColumnHeader()
 end
 
 --------------------------------------------------------------------------------
--- Linhas: cada uma é uma barra
+-- Rows: each one is a bar
 --------------------------------------------------------------------------------
 local function BuildRow(index)
     local row = rows[index]
     if not row then
         row = CreateFrame("Button", nil, frame, "BackdropTemplate")
 
-        -- Sem isto o clique atravessa a linha e cai no frame da janela: o mouse precisa ser
-        -- habilitado explicitamente, mesmo em Button criado por código.
+        -- Without this the click goes through the row and lands on the window's frame: the mouse has to be
+        -- enabled explicitly, even on a Button created in code.
         row:EnableMouse(true)
         row:RegisterForClicks("LeftButtonUp")
 
         row:SetScript("OnClick", function(self)
             if not self.source then return end
 
-            -- Arquivo .lua novo no .toc só entra depois de sair para a tela de personagens;
-            -- com /reload o módulo fica ausente e o clique morreria calado.
+            -- A new .lua file in the .toc only comes in after going out to the character screen;
+            -- with /reload the module stays absent and the click would die silently.
             if not ns.Breakdown then
                 ns.Print(L["restart the client: the breakdown module was not loaded yet."])
                 return
@@ -1719,7 +1719,7 @@ local function BuildRow(index)
             end
         end)
 
-        -- Realce ao passar o mouse: mostra que a linha é clicável.
+        -- Highlight on mouse-over: shows that the row is clickable.
         -- (08/10) And the tooltip with what the player cast (Breakdown.Tooltip):
         -- the highlight alone said "clickable" and nothing of the player.
         row:SetScript("OnEnter", function(self)
@@ -1737,27 +1737,27 @@ local function BuildRow(index)
             edgeSize = 1,
         })
 
-        -- RECORTA O QUE PASSAR DA BORDA. E REDE, NAO CONSERTO -- e a diferenca importa: com a
-        -- conta certa nada passa, e com ela errada isto transforma "coluna desenhando sobre o
-        -- cenario" em "coluna que some calada". A segunda e mais dificil de diagnosticar.
+        -- CLIPS WHAT GOES PAST THE EDGE. IT IS A NET, NOT A FIX -- and the difference matters: with the
+        -- right arithmetic nothing goes past, and with it wrong this turns "a column drawing over the
+        -- scenery" into "a column that vanishes silently". The second is harder to diagnose.
         --
-        -- Entra mesmo assim porque o desenho depende de uma aritmetica que ja venceu uma vez, e
-        -- porque o proprio medidor nativo recorta a entrada dele (`DamageMeterEntry.xml:3`).
+        -- It comes in anyway because the drawing depends on arithmetic that already lapsed once, and
+        -- because the native meter itself clips its entry (`DamageMeterEntry.xml:3`).
         if row.SetClipsChildren then row:SetClipsChildren(true) end
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
         row.bg:SetColorTexture(0, 0, 0, 0)
 
-        -- Como no medidor nativo: nada de preenchimento tomando a linha inteira. O valor
-        -- aparece como uma **linha fina no rodapé**, na cor da classe.
+        -- Like the native meter: no fill taking the whole row. The value
+        -- shows as a **thin line at the foot**, in the class colour.
         --
-        -- Isso muda mais do que a estética: com o fundo neutro, a cor da classe fica livre
-        -- para ser usada no texto da coluna liderada — o que antes era impossível, porque
-        -- texto colorido sobre barra da mesma cor some.
-        -- Camada de texto ACIMA das barras das colunas. Sem isso o texto some: StatusBar e
-        -- frame filho, e frame filho desenha por cima dos FontStrings do pai — foi exatamente
-        -- o bug da 0.11.0, em que a linha aparecia como uma barra vazia.
+        -- That changes more than the looks: with a neutral background, the class colour becomes free
+        -- to be used in the led column's text -- which was impossible before, because
+        -- coloured text over a bar of the same colour vanishes.
+        -- A text layer ABOVE the columns' bars. Without it the text vanishes: a StatusBar is a
+        -- child frame, and a child frame draws over the parent's FontStrings -- that was exactly
+        -- the bug of 0.11.0, in which the row showed as an empty bar.
         row.text = CreateFrame("Frame", nil, row)
         row.text:SetAllPoints()
         row.text:SetFrameLevel(row:GetFrameLevel() + 2)
@@ -1767,40 +1767,40 @@ local function BuildRow(index)
         row.hover:SetColorTexture(1, 1, 1, 0.10)
         row.hover:Hide()
 
-        -- Ícone quadrado ocupando a linha inteira. A máscara circular que eu tinha posto
-        -- encolhia o ícone e o deixava solto no meio da barra.
+        -- A square icon taking the whole row. The circular mask I had put on
+        -- shrank the icon and left it loose in the middle of the bar.
         row.icon = row.text:CreateTexture(nil, "OVERLAY")
         row.icon:SetPoint("LEFT", 0, 0)
 
-        -- Segunda textura só para o ícone de classe, que precisa de texCoord.
+        -- A second texture only for the class icon, which needs texCoord.
         row.iconClass = row.text:CreateTexture(nil, "OVERLAY")
         row.iconClass:SetPoint("LEFT", 0, 0)
         row.iconClass:Hide()
 
         row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        -- 2px acima do centro: abre respiro entre o texto e a faixa colorida do rodapé.
+        -- 2px above the centre: opens breathing room between the text and the coloured strip at the foot.
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, TEXT_LIFT)
         row.name:SetJustifyH("LEFT")
-        -- Nome comprido corta em vez de quebrar linha ou invadir a coluna de números.
+        -- A long name cuts instead of wrapping or invading the numbers' column.
         row.name:SetWordWrap(false)
 
-        -- O reino é uma SEGUNDA FontString, não parte da primeira: o corpo menor é o que o
-        -- separa do nome, e uma FontString só tem um corpo. Ela é colada ao fim do texto do
-        -- nome, não à caixa dele — por isso a largura do nome é ajustada ao conteúdo no
-        -- desenho (ver `Window.Draw`), senão o reino apareceria lá na frente, no fim da caixa.
+        -- The realm is a SECOND FontString, not part of the first: the smaller size is what
+        -- separates it from the name, and a FontString has only one size. It is stuck to the end of the name's
+        -- text, not to its box -- that is why the name's width is fitted to the content in the
+        -- drawing (see `Window.Draw`), or the realm would show far ahead, at the end of the box.
         row.realm = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.realm:SetPoint("LEFT", row.name, "RIGHT", 0, TEXT_LIFT)
         row.realm:SetJustifyH("LEFT")
         row.realm:SetWordWrap(false)
 
-        -- O VALOR VAI DENTRO DA BARRA, encostado a direita. Pedido do usuario: *"o texto hoje
-        -- das colunas pode ficar dentro das barras para maximizar o uso de espaco"* -- e e o que
-        -- o medidor nativo faz, nome de um lado e numero do outro, os dois sobre a barra.
+        -- THE VALUE GOES INSIDE THE BAR, against the right. The user's request: *"o texto hoje
+        -- das colunas pode ficar dentro das barras para maximizar o uso de espaco"* -- and it is what
+        -- the native meter does, name on one side and number on the other, both over the bar.
         --
-        -- Uma faixa por GRUPO (a barra que atravessa), cada uma com os numeros das colunas dela.
-        -- Total e taxa sao DOIS numeros com o mesmo corpo: eles dividem a barra, nao a hierarquia
-        -- -- fazer a taxa menor e cinza a rebaixaria a nota de rodape, e ela e a segunda metade da
-        -- mesma leitura.
+        -- One strip per GROUP (the bar that crosses), each with its columns' numbers.
+        -- Total and rate are TWO numbers with the same size: they share the bar, not the hierarchy
+        -- -- making the rate smaller and grey would demote it to a footnote, and it is the second half of the
+        -- same reading.
         row.groups = {}
         rows[index] = row
     end
@@ -1813,7 +1813,7 @@ local function BuildRow(index)
     row:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, offsetY)
 
     if row.SetBackdropBorderColor then
-        -- Sem borda em volta da linha: quem separa uma linha da outra e o vao de 1px.
+        -- No border around the row: what separates one row from the other is the 1px gap.
         row:SetBackdropBorderColor(0, 0, 0, 0)
     end
 
@@ -1821,64 +1821,64 @@ local function BuildRow(index)
     row.icon:SetSize(iconSize, iconSize)
     row.iconClass:SetSize(iconSize, iconSize)
 
-    -- BARRA CHEIA, e vale explicar por que ela voltou.
+    -- A FULL BAR, and it is worth explaining why it came back.
     --
-    -- Ela ja tinha sido reprovada: *"a cor de fundo de cada classe fica ruim para ver os numeros
-    -- da tabela, tem que tirar"* -- e estava certo, NAQUELE contexto: uma tabela com seis colunas
-    -- de numero em cima de cor de classe saturada. Aqui a linha tem um nome e dois numeros, que e
-    -- o desenho do medidor nativo, e o pedido foi justamente por o numero dentro da barra.
+    -- It had already been rejected: *"a cor de fundo de cada classe fica ruim para ver os numeros
+    -- da tabela, tem que tirar"* -- and it was right, IN THAT context: a table with six columns
+    -- of numbers on top of saturated class colour. Here the row has a name and two numbers, which is
+    -- the native meter's design, and the request was precisely to put the number inside the bar.
     --
-    -- O que torna isso legivel esta medido na skill: preenchimento **escurecido** (~0.65 da cor
-    -- da classe), fundo de linha tingido para a parte vazia nao virar buraco, e sombra no texto.
-    -- Sem as tres, e a reprovacao de antes de novo.
-    -- A FAIXA DE CLASSE PASSA A COBRIR SO A COLUNA DO NOME, a pedido do usuario.
+    -- What makes it readable is measured in the skill: a **darkened** fill (~0.65 of the class
+    -- colour), a tinted row background so the empty part does not become a hole, and a shadow on the text.
+    -- Without the three, it is the earlier rejection again.
+    -- THE CLASS STRIP COMES TO COVER ONLY THE NAME COLUMN, at the user's request.
     --
-    -- E a resposta para uma pergunta que estava aberta: a cor de classe aparecia em TRES lugares
-    -- na mesma linha -- icone, barra de cada coluna, e esta faixa cruzando a linha inteira. Tres
-    -- vezes a mesma informacao, e a faixa era a que mais competia, porque passava por baixo dos
-    -- numeros de todas as colunas.
+    -- It is the answer to a question that was open: the class colour showed up in THREE places
+    -- on the same row -- the icon, each column's bar, and this strip crossing the whole row. Three
+    -- times the same information, and the strip was the one that competed the most, because it ran under the
+    -- numbers of every column.
     --
-    -- Agora a identidade mora onde a pessoa e identificada: sob o icone e o nome. Da coluna do
-    -- nome para a direita e so metrica.
+    -- Now the identity lives where the person is identified: under the icon and the name. From the name
+    -- column to the right it is only metrics.
     --
-    -- Ela CONTINUA sendo uma barra de progresso da metrica ordenada, nao um retangulo chapado:
-    -- e o que da forma vertical a lista, e agora essa forma vive no mesmo bloco que o nome.
-    -- A AREA DO NOME E CALCULADA UMA VEZ, AQUI, e nao la embaixo: a faixa de classe precisa dela
-    -- para saber onde parar, e ler `row.nameArea` antes de ele ser escrito devolvia o valor da
-    -- chamada ANTERIOR (nil na primeira). Um numero calculado em dois momentos e a mesma
-    -- divergencia que ja custou uma versao neste arquivo.
+    -- It IS STILL a progress bar of the sorted metric, not a flat rectangle:
+    -- it is what gives the list its vertical shape, and now that shape lives in the same block as the name.
+    -- THE NAME'S AREA IS COMPUTED ONCE, HERE, and not down below: the class strip needs it
+    -- to know where to stop, and reading `row.nameArea` before it was written returned the value of the
+    -- PREVIOUS call (nil on the first). A number computed at two moments is the same
+    -- divergence that already cost a version in this file.
     local _, columnsWidth = ColumnOffsets()
     row.nameArea = WindowWidth() - PADDING * 2 - columnsWidth - iconSize - NAME_GUTTER
     if row.nameArea < 40 then row.nameArea = 40 end
 
     ns.ApplyRoleFont(row.name, "body", 0)
-    -- O reino sempre um ponto abaixo do nome (decisao do usuario, 05/09/2026): com a linha
-    -- em 12, o reino fica em 11. E delta, nao valor fixo — se o corpo da linha mudar de novo,
-    -- a diferenca de um ponto acompanha sozinha.
+    -- The realm always one point below the name (the user's decision, 05/09/2026): with the row
+    -- at 12, the realm stays at 11. It is a delta, not a fixed value -- if the row's size changes again,
+    -- the one-point difference follows by itself.
     ns.ApplyRoleFont(row.realm, "body", REALM_FONT_DELTA)
 
-    -- CADA COLUNA E UMA BARRA COM O NUMERO DENTRO.
+    -- EACH COLUMN IS A BAR WITH THE NUMBER INSIDE.
     --
-    -- E o desenho que o usuario escolheu, e o que ele resolve: **tres classificacoes na mesma
-    -- linha**. Cada coluna e escalada pela regua da PROPRIA metrica, entao o lider daquela coluna
-    -- e a unica barra cheia dela. Nenhuma comparacao em Lua -- o que importa, porque em combate
-    -- os valores sao secret e comparar levanta erro. A geometria responde o que o Lua nao pode.
+    -- It is the design the user chose, and what it solves: **three rankings on the same
+    -- row**. Each column is scaled by its OWN metric's ruler, so that column's leader
+    -- is its only full bar. No comparison in Lua -- which matters, because in combat
+    -- the values are secret and comparing raises an error. The geometry answers what Lua cannot.
     --
-    -- A barra e um frame filho da celula e o numero fica ACIMA dela, na camada de texto: frame
-    -- filho desenha por cima de FontString do pai, e foi assim que a 0.11.0 saiu com barras
-    -- vazias.
-    -- UMA BARRA POR GRUPO, ATRAVESSANDO AS COLUNAS DELE.
+    -- The bar is a child frame of the cell and the number sits ABOVE it, on the text layer: a child
+    -- frame draws over the parent's FontString, and that is how 0.11.0 came out with empty
+    -- bars.
+    -- ONE BAR PER GROUP, CROSSING ITS COLUMNS.
     --
-    -- Ideia do usuario: *"a barra que progride conforme quem ta melhor, ela vai desde a coluna de
+    -- The user's idea: *"a barra que progride conforme quem ta melhor, ela vai desde a coluna de
     -- dano ate o DPS, e mesma coisa pra Cura e CPS, como se fosse apenas uma barra"*.
     --
-    -- A estrutura que isso pede tem tres niveis, e nao dois: a FAIXA (o frame do grupo, que e o
-    -- vao inteiro), a BARRA dentro dela (`SetAllPoints`, entao atravessa o vao) e um NUMERO por
-    -- coluna por cima. Antes eram dois niveis porque celula e coluna eram a mesma coisa.
+    -- The structure that asks for has three levels, and not two: the STRIP (the group's frame, which is the
+    -- whole span), the BAR inside it (`SetAllPoints`, so it crosses the span) and one NUMBER per
+    -- column on top. Before there were two levels because cell and column were the same thing.
     --
-    -- ⚑ O TEXTO E FILHO DA CAMADA DE CIMA, NUNCA DA FAIXA. StatusBar e frame filho e desenha
-    -- acima de qualquer FontString do proprio pai -- e o bug 0.11.0 (linhas como barras vazias)
-    -- registrado logo acima. `faixa.top` existe so para vencer a barra em nivel de frame.
+    -- ⚑ THE TEXT IS A CHILD OF THE TOP LAYER, NEVER OF THE STRIP. A StatusBar is a child frame and draws
+    -- above any FontString of its own parent -- it is the 0.11.0 bug (rows as empty bars)
+    -- recorded right above. `faixa.top` exists only to beat the bar in frame level.
     local vaos = GroupSpans()
 
     for _, faixa in pairs(row.groups) do
@@ -1891,15 +1891,15 @@ local function BuildRow(index)
         if not faixa then
             faixa = CreateFrame("Frame", nil, row.text)
 
-            -- A PISTA: o resto do caminho, na PROPRIA cor da classe, bem apagada.
+            -- THE TRACK: the rest of the path, in the class's OWN colour, very faded.
             --
-            -- Pedido do usuario, em duas etapas: primeiro *"tira o fundo preto com algum
-            -- percentual de opacidade"*, depois *"o fundo preto e feio"* e *"eu quero ... Pista
-            -- tingida. Sem fundo preto"*. Ele nao rejeitou a ideia de pista -- rejeitou o PRETO.
+            -- The user's request, in two steps: first *"tira o fundo preto com algum
+            -- percentual de opacidade"*, then *"o fundo preto e feio"* and *"eu quero ... Pista
+            -- tingida. Sem fundo preto"*. He did not reject the idea of a track -- he rejected the BLACK.
             --
-            -- Tingir com a cor da classe resolve as duas coisas: a parte vazia deixa de ser um
-            -- buraco e vira "o resto do caminho", na mesma familia de cor da barra, bem apagada,
-            -- em vez de empilhar retangulo preto.
+            -- Tinting with the class colour solves both: the empty part stops being a
+            -- hole and becomes "the rest of the path", in the same colour family as the bar, very faded,
+            -- instead of stacking a black rectangle.
             faixa.track = faixa:CreateTexture(nil, "BACKGROUND")
             faixa.track:SetAllPoints()
 
@@ -1909,11 +1909,11 @@ local function BuildRow(index)
             faixa.bar:SetMinMaxValues(0, 1)
             faixa.bar:SetValue(0)
 
-            -- A FAISCA, na camada mais alta da barra: um rastro que se acende ate a ponta.
+            -- THE SPARK, on the bar's highest layer: a trail that lights up to the tip.
             --
-            -- Sem atlas de proposito. O degrade de alfa numa textura branca em `ADD` da o brilho
-            -- sem depender de arte que pode nao existir neste cliente -- e atlas que nao existe
-            -- falha em SILENCIO, o que ja custou um cabecalho azul neste projeto.
+            -- No atlas on purpose. The alpha gradient on a white texture in `ADD` gives the glow
+            -- without depending on art that may not exist in this client -- and an atlas that does not exist
+            -- fails SILENTLY, which already cost a blue header in this project.
             faixa.spark = faixa:CreateTexture(nil, "OVERLAY")
             faixa.spark:SetTexture("Interface\\Buttons\\WHITE8X8")
             faixa.spark:SetBlendMode("ADD")
@@ -1922,11 +1922,11 @@ local function BuildRow(index)
             faixa.top:SetAllPoints()
             faixa.top:SetFrameLevel(faixa.bar:GetFrameLevel() + 2)
 
-            -- ⚑ OS NUMEROS SAO INDEXADOS POR POSICAO DENTRO DO GRUPO, nao pela posicao da coluna
-            -- na lista. A vaga (grupo 1, numero 2) pertence a esta faixa para sempre; um indice
-            -- global mudaria de faixa quando o jogador desmarcasse uma coluna, e widget que troca
-            -- de pai no meio do caminho e como se ganham defeitos que so aparecem ao mexer nas
-            -- colunas -- os mais caros de reproduzir.
+            -- ⚑ THE NUMBERS ARE INDEXED BY POSITION INSIDE THE GROUP, not by the column's position
+            -- in the list. The slot (group 1, number 2) belongs to this strip forever; a global
+            -- index would change strips when the player unticked a column, and a widget that changes
+            -- parent midway is how one gets defects that only show up when touching the
+            -- columns -- the most expensive to reproduce.
             faixa.texts = {}
             row.groups[gi] = faixa
         end
@@ -1936,48 +1936,48 @@ local function BuildRow(index)
         faixa:SetPoint("RIGHT", row.text, "RIGHT", -vao.offset, 0)
         faixa.bar:SetStatusBarTexture(ns.BarTexture())
 
-        -- A FAISCA E REANCORADA A CADA RECONSTRUCAO, e nao so no nascimento.
+        -- THE SPARK IS RE-ANCHORED AT EVERY REBUILD, and not only at birth.
         --
-        -- Ela se prende a TEXTURA DE PREENCHIMENTO, e e isso que a faz acompanhar a ponta sozinha:
-        -- quem redimensiona a textura e o motor, entao a faisca anda sem o Lua ler valor nenhum.
-        -- E o unico destaque que sobrevive a valor secret, e a fonte do 12.1.0 prova em seis
-        -- lugares (linha do tempo de encontro, gerenciador de recargas, barra de honra, barras de
-        -- widget) -- num deles movido por valor secret.
+        -- It is pinned to the FILL TEXTURE, and that is what makes it follow the tip by itself:
+        -- whoever resizes the texture is the engine, so the spark moves without Lua reading any value.
+        -- It is the only highlight that survives a secret value, and the 12.1.0 source proves it in six
+        -- places (the encounter timeline, the cooldown manager, the honor bar, widget
+        -- bars) -- in one of them moved by a secret value.
         --
-        -- Reancorar aqui e barato (uma vez por linha por reconstrucao) e nos poupa de depender de
-        -- a textura sobreviver a `SetStatusBarTexture` logo acima.
-        -- ⚑ AS DUAS PONTAS PRESAS NO PREENCHIMENTO, e nao so a direita com largura fixa.
+        -- Re-anchoring here is cheap (once per row per rebuild) and spares us from depending on
+        -- the texture surviving `SetStatusBarTexture` right above.
+        -- ⚑ BOTH ENDS PINNED TO THE FILL, and not only the right one with a fixed width.
         --
-        -- Defeito relatado em 08/09, com print: *"o brilho quando a barra ta quase num tamanho
-        -- minimo, ta ficando parecendo que vai andar pra tras"*. E era exatamente isso. Com
-        -- largura fixa de 10px e uma barra de ~2px (2.9M contra 224M do lider), o rastro saia
-        -- pela ESQUERDA da barra -- e como ele e claro na direita e some na esquerda, lia como
-        -- uma seta apontando para tras.
+        -- A defect reported on 08/09, with a print: *"o brilho quando a barra ta quase num tamanho
+        -- minimo, ta ficando parecendo que vai andar pra tras"*. And it was exactly that. With a
+        -- fixed width of 10px and a bar of ~2px (2.9M against the leader's 224M), the trail came out
+        -- through the LEFT of the bar -- and since it is light on the right and fades on the left, it read as
+        -- an arrow pointing backwards.
         --
-        -- Nao da para consertar medindo: `GetWidth()` na textura de preenchimento e SECRET,
-        -- porque ela e ancorada por valor opaco (`SecretWhenAnchoringSecret`). "Esconde quando o
-        -- rastro for maior que a barra" e uma comparacao que o Lua nao pode fazer.
+        -- It cannot be fixed by measuring: `GetWidth()` on the fill texture is SECRET,
+        -- because it is anchored by an opaque value (`SecretWhenAnchoringSecret`). "Hide when the
+        -- trail is bigger than the bar" is a comparison Lua cannot make.
         --
-        -- Prendendo as DUAS pontas, a largura do brilho passa a SER a do preenchimento -- por
-        -- construcao, em qualquer tamanho, sem o Lua saber qual e. Barra pequena, brilho pequeno;
-        -- e nunca ha nada a esquerda do inicio.
+        -- Pinning BOTH ends, the glow's width comes to BE the fill's -- by
+        -- construction, at any size, without Lua knowing which it is. A small bar, a small glow;
+        -- and there is never anything to the left of the start.
         faixa.spark:ClearAllPoints()
         local preenchimento = faixa.bar:GetStatusBarTexture()
         faixa.spark:SetPoint("LEFT", preenchimento, "LEFT", 0, 0)
         faixa.spark:SetPoint("RIGHT", preenchimento, "RIGHT", 0, 0)
         faixa.spark:SetHeight(height - CELL_INSET * 2)
 
-        -- TODO NUMERO SE ESCONDE ANTES, e so os deste desenho voltam.
+        -- EVERY NUMBER HIDES FIRST, and only this drawing's come back.
         --
-        -- `faixa.texts` sobrevive entre desenhos (e o cache das vagas). Sem esconder tudo, uma
-        -- vaga que o desenho atual nao toca fica na tela com o texto do desenho anterior -- e o
-        -- teste, que le o widget, contaria um numero que ninguem escreveu.
+        -- `faixa.texts` survives between drawings (it is the slots' cache). Without hiding everything, a
+        -- slot the current drawing does not touch stays on screen with the previous drawing's text -- and the
+        -- test, which reads the widget, would count a number nobody wrote.
         for _, fs in ipairs(faixa.texts) do fs:Hide() end
 
-        -- CADA NUMERO NUMA PONTA DA BARRA (ver `MemberAlign`). A caixa de cada um e a fatia
-        -- proporcional a largura declarada da coluna dele -- assim `COLUMN_WIDTH_BY_FIELD`
-        -- continua governando quanto espaco cada metrica pede, mesmo que a POSICAO agora venha
-        -- da ponta e nao do acumulado.
+        -- EACH NUMBER AT ONE END OF THE BAR (see `MemberAlign`). Each one's box is the slice
+        -- proportional to its column's declared width -- so `COLUMN_WIDTH_BY_FIELD`
+        -- still governs how much space each metric asks for, even though the POSITION now comes
+        -- from the end and not from the running sum.
         local quantos = #vao.grupo.keys
         local larguraFaixa = vao.width - GroupGap()
 
@@ -1996,9 +1996,9 @@ local function BuildRow(index)
             fs:SetJustifyH(lado)
             fs:ClearAllPoints()
 
-            -- A CAIXA NUNCA PASSA DA METADE (ou do terco) da faixa: com dois textos ancorados em
-            -- pontas opostas, caixas generosas demais se sobrepoem no meio -- e sobreposicao de
-            -- texto nao levanta erro, so fica ilegivel.
+            -- THE BOX NEVER GOES PAST HALF (or a third) of the strip: with two texts anchored at
+            -- opposite ends, boxes that are too generous overlap in the middle -- and overlapping
+            -- text raises no error, it only becomes unreadable.
             local fatia = math.floor((larguraFaixa - 6) / quantos)
             fs:SetWidth(fatia)
 
@@ -2028,7 +2028,7 @@ local function BuildRow(index)
                 d:SetText(DOT_TEXT)
                 d:SetTextColor(unpack(ns.Skin.dim))
 
-                -- NA FRONTEIRA ENTRE AS DUAS FATIAS, que e onde a separacao e necessaria.
+                -- AT THE BORDER BETWEEN THE TWO SLICES, which is where the separation is needed.
                 local off = select(1, MemberSlice(vao.grupo, i, larguraFaixa))
                 d:ClearAllPoints()
                 d:SetPoint("CENTER", faixa, "RIGHT", -off, 0)
@@ -2041,9 +2041,9 @@ local function BuildRow(index)
         faixa:Show()
     end
 
-    -- A AREA DO NOME e o que sobra depois das colunas -- e agora as colunas EXISTEM de novo,
-    -- entao descontar a largura delas voltou a ser a conta certa. (Na 0.67.x ela descontava 406px
-    -- de colunas que nao estavam mais sendo desenhadas, e o nome ficava com 57px.)
+    -- THE NAME'S AREA is what is left after the columns -- and now the columns EXIST again,
+    -- so taking their width off went back to being the right arithmetic. (In 0.67.x it took off 406px
+    -- of columns that were no longer being drawn, and the name was left with 57px.)
     row.name:SetWidth(row.nameArea)
     row.realm:SetWidth(0)
     return row
@@ -2053,9 +2053,9 @@ end
 -- Montagem
 --------------------------------------------------------------------------------
 function Window.Create()
-    -- `ns.Skin` nasce com o padrao (os arquivos carregam antes de `ns.db` existir). Aqui a
-    -- configuracao ja foi lida, entao os valores derivados do corpo precisam ser refeitos --
-    -- senao o placar calcularia o delta dele contra o corpo errado durante a sessao inteira.
+    -- `ns.Skin` is born with the default (the files load before `ns.db` exists). Here the
+    -- settings have already been read, so the values derived from the size have to be redone --
+    -- or the scoreboard would compute its delta against the wrong size for the whole session.
     ns.RefreshSkin()
 
     if frame then return frame end
@@ -2070,7 +2070,7 @@ function Window.Create()
         edgeSize = 1,
     })
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
-    frame:SetBackdropBorderColor(0, 0, 0, 0)      -- sem retângulo preto em volta
+    frame:SetBackdropBorderColor(0, 0, 0, 0)      -- no black rectangle around it
 
 
     local header = CreateFrame("Frame", nil, frame)
@@ -2078,13 +2078,13 @@ function Window.Create()
     header:SetPoint("TOPRIGHT", 0, 0)
     header:SetHeight(HEADER_HEIGHT)
 
-    -- O medidor nativo tem faixa bege-oliva com
-    -- texto escuro. Tenta o atlas do jogo; se ele não existir neste cliente, desenha o
-    -- mesmo tom à mão para o resultado ser igual de qualquer jeito.
+    -- The native meter has a beige-olive strip with
+    -- dark text. It tries the game's atlas; if it does not exist in this client, it draws the
+    -- same tone by hand so the result is the same either way.
     header.bg = header:CreateTexture(nil, "BACKGROUND")
     header.bg:SetAllPoints()
 
-    -- A arte é o atlas do medidor nativo, recortada por `ns.ApplyHeaderArt`.
+    -- The art is the native meter's atlas, cropped by `ns.ApplyHeaderArt`.
     ns.ApplyHeaderArt(header.bg)
 
     header.segment = CreateFrame("Button", nil, header)
@@ -2092,7 +2092,7 @@ function Window.Create()
     header.segment:SetPoint("LEFT", 7, 1)
     header.segment.text = header.segment:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     header.segment.text:SetPoint("LEFT")
-    header.segment.text:SetTextColor(1, 0.82, 0)      -- dourado padrão da Blizzard
+    header.segment.text:SetTextColor(1, 0.82, 0)      -- Blizzard's standard gold
     header.segment:SetScript("OnClick", function()
         ns.db.sessionType = ns.db.sessionType == 0 and 1 or 0
         Window.Refresh(true)
@@ -2110,9 +2110,9 @@ function Window.Create()
 
     frame.header = header
 
-    -- Um só tratamento para todos os ícones: mesmo tamanho, mesmo tom, mesma reação ao
-    -- mouse. A família vem do próprio jogo — `questlog-icon-setting` é a engrenagem do
-    -- rastreador de missões, da mesma UI de onde sai a arte da faixa de título.
+    -- A single treatment for every icon: same size, same tone, same reaction to the
+    -- mouse. The family comes from the game itself -- `questlog-icon-setting` is the quest
+    -- tracker's gear, from the same UI the title strip's art comes from.
     local ICON_TINT = { 0.78, 0.73, 0.58 }
     local ICON_HOVER = { 1, 0.95, 0.80 }
 
@@ -2120,16 +2120,16 @@ function Window.Create()
         local b = CreateFrame("Button", nil, header)
         b:SetSize(14, 14)
 
-        -- Uma textura vazia primeiro: `SetAtlas` precisa de textura existente para atuar.
+        -- An empty texture first: `SetAtlas` needs an existing texture to act on.
         b:SetNormalTexture(spec.texture or "Interface\\Buttons\\WHITE8X8")
         local tex = b:GetNormalTexture()
         if tex and spec.atlas and tex.SetAtlas then
             tex:SetAtlas(spec.atlas, false)
         end
         if tex then
-            -- Dessaturar primeiro: cada atlas traz cor própria (o X é vermelho, a engrenagem
-            -- puxa dourado) e o `SetVertexColor` **multiplica** em cima dela — sem tirar a cor
-            -- de origem, os botões nunca ficam do mesmo tom.
+            -- Desaturate first: each atlas brings its own colour (the X is red, the gear
+            -- leans gold) and `SetVertexColor` **multiplies** on top of it -- without removing the source
+            -- colour, the buttons never end up the same tone.
             if tex.SetDesaturated then tex:SetDesaturated(true) end
             tex:SetVertexColor(ICON_TINT[1], ICON_TINT[2], ICON_TINT[3])
         end
@@ -2144,8 +2144,8 @@ function Window.Create()
         b:SetScript("OnEnter", function(self)
             self:SetTint(ICON_HOVER)
             GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            -- `tooltipText` sobrescreve o texto fixo quando o botao tem estado. E o segundo
-            -- canal do cadeado: mesmo que o icone nao seja lido, a dica diz em palavras.
+            -- `tooltipText` overrides the fixed text when the button has a state. It is the padlock's second
+            -- channel: even if the icon is not read, the tooltip says it in words.
             GameTooltip:SetText(self.tooltipText or tooltip, 1, 1, 1)
             GameTooltip:Show()
         end)
@@ -2158,9 +2158,9 @@ function Window.Create()
         return b
     end
 
-    -- Sem botão de fechar: ninguém fecha o medidor no meio do jogo, e um X ao lado do
-    -- ícone de limpar dados convida ao clique errado — um esconde a janela, o outro apaga
-    -- o que foi registrado. Para esconder: `/rm` ou clique no botão do minimapa.
+    -- No close button: nobody closes the meter in the middle of play, and an X next to the
+    -- clear-data icon invites the wrong click -- one hides the window, the other erases
+    -- what was recorded. To hide: `/rm` or a click on the minimap button.
 
     frame.gearButton = HeaderButton(
         { atlas = "questlog-icon-setting", texture = "Interface\\Buttons\\UI-OptionsButton" },
@@ -2207,12 +2207,12 @@ function Window.Create()
         local point, _, relPoint, x, y = self:GetPoint()
         ns.db.pos = { point = point, relPoint = relPoint, x = x, y = y }
     end)
-    -- Sem atalho de configuração no clique: o botão direito atravessava a linha e caía aqui,
-    -- abrindo as opções quando o usuário só queria o detalhamento. A engrenagem do cabeçalho e
-    -- o botão do minimapa já dão acesso.
+    -- No settings shortcut on click: the right button went through the row and landed here,
+    -- opening the options when the user only wanted the breakdown. The header's gear and
+    -- the minimap button already give access.
 
-    -- Rolagem pela roda do mouse, sem barra: a barra ocuparia largura e apareceria mesmo
-    -- quando não há o que rolar, que é o caso quase sempre.
+    -- Scrolling by the mouse wheel, with no bar: the bar would take width and would show even
+    -- when there is nothing to scroll, which is the case almost always.
     frame:EnableMouseWheel(true)
     frame:SetScript("OnMouseWheel", function(_, delta)
         local maximum = totalRows - ns.db.rows
@@ -2228,10 +2228,10 @@ function Window.Create()
         end
     end)
 
-    -- Alça de redimensionamento: largura livre, altura em número de linhas.
+    -- Resize handle: free width, height in number of rows.
     frame:SetResizable(true)
     if frame.SetResizeBounds then
-        -- Máximo generoso: quem arrasta decide, o limite é só para não virar tela cheia.
+        -- A generous maximum: whoever drags decides, the limit is only so it does not become full screen.
         frame:SetResizeBounds(MinWidth(), WindowHeight(MIN_ROWS), 1400, WindowHeight(MAX_ROWS))
     end
 
@@ -2260,12 +2260,12 @@ function Window.Create()
         Window.Refresh(true)
     end)
 
-    -- ENCAIXE AO VIVO. Antes o ajuste só acontecia ao SOLTAR o mouse, então a linha ficava
-    -- cortada o arraste inteiro e só se acertava no fim — o que dá a impressão de que a janela
-    -- não obedece. Aqui a altura vira número de linhas a cada quadro do arraste, e a janela
-    -- acompanha em passos de uma linha.
+    -- LIVE SNAPPING. Before, the adjustment only happened on RELEASING the mouse, so the row stayed
+    -- cut for the whole drag and only got right at the end -- which gives the impression that the window
+    -- does not obey. Here the height becomes a number of rows at every frame of the drag, and the window
+    -- follows in steps of one row.
     --
-    -- `frame.sizing` evita reentrada: `SetHeight` dispara `OnSizeChanged` de novo.
+    -- `frame.sizing` avoids re-entry: `SetHeight` fires `OnSizeChanged` again.
     frame:SetScript("OnSizeChanged", function(self)
         if not self.sizing or self.snapping then return end
         local wanted = RowsThatFit(self:GetHeight())
@@ -2278,8 +2278,8 @@ function Window.Create()
 
     frame.grip = grip
 
-    -- Gancho para o harness: sem ele o teste do cadeado teria que redescobrir o frame por
-    -- `_G`, e passaria a testar o simulador em vez do addon.
+    -- A hook for the harness: without it the padlock test would have to rediscover the frame through
+    -- `_G`, and would come to test the simulator instead of the addon.
     Window.__frame = frame
 
     rows = {}
@@ -2297,7 +2297,7 @@ function Window.Create()
     return frame
 end
 
----Refaz cabeçalho, linhas e medidas — depois de mudar colunas, fonte, tamanho ou largura.
+--- Redoes header, rows and measures -- after changing columns, font, size or width.
 function Window.Rebuild()
     if not frame then return end
 
@@ -2309,8 +2309,8 @@ function Window.Rebuild()
     frame:SetBackdropColor(0.03, 0.03, 0.04, WINDOW_ALPHA)
     frame:SetBackdropBorderColor(0, 0, 0, 0)
 
-    -- Sem contorno no cabeçalho: texto escuro sobre faixa clara fica sujo com outline.
-    -- Título e relógio têm corpo próprio: no nativo eles são menores que o texto da linha.
+    -- No outline on the header: dark text over a light strip gets dirty with an outline.
+    -- Title and clock have a size of their own: in the native one they are smaller than the row's text.
     ns.ApplyRoleFont(frame.header.segment.text, "title", 0)
     ns.ApplyRoleFont(frame.header.clock, "title", CLOCK_DELTA)
 
@@ -2340,8 +2340,8 @@ function Window.Refresh(immediate)
     end
 end
 
----Desenha protegido. Um erro dentro de OnUpdate deixaria a janela congelada e sem pista
----nenhuma — este envelope transforma isso numa mensagem, uma única vez por erro.
+--- Draws protected. An error inside OnUpdate would leave the window frozen with no clue
+--- at all -- this wrapper turns that into a message, a single time per error.
 local lastError
 function Window.SafeDraw()
     local ok, err = pcall(Window.Draw)
@@ -2355,42 +2355,42 @@ function Window.GetLastError()
     return lastError
 end
 
--- Como realçar quem lidera cada coluna sem inventar cor nem enfeite:
+-- How to highlight who leads each column without inventing a colour or ornament:
 --
---   1ª tentativa — cor dourada: virava "amarelo de ladino", competia com a cor de classe.
---   2ª tentativa — seta ao lado: ancorada no vão entre colunas, parecia sujeira solta.
---   3ª e atual  — **brilho**: o líder em branco puro, os demais levemente apagados.
+--   1st attempt -- gold colour: it became "rogue yellow", competing with the class colour.
+--   2nd attempt -- an arrow beside it: anchored in the gap between columns, it looked like loose dirt.
+--   3rd and current -- **brightness**: the leader in pure white, the others slightly dimmed.
 --
--- Brilho é neutro (não carrega significado de classe), não ocupa espaço e o olho encontra
--- sozinho o número mais forte de cada coluna. É a mesma hierarquia que a UI do jogo usa para
--- separar informação principal de secundária.
--- Equilíbrio entre "todo mundo legível" e "dá para achar o líder":
+-- Brightness is neutral (it carries no class meaning), takes no space and the eye finds
+-- by itself the strongest number of each column. It is the same hierarchy the game's UI uses to
+-- separate main information from secondary.
+-- A balance between "everyone readable" and "you can find the leader":
 --
---   O cinza 0.66 da tentativa anterior destacava o líder às custas dos outros, que ficaram
---   difíceis de ler. A diferença de brilho sozinha só funciona se o piso for baixo demais.
+--   The 0.66 grey of the previous attempt highlighted the leader at the others' expense, who became
+--   hard to read. The brightness difference alone only works if the floor is too low.
 --
--- Agora o piso sobe para 0.86 (legível de verdade) e o líder ganha, além do branco puro, uma
--- **placa neutra** atrás — branco a 8%, sem cor, sem ícone, sem ocupar espaço extra.
--- O líder é pintado com a **cor da própria classe** — e isso não repete o erro do dourado:
--- lá a cor era arbitrária e parecia dizer "ladino"; aqui ela diz exatamente o que a cor de
--- classe sempre diz, "este jogador". O vocabulário é usado, não contrariado.
+-- Now the floor rises to 0.86 (truly readable) and the leader gains, besides pure white, a
+-- **neutral plate** behind -- white at 8%, no colour, no icon, taking no extra space.
+-- The leader is painted with **its own class colour** -- and that does not repeat the gold's mistake:
+-- there the colour was arbitrary and seemed to say "rogue"; here it says exactly what the class
+-- colour always says, "this player". The vocabulary is used, not contradicted.
 --
--- Só que cor de classe crua não serve para texto: vermelho de cavaleiro da morte e roxo de
--- bruxo são escuros demais sobre fundo escuro. A cor é **clareada em direção ao branco**, o
--- que preserva a identidade e garante a leitura.
--- Com a linha fina no rodapé, o fundo da linha ficou **neutro** — e aí a cor da classe pode
--- voltar para o texto da coluna liderada. Era o objetivo desde o começo e não funcionava
--- enquanto a barra preenchida ocupava o fundo com a mesma cor.
+-- Except raw class colour does not serve for text: death knight red and warlock
+-- purple are too dark over a dark background. The colour is **lightened towards white**, which
+-- preserves the identity and guarantees the reading.
+-- With the thin line at the foot, the row's background became **neutral** -- and then the class colour can
+-- go back to the led column's text. It was the goal from the start and did not work
+-- while the filled bar took the background with the same colour.
 --
--- Continua valendo o cuidado de sempre: cor crua é escura demais para algumas classes
--- (cavaleiro da morte, bruxo). Um **piso de luminância** corrige só quem precisa, e só o
--- necessário — clarear todas por igual devolveria o tom lavado que já foi reprovado.
--- Piso de luminância do realce. Baixou de 0.55 para 0.45 junto com a troca de "misturar com
--- branco" por "multiplicar": o pedido foi *"precisa tá mais escuro"*, e multiplicando dá para
--- descer o piso sem perder legibilidade, porque a cor deixa de ficar lavada.
+-- The usual care still holds: raw colour is too dark for some classes
+-- (death knight, warlock). A **luminance floor** fixes only who needs it, and only what is
+-- necessary -- lightening all of them equally would bring back the washed tone that was already rejected.
+-- The highlight's luminance floor. It dropped from 0.55 to 0.45 together with the switch from "mixing with
+-- white" to "multiplying": the request was *"precisa tá mais escuro"*, and multiplying lets
+-- the floor go down without losing legibility, because the colour stops being washed out.
 local LEADER_MIN_LUMA = 0.45
 local LEADER_FALLBACK = { 1, 0.88, 0.62 }
--- Glifos do nativo medem ~227/255; os nossos números mediam ~210. 0.88 fecha a diferença.
+-- The native one's glyphs measure ~227/255; our numbers measured ~210. 0.88 closes the difference.
 local NORMAL = { 0.88, 0.88, 0.90 }
 
 local function Luminance(r, g, b)
@@ -2410,20 +2410,20 @@ local function LeaderColor(classFilename)
         return r, g, b
     end
 
-    -- MULTIPLICA, não mistura com branco.
+    -- MULTIPLIES, does not mix with white.
     --
-    -- Misturar com branco (`r + (1-r)*k`) clareia mas **dessatura**, e vermelho escuro
-    -- dessaturado é literalmente rosa. Medido nas cores de classe do 12.x: o Cavaleiro da
-    -- Morte é RGB(196,31,59) com saturação 0.84; a mistura o levava a RGB(216,105,124) com
-    -- saturação 0.51 — foi isso que o usuário viu como "parece até rosa".
+    -- Mixing with white (`r + (1-r)*k`) lightens but **desaturates**, and desaturated dark red
+    -- is literally pink. Measured on the 12.x class colours: the Death
+    -- Knight is RGB(196,31,59) with saturation 0.84; the mix took it to RGB(216,105,124) with
+    -- saturation 0.51 -- that is what the user saw as "parece até rosa".
     --
-    -- Multiplicar os três canais pelo mesmo fator mantém a razão entre eles, e razão constante
-    -- é matiz e saturação constantes (em HSV, é subir o V sem tocar em H e S). O mesmo Cavaleiro
-    -- vira RGB(255,39,76): vermelho vivo, saturação 0.84 intacta — e **mais escuro** que antes
-    -- (luma 0.42 contra 0.55), que foi o outro pedido.
+    -- Multiplying the three channels by the same factor keeps the ratio between them, and a constant ratio
+    -- is constant hue and saturation (in HSV, it is raising V without touching H and S). The same Death Knight
+    -- becomes RGB(255,39,76): bright red, saturation 0.84 intact -- and **darker** than before
+    -- (luma 0.42 against 0.55), which was the other request.
     --
-    -- Só quatro classes chegam aqui (Cavaleiro da Morte, Caça-Demônios, Evocador e Xamã); as
-    -- outras nove já passam do piso e saem sem tocar.
+    -- Only four classes get here (Death Knight, Demon Hunter, Evoker and Shaman); the
+    -- other nine already pass the floor and come out untouched.
     local k = LEADER_MIN_LUMA / luma
     r, g, b = r * k, g * k, b * k
     if r > 1 then r = 1 end
@@ -2432,30 +2432,30 @@ local function LeaderColor(classFilename)
     return r, g, b
 end
 
--- Exposta para o harness: e a unica parte do realce que da para verificar fora do jogo, e foi
--- justamente aqui que a formula antiga produzia o rosa.
+-- Exposed for the harness: it is the only part of the highlight that can be checked outside the game, and it was
+-- precisely here that the old formula produced the pink.
 ns.LeaderColor = LeaderColor
 
----Estiliza a célula de quem lidera a coluna. O realce mora **só na cor**: o tom da própria
----classe, clareado o bastante para ler. Sem placa atrás — ela clareava a célula inteira e
----virava um bloco estranho no meio da linha.
+--- Styles the cell of whoever leads the column. The highlight lives **only in the colour**: the tone of the class
+--- itself, lightened enough to read. No plate behind -- it lightened the whole cell and
+--- became a strange block in the middle of the row.
 ---
----`OUTLINE` foi testado e reprovado: engrossa o traço da letra, o que é peso na tinta e não
----hierarquia — fica pesado mesmo numa célula só.
+--- `OUTLINE` was tested and rejected: it thickens the letter's stroke, which is weight in the ink and not
+--- hierarchy -- it gets heavy even on a single cell.
 ---
----**Corpo de fonte saiu da lista de sinais** (decisão do usuário, 05/09/2026): a linha inteira
----fica em `FONT_SIZE`, com ou sem realce. O +1pt que existia aqui dava presença ao líder, mas
----ao custo de os números de uma mesma coluna mudarem de tamanho de linha para linha — a régua
----vertical dançava. Se o realce ficar fraco demais in-game, o próximo sinal a tentar é a placa
----neutra atrás da célula, não o corpo.
----@param delta number|nil ajuste de corpo para telas com tipografia própria (o placar usa -1)
+--- **Font size left the list of signals** (the user's decision, 05/09/2026): the whole row
+--- stays at `FONT_SIZE`, with or without highlight. The +1pt that existed here gave the leader presence, but
+--- at the cost of the numbers of the same column changing size from row to row -- the vertical
+--- ruler danced. If the highlight turns out too weak in-game, the next signal to try is the neutral
+--- plate behind the cell, not the size.
+--- @param delta number|nil a size adjustment for screens with their own typography (the scoreboard uses -1)
 function ns.StyleCell(row, index, isBest, delta)
     local cell = row.cells[index]
     local highlight = isBest and ns.db.highlightBest ~= false
 
-    -- O `delta` existe porque esta função é compartilhada: ela reaplica a fonte a cada
-    -- desenho, e sem ele o placar (corpo 12) teria as células puxadas de volta para o corpo
-    -- da janela (13) — nome em 12 e números em 13 na mesma linha.
+    -- The `delta` exists because this function is shared: it reapplies the font at every
+    -- drawing, and without it the scoreboard (size 12) would have its cells pulled back to the
+    -- window's size (13) -- name at 12 and numbers at 13 on the same row.
     ns.ApplyRoleFont(cell, "body", delta or 0)
     cell:SetShadowColor(0, 0, 0, 1)
 
@@ -2466,9 +2466,9 @@ function ns.StyleCell(row, index, isBest, delta)
     end
 end
 
----Escreve o valor de uma célula. Fora de combate formata; dentro, repassa o valor cru ao
----FontString (o motor renderiza secret values que o Lua não pode ler).
----@param halo table|nil cópias de contorno da célula, quando houver
+--- Writes a cell's value. Out of combat it formats; in combat, it passes the raw value to the
+--- FontString (the engine renders secret values Lua cannot read).
+--- @param halo table|nil the cell's outline copies, when there are any
 function ns.SetCellText(fontString, value, columnKey)
     local function write(text)
         fontString:SetText(text)
@@ -2486,14 +2486,14 @@ function ns.SetCellText(fontString, value, columnKey)
 
     local text = ns.Data.FormatAmount(value)
     if not text then
-        -- Valor secret: tenta a estratégia de formatação que funcionou neste cliente.
+        -- A secret value: tries the formatting strategy that worked in this client.
         local secretText = ns.Data.FormatSecretAmount(value)
         write(secretText ~= nil and secretText or value)
         return
     end
 
-    -- Sem sufixo "/s": o rótulo da coluna (DPS, CPS) já diz que é por segundo, e repetir
-    -- em cada linha só rouba espaço da coluna.
+    -- No "/s" suffix: the column's label (DPS, HPS) already says it is per second, and repeating it
+    -- on every row only steals space from the column.
     write(text)
 end
 
@@ -2516,18 +2516,18 @@ function Window.Draw()
 
     local scope = ns.db.sessionType == 0 and L["Current fight"] or L["Overall"]
     if totalRows > ns.db.rows then
-        -- Sem barra de rolagem: a contagem no título é o que avisa que há mais gente.
+        -- No scroll bar: the count in the title is what warns that there are more people.
         scope = format("%s  |cff909090%d-%d/%d|r", scope,
             scrollOffset + 1, math.min(scrollOffset + ns.db.rows, totalRows), totalRows)
     end
     frame.header.segment.text:SetText(scope)
 
-    -- O botão tem largura fixa, mas o texto dele CRESCE quando o indicador de rolagem entra
-    -- ("Combate atual" vira "Combate atual  1-5/8"). Como o relógio é ancorado à direita do
-    -- BOTÃO e não do texto, o excedente passava por baixo do relógio e os dois se desenhavam
-    -- um sobre o outro — o print de 05/09 mostra "1-5" e "02:58" empilhados, ilegíveis.
-    -- Acompanhar o texto resolve os dois problemas de uma vez: o relógio sai da frente e a
-    -- área clicável passa a cobrir tudo que está escrito.
+    -- The button has a fixed width, but its text GROWS when the scroll indicator comes in
+    -- ("Combate atual" becomes "Combate atual  1-5/8"). Since the clock is anchored to the right of the
+    -- BUTTON and not of the text, the excess ran under the clock and the two drew
+    -- over each other -- the print of 05/09 shows "1-5" and "02:58" stacked, unreadable.
+    -- Following the text solves both problems at once: the clock gets out of the way and the
+    -- clickable area comes to cover everything that is written.
     local textWidth = frame.header.segment.text:GetStringWidth()
     if textWidth and textWidth > 0 then
         frame.header.segment:SetWidth(math.max(SEGMENT_MIN_WIDTH, textWidth + 6))
@@ -2542,41 +2542,41 @@ function Window.Draw()
         frame.header.clock:SetText("")
     end
 
-    -- UMA LINHA POR PESSOA, uma barra por coluna.
+    -- ONE ROW PER PERSON, one bar per column.
     --
-    -- A lista e UMA so, ordenada pela coluna que o jogador escolheu -- como sempre foi. O que
-    -- mudou e a celula: cada coluna virou uma barra escalada pela regua da PROPRIA metrica, com o
-    -- numero dentro. E isso responde a pergunta que motivou o desenho -- *"quem esta melhor em
-    -- Dano/DPS, Cura/CPS e Interrupts"* -- sem reordenar nada: o lider de cada coluna e a unica
-    -- barra CHEIA daquela coluna.
+    -- The list is ONE, sorted by the column the player chose -- as it always was. What
+    -- changed is the cell: each column became a bar scaled by its OWN metric's ruler, with the
+    -- number inside. And that answers the question that motivated the design -- *"quem esta melhor em
+    -- Dano/DPS, Cura/CPS e Interrupts"* -- without reordering anything: the leader of each column is the only
+    -- FULL bar of that column.
     --
-    -- ⚑ E funciona em combate, que e onde quase tudo aqui falha. Descobrir o maior exigiria
-    -- comparar, e comparar valor secret levanta erro; escalar pela regua que o jogo entrega
-    -- (`session.maxAmount`, uma por metrica) nao exige ler nada. A geometria responde o que o Lua
-    -- nao pode calcular.
-    -- OS VAOS DESTE DESENHO. `entry.values` e indexado pela lista que o jogador marcou
-    -- (`ns.db.columns`), que e o que `Data.GetRows` devolve; `posicaoDe` traduz chave -> posicao,
-    -- e e por ele que cada numero e cada barra acham o valor deles.
+    -- ⚑ And it works in combat, which is where almost everything here fails. Finding the biggest would require
+    -- comparing, and comparing a secret value raises an error; scaling by the ruler the game hands over
+    -- (`session.maxAmount`, one per metric) requires reading nothing. The geometry answers what Lua
+    -- cannot compute.
+    -- THIS DRAWING'S SPANS. `entry.values` is indexed by the list the player ticked
+    -- (`ns.db.columns`), which is what `Data.GetRows` returns; `posicaoDe` translates key -> position,
+    -- and it is through it that each number and each bar find their value.
     --
-    -- ⚑ REFAZ, NAO LE O CACHE. A versao anterior disto confiava num contrato -- "quem escreve
-    -- `ns.db.columns` chama `Rebuild`" -- e ele quebrou no primeiro chamador que so desenhava: a
-    -- tela ficou com os cinco grupos do desenho passado sobre uma lista de tres colunas. Contrato
-    -- que depende de todo chamador lembrar nao e garantia; refazer aqui e.
+    -- ⚑ REDOES, DOES NOT READ THE CACHE. The previous version of this trusted a contract -- "whoever writes
+    -- `ns.db.columns` calls `Rebuild`" -- and it broke at the first caller that only drew: the
+    -- screen was left with the previous drawing's five groups over a three-column list. A contract
+    -- that depends on every caller remembering is not a guarantee; redoing it here is.
     --
-    -- O custo e uma passada pelas colunas por DESENHO (nao por linha), que e o que o cache existe
-    -- para evitar -- ele continua servindo os quatro consumidores dentro do mesmo desenho.
+    -- The cost is one pass through the columns per DRAWING (not per row), which is what the cache exists
+    -- to avoid -- it still serves the four consumers within the same drawing.
     RefreshGroups()
 
-    -- O CABECALHO E PINTADO NO DESENHO, nao so na reconstrucao.
+    -- THE HEADER IS PAINTED IN THE DRAWING, not only in the rebuild.
     --
-    -- ⚑ DEFEITO ANTERIOR A MESCLA, que so apareceu agora: ele era montado uma vez em `Rebuild`, e
-    -- o clique que troca a ordenacao chama `Refresh` -- as linhas se reordenavam e o dourado
-    -- ficava na coluna ANTERIOR ate algo reconstruir a janela. O dourado e o unico sinal de qual
-    -- coluna ordena (nao ha seta, por decisao de design), entao ele apontando para a coluna errada
-    -- e a janela mentindo sobre o que esta mostrando.
+    -- ⚑ A DEFECT OLDER THAN THE MERGE, which only showed now: it was built once in `Rebuild`, and
+    -- the click that changes the sorting calls `Refresh` -- the rows reordered and the gold
+    -- stayed on the PREVIOUS column until something rebuilt the window. The gold is the only signal of which
+    -- column sorts (there is no arrow, by design decision), so it pointing at the wrong column
+    -- is the window lying about what it is showing.
     --
-    -- A licao e a mesma do cache logo acima: sinal que depende de todo mundo lembrar de repintar
-    -- fica errado no primeiro que esquecer. Pintar onde a verdade e LIDA nao tem como divergir.
+    -- The lesson is the same as the cache's right above: a signal that depends on everyone remembering to repaint
+    -- goes wrong at the first one that forgets. Painting where the truth is READ has no way to diverge.
     BuildColumnHeader()
 
     local vaosDesenho = GroupSpans()
@@ -2650,31 +2650,31 @@ function Window.Draw()
                 faixa.bar:SetValue(valor)
                 ns.ApplyBarColor(faixa.bar, source.classFilename)
 
-                -- A PISTA SO APARECE QUANDO HA VALOR. Pedido do usuario: *"se tiver zerado fica
-                -- sem a pista tingida, somente quando tiver algum valor"*. Ele esta certo: pista
-                -- vazia embaixo de um traco anuncia um caminho que ninguem comecou.
+                -- THE TRACK ONLY SHOWS WHEN THERE IS A VALUE. The user's request: *"se tiver zerado fica
+                -- sem a pista tingida, somente quando tiver algum valor"*. He is right: an empty
+                -- track under a dash announces a path nobody started.
                 --
-                -- ⚑ E DA PARA SABER ISSO EM COMBATE, o que parece impossivel a primeira vista.
-                -- Quando o jogador esta AUSENTE de uma metrica, quem escreve o zero e o proprio
-                -- addon (`Data.lua`: *"Ausente numa lista que sabemos ler = o jogador nao pontuou
-                -- ali. E zero."*) -- numero comum de Lua, legivel sempre. So o valor PRESENTE vem
-                -- secret, e esse por definicao nao e o caso de "zerado".
+                -- ⚑ AND IT CAN BE KNOWN IN COMBAT, which looks impossible at first sight.
+                -- When the player is ABSENT from a metric, whoever writes the zero is the
+                -- addon itself (`Data.lua`: *"Ausente numa lista que sabemos ler = o jogador nao pontuou
+                -- ali. E zero."*) -- a plain Lua number, always readable. Only the PRESENT value comes
+                -- secret, and that one by definition is not the "zeroed" case.
                 --
-                -- A guarda e escrita ao contrario de proposito: esconde so quando da para PROVAR
-                -- que nao ha valor. Com valor opaco a pista FICA -- errar mostrando e melhor que
-                -- sumir com a referencia justamente em combate, que e quando ela serve.
+                -- The guard is written backwards on purpose: it hides only when it can PROVE
+                -- there is no value. With an opaque value the track STAYS -- erring by showing is better than
+                -- taking the reference away precisely in combat, which is when it serves.
                 local vazio = valor == nil
                     or (not issecretvalue(valor) and valor == 0)
 
                 ns.ApplyTrackColor(faixa.track, source.classFilename, not vazio)
                 ns.ApplySparkColor(faixa.spark, source.classFilename, not vazio)
 
-                -- E UM NUMERO POR COLUNA, cada um formatado pela regra da metrica dele.
+                -- IT IS ONE NUMBER PER COLUMN, each formatted by its metric's rule.
                 --
-                -- Cada texto passa sozinho por `SetCellText`, que sabe de porcentagem, de valor
-                -- nulo e da sondagem de valor secret. Foi a versao que juntava os dois numa
-                -- string so que precisava de um caminho especial em combate -- separados, cada um
-                -- sobrevive a luta por conta propria.
+                -- Each text goes alone through `SetCellText`, which knows about percentage, a nil
+                -- value and probing a secret value. It was the version that joined the two in a single
+                -- string that needed a special path in combat -- separated, each one
+                -- survives the fight on its own.
                 for i = 1, #grupo.keys do
                     local key = grupo.keys[i]
                     local pos = posicaoDe[key]
@@ -2682,43 +2682,43 @@ function Window.Draw()
 
                     ns.SetCellText(fs, pos and entry.values[pos], key)
 
-                -- O NUMERO NAO GANHA COR DE CLASSE, e a razao e do usuario: *"a ideia e que o
+                -- THE NUMBER GETS NO CLASS COLOUR, and the reason is the user's: *"a ideia e que o
                 -- tamanho da barra ja vai dizer qual ta na frente, e a linha de baixo que e da
                 -- classe"*.
                 --
-                -- Ele esta certo em dois niveis. O primeiro e redundancia: a barra CHEIA ja marca
-                -- o lider daquela coluna, e a faixa do rodape ja marca a classe -- pintar o
-                -- numero era um terceiro sinal dizendo o que dois ja diziam.
+                -- He is right on two levels. The first is redundancy: the FULL bar already marks
+                -- that column's leader, and the strip at the foot already marks the class -- painting the
+                -- number was a third signal saying what two already said.
                 --
-                -- O segundo e a regra que a skill do workspace registra depois de tres tentativas
-                -- falhas: **cor de classe e vocabulario reservado**. Um numero dourado ao lado de
-                -- barras coloridas le como "ladino", nao como "este e o melhor". Aqui era pior,
-                    -- porque a cor do numero e a cor da barra da MESMA linha competiam entre si.
+                -- The second is the rule the workspace's skill records after three failed
+                -- attempts: **class colour is reserved vocabulary**. A gold number next to
+                -- coloured bars reads as "rogue", not as "this is the best". Here it was worse,
+                    -- because the number's colour and the bar's colour on the SAME row competed with each other.
                     --
-                    -- O QUE VARIA E O BRILHO, e so ele: quem ORDENA fica em `Skin.text`, o
-                    -- companheiro na mesma barra em `Skin.dim`. E o unico sinal de hierarquia que
-                    -- sobrou depois de o corpo sair da lista, e ele nao mexe em metrica nenhuma --
-                    -- entao a regua vertical nao danca.
+                    -- WHAT VARIES IS THE BRIGHTNESS, and only that: whoever SORTS stays in `Skin.text`, the
+                    -- companion on the same bar in `Skin.dim`. It is the only hierarchy signal
+                    -- left after the size left the list, and it touches no metric --
+                    -- so the vertical ruler does not dance.
                     --
-                    -- ⚑ O PRIMARIO DO PAR E A TAXA, e nao mais quem ordena. Pedido de 10/09/2026:
+                    -- ⚑ THE PAIR'S PRIMARY IS THE RATE, and no longer whoever sorts. Request of 10/09/2026:
                     -- *"a coluna de dano e cura e um texto em branco, a coluna de DPS e CPS parece
                     -- meio cinza e nao branco, o que pedi foi para inverter isso"*.
                     --
-                    -- CONFIRMADO NOS DOIS LADOS antes de mexer. No codigo, a regra antiga era
-                    -- "quem ORDENA fica claro", e o perfil dele ordena por `damage` -- por isso o
-                    -- Dano saia claro e o DPS apagado; na Cura, a metrica ordenada nao esta no
-                    -- grupo, entao caia no total. No print, o pico da tinta deu (253,255,255) no
-                    -- total contra (205,208,216) na taxa: razao **0,81**, contra os 0,79 de
-                    -- `dim`/`text`. A tela estava fazendo exatamente o que o codigo mandava.
+                    -- CONFIRMED ON BOTH SIDES before touching it. In the code, the old rule was
+                    -- "whoever SORTS stays light", and his profile sorts by `damage` -- that is why
+                    -- Damage came out light and DPS dimmed; on Healing, the sorted metric is not in the
+                    -- group, so it fell on the total. On the print, the ink's peak gave (253,255,255) on the
+                    -- total against (205,208,216) on the rate: a ratio of **0.81**, against the 0.79 of
+                    -- `dim`/`text`. The screen was doing exactly what the code told it.
                     --
-                    -- E POR QUE ISSO NAO PERDE O SINAL DE ORDENACAO: ele nunca morou aqui. Quem
-                    -- diz qual coluna ordena e o CABECALHO, em dourado -- e a skill do workspace
-                    -- ja registra que repetir o mesmo sinal em dois lugares nao acrescenta nada.
-                    -- O brilho da linha passa a dizer outra coisa, que e o que ele le primeiro:
-                    -- numa familia, a TAXA e a leitura principal e o total e o contexto dela.
+                    -- AND WHY THAT DOES NOT LOSE THE SORTING SIGNAL: it never lived here. What
+                    -- says which column sorts is the HEADER, in gold -- and the workspace's skill
+                    -- already records that repeating the same signal in two places adds nothing.
+                    -- The row's brightness comes to say something else, which is what he reads first:
+                    -- in a family, the RATE is the main reading and the total is its context.
                     --
-                    -- Familia de uma coluna so (Interr, Mortes) nao tem taxa: cai no 1 e fica
-                    -- clara, como sempre esteve.
+                    -- A one-column family (Interr, Deaths) has no rate: it falls on 1 and stays
+                    -- light, as it always was.
                     local primario = 1
                     for k = 1, #grupo.keys do
                         local def = ns.Data.GetColumn(grupo.keys[k])
@@ -2742,14 +2742,14 @@ function Window.Draw()
 
     for i = ns.db.rows + 1, #rows do rows[i]:Hide() end
 
-    -- A altura e a de UMA lista com cabecalho de coluna, que e o que esta desenhado.
+    -- The height is that of ONE list with a column header, which is what is drawn.
     local altura = WindowHeight(ns.db.rows)
     if altura ~= alturaDesenhada then
         alturaDesenhada = altura
         frame:SetHeight(altura)
     end
 
-    -- Altura fixa, definida pela alça: as linhas vazias mostram o fundo.
+    -- A fixed height, set by the handle: the empty rows show the background.
     if ns.Breakdown and ns.Breakdown.Refresh then
         ns.Breakdown.Refresh()
     end
@@ -2757,28 +2757,28 @@ function Window.Draw()
 
 end
 
----O cabecalho de COLUNAS esta na tela? (14/10) Hoje e `true`: ele voltou como o cabecalho das
----familias, desenhado a cada desenho (`BuildColumnHeader`).
+--- Is the COLUMN header on screen? (14/10) Today it is `true`: it came back as the
+--- families' header, drawn at every drawing (`BuildColumnHeader`).
 function Window.DebugColumnHeaderShown()
     return headerRow ~= nil and headerRow:IsShown() and true or false
 end
 
----A geometria horizontal do que foi desenhado: a largura da janela, a area do nome, e a borda
----ESQUERDA de cada celula medida a partir da borda esquerda da linha.
+--- The horizontal geometry of what was drawn: the window's width, the name's area, and the
+--- LEFT edge of each cell measured from the row's left edge.
 ---
----A borda esquerda e o numero que importa: negativa significa celula desenhando FORA da janela,
----que foi o defeito de 08/09 -- quatro das sete colunas do conjunto padrao caiam para fora e
----pintavam por cima do nome e do cenario, porque `MinWidth` tinha deixado de contar as colunas.
+--- The left edge is the number that matters: negative means a cell drawing OUTSIDE the window,
+--- which was the defect of 08/09 -- four of the seven columns of the default set fell outside and
+--- painted over the name and the scenery, because `MinWidth` had stopped counting the columns.
 function Window.DebugGeometry()
     local largura = WindowWidth()
     local offsets, columnsWidth = ColumnOffsets()
     local row = rows and rows[1]
 
-    -- A BORDA ESQUERDA DE CADA BARRA, que e o que pode cair fora da janela.
+    -- THE LEFT EDGE OF EACH BAR, which is what can fall outside the window.
     --
-    -- Os numeros saem de `GroupSpans`, a MESMA funcao que ancora a faixa no desenho -- a versao
-    -- anterior repetia a aritmetica aqui, e o comentario de `MinWidth` conta o que custou deixar
-    -- duas contas do mesmo numero divergirem.
+    -- The numbers come from `GroupSpans`, the SAME function that anchors the strip in the drawing -- the previous
+    -- version repeated the arithmetic here, and `MinWidth`'s comment tells what it cost to let
+    -- two calculations of the same number diverge.
     local bordas = {}
     for c, vao in ipairs(GroupSpans()) do
         local util = largura - PADDING * 2
@@ -2795,10 +2795,10 @@ function Window.DebugGeometry()
     }
 end
 
----A largura que a janela reserva para um conjunto de colunas, agrupado.
+--- The width the window reserves for a set of columns, grouped.
 ---
----Serve ao teste de que o texto CABE: sem isto ele teria que reimplementar `GroupWidth`, e um
----teste que refaz a conta do codigo so confere que sabe somar.
+--- It serves the test that the text FITS: without this it would have to reimplement `GroupWidth`, and a
+--- test that redoes the code's arithmetic only checks that it knows how to add.
 function Window.DebugGroupWidths(columns)
     local out = {}
     for _, grupo in ipairs(ns.Data.GroupColumns(columns)) do
@@ -2807,11 +2807,11 @@ function Window.DebugGroupWidths(columns)
     return out
 end
 
----O que o CABECALHO escreve, na ordem da tela: rotulo, largura e se esta dourado.
+--- What the HEADER writes, in screen order: label, width and whether it is gold.
 ---
----Existe por causa da mescla. "Dano - DPS" e um rotulo montado em tempo de desenho a partir de
----duas colunas, e a unica forma de conferir que ele saiu junto -- e que a largura acompanhou -- e
----perguntar ao widget. Ler `GroupLabel` no teste so provaria que a funcao concatena.
+--- It exists because of the merge. "Dano - DPS" is a label built at drawing time from
+--- two columns, and the only way to check that it came out together -- and that the width followed -- is
+--- to ask the widget. Reading `GroupLabel` in the test would only prove that the function concatenates.
 function Window.DebugHeaders()
     local out = {}
     if not (headerRow and headerRow.labels) then return out end
@@ -2820,9 +2820,9 @@ function Window.DebugHeaders()
         local button = headerRow.labels[c]
         if button and button:IsShown() then
             local r, g, b = button.text:GetTextColor()
-            -- ONDE A TINTA DO ROTULO COMECA, medida da borda direita da janela. E o unico jeito
-            -- de comparar cabecalho com numero: os dois sao ancorados em frames diferentes, com
-            -- margens que ja divergiram uma vez em silencio.
+            -- WHERE THE LABEL'S INK STARTS, measured from the window's right edge. It is the only way
+            -- to compare header with number: the two are anchored on different frames, with
+            -- margins that already diverged once silently.
             local onde = ondeFicaCache[ns.db.columns[c]]
             out[c] = {
                 inkX = onde
@@ -2830,7 +2830,7 @@ function Window.DebugHeaders()
                     or nil,
                 text = button.text:GetText(),
                 width = button:GetWidth(),
-                -- O rotulo encosta na mesma ponta que o numero que ele nomeia.
+                -- The label touches the same end as the number it names.
                 align = button.text:GetJustifyH(),
                 -- O dourado (1, 0.82, 0) e o unico sinal da coluna ordenada.
                 sorted = (r == 1 and g == 0.82 and b == 0),
@@ -2840,11 +2840,11 @@ function Window.DebugHeaders()
     return out
 end
 
----Dispara o clique no cabecalho de uma coluna, como o jogador faria.
+--- Fires the click on a column's header, as the player would.
 ---
----Existe porque "a ordenacao ainda funciona?" nao se responde lendo o codigo: o clique escreve
----`sortBy`, o desenho le, e entre os dois ha um `Refresh` e uma consulta a API. So um teste que
----clica e olha a lista resultante responde.
+--- It exists because "does sorting still work?" is not answered by reading the code: the click writes
+--- `sortBy`, the drawing reads it, and between the two there is a `Refresh` and an API query. Only a test that
+--- clicks and looks at the resulting list answers.
 function Window.DebugClickColumn(index)
     local button = headerRow and headerRow.labels and headerRow.labels[index]
     if not button then return false end
@@ -2854,7 +2854,7 @@ function Window.DebugClickColumn(index)
     return true
 end
 
----Os nomes desenhados, na ordem em que estao na tela.
+--- The drawn names, in the order they are on screen.
 function Window.DebugRowNames()
     local out = {}
     for i = 1, #rows do
@@ -2863,22 +2863,22 @@ function Window.DebugRowNames()
     return out
 end
 
----As CELULAS de uma linha, com a regua e o valor que cada barra recebeu.
+--- A row's CELLS, with the ruler and the value each bar got.
 ---
----Sao os dois numeros que decidem o desenho: a regua diz contra o que aquela coluna e medida, e o
----valor diz o quanto da barra se enche. `valor == regua` e a definicao de "esta pessoa lidera
----esta coluna" -- e e por isso que o teste consegue afirmar quem lidera sem comparar nada,
----exatamente como a janela faz.
+--- They are the two numbers that decide the drawing: the ruler says against what that column is measured, and the
+--- value says how much of the bar fills. `value == ruler` is the definition of "this person leads
+--- this column" -- and that is why the test manages to state who leads without comparing anything,
+--- exactly as the window does.
 function Window.DebugCells(index)
     local row = rows and rows[index]
     if not row or not row:IsShown() then return {} end
 
-    -- UMA ENTRADA POR COLUNA, com a barra que ela DIVIDE.
+    -- ONE ENTRY PER COLUMN, with the bar it SHARES.
     --
-    -- Coluna e barra deixaram de ser a mesma coisa: duas colunas de uma familia partilham uma
-    -- barra so. A porta devolve o texto proprio de cada coluna e, junto, o valor/regua/largura da
-    -- barra do grupo dela -- e `group` diz quais colunas estao na mesma. Sem esse campo, "as duas
-    -- dividem a barra" seria indistinguivel de "as duas tem barras iguais por coincidencia".
+    -- Column and bar stopped being the same thing: two columns of a family share a single
+    -- bar. The door returns each column's own text and, along with it, the value/ruler/width of its
+    -- group's bar -- and `group` says which columns are in the same one. Without that field, "the two
+    -- share the bar" would be indistinguishable from "the two have equal bars by coincidence".
     local out, c = {}, 0
     for gi, vao in ipairs(GroupSpans()) do
         local faixa = row.groups[gi]
@@ -2896,20 +2896,20 @@ function Window.DebugCells(index)
                         text = fs:GetText(),
                         color = { r, g, b },
                         width = fs:GetWidth(),
-                        -- A PONTA em que o numero encosta, que e o que a proposta dos cantos
-                        -- decide. Medir so a largura nao distinguiria "os dois nas pontas" de
-                        -- "os dois na mesma ponta com caixas menores".
+                        -- The END the number touches, which is what the corners proposal
+                        -- decides. Measuring only the width would not distinguish "both at the ends" from
+                        -- "both at the same end with smaller boxes".
                         align = fs:GetJustifyH(),
-                        -- Onde a tinta comeca, medida da borda direita da janela: o mesmo
-                        -- referencial que `DebugHeaders` usa, para os dois serem comparaveis.
-                        -- Sai do caminho do DESENHO; o do cabecalho sai do caminho do cabecalho.
-                        -- Duas contas independentes -- que e o que faz a comparacao valer.
+                        -- Where the ink starts, measured from the window's right edge: the same
+                        -- reference `DebugHeaders` uses, so the two are comparable.
+                        -- It comes out of the DRAWING's path; the header's comes out of the header's path.
+                        -- Two independent calculations -- which is what makes the comparison worth something.
                         inkX = (i == 1)
                             and (MargemDireita(row) + vao.offset + vao.width - GroupGap()
                                 - TEXT_INSET)
                             or nil,
-                        -- O CORPO de cada numero: e o que separa o que ORDENA do companheiro.
-                        -- Sem ele, "o degrau existe" e indistinguivel de "os dois iguais".
+                        -- Each number's SIZE: it is what separates whoever SORTS from the companion.
+                        -- Without it, "the step exists" is indistinguishable from "the two are equal".
                         size = select(2, fs:GetFont()),
                         anchorX = ancora,
                         -- Da barra do grupo, iguais para as colunas irmas:
@@ -2924,25 +2924,25 @@ function Window.DebugCells(index)
     return out
 end
 
----A largura reservada a UMA coluna.
+--- The width reserved for ONE column.
 ---
----Sem ela o teste da barra que atravessa teria que reimplementar `ColumnWidthFor` para dizer
----"a barra mede as duas somadas" -- e um teste que refaz a conta do codigo so confere que sabe
----somar.
+--- Without it the test of the crossing bar would have to reimplement `ColumnWidthFor` to say
+--- "the bar measures the two added up" -- and a test that redoes the code's arithmetic only checks that it knows how to
+--- add.
 function Window.DebugColumnWidth(key)
     return ColumnWidthFor(key)
 end
 
----Os dois vãos da linha: entre famílias e dentro de uma família.
+--- The row's two gaps: between families and within a family.
 ---
----Existe para o harness travar a RAZÃO entre eles, e não os números crus — os números mudam
----quando o usuário pede outra densidade (já mudaram em 09/09), a razão é o que não pode quebrar.
+--- It exists for the harness to lock the RATIO between them, and not the raw numbers -- the numbers change
+--- when the user asks for another density (they already changed on 09/09), the ratio is what cannot break.
 function Window.DebugGaps()
     return GroupGap(), CELL_GAP
 end
 
 --------------------------------------------------------------------------------
--- As duas distâncias configuráveis
+-- The two configurable distances
 --------------------------------------------------------------------------------
 function Window.GetGroupGap()
     return GroupGap()
@@ -2966,22 +2966,22 @@ function Window.SetTotalWidth(value)
     if value < TOTAL_WIDTH_MIN then value = TOTAL_WIDTH_MIN end
     if value > TOTAL_WIDTH_MAX then value = TOTAL_WIDTH_MAX end
     ns.db.totalWidth = value
-    -- ⚑ O CACHE DE LARGURA MORRE JUNTO. `Rebuild` sozinho redesenharia com o valor velho até a
-    -- chave do cache mudar por outro motivo — o jogador arrastaria e nada aconteceria.
+    -- ⚑ THE WIDTH CACHE DIES ALONG. `Rebuild` alone would redraw with the old value until the
+    -- cache key changed for another reason -- the player would drag and nothing would happen.
     larguraCache, larguraChave = {}, nil
     Window.Rebuild()
     return value
 end
 
----Quanto sobra ENTRE os dois números de uma coluna dupla, com o que está valendo agora.
+--- How much is left BETWEEN the two numbers of a double column, with what is in effect now.
 ---
----⚑ É GANCHO DE TESTE, e o nome diz isso desde 10/09/2026. Ele nasceu alimentando uma legenda na
----tela ("N px entre os dois valores"), que o usuário mandou tirar — o efeito já se vê na janela
----atrás da configuração, que redesenha a cada arrasto. Sem o `Debug` no nome, a próxima leitura
----procuraria a tela que mostra este número e não acharia.
+--- ⚑ IT IS A TEST HOOK, and the name says so since 10/09/2026. It was born feeding a caption on
+--- screen ("N px between the two values"), which the user had taken out -- the effect already shows in the window
+--- behind the settings, which redraws at every drag. Without the `Debug` in the name, the next reading
+--- would look for the screen that shows this number and would not find it.
 ---
----O que ele mede não é ajustável diretamente: sai da largura do par menos a tinta dos dois
----números, porque cada um é ancorado numa ponta da barra.
+--- What it measures is not directly adjustable: it comes from the pair's width minus the ink of the two
+--- numbers, because each one is anchored at one end of the bar.
 function Window.DebugPairValueGap()
     local tintaDosDois = (MedirTexto(COLUMN_SAMPLE.total) or 40)
         + (MedirTexto(COLUMN_SAMPLE.perSecond) or 34)
@@ -2990,18 +2990,18 @@ function Window.DebugPairValueGap()
     return math.max(0, math.floor(vao + 0.5))
 end
 
----OS VAOS desenhados: onde cada barra comeca e quanto ela atravessa.
+--- The drawn SPANS: where each bar starts and how far it crosses.
 ---
----E a porta da ideia do usuario -- *"como se fosse apenas uma barra"*. Sem ela, so daria para
----afirmar que existem duas colunas; que a barra vai de uma ate a outra e coisa que so o vao diz.
+--- It is the door of the user's idea -- *"como se fosse apenas uma barra"*. Without it, one could only
+--- state that two columns exist; that the bar goes from one to the other is something only the span says.
 function Window.DebugSpans()
     local out = {}
     for gi, vao in ipairs(GroupSpans()) do
         local faixa = rows and rows[1] and rows[1].groups and rows[1].groups[gi]
-        -- `anchorX` e lido do WIDGET, nao recalculado: e a diferenca entre afirmar que a
-        -- barra esta no lugar e afirmar que a conta que a poe la sabe somar.
-        -- Em duas linhas de proposito: `x and x:GetPoint(1)` truncaria os multiplos retornos
-        -- para o PRIMEIRO -- `and` devolve um valor so. A ancora saia sempre nil.
+        -- `anchorX` is read from the WIDGET, not recomputed: it is the difference between stating that the
+        -- bar is in place and stating that the arithmetic that puts it there knows how to add.
+        -- In two lines on purpose: `x and x:GetPoint(1)` would truncate the multiple returns
+        -- to the FIRST -- `and` returns a single value. The anchor always came out nil.
         local ancora
         if faixa then local _, _, _, ax = faixa:GetPoint(1) ; ancora = ax end
         out[gi] = {
@@ -3016,12 +3016,12 @@ function Window.DebugSpans()
     return out
 end
 
----A primeira linha desenhada. Sem isto, "trocar de variante nao estoura" seria tudo o que daria
----para afirmar -- e uma variante que nao muda nada tambem nao estoura.
----A linha `index` desenhada. `DebugFirstRow()` e o caso 1, que e o mais pedido.
+--- The first drawn row. Without this, "switching variant does not blow up" would be all one could
+--- state -- and a variant that changes nothing does not blow up either.
+--- The drawn row `index`. `DebugFirstRow()` is case 1, which is the most asked for.
 ---
----Passou a aceitar indice porque a pista condicional so se testa numa linha que NAO tem valor
----naquela metrica -- e essa nunca e a primeira, que por construcao lidera a coluna ordenada.
+--- It came to take an index because the conditional track can only be tested on a row that has NO value
+--- in that metric -- and that is never the first, which by construction leads the sorted column.
 function Window.DebugRow(index)
     local row = rows and rows[index or 1]
     if not row or not row:IsShown() then return nil end
@@ -3030,13 +3030,13 @@ function Window.DebugRow(index)
         nameArea = row.nameArea or 0,
         bgAlpha = cor and cor[4] or nil,
         rowWidth = row:GetWidth(),
-        -- A COR DE CLASSE CONTINUA NA LINHA, e agora num lugar so: as barras das metricas. Sem
-        -- esta porta, "removi a faixa" e "removi a cor da classe da linha inteira" seriam
-        -- indistinguiveis para o teste.
-        -- ⚑ LE `__gradient`, e nao `GetStatusBarColor`. O simulador nao implementa o getter --
-        -- ele cai no `__index` generico e devolve uma TABELA, que nunca e nil e nunca e igual a
-        -- outra: qualquer comparacao daria "tem cor" e o teste passaria a toa. `__gradient` e
-        -- escrito por `ns.ApplyBarColor` no caminho de verdade.
+        -- THE CLASS COLOUR STAYS ON THE ROW, and now in one place only: the metrics' bars. Without
+        -- this door, "I removed the strip" and "I removed the class colour from the whole row" would be
+        -- indistinguishable to the test.
+        -- ⚑ IT READS `__gradient`, and not `GetStatusBarColor`. The simulator does not implement the getter --
+        -- it falls into the generic `__index` and returns a TABLE, which is never nil and never equal to
+        -- another: any comparison would give "has colour" and the test would pass for nothing. `__gradient` is
+        -- written by `ns.ApplyBarColor` on the real path.
         barColored = (function()
             local faixa = row.groups and row.groups[1]
             return faixa ~= nil and faixa.bar ~= nil and faixa.bar.__gradient == true
@@ -3052,8 +3052,8 @@ function Window.DebugRow(index)
             end
             return out
         end)(),
-        -- A LARGURA DE CADA COLUNA, na ordem da tela: e a caixa do NUMERO, que e o que decide
-        -- se ele cabe ou vira reticencias.
+        -- EACH COLUMN'S WIDTH, in screen order: it is the NUMBER's box, which is what decides
+        -- whether it fits or becomes an ellipsis.
         cellWidths = (function()
             local out, c = {}, 0
             for gi, vao in ipairs(GroupSpans()) do
@@ -3065,10 +3065,10 @@ function Window.DebugRow(index)
             end
             return out
         end)(),
-        -- ⚑ MEDE A TINTA, NAO O NOME DO CAMPO. Ate 08/09 esta porta contava `faixa.track`, um
-        -- campo que nunca era criado -- o check passava com qualquer trilho de outro nome, e uma
-        -- revisao adversarial o encontrou vazio. Agora que a pista EXISTE (tingida com a cor da
-        -- classe, a pedido), o que nao pode voltar e o PRETO.
+        -- ⚑ IT MEASURES THE INK, NOT THE FIELD'S NAME. Until 08/09 this door counted `faixa.track`, a
+        -- field that was never created -- the check passed with any track of another name, and an
+        -- adversarial review found it empty. Now that the track EXISTS (tinted with the class
+        -- colour, on request), what cannot come back is the BLACK.
         cellTracksBlack = (function()
             local n = 0
             for _, faixa in pairs(row.groups) do
@@ -3080,7 +3080,7 @@ function Window.DebugRow(index)
             end
             return n
         end)(),
-        -- A pista de cada grupo, na ordem da tela: `nil` quando invisivel.
+        -- Each group's track, in screen order: `nil` when invisible.
         cellTracks = (function()
             local out = {}
             for gi, vao in ipairs(GroupSpans()) do
@@ -3099,10 +3099,10 @@ function Window.DebugRow(index)
             for gi in ipairs(GroupSpans()) do
                 local faixa = row.groups[gi]
                 if faixa and faixa.spark then
-                    -- ⚑ AS DUAS ANCORAS, e nao so a primeira. E a segunda que impede o brilho de
-                    -- ser maior que a barra: com largura fixa e uma barra de 2px, o rastro saia
-                    -- pela esquerda e lia como uma seta para tras (print do usuario, 08/09).
-                    -- Conferir so a ancora da direita deixaria esse defeito voltar em silencio.
+                    -- ⚑ BOTH ANCHORS, and not only the first. It is the second that keeps the glow from
+                    -- being bigger than the bar: with a fixed width and a 2px bar, the trail came out
+                    -- through the left and read as an arrow pointing backwards (the user's print, 08/09).
+                    -- Checking only the right anchor would let that defect come back silently.
                     local fill = faixa.bar:GetStatusBarTexture()
                     local presas, lados = 0, {}
                     for i = 1, faixa.spark:GetNumPoints() do
@@ -3200,16 +3200,16 @@ function Window.ApplyVisibility()
     end
 end
 
----A visão segue o combate: em combate, a luta atual (0); fora dele, o geral (1).
+--- The view follows combat: in combat, the current fight (0); out of it, the overall (1).
 ---
----Devolve `true` quando a visão MUDOU, e quem chama decide se redesenha. Devolver isso em vez de
----redesenhar aqui dentro evita o desenho dobrado no caminho mais quente do addon: o
----`PLAYER_REGEN_DISABLED` já chama `Refresh` logo depois desta função.
+--- It returns `true` when the view CHANGED, and the caller decides whether to redraw. Returning that instead of
+--- redrawing in here avoids the doubled drawing on the addon's hottest path: the
+--- `PLAYER_REGEN_DISABLED` already calls `Refresh` right after this function.
 ---
----⚑ O ESTADO DE COMBATE VEM POR PARÂMETRO nos dois eventos, e não de `InCombatLockdown()`. Não é
----desconfiança da API — é que o valor certo já está na mão de quem chama, e passá-lo torna a
----regra testável fora do jogo: o harness não tem como entrar em combate de verdade.
----Sem argumento (opção ligada na tela, login), aí sim pergunta ao cliente.
+--- ⚑ THE COMBAT STATE COMES BY PARAMETER on both events, and not from `InCombatLockdown()`. It is not
+--- distrust of the API -- it is that the right value is already in the caller's hand, and passing it makes the
+--- rule testable outside the game: the harness has no way of entering real combat.
+--- With no argument (the option turned on in the screen, login), then it does ask the client.
 function Window.ApplyAutoSession(inCombat)
     if not ns.db.autoSession then return false end
 
@@ -3233,10 +3233,10 @@ function Window.OnCombatStart()
 end
 
 function Window.OnCombatEnd()
-    -- ⚑ O REDESENHO É DAQUI, e não do `Core`. Ele chama `Refresh` ANTES desta função (os valores
-    -- deixam de ser secret ao sair do combate), então a troca de visão feita agora só apareceria
-    -- no refresh seguinte — que pode demorar uma luta inteira, com a janela parada em "Combate
-    -- atual" depois de o combate ter acabado.
+    -- ⚑ THE REDRAW IS FROM HERE, and not from `Core`. It calls `Refresh` BEFORE this function (the values
+    -- stop being secret on leaving combat), so the view switch made now would only show
+    -- on the next refresh -- which can take a whole fight, with the window stuck on "Combate
+    -- atual" after combat has ended.
     if Window.ApplyAutoSession(false) then
         Window.Refresh(true)
     end
@@ -3250,17 +3250,17 @@ function Window.OnCombatEnd()
     end
 end
 
----Diagnóstico: as linhas estão recebendo clique? Responde sem depender de tentativa e erro.
+--- Diagnostics: are the rows receiving clicks? It answers without depending on trial and error.
 function Window.RowsAreClickable()
     local row = rows and rows[1]
     if not row then return false end
     return row:IsMouseEnabled() and row:GetScript("OnClick") ~= nil and row.source ~= nil
 end
 
----Aplica o estado travado: ícone do cadeado e visibilidade da alça.
+--- Applies the locked state: the padlock icon and the handle's visibility.
 ---
----A alça só faz sentido destravada — deixá-la visível travada convida a arrastar algo que não
----vai se mexer. Some junto.
+--- The handle only makes sense unlocked -- leaving it visible while locked invites dragging something that will not
+--- move. It goes away along.
 
 
 function Window.ApplyLock()
@@ -3275,47 +3275,47 @@ function Window.ApplyLock()
     local button = frame.lockButton
     if not button then return end
 
-    -- Textura primeiro: `SetAtlas` precisa de uma textura já existente para atuar, e ela também
-    -- é a reserva quando o atlas não existe neste cliente.
+    -- Texture first: `SetAtlas` needs an already existing texture to act on, and it is also
+    -- the fallback when the atlas does not exist in this client.
     button:SetNormalTexture(LOCK_ICON)
     local texture = button:GetNormalTexture()
     if not texture then return end
 
-    -- Destravado ganha a cruz de setas; travado fica com o cadeado. Ver o comentário de
-    -- `UNLOCK_ATLAS` no topo: a diferença tem que ser de FORMA, porque cor num glifo de 14px
-    -- não se lê. Se o atlas faltar, sobra o comportamento antigo — nunca um botão vazio.
+    -- Unlocked gets the cross of arrows; locked keeps the padlock. See the comment on
+    -- `UNLOCK_ATLAS` at the top: the difference has to be of SHAPE, because colour on a 14px glyph
+    -- cannot be read. If the atlas is missing, the old behaviour is left -- never an empty button.
     if not locked and texture.SetAtlas and ns.AtlasExists(UNLOCK_ATLAS) then
         texture:SetAtlas(UNLOCK_ATLAS, false)
     end
 
-    texture:SetDesaturated(true)   -- sem a cor original do ícone, para entrar na família
+    texture:SetDesaturated(true)   -- without the icon's original colour, to join the family
 
-    -- A cor REFORÇA a forma, não substitui: travado chama atenção, destravado fica no tom dos
-    -- outros ícones.
+    -- The colour REINFORCES the shape, it does not replace it: locked calls attention, unlocked stays in the tone of the
+    -- other icons.
     local tint = locked and { 1, 0.82, 0.30 } or button.baseTint
     button.activeTint = tint
     button:SetTint(tint)
 
-    -- Terceiro canal, e o unico que nao depende de o jogador interpretar um desenho de 14px.
+    -- The third channel, and the only one that does not depend on the player interpreting a 14px drawing.
     button.tooltipText = locked and L["Locked — click to unlock and resize"]
         or L["Unlocked — drag to move, corner to resize"]
 end
 
----Define quantas linhas a janela mostra, ajustando a altura.
+--- Sets how many rows the window shows, adjusting the height.
 ---
----Ponto único usado pela alça de redimensionar e pelo painel de configuração — sem isto os dois
----caminhos calculariam a altura de formas diferentes.
----Troca o corpo do texto, dentro dos limites.
+--- A single point used by the resize handle and by the settings panel -- without it the two
+--- paths would compute the height in different ways.
+--- Changes the text's size, within the limits.
 ---
----A altura da linha e a hierarquia (titulo, relogio, cabecalho) acompanham sozinhas, porque as
----tres sao derivadas -- essa foi a razao de elas terem virado deltas na 0.56.1. `Rebuild` e
----necessario porque a altura da linha muda e as linhas ja construidas precisam ser refeitas.
----@return boolean mudou
----Escreve uma chave de um papel e redesenha.
+--- The row's height and the hierarchy (title, clock, header) follow by themselves, because the
+--- three are derived -- that was the reason they became deltas in 0.56.1. `Rebuild` is
+--- needed because the row's height changes and the rows already built have to be redone.
+--- @return boolean changed
+--- Writes one key of a role and redraws.
 ---
----Um caminho so para as tres chaves (corpo, contorno, sombra) e para os tres papeis: elas mudam
----a mesma coisa -- como o texto e desenhado -- e precisam do mesmo trabalho depois. Ter uma
----funcao por combinacao seriam nove, e nove caminhos e onde as telas comecam a divergir.
+--- A single path for the three keys (size, outline, shadow) and for the three roles: they change
+--- the same thing -- how the text is drawn -- and need the same work afterwards. Having one
+--- function per combination would be nine, and nine paths is where the screens start to diverge.
 local function SetRoleField(role, field, value)
     if not ROLE_DEFAULTS[role] then return false end
 
@@ -3373,11 +3373,11 @@ function Window.GetRoleShadow(role)
     return ns.RoleConfig(role).shadow
 end
 
----Aplica uma escolha de aparencia e redesenha.
+--- Applies a look choice and redraws.
 ---
----Um so caminho para as tres: elas mudam a mesma coisa (como o texto e desenhado) e precisam
----do mesmo trabalho depois -- refazer o Skin, reconstruir as linhas e recalcular a altura,
----porque trocar de fonte muda a largura do que cabe.
+--- A single path for the three: they change the same thing (how the text is drawn) and need
+--- the same work afterwards -- redoing the Skin, rebuilding the rows and recomputing the height,
+--- because switching fonts changes the width of what fits.
 local function ApplyAppearance()
     ns.RefreshSkin()
     Window.Rebuild()
@@ -3405,9 +3405,9 @@ function Window.SetRows(count)
     ns.db.rows = count
     Window.Rebuild()
     if frame and not frame.sizing then
-        -- Durante o arraste, a altura não é cravada aqui: o desenho a ajusta em passos de uma
-        -- linha (o encaixe ao vivo, `OnSizeChanged`), e o encaixe final é feito ao soltar, no
-        -- `OnMouseUp` da alça.
+        -- During the drag, the height is not nailed down here: the drawing adjusts it in steps of one
+        -- row (the live snapping, `OnSizeChanged`), and the final snap is made on release, in
+        -- the handle's `OnMouseUp`.
         frame:SetHeight(CurrentHeight())
     end
 end
@@ -3423,11 +3423,11 @@ end
 --------------------------------------------------------------------------------
 -- Colunas
 --------------------------------------------------------------------------------
----Liga ou desliga um ITEM -- que pode valer por duas colunas.
+--- Turns an ITEM on or off -- which can stand for two columns.
 ---
----Pedido do usuario: *"onde escolhe as colunas na configuracao o dano e dps e cura e cps tem que
----ser um so item"*. A atomicidade mora AQUI, e nao na tela, porque a tela nao e o unico caminho:
----`/rm col 2` chega no mesmo lugar. Regra dividida entre dois caminhos e regra que vale em um so.
+--- The user's request: *"onde escolhe as colunas na configuracao o dano e dps e cura e cps tem que
+--- ser um so item"*. The atomicity lives HERE, and not on the screen, because the screen is not the only path:
+--- `/rm col 2` reaches the same place. A rule split between two paths is a rule that holds in only one.
 function Window.ToggleColumn(key)
     local item = ns.Data.GetItemFor(key)
     local chaves = item and item.keys or { key }
@@ -3450,8 +3450,8 @@ function Window.ToggleColumn(key)
             if not sai then novo[#novo + 1] = id end
         end
 
-        -- A JANELA NAO PODE FICAR SEM COLUNA. Com item de duas colunas, "sobra uma" deixou de
-        -- ser a conta certa: desligar o ultimo item leva as DUAS de uma vez.
+        -- THE WINDOW CANNOT BE LEFT WITHOUT A COLUMN. With a two-column item, "one is left" stopped
+        -- being the right arithmetic: turning off the last item takes BOTH at once.
         if #novo == 0 then
             ns.Print(L["at least one column must stay."])
             return
@@ -3474,26 +3474,26 @@ function Window.ToggleColumn(key)
     Window.Rebuild()
 end
 
----Move um GRUPO de lugar (Shift/Ctrl-clique no cabecalho).
+--- Moves a GROUP (Shift/Ctrl-click on the header).
 ---
----O indice que chega e o do cabecalho, que e o do grupo -- e o total e a taxa andam JUNTOS: o
----jogador arrasta "Dano - DPS", nao "DPS" para longe de "Dano".
+--- The index that arrives is the header's, which is the group's -- and the total and the rate move TOGETHER: the
+--- player drags "Dano - DPS", not "DPS" away from "Dano".
 ---
----A lista de colunas e reescrita a partir da ordem dos grupos. Isso tem um efeito colateral
----desejado: se `ns.db.columns` estava intercalada ({dano, cura, DPS, CPS} -- possivel marcando as
----caixas fora de ordem), ela volta agrupada. O que a tela mostra e o que fica guardado.
+--- The column list is rewritten from the groups' order. That has a wanted
+--- side effect: if `ns.db.columns` was interleaved ({damage, healing, DPS, HPS} -- possible by ticking the
+--- boxes out of order), it comes back grouped. What the screen shows is what is kept.
 function Window.MoveColumn(index, direction)
-    -- ⚑ REFAZ OS GRUPOS ANTES DE LER. O cache e do desenho anterior, e `ns.db.columns` pode ter
-    -- mudado desde entao sem passar por um desenho -- SavedVariables entram assim. Lendo o cache,
-    -- esta funcao reescrevia a lista ATUAL a partir de grupos de uma lista que nao existe mais, e
-    -- o resultado era a lista antiga de volta na tela.
+    -- ⚑ REDOES THE GROUPS BEFORE READING. The cache is the previous drawing's, and `ns.db.columns` may have
+    -- changed since then without going through a drawing -- SavedVariables come in that way. Reading the cache,
+    -- this function rewrote the CURRENT list from groups of a list that no longer exists, and
+    -- the result was the old list back on screen.
     local lista = RefreshGroups()
     local target = index + direction
 
-    -- A ORIGEM TAMBEM E VALIDADA. So o destino era conferido, e um `index` acima do numero de
-    -- grupos passava: a troca deixava um BURACO no meio da lista (o slot de origem virava nil),
-    -- `#lista` mudava de valor e o achatamento logo abaixo indexava nil. Estouro de Lua, com a
-    -- janela morrendo no meio do desenho.
+    -- THE ORIGIN IS VALIDATED TOO. Only the destination was checked, and an `index` above the number of
+    -- groups got through: the swap left a HOLE in the middle of the list (the origin slot became nil),
+    -- `#list` changed value and the flattening right below indexed nil. A Lua blow-up, with the
+    -- window dying in the middle of the drawing.
     if index < 1 or index > #lista then return end
     if target < 1 or target > #lista then return end
 
@@ -3505,8 +3505,8 @@ function Window.MoveColumn(index, direction)
             novo[#novo + 1] = lista[g].keys[k]
         end
     end
-    -- NORMALIZA DE VOLTA. Trocar dois grupos nao pode desfazer a ordem DENTRO deles, e a
-    -- normalizacao e barata o bastante para ser a ultima palavra em todo caminho de escrita.
+    -- NORMALIZES BACK. Swapping two groups cannot undo the order WITHIN them, and the
+    -- normalization is cheap enough to be the last word on every write path.
     ns.db.columns = ns.Data.NormalizeColumns(novo)
 
     Window.Rebuild()
