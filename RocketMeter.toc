@@ -52,8 +52,10 @@ Talents.lua
 Breakdown.lua
 Run.lua
 MyRun.lua
+Stats.lua
 Report.lua
 MyRunWindow.lua
+StatsWindow.lua
 SpellsPage.lua
 PlayerWindow.lua
 Demo.lua

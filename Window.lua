@@ -2186,13 +2186,24 @@ function Window.Create()
         end)
     frame.boardButton:SetPoint("RIGHT", frame.resetButton, "LEFT", -5, 0)
 
+    -- (26/10) THE STATISTICS: the week's and the season's keys, vault and raids (StatsWindow.lua). The user: *"pode ser
+    -- um botão na janela principal"*. The game's trophy, in the tone of the others. A new file: absent until the client
+    -- restarts, and then no button rather than one that does nothing
+    local leftmost = frame.boardButton
+    if ns.StatsWindow then
+        frame.statsButton = HeaderButton({ atlas = "house-chest-trophy-icon_32" },
+            L["Statistics"], function() ns.StatsWindow.Toggle() end)
+        frame.statsButton:SetPoint("RIGHT", frame.boardButton, "LEFT", -5, 0)
+        leftmost = frame.statsButton
+    end
+
     frame.lockButton = HeaderButton(
         { texture = LOCK_ICON },
         L["Lock position"], function()
             ns.db.locked = not ns.db.locked
             Window.ApplyLock()
         end)
-    frame.lockButton:SetPoint("RIGHT", frame.boardButton, "LEFT", -5, 0)
+    frame.lockButton:SetPoint("RIGHT", leftmost, "LEFT", -5, 0)
 
     Window.ApplyPosition()
 

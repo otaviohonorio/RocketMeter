@@ -154,6 +154,8 @@ function handlers:ADDON_LOADED(addon)
     -- Casts.lua is a NEW file in the .toc: nil until the client restarts (see RunCall).
     if ns.Casts and ns.Casts.Init then ns.Casts.Init() end
     if ns.MyRun and ns.MyRun.Init then ns.MyRun.Init() end
+    -- (26/10) Stats.lua is a NEW file too: nil until the client restarts
+    if ns.Stats and ns.Stats.Init then ns.Stats.Init() end
 end
 
 function handlers:PLAYER_LOGIN()

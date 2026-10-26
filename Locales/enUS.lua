@@ -78,6 +78,16 @@ local FROM_GAME = {
     ["Dungeon"]             = "LFG_TYPE_DUNGEON",
     ["defeated"]            = "BOSS_DEAD",
     ["version"]             = "GAME_VERSION_LABEL",
+    -- (26/10) the Statistics window: the game's own words for its pieces
+    ["Statistics"] = "STATISTICS",
+    ["Mythic+ Rating"] = "DUNGEON_SCORE",
+    ["Great Vault"] = "DELVES_GREAT_VAULT_LABEL",
+    ["This Week"] = "CHALLENGE_MODE_THIS_WEEK",
+    ["Dungeons"] = "DUNGEONS",
+    ["Raids"] = "RAIDS",
+    ["Bosses"] = "RAID_BOSSES",
+    ["World"] = "WORLD",
+    ["Rating"] = "RATING",
 }
 
 -- What did NOT come in, and why -- so nobody "fixes" it later without knowing:

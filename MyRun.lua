@@ -1563,7 +1563,10 @@ function MyRun.Save()
     -- A session that started by itself and had no fight is nothing to keep.
     if AUTO[run.kind] and #run.fights == 0 then return end
     local list = Store()
-    table.insert(list, 1, Compact(run))
+    local saved = Compact(run)
+    table.insert(list, 1, saved)
+    -- (26/10) the season's line of a key or a raid, for the statistics (Stats.lua; new file: nil until the client restarts)
+    if ns.Stats and ns.Stats.NoteRun then pcall(ns.Stats.NoteRun, saved) end
     -- The open world gives a session per zone: only the newest few stay, so that walking around
     -- does not push the keys and the delves out of the history.
     local world = 0

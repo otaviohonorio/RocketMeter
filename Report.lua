@@ -212,18 +212,22 @@ function Report.Table(page, spec, noAdvance)
     local y = y0
     local cr, cg, cb = unpack(spec.colour or { 0.6, 0.6, 0.6 })
 
-    local head = Take(page, "head", function() return MakeHead(page) end)
-    head:SetPoint("TOPLEFT", x, -y)
-    head:SetWidth(width)
-    head.name:SetText(columns[1].label or "")
-    local left = PlaceCells(head, columns, function() return Cell(head, "RIGHT", "GameFontNormalSmall") end)
-    for i = 2, #columns do
-        local c = columns[i]
-        head.cells[i]:SetText(c.label or "")
-        head.cells[i]:SetJustifyH(c.key == "amount" and "CENTER" or (c.justify or "RIGHT"))
+    -- (26/10) `noHead`: a box of label and value (the Statistics) has no header line to show
+    local head
+    if not spec.noHead then
+        head = Take(page, "head", function() return MakeHead(page) end)
+        head:SetPoint("TOPLEFT", x, -y)
+        head:SetWidth(width)
+        head.name:SetText(columns[1].label or "")
+        local left = PlaceCells(head, columns, function() return Cell(head, "RIGHT", "GameFontNormalSmall") end)
+        for i = 2, #columns do
+            local c = columns[i]
+            head.cells[i]:SetText(c.label or "")
+            head.cells[i]:SetJustifyH(c.key == "amount" and "CENTER" or (c.justify or "RIGHT"))
+        end
+        head.name:SetPoint("RIGHT", head, "RIGHT", left, 0)
+        y = y + HEAD
     end
-    head.name:SetPoint("RIGHT", head, "RIGHT", left, 0)
-    y = y + HEAD
 
     local shown = {}
     for i, row in ipairs(spec.rows or {}) do
