@@ -16,7 +16,7 @@
 --     itself comes, with the unit: "party2 cast something, now";
 --   * an enemy's cast cut short comes as `UNIT_SPELLCAST_INTERRUPTED`, its `interruptedBy` secret too;
 --   * addon messages are locked during a key and a raid boss (`SendAddonMessageResult.AddOnMessageLockdown`).
--- So a teammate's KICK is put together as the interrupt addons made for Midnight do (Castbreaker, KickLink): an enemy
+-- So a teammate's KICK is put together as the interrupt addons made for Midnight do: an enemy
 -- interrupted + the ONE teammate who cast something in that instant and whose kick could be ready. Two casting in the
 -- same instant: nobody is credited (better nothing than the wrong one); a kick that cut nothing is not seen; a stun that
 -- cut a cast looks like a kick. Out of combat, and wherever the game does not hide it, the spell is read and it is
