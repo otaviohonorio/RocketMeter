@@ -23,6 +23,15 @@
 
 Locales\enUS.lua
 Locales\ptBR.lua
+Locales\esES.lua
+Locales\esMX.lua
+Locales\itIT.lua
+Locales\deDE.lua
+Locales\frFR.lua
+Locales\ruRU.lua
+Locales\koKR.lua
+Locales\zhCN.lua
+Locales\zhTW.lua
 Core.lua
 Donate.lua
 Profile.lua
