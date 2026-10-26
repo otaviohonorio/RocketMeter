@@ -1,12 +1,12 @@
 -- RocketMeter | Breakdown.lua
 --
--- O detalhamento de um jogador: o que ele fez, magia por magia.
+-- A player's breakdown: what he did, spell by spell.
 --
--- É um painel aberto por clique, que fica onde está e acompanha a luta. Mostra as três frentes de uma vez — dano, cura e
--- controle — em vez de só a métrica da janela.
+-- It is a panel opened by a click, which stays where it is and follows the fight. It shows the three fronts at once -- damage, healing and
+-- control -- instead of only the window's metric.
 --
--- **Toda a aparência vem de `ns.Skin`** (definido em `Window.lua`): mesma arte de cabeçalho,
--- mesma altura de linha, mesmas cores. Copiar valores entre telas é o que faz elas divergirem.
+-- **All its look comes from `ns.Skin`** (defined in `Window.lua`): the same header art,
+-- the same row height, the same colours. Copying values between screens is what makes them drift apart.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -77,8 +77,8 @@ local function CastRows(kind)
 end
 
 --------------------------------------------------------------------------------
--- Linha de magia: a mesma anatomia da linha da janela — barra atrás, ícone quadrado
--- preenchendo a altura, nome à esquerda, números à direita.
+-- A spell row: the same anatomy as the window's row -- a bar behind, a square icon
+-- filling the height, the name on the left, the numbers on the right.
 --------------------------------------------------------------------------------
 local function BuildSpellRow(section, index)
     local skin = Skin()
@@ -143,13 +143,13 @@ local function BuildSpellRow(section, index)
     ns.ApplyPanelFont(row.rate, -2, "")
     ns.ApplyPanelFont(row.percent, -2, "")
 
-    -- Aqui o fundo existe: o painel tem backdrop, e um preto leve separa as magias.
+    -- Here the background exists: the panel has its dark body, and a light black separates the spells.
     local bg = skin.panelRowBackground
     row.bg:SetColorTexture(bg[1], bg[2], bg[3], bg[4])
     return row
 end
 
----Desenha uma seção e devolve a altura ocupada.
+--- Draws a section and returns the height it takes.
 local function DrawSection(section, spec)
     local skin = Skin()
     local spells, total, missed, share
@@ -185,8 +185,8 @@ local function DrawSection(section, spec)
     section.title:SetText(missed and format(L["%s (%d missed)"], spec.title, missed)
         or (share and format(L["%s (%d%% of the total)"], spec.title, share)) or spec.title)
 
-    -- Seção sem nada não aparece: "Controle — nada aqui" ocupa espaço para dizer que não há
-    -- informação. Quem não interrompeu simplesmente não tem a seção.
+    -- A section with nothing does not show: "Control -- nothing here" takes space to say there is no
+    -- information. Whoever did not interrupt simply does not have the section.
     if not spells or #spells == 0 then
         for _, row in pairs(section.rows) do row:Hide() end
         section:Hide()
@@ -264,7 +264,7 @@ local function CreatePanel()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
-    -- Um fundo escuro: sem ele, o texto disputaria com o cenário do jogo.
+    -- A dark background: without it, the text would compete with the game's scenery.
     ns.DarkBody(frame, skin.panelAlpha)
     frame:Hide()
 
@@ -336,7 +336,7 @@ function Breakdown.Draw()
     frame.title:SetTextColor(ns.ClassColor(current.classFilename))
 
     frame.scope:SetText(current.sessionType == 0 and L["Current fight"] or L["Overall"])
-    -- Claro: a arte do cabeçalho escurece para a direita, e texto escuro sumia justo ali.
+    -- Light: the header art darkens towards the right, and dark text vanished right there.
     frame.scope:SetTextColor(0.82, 0.76, 0.56)
 
     ns.ApplyRowIcon(frame.icon, frame.iconClass, current.source)
@@ -460,8 +460,8 @@ function Breakdown.Show(source, sessionType, anchorTo, raw)
         return
     end
 
-    -- Abre do lado que tiver espaço: ancorar sempre à direita jogava o painel para fora da
-    -- tela quando a janela está encostada na borda.
+    -- It opens on the side that has room: anchoring always to the right threw the panel off the
+    -- screen when the window sits against the edge.
     frame:ClearAllPoints()
     local placed = false
     if anchorTo and anchorTo.GetRight and UIParent and UIParent.GetWidth then

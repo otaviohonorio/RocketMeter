@@ -1,6 +1,6 @@
 -- RocketMeter | Minimap.lua
--- Botão de minimapa próprio, sem LibDBIcon: são ~60 linhas e evita embutir biblioteca.
--- Guarda a posição como ângulo, então continua no lugar em qualquer tamanho de minimapa.
+-- The addon's own minimap button, without LibDBIcon: it is ~60 lines and avoids bundling a library.
+-- It keeps the position as an angle, so it stays in place at any minimap size.
 local ADDON, ns = ...
 local L = ns.L
 

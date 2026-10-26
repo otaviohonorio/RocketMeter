@@ -1,23 +1,23 @@
 -- RocketMeter | Run.lua
--- Grava a linha do tempo de uma corrida de Mítico+ enquanto ela acontece.
+-- Records a Mythic+ run's timeline while it happens.
 --
--- POR QUE PRECISA GRAVAR. No fim da corrida o cliente entrega o resultado (tempo, no tempo,
--- mortes, pontuação), mas não entrega o *histórico*: quando cada boss caiu, quando o grupo
--- entrou e saiu de combate, quando alguém morreu. Nada disso é consultável depois. Ou se
--- anota durante, ou o rodapé do placar fica vazio.
+-- WHY IT HAS TO RECORD. At the end of the run the client gives the result (time, in time,
+-- deaths, score), but it does not give the *history*: when each boss fell, when the group
+-- entered and left combat, when someone died. None of it can be looked up afterwards. Either it is
+-- noted during, or the scoreboard's footer stays empty.
 --
--- E NÃO DÁ PARA USAR O COMBAT LOG. `COMBAT_LOG_EVENT_UNFILTERED` foi removido no Midnight, e
--- com ele o jeito clássico de saber quem morreu e quando. O que sobrou, e é o que este
--- arquivo usa, são eventos de frame comuns:
+-- AND THE COMBAT LOG CANNOT BE USED. `COMBAT_LOG_EVENT_UNFILTERED` was removed in Midnight, and
+-- with it the classic way of knowing who died and when. What is left, and what this
+-- file uses, are plain frame events:
 --
---   CHALLENGE_MODE_START             -> zera e marca o instante zero
---   PLAYER_REGEN_DISABLED/ENABLED    -> os trechos de dentro e fora de combate
---   ENCOUNTER_END (success)          -> o instante de cada boss
---   CHALLENGE_MODE_DEATH_COUNT_UPDATED -> quando o contador de mortes sobe
+--   CHALLENGE_MODE_START             -> resets and marks the zero instant
+--   PLAYER_REGEN_DISABLED/ENABLED    -> the stretches in and out of combat
+--   ENCOUNTER_END (success)          -> the instant of each boss
+--   CHALLENGE_MODE_DEATH_COUNT_UPDATED -> when the deaths counter goes up
 --
--- O evento de morte dá **quando**, não **quem**. Quem morreu vem da lista de mortes do medidor
--- (`Scoreboard.AttachDeathClasses`), que empresta classe e nome ao marcador quando as duas
--- listas batem — senão o marcador fica a caveira sem nome.
+-- The death event gives **when**, not **who**. Who died comes from the meter's list of deaths
+-- (`Scoreboard.AttachDeathClasses`), which lends class and name to the marker when the two
+-- lists match -- otherwise the marker stays the skull with no name.
 local ADDON, ns = ...
 
 local Run = {}
@@ -25,29 +25,29 @@ ns.Run = Run
 
 local active = false
 local startedAt
-local partial = false        -- corrida cujo comeco nao foi gravado (entrou depois do inicio)
+local partial = false        -- a run whose start was not recorded (joined after the start)
 
--- A PARTIR DE QUANDO O REGISTRO VALE, em segundos de corrida. `nil` (ou 0) significa "desde o
--- primeiro instante"; qualquer outro numero e uma corrida RETOMADA, e o trecho antes dele o
--- addon nao viu.
+-- FROM WHEN THE RECORD HOLDS, in seconds of run. `nil` (or 0) means "since the
+-- first instant"; any other number is a RESUMED run, and the stretch before it the
+-- addon did not see.
 --
--- Isto existe por causa de um defeito relatado com print (07/09 20:22): o painel anunciava
--- **"Fora de combate: 26:13"** numa chave de 26:13 -- ou seja, a corrida inteira. A causa era o
--- `/reload` no meio da chave, que e rotina para quem mexe em addon: `Run.Resume` recupera o
--- tempo total do cronometro do mundo, mas o registro de combate recomeca vazio. Somar "o que nao
--- esta marcado como combate" sobre um registro que so cobre o fim da corrida da o tempo todo.
+-- This exists because of a defect reported with a print (07/09 20:22): the panel announced
+-- **"Fora de combate: 26:13"** on a 26:13 key -- that is, the whole run. The cause was the
+-- `/reload` in the middle of the key, which is routine for whoever tinkers with addons: `Run.Resume` recovers the
+-- total time from the world timer, but the combat record starts again empty. Adding up "what is not
+-- marked as combat" over a record that only covers the end of the run gives all the time.
 --
--- O proprio arquivo ja tinha a regra escrita, para os offsets: *"um rodape ausente e honesto, um
+-- The file itself already had the rule written, for the offsets: *"um rodape ausente e honesto, um
 -- rodape com os bosses todos deslocados e mentira -- e mentira com aparencia de dado e o pior
--- resultado possivel"*. Faltava valer para o CONTEUDO tambem.
+-- resultado possivel"*. It was missing for the CONTENT too.
 local knownFrom = 0
 local combatTimeline = {}
 local bosses = {}
 local deaths = {}
 local lastDeathCount = 0
 
----Segundos desde o início da corrida. Fora de corrida devolve nil, e quem chama simplesmente
----não grava — é o que faz este módulo ser inerte quando não há M+ em andamento.
+--- Seconds since the start of the run. Outside a run it returns nil, and the caller simply
+--- does not record -- it is what makes this module inert when there is no M+ under way.
 local function Elapsed()
     if not active or not startedAt then return nil end
     local now = GetTime()
@@ -66,14 +66,14 @@ function Run.Start()
     deaths = {}
     lastDeathCount = 0
 
-    -- Semente: a corrida começa fora de combate. Sem esta entrada o primeiro trecho do
-    -- trilho ficaria sem cor até o primeiro `PLAYER_REGEN_DISABLED`.
+    -- The seed: the run starts out of combat. Without this entry the rail's first stretch
+    -- would have no colour until the first `PLAYER_REGEN_DISABLED`.
     combatTimeline[1] = { 0, InCombatLockdown() and true or false }
 
-    -- O QUE O PLACAR PRECISA E O MEDIDOR NÃO SABE (0.66.0): o saque é da corrida que
-    -- começa agora, e o nível de item de cada um se pede AQUI, no início — a inspeção é
-    -- espaçada de propósito e leva alguns segundos, e no fim da chave o grupo já está se
-    -- desfazendo.
+    -- WHAT THE SCOREBOARD NEEDS AND THE METER DOES NOT KNOW (0.66.0): the loot is the run's that
+    -- starts now, and each one's item level is asked for HERE, at the start -- the inspection is
+    -- spaced on purpose and takes a few seconds, and at the end of the key the group is already
+    -- breaking up.
     if ns.Party then
         ns.Party.ResetLoot()
         ns.Party.RefreshItemLevels()
@@ -84,15 +84,15 @@ function Run.Stop()
     active = false
 end
 
----Retoma a gravacao quando o addon carrega DENTRO de uma corrida ja em andamento — o caso do
----`/reload` no meio da chave, que e rotina quando se esta mexendo em addon.
+--- Resumes recording when the addon loads INSIDE a run already under way -- the case of
+--- `/reload` in the middle of the key, which is routine when tinkering with addons.
 ---
----Sem isto o `CHALLENGE_MODE_START` ja passou, `Run` nunca liga, e no fim da corrida o rodape
----do placar aparece vazio sem nada explicar.
+--- Without this `CHALLENGE_MODE_START` has already gone by, `Run` never turns on, and at the end of the run the scoreboard's
+--- footer shows empty without explaining anything.
 ---
----O instante zero e recuperado do cronometro do mundo. Se ele nao vier, a corrida fica marcada
----como PARCIAL e os getters devolvem nil: um rodape ausente e honesto, um rodape com os bosses
----todos deslocados e mentira — e mentira com aparencia de dado e o pior resultado possivel.
+--- The zero instant is recovered from the world timer. If it does not come, the run is marked
+--- as PARTIAL and the getters return nil: an absent footer is honest, a footer with the bosses
+--- all shifted is a lie -- and a lie that looks like data is the worst possible result.
 function Run.Resume()
     if active then return end
     if not C_ChallengeMode or not C_ChallengeMode.GetActiveChallengeMapID then return end
@@ -112,9 +112,9 @@ function Run.Resume()
     local elapsed = Run.ElapsedFromWorldTimer()
     if elapsed then
         startedAt = GetTime() - elapsed
-        -- O REGISTRO SO VALE DAQUI PARA A FRENTE. A semente entra no instante da retomada, nao
-        -- no zero: marcar o zero como "fora de combate" seria afirmar sobre os 20 minutos que o
-        -- addon nao acompanhou.
+        -- THE RECORD ONLY HOLDS FROM HERE ON. The seed goes in at the instant of resuming, not
+        -- at zero: marking zero as "out of combat" would be stating something about the 20 minutes the
+        -- addon did not follow.
         knownFrom = elapsed
         combatTimeline[1] = { elapsed, InCombatLockdown() and true or false }
     else
@@ -122,12 +122,12 @@ function Run.Resume()
     end
 end
 
----Segundos ja decorridos da chave, lidos do cronometro do mundo.
+--- Seconds already elapsed of the key, read from the world timer.
 ---
----Usa `Enum.WorldElapsedTimerTypes.ChallengeMode`, nao a global legada
----`LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE`: essa constante legada provavelmente e nil
----neste cliente — e
----`timerType ~= nil` seria sempre verdadeiro, fazendo a busca nunca achar o cronometro.
+--- It uses `Enum.WorldElapsedTimerTypes.ChallengeMode`, not the legacy global
+--- `LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE`: that legacy constant is probably nil
+--- in this client -- and
+--- `timerType ~= nil` would always be true, making the search never find the timer.
 function Run.ElapsedFromWorldTimer()
     if not GetWorldElapsedTimers or not GetWorldElapsedTime then return nil end
     local wanted = Enum and Enum.WorldElapsedTimerTypes and Enum.WorldElapsedTimerTypes.ChallengeMode
@@ -145,10 +145,10 @@ function Run.ElapsedFromWorldTimer()
     return nil
 end
 
----A partir de que segundo da corrida o registro pode ser lido como verdade.
+--- From which second of the run the record can be read as true.
 ---
----0 numa corrida acompanhada do inicio; o instante da retomada quando houve `/reload` no meio.
----Quem desenha usa isto para nao afirmar sobre o trecho que ninguem viu.
+--- 0 in a run followed from the start; the instant of resuming when there was a `/reload` midway.
+--- Whoever draws uses this so as not to state anything about the stretch nobody saw.
 function Run.GetKnownFrom()
     if partial then return nil end
     return knownFrom
@@ -174,8 +174,8 @@ function Run.OnEncounterEnd(encounterName, success)
     bosses[#bosses + 1] = { at, encounterName }
 end
 
----O contador de mortes da masmorra subiu. Pode subir mais de um de uma vez (grupo inteiro
----morrendo junto), e aí grava um marcador por morte no mesmo instante.
+--- The dungeon's deaths counter went up. It can go up more than one at once (the whole group
+--- dying together), and then it records one marker per death at the same instant.
 function Run.OnDeathCountUpdated()
     local at = Elapsed()
     if not at then return end
@@ -186,8 +186,8 @@ function Run.OnDeathCountUpdated()
         if ok and type(value) == "number" then count = value end
     end
 
-    -- Sem contador legível, registra uma morte e segue: melhor um marcador a menos do que
-    -- um laço que não termina.
+    -- With no readable counter, it records one death and goes on: better one marker less than
+    -- a loop that does not end.
     if count <= lastDeathCount then
         deaths[#deaths + 1] = { at }
         lastDeathCount = lastDeathCount + 1
@@ -200,9 +200,9 @@ function Run.OnDeathCountUpdated()
     lastDeathCount = count
 end
 
--- Os tres getters devolvem nil quando a corrida e PARCIAL. O carimbo de tempo de tudo que foi
--- gravado depende do instante zero, e numa corrida parcial esse instante e desconhecido: os
--- marcadores sairiam todos deslocados, e o usuario nao teria como saber disso olhando.
+-- The three getters return nil when the run is PARTIAL. The timestamp of everything
+-- recorded depends on the zero instant, and in a partial run that instant is unknown: the
+-- markers would all come out shifted, and the user would have no way of knowing it by looking.
 function Run.GetCombatTimeline()
     if partial or #combatTimeline == 0 then return nil end
     return combatTimeline

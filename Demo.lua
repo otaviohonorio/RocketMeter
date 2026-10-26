@@ -1,33 +1,33 @@
 -- RocketMeter | Demo.lua
--- Uma corrida de Mítico+ inventada, para ver o placar sem precisar rodar uma masmorra.
+-- A made-up Mythic+ run, to see the scoreboard without running a dungeon.
 --
--- POR QUE ISSO EXISTE: o placar só aparece no fim de uma M+ de verdade. Testar aparência
--- assim custa 30 minutos de jogo por rodada de ajuste, e foi por isso que ele ficou meses
--- sem ninguém olhar. Com a simulação, o ciclo vira `/rm score demo` + `/reload`.
+-- WHY THIS EXISTS: the scoreboard only shows at the end of a real M+. Testing the look
+-- that way costs 30 minutes of play per tweak round, and that is why it went months
+-- without anyone looking. With the simulation, the cycle becomes `/rm score demo` + `/reload`.
 --
--- REGRA DURA: nada aqui toca a API nem os dados reais. `ns.Demo.Run()` devolve uma tabela
--- solta; quem desenha decide usá-la. Não há caminho pelo qual um número daqui entre numa
--- sessão do `C_DamageMeter` ou nos SavedVariables de corrida.
+-- A HARD RULE: nothing here touches the API or the real data. `ns.Demo.Run()` returns a loose
+-- table; whoever draws decides to use it. There is no path by which a number from here gets into a
+-- `C_DamageMeter` session or into the runs' SavedVariables.
 --
--- Os números não são aleatórios: saem de um print que o usuário mandou de uma corrida real
--- (um +14 de 27:34), com os totais reconstruídos por
--- `total = taxa * tempoEmCombate`. Assim as colunas fecham entre si — DPS bate com dano,
--- e o líder de cada coluna é quem o print mostra liderando.
+-- The numbers are not random: they come from a print the user sent of a real run
+-- (a +14 of 27:34), with the totals rebuilt by
+-- `total = rate * timeInCombat`. So the columns agree with each other -- DPS matches damage,
+-- and each column's leader is who the print shows leading.
 local ADDON, ns = ...
 local L = ns.L
 
 local Demo = {}
 ns.Demo = Demo
 
--- 27:07 de corrida com 18:00 em combate (66%). A proporção importa: se o tempo em combate
--- fosse o tempo de parede, os DPS reconstruídos ficariam ~1/3 menores que os do print.
+-- 27:07 of run with 18:00 in combat (66%). The ratio matters: if the time in combat
+-- were the wall time, the rebuilt DPS would come out ~1/3 lower than the print's.
 local RUN_SECONDS = 1627
 local COMBAT_SECONDS = 1080
-local TIME_LIMIT = 1800          -- 30:00, o limite típico de uma chave
+local TIME_LIMIT = 1800          -- 30:00, a key's typical limit
 local KEY_LEVEL = 14
 
--- Nomes de personagem de lore, como é costume nas barras de teste: deixa óbvio
--- que é simulação e não confunde com gente do grupo.
+-- Lore character names, as is the custom in test bars: it makes it obvious
+-- that it is a simulation and is not confused with people in the group.
 local MEMBERS = {
     {
         name = "Bölva", class = "DEATHKNIGHT", role = "TANK", specIconID = 135771,
@@ -62,12 +62,12 @@ local MEMBERS = {
     },
 }
 
----Monta as linhas no formato de RETRATO do placar: `values` indexado pela **chave** da coluna,
----não pela posição.
+--- Builds the rows in the scoreboard's PICTURE format: `values` indexed by the column's **key**,
+--- not by position.
 ---
----A chave é o que permite o retrato sobreviver a uma mudança na lista de colunas: uma corrida
----gravada semana passada continua desenhando certo mesmo que hoje a ordem seja outra ou tenha
----entrado coluna nova. Posição não sobrevive a isso — e o placar guarda corrida em disco.
+--- The key is what lets the picture survive a change in the column list: a run
+--- recorded last week still draws right even if today the order is different or a
+--- new column came in. A position does not survive that -- and the scoreboard keeps runs on disk.
 local function BuildRows()
     local rows = {}
 
@@ -81,14 +81,14 @@ local function BuildRows()
             role = member.role,
             isLocalPlayer = member.isLocalPlayer == true,
             scoreGain = member.scoreGain,
-            -- As tres colunas que chegaram na 0.66.0 (nivel de item, pedra e saque). A
-            -- simulacao TEM que preenche-las: ela e o unico jeito de ver o painel sem gastar
-            -- 30 minutos numa chave, e uma simulacao que deixa tres colunas vazias esconde
-            -- exatamente as tres que sao novas.
+            -- The three columns that arrived in 0.66.0 (item level, keystone and loot). The
+            -- simulation HAS to fill them: it is the only way to see the panel without spending
+            -- 30 minutes on a key, and a simulation that leaves three columns empty hides
+            -- exactly the three that are new.
             ilevel = member.ilevel,
             keystoneLevel = member.keystoneLevel,
-            -- `keystoneMapID` fica nil pelo mesmo motivo do `mapID` da corrida: id inventado
-            -- nao resolve arte nenhuma, e id real amarraria a simulacao a uma temporada.
+            -- `keystoneMapID` stays nil for the same reason as the run's `mapID`: a made-up id
+            -- resolves no art, and a real id would tie the simulation to a season.
             keystoneMapID = nil,
             loot = member.loot,
             values = {
@@ -109,11 +109,11 @@ local function BuildRows()
     return rows
 end
 
----Uma corrida inteira, pronta para `ns.Scoreboard.Show`.
+--- A whole run, ready for `ns.Scoreboard.Show`.
 ---
----`mapID` fica **nil de propósito**: com id inventado, `C_ChallengeMode.GetMapUIInfo` devolveria
----nada e o painel cairia no fallback de qualquer jeito; com id real, a simulação passaria a
----depender de qual masmorra existe na temporada corrente. O nome entra como texto.
+--- `mapID` stays **nil on purpose**: with a made-up id, `C_ChallengeMode.GetMapUIInfo` would return
+--- nothing and the panel would fall back anyway; with a real id, the simulation would come to
+--- depend on which dungeon exists in the current season. The name goes in as text.
 function Demo.Run()
     return {
         demo = true,
@@ -130,14 +130,14 @@ function Demo.Run()
         timeLostToDeaths = 60,
         scoreBefore = 2831,
         scoreAfter = 2847,
-        -- Afixos por id. Resolvidos por `C_ChallengeMode.GetAffixInfo` na hora de desenhar;
-        -- se o cliente não conhecer o id, o painel simplesmente não mostra o ícone.
+        -- Affixes by id. Resolved by `C_ChallengeMode.GetAffixInfo` at drawing time;
+        -- if the client does not know the id, the panel simply does not show the icon.
         affixes = { 10, 152, 148 },
         rows = BuildRows(),
-        -- Linha do tempo: o mesmo contrato que a corrida real produz.
-        --   bosses  = { segundos, nome }
-        --   deaths  = { segundos, nome de quem morreu }
-        --   combat  = { segundos, true = entrou em combate / false = saiu }
+        -- The timeline: the same contract the real run produces.
+        --   bosses  = { seconds, name }
+        --   deaths  = { seconds, name of who died }
+        --   combat  = { seconds, true = entered combat / false = left }
         bosses = {
             { 606, L["First boss"] },
             { 1021, L["Second boss"] },
@@ -150,9 +150,9 @@ function Demo.Run()
             { 1402, "Drakaris" },
         },
         combatTimeline = {
-            -- A semente do instante zero existe na corrida real (`Run.Start`) e faltava aqui:
-            -- sem ela o primeiro trecho do trilho ficava sem cor, e a simulação deixava de
-            -- mostrar o painel como ele fica de verdade — que é a única coisa que ela faz.
+            -- The seed of the zero instant exists in the real run (`Run.Start`) and was missing here:
+            -- without it the rail's first stretch had no colour, and the simulation stopped
+            -- showing the panel as it really looks -- which is the only thing it does.
             { 0, false },
             { 48, true }, { 190, false },
             { 262, true }, { 402, false },

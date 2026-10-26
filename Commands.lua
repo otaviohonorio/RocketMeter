@@ -34,10 +34,10 @@ commands["score"] = function(rest)
     end
 end
 
--- Instrumentação, não conveniência. `SetAtlas` com nome inexistente falha em SILÊNCIO: a
--- textura não desenha e nada avisa. Ver um nome em uso não prova que o cliente o conhece.
--- Este comando resolve a categoria inteira com uma linha em vez de uma rodada de teste por
--- nome quebrado.
+-- Instrumentation, not convenience. `SetAtlas` with a name that does not exist fails SILENTLY: the
+-- texture does not draw and nothing warns. Seeing a name in use does not prove the client knows it.
+-- This command settles the whole category with one line instead of a test round per
+-- broken name.
 commands["atlas"] = function(rest)
     local wanted = rest and rest:match("^%S+")
     local list = wanted and { wanted } or ns.SCOREBOARD_ATLASES
@@ -87,9 +87,9 @@ commands["preset"] = function(rest)
     end
     ns.Print(L["available presets:"])
 
-    -- ⚑ ORDEM FIXA, e não a de `pairs`. Ela varia entre execuções, então a mesma lista saía em
-    -- ordem diferente a cada `/rm preset` — para o jogador é só estranho; para o `sabotar.py`, que
-    -- casa a saída do harness por texto, era uma suíte que mudava de resultado sem o código mudar.
+    -- ⚑ A FIXED ORDER, and not `pairs`'s. It varies between runs, so the same list came out in
+    -- a different order at each `/rm preset` -- for the player it is only odd; for `sabotar.py`, which
+    -- matches the harness's output by text, it was a suite that changed its result without the code changing.
     local nomes = {}
     for name in pairs(presets) do nomes[#nomes + 1] = name end
     table.sort(nomes)
@@ -100,8 +100,8 @@ commands["preset"] = function(rest)
 end
 
 commands["col"] = function(rest)
-    -- ITENS, a mesma lista da tela de configuracao. Numerar aqui pelo catalogo e la pelos itens
-    -- daria dois "numero 4" diferentes para a mesma pessoa.
+    -- ITEMS, the same list as the settings screen. Numbering here by the catalogue and there by the items
+    -- would give two different "number 4" for the same person.
     local list = ns.Data.GetColumnItems()
     local index = tonumber(rest)
     if index and list[index] then
@@ -175,8 +175,8 @@ commands["log"] = function(rest)
         return
     end
 
-    -- OS ERROS PRIMEIRO, e no chat. Ler o arquivo exige `/reload` e sair do jogo; a contagem
-    -- aqui responde "aconteceu alguma coisa?" sem nada disso.
+    -- THE ERRORS FIRST, and in the chat. Reading the file needs `/reload` and leaving the game; the
+    -- count here answers "did anything happen?" without any of that.
     ns.PrintErrorSummary()
 
     ns.Log.Snapshot("requested by the user")
@@ -235,22 +235,22 @@ commands["debug"] = function()
     end
 end
 
--- Instrumentacao, pelo mesmo motivo do `/rm atlas`: `FROM_GAME` depende de globais do cliente,
--- e global que nao existe nao avisa nada — o rotulo apenas continua em ingles, o que e
--- indistinguivel de "esta certo assim". Uma linha de saida encerra a duvida.
--- Instrumentacao de QUEM ENTRA NA LISTA. Relato: numa masmorra de seguidores o healer cura e nao
--- aparece no medidor. O laco que monta as linhas nao filtra ninguem -- ele lista o que a sessao da
--- METRICA ORDENADA devolve -- entao ha duas causas possiveis e elas se distinguem lendo:
+-- Instrumentation, for the same reason as `/rm atlas`: `FROM_GAME` depends on the client's globals,
+-- and a global that does not exist warns nothing -- the label just stays in English, which cannot be
+-- told from "that is right". One line of output settles it.
+-- Instrumentation of WHO GETS INTO THE LIST. The report: in a followers dungeon the healer heals and does not
+-- show in the meter. The loop that builds the rows filters no one -- it lists what the session of the
+-- SORTED METRIC returns -- so there are two possible causes and they are told apart by reading:
 --
---   A. o healer nao esta na sessao de DANO (ele nao causa dano), e a lista sai da metrica pela
---      qual a janela esta ordenada. Aparecer ordenando por Cura confirma;
---   B. aliado NPC nao entra em `combatSources` de jeito nenhum -- e num calabouco de seguidores o
---      healer E um NPC. Nao aparecer em NENHUMA metrica confirma.
+--   A. the healer is not in the DAMAGE session (he deals no damage), and the list comes from the metric
+--      the window is sorted by. Showing when sorted by Healing confirms it;
+--   B. an NPC ally does not get into `combatSources` at all -- and in a followers dungeon the
+--      healer IS an NPC. Not showing in ANY metric confirms it.
 --
--- A estrutura tem campos que o addon nao usava e que respondem isso de cara: `sourceDisplayType`
--- (`None`/`Ally`/`Enemy`), `sourceCreatureID` (so NPC tem) e `classification`
--- (`DamageMeterDocumentation.lua:199-212`). O aliado NPC aparece como `Ally` sem classe -- e assim
--- que o medidor nativo o desenha, com cor de aliado em vez de cor de classe
+-- The structure has fields the addon did not use and that answer it right away: `sourceDisplayType`
+-- (`None`/`Ally`/`Enemy`), `sourceCreatureID` (only an NPC has it) and `classification`
+-- (`DamageMeterDocumentation.lua:199-212`). The NPC ally shows as `Ally` with no class -- and that is
+-- how the native meter draws it, with an ally's colour instead of a class colour
 -- (`DamageMeterEntry.lua:365-369`).
 commands["fontes"] = function()
     if not ns.Data.IsAvailable() then
@@ -271,7 +271,7 @@ commands["fontes"] = function()
         end
     end
 
-    -- TODAS as metricas, e nao so a que esta na tela: e a comparacao entre elas que responde.
+    -- ALL the metrics, and not only the one on screen: it is the comparison between them that answers.
     for _, coluna in ipairs({ "damage", "healing", "damagetaken", "interrupts", "deaths" }) do
         local def = ns.Data.GetColumn(coluna)
         if def then
@@ -280,8 +280,8 @@ commands["fontes"] = function()
 
             ns.Print(("|cffffd100%s|r: %d ator(es)"):format(coluna, #fontes))
             for i, fonte in ipairs(fontes) do
-                -- `recap` entra aqui por causa do relato das 19 mortes: na metrica de mortes e
-                -- ele que separa obito de entrada qualquer, e `recap=0` e o que NAO conta.
+                -- `recap` comes in here because of the report of the 19 deaths: in the deaths metric it is
+                -- what tells a death from any entry, and `recap=0` is what does NOT count.
                 print(("   %d. %-14s %-10s cria=%-8s tipo=%-6s recap=%-6s local=%-5s total=%s"):format(
                     i,
                     Texto(fonte.name),
