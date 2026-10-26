@@ -1,32 +1,32 @@
 -- RocketMeter | Picker.lua
--- A única tela de configuração do addon: uma janela larga, em seções, distribuídas em três
--- colunas — as colunas do medidor, a janela e o placar, e os três textos.
+-- The addon's only settings screen: one wide window, in sections, spread over three
+-- columns -- the meter's columns, the window and the scoreboard, and the three texts.
 --
--- POR QUE NÃO ABAS. Elas foram tentadas (0.58.0) e o problema não era hierarquia, era espaço: as
--- opções são poucas, e esconder metade delas atrás de uma aba deixava duas das três telas com um
--- vazio enorme. Com colunas tudo aparece de uma vez e a janela fica cheia.
+-- WHY NOT TABS. They were tried (0.58.0) and the problem was not hierarchy, it was space: the
+-- options are few, and hiding half of them behind a tab left two of the three screens with a
+-- huge gap. With columns everything shows at once and the window stays full.
 --
--- A REGRA DE POSIÇÃO É UMA SÓ, e existe porque a violação dela foi o defeito relatado: o
--- checkbox nascia a 40% da largura da JANELA — no meio — e o rótulo dele saía pela borda
--- direita. Agora todo controle vive dentro de uma COLUNA, e é a coluna que diz onde ele começa e
--- onde termina; nada é posicionado em relação à janela inteira. `Picker.__probe()` devolve o
--- retângulo de cada controle para o harness conferir que nenhum vaza.
+-- THE POSITION RULE IS ONE ONLY, and it exists because breaking it was the reported defect: the
+-- checkbox was born at 40% of the WINDOW's width -- in the middle -- and its label went out through the
+-- right edge. Now every control lives inside a COLUMN, and it is the column that says where it starts and
+-- where it ends; nothing is placed relative to the whole window. `Picker.__probe()` returns
+-- each control's rectangle for the harness to check that none leaks.
 --
--- OS COMPONENTES SÃO OS DA BLIZZARD, com os nomes conferidos na fonte do 12.1.0 — ver um nome
--- em uso não prova que ele existe, e essa falácia já custou uma rodada aqui:
+-- THE COMPONENTS ARE BLIZZARD'S, with the names checked in the 12.1.0 source -- seeing a name
+-- in use does not prove it exists, and that fallacy already cost a round here:
 --
 --   `MinimalSliderWithSteppersTemplate`  Blizzard_SharedXML/Shared/Slider/MinimalSlider.xml
 --   `WowStyle1DropdownTemplate`          Blizzard_Menu/Mainline/MenuTemplates.xml
 --   `MenuUtil.CreateRadioMenu`           Blizzard_Menu/MenuUtil.lua:381
 --
--- (`Mainline`, não `Classic`: o template existe nas duas pastas e é o de `Mainline` que o
--- retail carrega. A citação errada estava aqui desde a 0.58.0.)
+-- (`Mainline`, not `Classic`: the template exists in both folders and it is `Mainline`'s that
+-- retail loads. The wrong quote had been here since 0.58.0.)
 --
--- O QUE SE CONFIGURA E O QUE NÃO. A regra de 0.20.0 — aparência não se configura, o padrão é que
--- precisa estar certo — continua valendo para cor, textura, borda e opacidade. A tipografia é a
--- exceção deliberada: o corpo foi ajustado a pedido seis vezes, porque o valor certo depende de
--- resolução, escala de interface e de quanto o jogador enxerga. Os LIMITES é que não se
--- negociam, e o motivo de cada um está em `Window.lua`.
+-- WHAT IS CONFIGURED AND WHAT IS NOT. The rule of 0.20.0 -- the look is not configured, the default is what
+-- has to be right -- still holds for colour, texture, border and opacity. Typography is the
+-- deliberate exception: the size was adjusted on request six times, because the right value depends on
+-- resolution, interface scale and how well the player sees. The LIMITS are what is not
+-- negotiated, and the reason for each one is in `Window.lua`.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -36,102 +36,102 @@ ns.Picker = Picker
 --------------------------------------------------------------------------------
 -- Grade
 --------------------------------------------------------------------------------
-local MARGIN = 18               -- da borda da janela até o conteúdo
+local MARGIN = 18               -- from the window's edge to the content
 local GUTTER = 20               -- entre as colunas
-local COL_W = 262               -- largura útil de cada coluna
+local COL_W = 262               -- the usable width of each column
 local COLUMNS = 3
 local WIDTH = MARGIN * 2 + COL_W * COLUMNS + GUTTER * (COLUMNS - 1)
 
-local TOP = 36                  -- abaixo da barra de título
--- Só a margem de baixo: o botão "Limpar dados" saiu daqui a pedido — os dados se limpam na
--- própria janela do medidor, e um botão em largura cheia no rodapé de uma tela de configuração
--- dava a ele um peso que ele não tem.
+local TOP = 36                  -- below the title bar
+-- Only the bottom margin: the "Clear data" button left here by request -- the data is cleared in
+-- the meter's own window, and a full-width button at the foot of a settings screen
+-- gave it a weight it does not have.
 -- 14 of margin under the columns, plus the support line (Donate.lua, `DONATE_ROW`, 27/09).
 local FOOTER = 14 + (ns.DONATE_ROW or 0)
 
--- RITMO VERTICAL. Todo número aqui foi lido na fonte do 12.1.0, e nenhum foi arredondado.
+-- THE VERTICAL RHYTHM. Every number here was read in the 12.1.0 source, and none was rounded.
 --
--- NÃO HÁ GRADE DE 4 NESTA TELA, e isso é decisão, não descuido. A tentativa anterior impôs uma
--- unidade de 4 e teve que torcer os valores para caber nela — mas **nenhum** número da Blizzard
--- é múltiplo de 4: 9, 25, 45, 5, 15, 37, 26. Arredondar 9 para 8 não compra alinhamento nenhum
--- e perde a coincidência exata com o nativo, que é justamente o objetivo.
+-- THERE IS NO GRID OF 4 ON THIS SCREEN, and that is a decision, not carelessness. The attempt before imposed a
+-- unit of 4 and had to bend the values to fit it -- but **no** Blizzard number
+-- is a multiple of 4: 9, 25, 45, 5, 15, 37, 26. Rounding 9 to 8 buys no alignment
+-- and loses the exact match with the native one, which is precisely the goal.
 --
--- A ALTURA DE LINHA É ÚNICA, e o widget é que se ajusta a ela. Os NOVE templates de opção da
--- Blizzard (`Blizzard_SettingControls.xml:108-164` — caixa, deslizador, combo, botão, cor e as
--- combinações) têm todos **280×26**, e é o painel que impõe a largura ao controle
--- (`Blizzard_SettingControls.lua:656,741`), nunca o contrário.
+-- THE ROW HEIGHT IS ONE, and the widget fits into it. Blizzard's NINE option templates
+-- (`Blizzard_SettingControls.xml:108-164` -- checkbox, slider, combo, button, colour and the
+-- combinations) are all **280×26**, and it is the panel that imposes the width on the control
+-- (`Blizzard_SettingControls.lua:656,741`), never the other way round.
 local H_CONTROL = 26
 local H_LABEL = 12              -- caixa de `GameFontHighlightSmall` (fonte 10, `Fonts.xml:41`)
 
--- O DEFEITO RELATADO ERA UMA RAZÃO, NÃO UM NÚMERO. O espaço DENTRO de um campo (rótulo → seu
--- controle) era 4 e o espaço ENTRE campos era 6 — 1,5×. Com 1,5× o olho não decide se o rótulo
--- pertence ao controle abaixo dele ou é continuação da linha de cima, e o resultado é literalmente
--- "tudo muito junto e grudado, é feio, confuso". Lei de proximidade da Gestalt, e ela tem número.
+-- THE REPORTED DEFECT WAS A RATIO, NOT A NUMBER. The space INSIDE a field (label -> its
+-- control) was 4 and the space BETWEEN fields was 6 -- 1.5×. At 1.5× the eye cannot decide whether the label
+-- belongs to the control below it or continues the line above, and the result is literally
+-- "tudo muito junto e grudado, é feio, confuso". Gestalt's law of proximity, and it has a number.
 --
--- O NÚMERO VEM DO ÚNICO FORMULÁRIO EMPILHADO DA BLIZZARD, o de criar comunidade
--- (`Blizzard_Communities/CommunitiesSettings.xml`): o campo nasce a `y="-2"` do rótulo dele
--- (`:79`), e o rótulo seguinte a `y="-34"` do rótulo anterior (`:25`) sobre um campo de 22
--- (`:77`) — ou seja, **2 por dentro e 10 por fora, razão 5×**.
+-- THE NUMBER COMES FROM BLIZZARD'S ONLY STACKED FORM, the one for creating a community
+-- (`Blizzard_Communities/CommunitiesSettings.xml`): the field is born at `y="-2"` from its label
+-- (`:79`), and the next label at `y="-34"` from the previous label (`:25`) over a 22 field
+-- (`:77`) -- that is, **2 inside and 10 outside, a ratio of 5×**.
 --
--- (Uma rodada anterior "corrigiu" isto para 4 e 12 = 3×, para caber na grade de 4. Era o inverso:
--- afastou do valor medido em nome de uma grade que a Blizzard não usa.)
+-- (A round before "fixed" this to 4 and 12 = 3×, to fit the grid of 4. It was the reverse:
+-- it moved away from the measured value for the sake of a grid Blizzard does not use.)
 local GAP_LABEL = 2
 local GAP_FIELD = 10
 
--- A tinta de um campo e a vaga dele: a vaga e a tinta MAIS o respiro que vem depois. Os dois
--- nomes existem porque o harness mede vão entre tintas, e vaga menos vaga daria zero sempre.
+-- A field's ink and its slot: the slot is the ink PLUS the breathing room after it. The two
+-- names exist because the harness measures the gap between inks, and slot minus slot would always give zero.
 local INK_FIELD = H_LABEL + GAP_LABEL + H_CONTROL              -- 40
-local INK_SECTION = H_LABEL + 4                                -- título e régua
+local INK_SECTION = H_LABEL + 4                                -- title and rule
 
 local H_FIELD = INK_FIELD + GAP_FIELD                          -- 50
-local H_CHECK = H_CONTROL + GAP_FIELD                          -- 36: o rótulo mora na linha
+local H_CHECK = H_CONTROL + GAP_FIELD                          -- 36: the label lives on the line
 local H_BUTTON = H_CONTROL + GAP_FIELD                         -- 36
 local H_COLUMN_ROW = H_CONTROL                                 -- lista densa, sem folga extra
 
--- ENTRE GRUPOS, o branco que a Blizzard abre acima de um título de seção: **25** = os 9 de
--- respiro de linha (`Blizzard_SettingsList.lua:46`) mais os 16 de recuo do título dentro do
--- bloco de cabeçalho de 45 (`Blizzard_SettingControls.xml:14,19`). São 2,5× o espaço entre
--- campos — acima do piso de 2× abaixo do qual a borda de grupo deixa de ser percebida.
+-- BETWEEN GROUPS, the white space Blizzard opens above a section title: **25** = the 9 of
+-- row breathing room (`Blizzard_SettingsList.lua:46`) plus the 16 of the title's indent inside the
+-- 45 header block (`Blizzard_SettingControls.xml:14,19`). It is 2.5× the space between
+-- fields -- above the floor of 2× below which a group's border stops being perceived.
 --
--- E o corolário que importa mais que a razão: **grupo não se separa só com ar**. A Blizzard gasta
--- um bloco com título; por isso `BuildSection` desenha título e régua, e não um vão maior.
+-- And the corollary that matters more than the ratio: **a group is not separated by air alone**. Blizzard spends
+-- a block with a title; that is why `BuildSection` draws a title and a rule, and not a bigger gap.
 local GAP_SECTION = 25
-local H_SECTION = H_LABEL + 4 + GAP_FIELD                      -- título, régua e respiro
+local H_SECTION = H_LABEL + 4 + GAP_FIELD                      -- title, rule and breathing room
 
--- 28, e não um número escolhido por mim: é o tamanho que a própria Blizzard dá ao
--- `UICheckButtonTemplate` quando o envelopa no `ResizeCheckButtonTemplate`
--- (`SharedUIPanelTemplates.xml:1322`). O template nasce 32×32; 28 é a medida que ela usa em
--- formulário.
+-- 28, and not a number chosen by me: it is the size Blizzard itself gives
+-- `UICheckButtonTemplate` when it wraps it in `ResizeCheckButtonTemplate`
+-- (`SharedUIPanelTemplates.xml:1322`). The template is born 32×32; 28 is the measure it uses in
+-- forms.
 local CHECK_SIZE = 28
 
--- A LISTA DE COLUNAS é lista densa, não formulário: caixa menor e sem folga entre linhas, como a
--- coluna de categorias do painel (`Blizzard_CategoryList.xml:51`, linha de 20).
+-- THE LIST OF COLUMNS is a dense list, not a form: a smaller box and no slack between lines, like the
+-- panel's categories column (`Blizzard_CategoryList.xml:51`, a 20 line).
 local ROW_CHECK = 22
 local ARROW = 18                -- seta de reordenar
 local ARROW_GAP = 6             -- 18 + 6 = 24 centro a centro (WCAG 2.2 SC 2.5.8)
-local ORDER_W = 14              -- o número da posição, à esquerda das setas
+local ORDER_W = 14              -- the position's number, to the left of the arrows
 
--- O `Text` do `UICheckButtonTemplate` é ancorado `LEFT` no `RIGHT` da caixa com **x = −2**
--- (`CheckButtonTemplates.xml:56`) — ele começa 2px ANTES do fim da caixa. Esse −2 é calibrado
--- para a arte de **32×32** do template original, que tem margem transparente; encolhendo a caixa
--- para 28 a margem some junto e o texto passa a encostar mesmo.
+-- `UICheckButtonTemplate`'s `Text` is anchored `LEFT` on the box's `RIGHT` with **x = −2**
+-- (`CheckButtonTemplates.xml:56`) -- it starts 2px BEFORE the end of the box. That −2 is calibrated
+-- for the original template's **32×32** art, which has a transparent margin; shrinking the box
+-- to 28 the margin goes too and the text really touches it.
 --
--- A própria Blizzard resolve isso onde faz a mesma troca: no `ResizeCheckButtonTemplate` ela usa
--- 28×28 e **reancora** o rótulo em `+2` (`SharedUIPanelTemplates.xml:1322,1337`). Os dois números
--- andam em par, e a versão anterior daqui copiou só o 28 — corrigia a largura e deixava a âncora
--- errada, que é a que decide onde o texto começa.
+-- Blizzard itself solves it where it makes the same swap: in `ResizeCheckButtonTemplate` it uses
+-- 28×28 and **re-anchors** the label at `+2` (`SharedUIPanelTemplates.xml:1322,1337`). The two numbers
+-- go in a pair, and the version before here copied only the 28 -- it fixed the width and left the anchor
+-- wrong, which is what decides where the text starts.
 local CHECK_TEXT_OFFSET = 2
 
 local frame, rows
 
--- O RETÂNGULO INTEIRO de cada controle, para o harness. Guardar só `x` e `width` foi o furo que
--- deixou três reprovações passarem: todas as três eram colisão VERTICAL (abas sobrepostas, campo
--- encavalado no seguinte), e sem `y`/`height` não havia o que conferir. Vai também a coluna, para
--- que a conferência de vizinhança compare quem de fato é vizinho.
+-- EACH CONTROL'S WHOLE RECTANGLE, for the harness. Keeping only `x` and `width` was the hole that
+-- let three rejections through: all three were a VERTICAL collision (overlapping tabs, a field
+-- riding on the next), and without `y`/`height` there was nothing to check. The column goes too, so
+-- that the neighbourhood check compares who really are neighbours.
 --
--- A ALTURA REGISTRADA É A DA TINTA, não a da vaga. Registrar a vaga (que já embute o respiro)
--- faria o vão entre vizinhos dar zero sempre, e o teste passaria por construção sem medir nada —
--- que é o mesmo defeito, de novo, num nível acima.
+-- THE HEIGHT RECORDED IS THE INK'S, not the slot's. Recording the slot (which already includes the breathing room)
+-- would make the gap between neighbours always zero, and the test would pass by construction measuring nothing --
+-- which is the same defect, again, one level up.
 local probes = {}
 
 local function Probe(name, widget, x, width, y, height, column, isSection)
@@ -151,11 +151,11 @@ local function GroupHasKey(grupo, key)
     return false
 end
 
----O item esta ligado? Basta UMA das colunas dele estar na lista.
+--- Is the item on? ONE of its columns being in the list is enough.
 ---
----"Basta uma" e de proposito: uma lista salva de antes desta versao pode ter so o total. A caixa
----mostra ligado, e desligar leva as duas -- que e o que "um so item" quer dizer. A lista se
----completa sozinha na proxima normalizacao.
+--- "One is enough" on purpose: a list saved before this version may have only the total. The box
+--- shows on, and turning it off takes both -- which is what "one item" means. The list
+--- completes itself at the next normalisation.
 local function IsEnabled(item)
     for _, id in ipairs(ns.db.columns) do
         for _, key in ipairs(item.keys) do
@@ -165,23 +165,23 @@ local function IsEnabled(item)
     return false
 end
 
----A posicao do item entre os GRUPOS DESENHADOS -- que e o indice que `Window.MoveColumn` espera.
+--- The item's position among the DRAWN GROUPS -- which is the index `Window.MoveColumn` expects.
 ---
----⚑ ESTE ERA O DEFEITO. A tela devolvia a posicao em `ns.db.columns` e `MoveColumn` indexava a
----lista de grupos: com {dano, DPS, cura, CPS, interr} (5 colunas, 3 grupos), a seta da linha
----"DPS" movia o grupo da CURA e a de "CPS" nao fazia nada, por estourar a lista. Nada de errado
----aparecia na tela -- a seta simplesmente mexia na coluna errada.
+--- ⚑ THIS WAS THE DEFECT. The screen returned the position in `ns.db.columns` and `MoveColumn` indexed the
+--- list of groups: with {damage, DPS, healing, HPS, interr} (5 columns, 3 groups), the arrow of the
+--- "DPS" row moved the HEALING group and the "HPS" one did nothing, overflowing the list. Nothing wrong
+--- showed on screen -- the arrow simply moved the wrong column.
 local function IndexOf(item)
     local grupos = ns.Data.GroupColumns(ns.db.columns)
     for i, grupo in ipairs(grupos) do
-        -- CASA PELAS CHAVES DO ITEM, nao pelo `attr` dele.
+        -- IT MATCHES BY THE ITEM'S KEYS, not by its `attr`.
         --
-        -- Hoje os dois dao o mesmo resultado, e vale dizer por que em vez de deixar parecendo
-        -- correcao de defeito: os grupos desenhados sao POR FAMILIA, entao a "Fatia do dano" cai
-        -- no mesmo grupo do par "Dano total / DPS" de qualquer maneira. O que muda e a
-        -- dependencia -- casar por chave pergunta "este grupo contem alguma coluna DESTE item?",
-        -- que continua certo se um dia um grupo deixar de ser uma familia inteira. Casar por
-        -- `attr` so funciona enquanto grupo e familia forem sinonimos.
+        -- Today both give the same result, and it is worth saying why instead of letting it look like
+        -- a defect fix: the drawn groups are PER FAMILY, so the "Damage share" falls
+        -- in the same group as the "Damage total / DPS" pair anyway. What changes is the
+        -- dependency -- matching by key asks "does this group contain any column OF THIS item?",
+        -- which stays right if a group one day stops being a whole family. Matching by
+        -- `attr` only works while group and family are synonyms.
         for _, key in ipairs(item.keys) do
             if GroupHasKey(grupo, key) then return i, #grupos end
         end
@@ -189,15 +189,15 @@ local function IndexOf(item)
     return nil, #grupos
 end
 
----As opções de contorno, montadas a partir de `ns.OUTLINE_CHOICES`.
+--- The outline options, built from `ns.OUTLINE_CHOICES`.
 ---
----A lista era escrita à mão aqui, e por isso não seguiu quando `Window.lua` ganhou um nível:
----duas fontes de verdade para a mesma lista divergem na primeira mudança. Agora a ordem e o
----conjunto vêm de lá; aqui fica só o rótulo, que é a única parte que precisa de tradução.
+--- The list was written by hand here, and so it did not follow when `Window.lua` gained a level:
+--- two sources of truth for the same list drift apart at the first change. Now the order and the
+--- set come from there; here only the label stays, the only part that needs translating.
 ---
----Os rótulos ficam DENTRO da função e com a chave escrita por extenso, e isso é requisito, não
----estilo: `tests/locales.lua` procura exatamente essa forma para saber quais chaves estão em uso.
----Montar a chave por variável (`L[MAPA[v]]`) apaga as quatro do radar e o teste as dá por mortas.
+--- The labels stay INSIDE the function and with the key written out in full, and that is a requirement, not
+--- style: `tests/locales.lua` looks for exactly that form to know which keys are in use.
+--- Building the key from a variable (`L[MAPA[v]]`) takes the four off the radar and the test declares them dead.
 local function OutlineEntries()
     local label = {
         none   = L["None"],
@@ -215,7 +215,7 @@ end
 --------------------------------------------------------------------------------
 -- Componentes
 --------------------------------------------------------------------------------
----Título de seção, em dourado, com a régua fina que o placar já usa.
+--- A section title, in gold, with the thin rule the scoreboard already uses.
 local function BuildSection(col, y, title)
     Probe("secao: " .. title, nil, 0, COL_W, y, INK_SECTION, col.index, true)
     local text = col:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -231,11 +231,11 @@ local function BuildSection(col, y, title)
     return y + H_SECTION
 end
 
----Rótulo EM CIMA do controle, não ao lado.
+--- The label ABOVE the control, not beside it.
 ---
----Numa coluna estreita, rótulo à esquerda deixaria ~100px para o texto e o resto para o
----controle, e "Abrir ao fim de uma corrida de Mítico+" não cabe em 100. Em cima, o rótulo tem a
----coluna inteira e o controle também.
+--- In a narrow column, a label on the left would leave ~100px for the text and the rest for the
+--- control, and "Abrir ao fim de uma corrida de Mítico+" does not fit in 100. Above, the label has the
+--- whole column and the control too.
 local function BuildLabelText(col, y)
     local text = col:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     text:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
@@ -249,16 +249,16 @@ local function BuildLabel(col, y, label)
     return y + H_LABEL + GAP_LABEL
 end
 
----Deslizador com o valor **no rótulo**, não ao lado do controle.
+--- A slider with the value **in the label**, not beside the control.
 ---
----O template desenha o valor num `RightText` ancorado a `Slider.RIGHT` com **x=25**
----(`MinimalSlider.xml:73-77`), e o `Slider` já fica 19px para dentro do frame — ou seja, o
----texto começa **6px FORA** da largura que a gente dá, e ainda cresce pela largura dele. Foi
----por isso que "13px" e "5" apareceram fora da janela.
+--- The template draws the value in a `RightText` anchored to `Slider.RIGHT` with **x=25**
+--- (`MinimalSlider.xml:73-77`), and the `Slider` already sits 19px inside the frame -- that is, the
+--- text starts **6px OUTSIDE** the width we give, and still grows by its own width. That is
+--- why "13px" and "5" showed outside the window.
 ---
----Os rótulos do template nascem `hidden="true"` e só aparecem se um formatador for passado no
----`Init`. Então não passamos nenhum: o valor entra no rótulo de cima, que já existe e já está
----dentro da coluna. Vazamento zero **por construção**, e o número fica ao lado do nome dele.
+--- The template's labels are born `hidden="true"` and only show if a formatter is passed to
+--- `Init`. So we pass none: the value goes into the label above, which already exists and is already
+--- inside the column. Zero leaking **by construction**, and the number sits beside its name.
 local function BuildSlider(col, y, label, low, high, suffix, get, set)
     local text = BuildLabelText(col, y)
     local at = y + H_LABEL + GAP_LABEL
@@ -273,12 +273,12 @@ local function BuildSlider(col, y, label, low, high, suffix, get, set)
         text:SetText(format("%s   |cffffd100%s|r", label, (suffix or "%d"):format(get())))
     end
 
-    -- `Init(valor, min, max, passos, formatadores)`. Os passos são o número de INTERVALOS, e por
-    -- isso é `high - low`: com um a mais o deslizador para em posições fracionárias e o número
-    -- pisca entre dois inteiros.
+    -- `Init(value, min, max, steps, formatters)`. The steps are the number of INTERVALS, and so
+    -- it is `high - low`: with one more the slider stops at fractional positions and the number
+    -- blinks between two integers.
     if slider.Init then
-        -- Sem tabela de formatadores: os rótulos do template ficam escondidos e nada sai da
-        -- coluna. O valor é escrito por `write()`, no rótulo de cima.
+        -- No formatters table: the template's labels stay hidden and nothing leaves the
+        -- column. The value is written by `write()`, in the label above.
         slider:Init(get(), low, high, high - low)
         slider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged,
             function(_, value)
@@ -295,13 +295,13 @@ local function BuildSlider(col, y, label, low, high, suffix, get, set)
     return y + H_FIELD, slider
 end
 
----Combo de escolha única.
+--- A single-choice combo.
 ---
----`MenuUtil.CreateRadioMenu(dropdown, isSelected, setSelected, ...)` recebe os itens como pares
----`{ rótulo, valor }`. A marca de seleção sai de `isSelected`, então não há estado duplicado
----aqui — ela é sempre a resposta de quem guarda a configuração. Se o valor salvo não casar com
----nenhum item, o botão desenha **em branco**; aconteceu na 0.58.0, e o conserto é migrar a
----chave, não remendar aqui.
+--- `MenuUtil.CreateRadioMenu(dropdown, isSelected, setSelected, ...)` takes the items as pairs
+--- `{ label, value }`. The selection mark comes from `isSelected`, so there is no duplicated state
+--- here -- it is always the answer of whoever keeps the setting. If the saved value matches
+--- no item, the button draws **blank**; it happened in 0.58.0, and the fix is migrating the
+--- key, not patching here.
 local function BuildDropdown(col, y, label, entries, get, set)
     local at = BuildLabel(col, y, label)
 
@@ -328,24 +328,24 @@ local function BuildDropdown(col, y, label, entries, get, set)
     return y + H_FIELD, dropdown
 end
 
----Caixa de opção: a caixa na MARGEM DA COLUNA e o rótulo à direita dela.
+--- An option box: the box at the COLUMN'S MARGIN and the label to its right.
 ---
----Era aqui o defeito relatado. A caixa nascia a 40% da largura da janela e o rótulo saía pela
----borda. Agora a caixa começa em 0 da coluna, e o rótulo recebe largura EXPLÍCITA: o que sobra
----da coluna depois da caixa. Sem essa largura, a FontString cresce até onde o texto pedir e
----atravessa a borda em vez de quebrar.
+--- Here was the reported defect. The box was born at 40% of the window's width and the label went out through the
+--- edge. Now the box starts at 0 of the column, and the label gets an EXPLICIT width: what is left
+--- of the column after the box. Without that width, the FontString grows as far as the text asks and
+--- crosses the edge instead of wrapping.
 local function BuildCheck(col, y, label, tip, get, set)
     local check = CreateFrame("CheckButton", nil, col, "UICheckButtonTemplate")
     check:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
     check:SetSize(CHECK_SIZE, CHECK_SIZE)
 
-    -- Testa o TIPO, não só a verdade: um stub que devolve função aqui passa no `if` e só
-    -- estoura no `SetText`. Já aconteceu neste projeto, com `frame.Inset`.
+    -- It tests the TYPE, not only truth: a stub that returns a function here passes the `if` and only
+    -- blows up at `SetText`. It already happened in this project, with `frame.Inset`.
     if type(check.Text) == "table" and check.Text.SetText then
         check.Text:SetText(label)
         check.Text:SetFontObject("GameFontHighlightSmall")
-        -- REANCORAR, e não só medir. `SetWidth` conserta a conta; quem decide onde o texto
-        -- começa é a âncora, e a herdada do template é −2 (ver `CHECK_TEXT_OFFSET`).
+        -- RE-ANCHOR, and not only measure. `SetWidth` fixes the arithmetic; what decides where the text
+        -- starts is the anchor, and the one inherited from the template is −2 (see `CHECK_TEXT_OFFSET`).
         check.Text:ClearAllPoints()
         check.Text:SetPoint("LEFT", check, "RIGHT", CHECK_TEXT_OFFSET, 0)
         check.Text:SetWidth(COL_W - CHECK_SIZE - CHECK_TEXT_OFFSET)
@@ -401,10 +401,10 @@ local function BuildRow(index, item, col, y)
             Picker.Refresh()
         end)
 
-        -- AS SETAS SÃO ALVO DE CLIQUE, e alvo pequeno tem norma: WCAG 2.2 SC 2.5.8 (AA) pede
-        -- 24×24, **ou** 24 de distância CENTRO A CENTRO até o alvo vizinho — a exceção é medida
-        -- entre centros, não entre bordas. Com 18×18 e vão de 2 dá 20, e reprova; com vão de 6 dá
-        -- 18 + 6 = 24 e passa, sem precisar inchar o botão numa lista já densa.
+        -- THE ARROWS ARE CLICK TARGETS, and a small target has a norm: WCAG 2.2 SC 2.5.8 (AA) asks for
+        -- 24×24, **or** 24 of distance CENTRE TO CENTRE to the neighbouring target -- the exception is measured
+        -- between centres, not between edges. With 18×18 and a gap of 2 it gives 20, and fails; with a gap of 6 it gives
+        -- 18 + 6 = 24 and passes, without needing to swell the button in an already dense list.
         row.down = CreateFrame("Button", nil, row)
         row.down:SetSize(ARROW, ARROW)
         row.down:SetPoint("RIGHT", -2, 0)
@@ -435,8 +435,8 @@ local function BuildRow(index, item, col, y)
         row.order:SetTextColor(LIGHTGRAY_FONT_COLOR:GetRGB())   -- (14/10) light grey, not the disabled one
         row.order:SetPoint("RIGHT", row.up, "LEFT", -ARROW_GAP, 0)
 
-        -- Largura EXPLÍCITA para o rótulo, pelo mesmo motivo do checkbox: sem ela um nome longo
-        -- empurra as setas para fora da coluna.
+        -- An EXPLICIT width for the label, for the same reason as the checkbox: without it a long name
+        -- pushes the arrows out of the column.
         row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         row.label:SetPoint("LEFT", row.check, "RIGHT", 4, 0)
         row.label:SetWidth(COL_W - ROW_CHECK - 4 - (2 + ARROW + ARROW_GAP + ARROW + ARROW_GAP + ORDER_W))
@@ -446,9 +446,9 @@ local function BuildRow(index, item, col, y)
         rows[index] = row
     end
 
-    -- A LINHA FALA DE UM ITEM. `columnKey` continua sendo uma chave -- `ToggleColumn` liga o
-    -- item inteiro a partir de qualquer uma delas -- e `item` e o que as setas usam para achar o
-    -- grupo correspondente na janela.
+    -- THE ROW SPEAKS OF AN ITEM. `columnKey` is still a key -- `ToggleColumn` turns on the
+    -- whole item from any of them -- and `item` is what the arrows use to find the
+    -- matching group in the window.
     row.check.columnKey = item.key
     row.up.item, row.down.item = item, item
 
@@ -459,9 +459,9 @@ local function BuildRow(index, item, col, y)
     if enabled then
         local position, quantos = IndexOf(item)
         row.label:SetTextColor(1, 1, 1)
-        -- "1." e não "1º": o ordinal masculino só existe em algumas línguas latinas, e em
-        -- inglês, alemão ou coreano vira lixo. O ponto é o que o próprio medidor nativo usa
-        -- para numerar linha (`DAMAGE_METER_SOURCE_NAME = "%d. %s"`).
+        -- "1." and not "1º": the masculine ordinal only exists in some Latin languages, and in
+        -- English, German or Korean it becomes garbage. The dot is what the native meter itself uses
+        -- to number a row (`DAMAGE_METER_SOURCE_NAME = "%d. %s"`).
         row.order:SetText(position .. ".")
         row.order:Show()
         row.up:Show()
@@ -485,9 +485,9 @@ function Picker.Create()
     local columns = ns.Data.GetColumnItems()
     rows, probes = {}, {}
 
-    -- ALTURA: soma de cada coluna, e a janela fica com a maior. Contar aqui, com as MESMAS
-    -- constantes que posicionam os controles, é o que impede a janela de sobrar ou faltar
-    -- espaço quando uma linha é acrescentada.
+    -- HEIGHT: the sum of each column, and the window takes the biggest. Counting here, with the SAME
+    -- constants that place the controls, is what keeps the window from having space left over or
+    -- missing when a line is added.
     local h1 = H_SECTION + #columns * H_COLUMN_ROW
     -- Aparencia: fonte, linhas, os dois deslizadores de distancia, (19/10) o formato do icone,
     -- o reino e (14/10) o botao do minimapa.
@@ -526,22 +526,22 @@ function Picker.Create()
     -- "Support the project" (27/09): a line of its own at the very bottom (Donate.lua).
     frame.donate = ns.DonateFooter(frame)
 
-    ---Uma coluna é um Frame de largura fixa. Todo controle é posicionado em relação a ELA, e
-    ---nunca à janela — foi posicionar em relação à janela que fez o rótulo sair pela borda.
+    --- A column is a Frame of fixed width. Every control is placed relative to IT, and
+    --- never to the window -- placing relative to the window is what made the label go out through the edge.
     local function Column(index)
         local col = CreateFrame("Frame", nil, frame)
         col:SetWidth(COL_W)
         col:SetPoint("TOPLEFT", frame, "TOPLEFT",
             MARGIN + (index - 1) * (COL_W + GUTTER), -TOP)
         col:SetPoint("BOTTOM", frame, "BOTTOM", 0, FOOTER)
-        col.index = index       -- o harness usa para comparar só quem é vizinho de verdade
+        col.index = index       -- the harness uses it to compare only who really are neighbours
         return col
     end
 
     local colColumns, colWindow, colText = Column(1), Column(2), Column(3)
     frame.leftColumn = colColumns
 
-    -- Coluna 1: quais colunas a janela mostra, e em que ordem.
+    -- Column 1: which columns the window shows, and in what order.
     frame.columnsTop = BuildSection(colColumns, 0, L["Columns"])
 
     ----------------------------------------------------------------------------
@@ -549,9 +549,9 @@ function Picker.Create()
     ----------------------------------------------------------------------------
     local y = BuildSection(colWindow, 0, L["Appearance"])
 
-    -- A FAMILIA e uma so para o addon inteiro, de proposito. Fonte diferente por elemento nao
-    -- da hierarquia, da colcha de retalhos -- e o que separa titulo de linha aqui e corpo,
-    -- contorno e sombra, que sao os tres que o usuario pediu.
+    -- The FAMILY is one only for the whole addon, on purpose. A different font per element does not
+    -- give hierarchy, it gives a patchwork -- what separates title from row here is size,
+    -- outline and shadow, which are the three the user asked for.
     local fontEntries = {}
     for _, choice in ipairs(ns.FONT_CHOICES) do
         fontEntries[#fontEntries + 1] = { label = choice.label, value = choice.path }
@@ -565,13 +565,13 @@ function Picker.Create()
         function() return ns.Window.GetRows() or 5 end,
         function(v) ns.Window.SetRows(v) end)
 
-    -- AS DUAS DISTÂNCIAS DA LINHA, na seção da aparência da janela porque é disso que se trata:
-    -- densidade. Pedido de 09/09/2026, com print e retângulos apontando as duas.
+    -- THE ROW'S TWO DISTANCES, in the window's look section because that is what it is about:
+    -- density. A request of 09/09/2026, with a print and rectangles pointing at both.
     --
-    -- A LEGENDA "N px entre os dois valores" SAIU a pedido (10/09/2026). Ela existia para amarrar
-    -- um controle abstrato (a largura da coluna) ao número que o jogador enxerga na janela — mas o
-    -- efeito já está à vista: a janela redesenha a cada arrasto, com os dois valores se aproximando
-    -- na tela atrás da configuração. Legenda que descreve o que já se vê é peso, não ajuda.
+    -- THE CAPTION "N px between the two values" WENT AWAY by request (10/09/2026). It existed to tie
+    -- an abstract control (the column's width) to the number the player sees in the window -- but the
+    -- effect is already in sight: the window redraws at every drag, with the two values coming closer
+    -- on screen behind the settings. A caption that describes what is already seen is weight, not help.
     y, frame.gapSlider = BuildSlider(colWindow, y, L["Space between columns"],
         ns.Skin.groupGapMin, ns.Skin.groupGapMax, "%dpx",
         function() return ns.Window.GetGroupGap() end,
@@ -612,10 +612,10 @@ function Picker.Create()
             if ns.Minimap and ns.Minimap.ApplyVisibility then ns.Minimap.ApplyVisibility() end
         end)
 
-    -- SEÇÃO PRÓPRIA, e não uma quarta linha em "Aparência". A regra da tela é que seção é
-    -- ASSUNTO, não quantidade: fonte, linhas e reino dizem como a janela SE PARECE; qual sessão
-    -- ela mostra é outro assunto, e enfiá-lo sob "Aparência" faria o título mentir. Uma seção com
-    -- um controle só é o que a Blizzard faz quando o assunto é um só.
+    -- A SECTION OF ITS OWN, and not a fourth line in "Appearance". The screen's rule is that a section is a
+    -- SUBJECT, not a quantity: font, rows and realm say how the window LOOKS; which session
+    -- it shows is another subject, and putting it under "Appearance" would make the title lie. A section with
+    -- one control only is what Blizzard does when the subject is one only.
     y = BuildSection(colWindow, y + GAP_SECTION, L["Session"])
 
     y, frame.autoSession = BuildCheck(colWindow, y, L["Follow the combat"],
@@ -623,8 +623,8 @@ function Picker.Create()
         function() return ns.db.autoSession end,
         function(v)
             ns.db.autoSession = v
-            -- Ligar a caixa fora de combate tem que MOSTRAR o efeito na hora. Marcar e não ver
-            -- nada acontecer até a próxima luta é o que faz o jogador achar que a opção não pega.
+            -- Ticking the box out of combat has to SHOW the effect right away. Ticking and seeing
+            -- nothing happen until the next fight is what makes the player think the option does not take.
             if ns.Window.ApplyAutoSession() then
                 ns.Window.Refresh(true)
             end
@@ -642,8 +642,8 @@ function Picker.Create()
         function() return ns.db.autoScoreboardRaid end,
         function(v) ns.db.autoScoreboardRaid = v end)
 
-    -- Os dois ultimos placares. Apagados quando nao ha corrida guardada: botao que responde com
-    -- erro no chat ensina menos que botao apagado.
+    -- The last two scoreboards. Dimmed when there is no run kept: a button that answers with
+    -- an error in the chat teaches less than a dimmed button.
     y, frame.lastMPlus = BuildButton(colWindow, y + 4, L["Last Mythic+"],
         L["Opens the scoreboard of the last Mythic+ run finished on this character."],
         function() ns.Scoreboard.ShowLast("mplus") end)
@@ -667,10 +667,10 @@ function Picker.Create()
         end)
 
     ----------------------------------------------------------------------------
-    -- Coluna 3: os TRES textos, cada um com corpo, contorno e sombra proprios
+    -- Column 3: the THREE texts, each with its own size, outline and shadow
     ----------------------------------------------------------------------------
-    -- Uma secao por papel, com os mesmos tres controles na mesma ordem. Repetir a forma e o que
-    -- torna a coluna legivel: o jogador aprende uma vez e le as outras duas de relance.
+    -- One section per role, with the same three controls in the same order. Repeating the form is what
+    -- makes the column readable: the player learns once and reads the other two at a glance.
     frame.roleWidgets = {}
 
     local ROLE_LABELS = {
@@ -705,8 +705,8 @@ function Picker.Create()
 end
 
 --------------------------------------------------------------------------------
--- Ganchos para o harness. O que se verifica é GEOMETRIA — foi ela que falhou duas vezes
--- seguidas no teste in-game, e é o que dá para conferir sem desenhar nada.
+-- Hooks for the harness. What is checked is GEOMETRY -- it is what failed twice
+-- in a row in the in-game test, and it is what can be checked without drawing anything.
 --------------------------------------------------------------------------------
 Picker.__layout = {
     width = WIDTH,
@@ -735,13 +735,13 @@ function Picker.__outlineEntries()
     return OutlineEntries()
 end
 
----Cada controle e onde ele fica DENTRO da coluna. É com isso que o harness confere que nada
----vaza pela borda.
----O que a LISTA DE COLUNAS oferece, na ordem da tela.
+--- Each control and where it sits INSIDE the column. It is with this that the harness checks that nothing
+--- leaks through the edge.
+--- What the LIST OF COLUMNS offers, in the screen's order.
 ---
----Ela deixou de listar o catalogo e passou a listar ITENS -- dano+DPS numa linha so. A porta
----devolve o que a tela desenha, nao o que `Data` calcula: e a diferenca entre afirmar que a lista
----de itens existe e afirmar que a tela usa ela.
+--- It stopped listing the catalogue and came to list ITEMS -- damage+DPS on one line. The door
+--- returns what the screen draws, not what `Data` computes: it is the difference between stating that the list
+--- of items exists and stating that the screen uses it.
 function Picker.__items()
     local out = {}
     for i, row in ipairs(rows) do
@@ -752,12 +752,12 @@ function Picker.__items()
     return out
 end
 
----O indice que a SETA de uma linha passa para `Window.MoveColumn`.
+--- The index a row's ARROW passes to `Window.MoveColumn`.
 ---
----⚑ ISTO EXISTE POR CAUSA DE UM DEFEITO REAL: a tela devolvia a posicao em `ns.db.columns` e
----`MoveColumn` indexava a lista de GRUPOS. Com {dano, DPS, cura, CPS, interr} a seta da linha
----"dano/DPS" chegava certa por coincidencia e a da cura movia outra familia. Nada aparecia
----errado -- a seta so mexia na coisa errada.
+--- ⚑ THIS EXISTS BECAUSE OF A REAL DEFECT: the screen returned the position in `ns.db.columns` and
+--- `MoveColumn` indexed the list of GROUPS. With {damage, DPS, healing, HPS, interr} the arrow of the
+--- "damage/DPS" row arrived right by coincidence and the healing one moved another family. Nothing showed
+--- wrong -- the arrow only moved the wrong thing.
 function Picker.__arrowTarget(key)
     for _, row in ipairs(rows) do
         if row.check.columnKey == key and row.up.item then
@@ -804,15 +804,15 @@ function Picker.Refresh()
         if b then b:SetEnabled(ns.Scoreboard.HasRun(b.hasRun)) end
     end
 
-    -- ITENS, nao colunas: dano+DPS e cura+CPS ocupam UMA linha cada.
+    -- ITEMS, not columns: damage+DPS and healing+HPS take ONE line each.
     local items = ns.Data.GetColumnItems()
     for i = 1, #items do
         BuildRow(i, items[i], frame.leftColumn,
             frame.columnsTop + (i - 1) * H_COLUMN_ROW)
     end
 
-    -- Linha que sobrou de uma lista maior nao pode ficar na tela: `rows` e cache por indice, e o
-    -- catalogo encolheu de 14 entradas para 11 itens.
+    -- A row left over from a bigger list cannot stay on screen: `rows` is a cache by index, and the
+    -- catalogue shrank from 14 entries to 11 items.
     for i = #items + 1, #rows do rows[i]:Hide() end
 end
 
@@ -834,11 +834,11 @@ function Picker.Toggle(anchorTo)
     Picker.Refresh()
 end
 
--- Não há painel nas opções do jogo: esta é a tela de configuração do addon.
+-- There is no panel in the game's options: this is the addon's settings screen.
 function ns.OpenOptions()
     Picker.Toggle()
 end
 
 function ns.SetupOptions()
-    -- Sem painel na Settings API, de propósito.
+    -- No Settings API panel, on purpose.
 end

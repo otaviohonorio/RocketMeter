@@ -1,32 +1,32 @@
 -- RocketMeter | Data.lua
--- Camada única sobre C_DamageMeter. Nenhum outro arquivo fala com a API do jogo.
+-- The single layer over C_DamageMeter. No other file talks to the game's API.
 --
--- TRÊS LIÇÕES QUE CUSTARAM CARO:
+-- THREE LESSONS THAT COST DEARLY:
 --
--- 0) **Addon não pode devolver um secret value para a API.** Tentar
---    `GetCombatSessionSourceFromType(tipo, atributo, guidSecret)` responde
---    "Secret values are only allowed during untainted", e o erro derruba o desenho inteiro.
---    Era a base do cruzamento de métricas e estava errado: em combate o GUID é secret, então
---    só dá para cruzar métricas **fora** de combate. Dentro dela, cada métrica é uma lista
---    própria e ordenada, e a única linha que dá para casar é a do próprio jogador
---    (`isLocalPlayer`, que continua legível).
+-- 0) **An addon cannot hand a secret value back to the API.** Trying
+--    `GetCombatSessionSourceFromType(type, attribute, secretGuid)` answers
+--    "Secret values are only allowed during untainted", and the error brings the whole drawing down.
+--    It was the base of crossing metrics and it was wrong: in combat the GUID is secret, so
+--    metrics can only be crossed **out** of combat. Inside it, each metric is a list of its
+--    own, sorted, and the only row that can be matched is the player's own
+--    (`isLocalPlayer`, which stays readable).
 --
--- 1) Uma coluna é **(métrica, campo)**, não só uma métrica. O valor por segundo vem no campo
---    `amountPerSecond` do MESMO objeto que traz o total — é assim que os medidores fazem. Os
---    atributos `Enum.DamageMeterType.Dps` e `.Hps` devolvem os mesmos totais do dano/cura, e
---    usá-los como "coluna de DPS" faz a tela repetir o total (era o bug até a 0.8.0).
+-- 1) A column is **(metric, field)**, not only a metric. The per-second value comes in the
+--    `amountPerSecond` field of the SAME object that brings the total -- that is how meters do it. The
+--    attributes `Enum.DamageMeterType.Dps` and `.Hps` return the same totals as damage/healing, and
+--    using them as a "DPS column" makes the screen repeat the total (it was the bug until 0.8.0).
 --
--- 2) Em combate os campos são SECRET VALUES: não dá para comparar, somar ou formatar — só
---    repassar a widget. Fora de combate voltam a ser números legíveis.
+-- 2) In combat the fields are SECRET VALUES: they cannot be compared, added or formatted -- only
+--    passed on to a widget. Out of combat they become readable numbers again.
 --
--- 3) **A métrica `Deaths` não é uma soma, é uma LISTA DE MORTES.** Cada entrada de
---    `combatSources` ali é *um óbito*, não um jogador com contagem: a estrutura
---    `DamageMeterCombatSource` traz `deathRecapID` e `deathTimeSeconds`, e o medidor da
---    Blizzard trata a linha como evento — `GetValueText` devolve o **horário** da morte
---    ("3m 22s") e `GetStatusValue` devolve **1 fixo**, porque não existe "amount"
---    (`DamageMeterEntry.lua:562-604`). Ler `totalAmount` ali dá 0 para quem morreu e nada
---    para quem não morreu, que foi exatamente o que apareceu na primeira corrida real.
---    Por isso a coluna de mortes tem `field = "count"` e é **contada**, não somada.
+-- 3) **The `Deaths` metric is not a sum, it is a LIST OF DEATHS.** Each entry of
+--    `combatSources` there is *one death*, not a player with a count: the structure
+--    `DamageMeterCombatSource` brings `deathRecapID` and `deathTimeSeconds`, and Blizzard's
+--    meter treats the row as an event -- `GetValueText` returns the death's **time**
+--    ("3m 22s") and `GetStatusValue` returns **a fixed 1**, because there is no "amount"
+--    (`DamageMeterEntry.lua:562-604`). Reading `totalAmount` there gives 0 for whoever died and nothing
+--    for whoever did not, which is exactly what showed in the first real run.
+--    That is why the deaths column has `field = "count"` and is **counted**, not added.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -34,7 +34,7 @@ local Data = {}
 ns.Data = Data
 
 --------------------------------------------------------------------------------
--- Catálogo de colunas
+-- The catalogue of columns
 --------------------------------------------------------------------------------
 local columnList, columnByKey, columnItems, itemByColumn
 
@@ -66,15 +66,15 @@ local function BuildColumns()
         -- todos, se não, não faz sentido ter essas colunas"*. The counting stays, for the
         -- player's own breakdown.
         { key = "dispels",    attr = E.Dispels,              field = "total",     short = L["Dispel"], label = L["Dispels"] },
-        -- `count`, não `total`: na métrica de mortes cada entrada da lista é UMA MORTE, não um
-        -- jogador com contagem. Ver a lição 3 no topo do arquivo.
+        -- `count`, not `total`: in the deaths metric each entry of the list is ONE DEATH, not a
+        -- player with a count. See lesson 3 at the top of the file.
         { key = "deaths",     attr = E.Deaths,               field = "count",     short = L["Deaths"], label = L["Player deaths"] },
         { key = "enemies",    attr = E.EnemyDamageTaken,     field = "total",     short = L["Enemies"],label = L["Damage on enemies"] },
     }
 
-    -- O NOME DA FAMILIA, para o cabecalho de secao. "Dano", nao "Dano total": o cabecalho nomeia
-    -- a METRICA, e o total dela ja aparece do lado. Todas estas chaves ja existiam no arquivo de
-    -- idioma -- nenhuma foi inventada para isto.
+    -- THE FAMILY'S NAME, for the section header. "Dano", not "Dano total": the header names
+    -- the METRIC, and its total already shows beside it. All these keys already existed in the
+    -- language file -- none was made up for this.
     local FAMILY = {
         [E.DamageDone]           = L["Damage"],
         [E.HealingDone]          = L["Healing"],
@@ -86,12 +86,12 @@ local function BuildColumns()
         [E.Deaths]               = L["Deaths"],
         [E.EnemyDamageTaken]     = L["Damage on enemies"],
     }
-    -- METRICA QUE CONTA, e nao que soma. A diferenca importa para quem desenha: "339M" e "8"
-    -- precisam de larguras muito diferentes, e `field` NAO separa os dois -- interrupcoes e
-    -- dissipacoes tambem sao `total`, so que de uma contagem.
+    -- A METRIC THAT COUNTS, and not one that adds. The difference matters for whoever draws: "339M" and "8"
+    -- need very different widths, and `field` does NOT tell the two apart -- interrupts and
+    -- dispels are also `total`, only of a count.
     --
-    -- A distincao mora aqui, junto da definicao da metrica, e nao na janela: e uma propriedade do
-    -- DADO ("esta metrica produz numeros pequenos"), nao da tela.
+    -- The distinction lives here, with the metric's definition, and not in the window: it is a property of the
+    -- DATA ("this metric yields small numbers"), not of the screen.
     local CONTAGEM = {
         [E.Interrupts] = true,
         [E.Dispels] = true,
@@ -110,17 +110,17 @@ local function BuildColumns()
         byKey[def.key] = def
     end
 
-    -- OS ITENS: o que o jogador liga e desliga, que nao e a mesma coisa que uma coluna.
+    -- THE ITEMS: what the player turns on and off, which is not the same thing as a column.
     --
-    -- Pedido do usuario: *"onde escolhe as colunas na configuracao o dano e dps e cura e cps tem
-    -- que ser um so item"*. Total e taxa sao a mesma medida em duas unidades -- oferecer as duas
-    -- como escolhas independentes pedia ao jogador uma decisao que ele nao tem por que tomar.
+    -- The user's request: *"onde escolhe as colunas na configuracao o dano e dps e cura e cps tem
+    -- que ser um so item"*. Total and rate are the same measure in two units -- offering both
+    -- as independent choices asked the player for a decision he has no reason to take.
     --
-    -- A regra e por FORMA, nao por lista de nomes: toda familia que tem um total E uma taxa vira
-    -- um item. Isso pega os dois pares que ele citou (dano/DPS, cura/CPS) e tambem dano
-    -- recebido/RPS, que tem exatamente o mesmo formato -- tratar o terceiro de outro jeito seria
-    -- arbitrario. Porcentagem NAO entra: "quanto do total do grupo" e outra pergunta, e ele nao
-    -- pediu para ela vir junto.
+    -- The rule is by SHAPE, not by a list of names: every family that has a total AND a rate becomes
+    -- an item. That catches the two pairs he named (damage/DPS, healing/HPS) and also damage
+    -- taken/DTPS, which has exactly the same shape -- treating the third differently would be
+    -- arbitrary. A percentage does NOT come in: "how much of the group's total" is another question, and he did not
+    -- ask for it to come along.
     local totalDe, taxaDe = {}, {}
     for _, def in ipairs(list) do
         if def.field == "total" then totalDe[def.attr] = def end
@@ -131,9 +131,9 @@ local function BuildColumns()
     for _, def in ipairs(list) do
         local par = def.field == "total" and taxaDe[def.attr]
         if par then
-            -- O rotulo se compoe das duas metades ja traduzidas ("Dano total / DPS"): tres
-            -- chaves novas de traducao para dizer o que duas existentes ja dizem seria uma
-            -- terceira coisa a manter em dia em dois idiomas.
+            -- The label is made of the two halves already translated ("Dano total / DPS"): three
+            -- new translation keys to say what two existing ones already say would be a
+            -- third thing to keep up to date in two languages.
             local item = { key = def.key, keys = { def.key, par.key },
                 label = def.label .. " / " .. par.short, attr = def.attr }
             items[#items + 1] = item
@@ -177,7 +177,7 @@ function Data.GetAttributeLabel(key)
     return def and def.label or "?"
 end
 
----O nome da familia de uma coluna ("Dano"), para o cabecalho de secao.
+--- A column's family name ("Dano"), for the section header.
 function Data.GetFamilyLabel(key)
     local def = Data.GetColumn(key)
     return def and def.family or "?"
@@ -238,18 +238,18 @@ function Data.MigrateColumns(saved)
 
     if #out == 0 then return nil, changed, dropped end
 
-    -- E A ORDEM TRAVADA VALE PARA A LISTA SALVA. Uma lista de antes desta versao pode ter cura
-    -- entre dano e DPS, ou o total sem a taxa -- e as duas coisas quebram a barra que atravessa o
-    -- par.
+    -- AND THE LOCKED ORDER HOLDS FOR THE SAVED LIST. A list from before this version may have healing
+    -- between damage and DPS, or the total without the rate -- and both break the bar that crosses the
+    -- pair.
     --
-    -- ⚑ MAS ISSO NAO E "MIGRACAO DE FORMATO", e a diferenca importa. O segundo retorno faz o
-    -- perfil APAGAR a ordenacao escolhida (`active.sortBy = nil`) e escrever no chat que as
-    -- colunas foram migradas -- correto quando havia id numerico de Enum salvo, falso quando a
-    -- lista so foi reagrupada. Juntar os dois fazia o addon, a cada login, jogar fora a coluna
-    -- que o jogador escolheu para ordenar e anunciar uma migracao que nao houve.
+    -- ⚑ BUT THAT IS NOT A "FORMAT MIGRATION", and the difference matters. The second return makes the
+    -- profile ERASE the chosen sort (`active.sortBy = nil`) and write in the chat that the
+    -- columns were migrated -- right when there was a numeric Enum id saved, false when the
+    -- list was only regrouped. Lumping the two made the addon, at every login, throw away the column
+    -- the player chose to sort by and announce a migration that did not happen.
     --
-    -- Por isso o segundo valor volta a significar SO "havia formato antigo". A lista
-    -- normalizada e devolvida sempre, e o perfil a adota sem cerimonia.
+    -- So the second value goes back to meaning ONLY "there was an old format". The normalised
+    -- list is always returned, and the profile adopts it without ceremony.
     local normal = Data.NormalizeColumns(out)
     return normal, changed, dropped
 end
@@ -257,40 +257,40 @@ end
 --------------------------------------------------------------------------------
 -- Conjuntos prontos
 --------------------------------------------------------------------------------
----Os ITENS que o jogador liga e desliga em `/rm columns`, na ordem do catalogo.
+--- The ITEMS the player turns on and off in `/rm columns`, in the catalogue's order.
 ---
----Um item pode valer por DUAS colunas (o par total+taxa). Quem quiser a lista de colunas crua
----continua com `Data.GetColumns`.
+--- An item can count for TWO columns (the total+rate pair). Whoever wants the raw list of columns
+--- still has `Data.GetColumns`.
 function Data.GetColumnItems()
     EnsureColumns()
     return columnItems
 end
 
----O item a que uma coluna pertence -- para uma tecla qualquer achar o par dela.
+--- The item a column belongs to -- so any key finds its pair.
 function Data.GetItemFor(key)
     EnsureColumns()
     return itemByColumn[key]
 end
 
----A ORDEM TRAVADA da lista de colunas, e o par completo.
+--- THE LOCKED ORDER of the list of columns, and the complete pair.
 ---
----Pedido do usuario: *"vamos bloquear para que a coluna de Dano sempre venha primeiro que a DPS
----e assim com a cura sempre na frente do CPS"*.
+--- The user's request: *"vamos bloquear para que a coluna de Dano sempre venha primeiro que a DPS
+--- e assim com a cura sempre na frente do CPS"*.
 ---
----Ele pediu isso porque as duas passaram a dividir UMA barra: a barra atravessa da coluna do
----total ate a da taxa, e uma lista que puser cura entre as duas faz a barra do dano atravessar
----por baixo de um numero de cura. Nao e preferencia de arrumacao -- e o que mantem o desenho
----possivel.
+--- He asked for it because the two came to share ONE bar: the bar crosses from the total's column
+--- to the rate's, and a list that puts healing between the two makes the damage bar cross
+--- under a healing number. It is not a preference of arrangement -- it is what keeps the drawing
+--- possible.
 ---
----Tres coisas acontecem aqui, nesta ordem:
+--- Three things happen here, in this order:
 ---
----1. **agrupa por familia**, preservando a ordem em que cada familia apareceu pela primeira vez
----   (quem pos cura na frente de dano continua com cura na frente);
----2. **completa o par**: familia com o total marcado e a taxa nao ganha a taxa, porque item que
----   o jogador ve como um so tem que estar inteiro na tela;
----3. **ordena dentro da familia**: total, depois taxa, depois porcentagem.
+--- 1. **it groups by family**, keeping the order in which each family first showed
+---   (whoever put healing ahead of damage keeps healing ahead);
+--- 2. **it completes the pair**: a family with the total ticked and not the rate gets the rate, because an item
+---   the player sees as one has to be whole on screen;
+--- 3. **it sorts within the family**: total, then rate, then percentage.
 ---
----@return table lista normalizada, boolean mudou
+--- @return table the normalised list, boolean changed
 function Data.NormalizeColumns(columns)
     EnsureColumns()
     local PESO = { total = 1, count = 1, perSecond = 2, percent = 3 }
@@ -311,7 +311,7 @@ function Data.NormalizeColumns(columns)
     end
 
     for _, familia in ipairs(familias) do
-        -- COMPLETA O PAR. Uma lista salva de antes desta versao pode ter so o total.
+        -- IT COMPLETES THE PAIR. A list saved before this version may have only the total.
         for _, key in ipairs({ unpack(familia.keys) }) do
             local item = itemByColumn[key]
             if item then
@@ -324,8 +324,8 @@ function Data.NormalizeColumns(columns)
             end
         end
 
-        -- E ORDENA DENTRO DELA. `table.sort` nao e estavel, entao o desempate usa a posicao no
-        -- catalogo -- duas colunas de mesmo peso (nao ha hoje) nunca trocariam de lugar sozinhas.
+        -- AND SORTS WITHIN IT. `table.sort` is not stable, so the tie-break uses the position in the
+        -- catalogue -- two columns of the same weight (there are none today) would never swap places by themselves.
         table.sort(familia.keys, function(a, b)
             local da, db = Data.GetColumn(a), Data.GetColumn(b)
             local pa, pb = PESO[da.field] or 9, PESO[db.field] or 9
@@ -369,11 +369,11 @@ end
 -- API
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Tipos de sessão
+-- Session types
 --------------------------------------------------------------------------------
--- **Nao chutar os numeros.** Existe `Enum.DamageMeterSessionType` (Current / Overall /
--- Expired) e os valores dele nao sao necessariamente 0 e 1. Passar numero chumbado foi o
--- que fez a janela ler uma sessao diferente da que devia.
+-- **Do not guess the numbers.** There is `Enum.DamageMeterSessionType` (Current / Overall /
+-- Expired) and its values are not necessarily 0 and 1. Passing a hard-coded number is
+-- what made the window read a different session than it should.
 function Data.SessionValue(which)
     local E = Enum.DamageMeterSessionType
     if which == 1 or which == "overall" then
@@ -382,7 +382,7 @@ function Data.SessionValue(which)
     return E and E.Current or 0
 end
 
----Os valores reais deste cliente, para o log e para o /rm debug.
+--- This client's real values, for the log and for /rm debug.
 function Data.DescribeSessionEnum()
     local E = Enum.DamageMeterSessionType
     if not E then return "Enum.DamageMeterSessionType does not exist" end
@@ -398,7 +398,7 @@ local function HasSources(session)
     return session ~= nil and session.combatSources ~= nil and session.combatSources[1] ~= nil
 end
 
----Id da sessão mais recente. O nome do campo varia entre versões, então aceita os dois.
+--- The id of the most recent session. The field's name varies between versions, so it accepts both.
 local function NewestSessionID()
     if not C_DamageMeter.GetAvailableCombatSessions then return nil end
     local list = C_DamageMeter.GetAvailableCombatSessions()
@@ -410,19 +410,19 @@ local function NewestSessionID()
     return newest
 end
 
----A sessão de uma métrica.
+--- A metric's session.
 ---
----Depois de `ResetAllCombatSessions`, a sessão "atual" (tipo 0) pode vir **vazia enquanto a
----luta acontece**, e os dados novos aparecem numa sessão nova, endereçada por id. Sem este
----fallback a janela fica em branco durante o combate e só mostra os números quando ele acaba —
----exatamente o sintoma relatado. Por isso os dois caminhos ficam.
+--- After `ResetAllCombatSessions`, the "current" session (type 0) can come **empty while the
+--- fight is going on**, and the new data shows in a new session, addressed by id. Without this
+--- fallback the window stays blank during combat and only shows the numbers when it ends --
+--- exactly the reported symptom. That is why both paths stay.
 function Data.GetSession(sessionType, attributeId)
     if not Data.IsAvailable() then return nil end
 
     local session = C_DamageMeter.GetCombatSessionFromType(Data.SessionValue(sessionType), attributeId)
     if HasSources(session) then return session end
 
-    -- Só faz sentido para o combate atual: o geral é acumulado, não é uma sessão solta.
+    -- It only makes sense for the current combat: the overall is accumulated, not a loose session.
     if sessionType == 0 and C_DamageMeter.GetCombatSessionFromID then
         local id = NewestSessionID()
         if id then
@@ -436,7 +436,7 @@ function Data.GetSession(sessionType, attributeId)
     return session
 end
 
----Usado pelo /rm debug: diz por qual caminho os dados vieram.
+--- Used by /rm debug: says which path the data came through.
 function Data.DescribeSources(sessionType, attributeId)
     if not Data.IsAvailable() then return "API unavailable" end
 
@@ -454,10 +454,10 @@ function Data.DescribeSources(sessionType, attributeId)
         typeCount, tostring(id), idCount)
 end
 
----O próprio jogador dentro de uma métrica.
+--- The player himself inside a metric.
 ---
----`isLocalPlayer` continua legível em combate, então é o único jeito de casar uma linha com
----outra métrica enquanto a luta acontece — e é a linha que mais importa para quem está jogando.
+--- `isLocalPlayer` stays readable in combat, so it is the only way to match a row with
+--- another metric while the fight is going on -- and it is the row that matters most to whoever is playing.
 function Data.GetLocalPlayerSource(session)
     local list = session and session.combatSources
     if not list then return nil end
@@ -472,21 +472,21 @@ function Data.GetLocalPlayerSource(session)
     return nil
 end
 
----Esta entrada da métrica de mortes é uma morte de verdade?
+--- Is this entry of the deaths metric a real death?
 ---
----**É `deathRecapID` que decide, e não a presença na lista.** O medidor da própria Blizzard trata
----a entrada como óbito só quando `deathRecapID ~= 0`, e faz essa mesma pergunta em QUATRO lugares
----antes de desenhar — no nome, no valor, e nos dois limites da barra
----(`DamageMeterEntry.lua:563,572,580,594`). Entrada com recapião zero ele desenha como linha
----comum; nós contávamos como morte.
+--- **It is `deathRecapID` that decides, and not the presence in the list.** Blizzard's own meter treats
+--- the entry as a death only when `deathRecapID ~= 0`, and asks that same question in FOUR places
+--- before drawing -- in the name, in the value, and in the bar's two limits
+--- (`DamageMeterEntry.lua:563,572,580,594`). An entry with a zero recap it draws as a plain
+--- row; we counted it as a death.
 ---
----O relato que expôs isso: um caçador apareceu com **19 mortes** numa mítica+ sem ter morrido —
----ele usou "Fingir-se de Morto" muitas vezes. **Não está confirmado** que é o fingir que produz
----as entradas extras; o que está confirmado é que existem entradas na lista que o jogo NÃO conta
----como morte, e que nós contávamos. `/rm fontes` mostra o `recap` de cada entrada.
+--- The report that exposed it: a hunter showed **19 deaths** in a mythic+ without having died --
+--- he used "Feign Death" many times. **It is not confirmed** that the feigning produces
+--- the extra entries; what is confirmed is that there are entries in the list the game does NOT count
+--- as a death, and that we counted. `/rm fontes` shows each entry's `recap`.
 ---
----`deathRecapID` é **`NeverSecret`** (`DamageMeterDocumentation.lua:207`), então comparar é
----seguro mesmo em combate e durante a chave inteira — que é justamente quando isso aparece.
+--- `deathRecapID` is **`NeverSecret`** (`DamageMeterDocumentation.lua:207`), so comparing is
+--- safe even in combat and during the whole key -- which is exactly when this shows.
 -- (14/10) Was declared INSIDE Data.GetRows, so Data.GetDeathList only existed after the meter
 -- window drew once: with the window hidden, "My run" lost the deaths without a word.
 local function IsRealDeath(source)
@@ -495,18 +495,18 @@ local function IsRealDeath(source)
     return recap ~= 0
 end
 
----Os óbitos da sessão, um por entrada, com QUEM morreu e QUANDO.
+--- The session's deaths, one per entry, with WHO died and WHEN.
 ---
----⚑ ISTO EXISTE PORQUE O `Run.lua` SÓ SABE O "QUANDO". Está escrito lá, como limite aceito: o
----`CHALLENGE_MODE_DEATH_COUNT_UPDATED` dá o instante e o contador, nunca o nome. Pedido de
----10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"* — e a
----resposta estava na outra ponta, na métrica de mortes do medidor, onde **cada entrada é um
----óbito** e traz `classFilename` junto.
+--- ⚑ THIS EXISTS BECAUSE `Run.lua` ONLY KNOWS THE "WHEN". It is written there, as an accepted limit:
+--- `CHALLENGE_MODE_DEATH_COUNT_UPDATED` gives the instant and the counter, never the name. The request of
+--- 10/09/2026: *"a outra marcação é a morte, poderia ter o ícone da classe que morreu"* -- and the
+--- answer was at the other end, in the meter's deaths metric, where **each entry is a
+--- death** and brings `classFilename` along.
 ---
----`deathTimeSeconds` vai junto, mas ele é para **conferência**, não para posicionar: não dá para
----confirmar daqui qual é a origem do relógio dele (sessão? combate? chave?), e chutar isso
----colocaria caveira no minuto errado. Quem posiciona continua sendo o `Run`.
----@return table lista `{ { nome, classe, quando }, ... }`, já filtrada por `deathRecapID ~= 0`
+--- `deathTimeSeconds` goes along, but it is for **checking**, not for placing: there is no
+--- confirming from here what its clock's origin is (session? combat? key?), and guessing it
+--- would put a skull at the wrong minute. What places is still `Run`.
+--- @return table list `{ { name, class, when }, ... }`, already filtered by `deathRecapID ~= 0`
 function Data.GetDeathList(sessionType)
     local out = {}
     if not Enum or not Enum.DamageMeterType then return out end
@@ -539,11 +539,11 @@ function Data.GetDeathList(sessionType)
     return out
 end
 
----Quantas entradas o próprio jogador tem nesta métrica.
+--- How many entries the player himself has in this metric.
 ---
----Existe por causa das mortes, onde a lista tem uma entrada por óbito. `isLocalPlayer` é
----`NeverSecret`, então esta contagem funciona **inclusive em combate** — é a única linha que
----continua contável quando o GUID some.
+--- It exists because of the deaths, where the list has one entry per death. `isLocalPlayer` is
+--- `NeverSecret`, so this count works **even in combat** -- it is the only row that
+--- stays countable when the GUID goes away.
 function Data.CountLocalPlayerEntries(session)
     local list = session and session.combatSources
     if not list then return nil end
@@ -570,8 +570,8 @@ function Data.ResetAll()
     end
 end
 
----Zerar apaga o combate atual E o geral — nao da para desfazer, entao pergunta antes.
----`skipConfirm` existe para o comando de chat de quem sabe o que esta fazendo.
+--- Resetting erases the current combat AND the overall -- it cannot be undone, so it asks first.
+--- `skipConfirm` exists for the chat command of whoever knows what he is doing.
 function Data.RequestReset(skipConfirm)
     if skipConfirm then
         Data.ResetAll()
@@ -598,7 +598,7 @@ function Data.RequestReset(skipConfirm)
 end
 
 --------------------------------------------------------------------------------
--- Montagem das linhas
+-- Building the rows
 --------------------------------------------------------------------------------
 local function ValueFromSource(source, def, sessionTotal)
     if not source then return nil end
@@ -609,7 +609,7 @@ local function ValueFromSource(source, def, sessionTotal)
         return source.amountPerSecond
     elseif def.field == "percent" then
         local value, total = source.totalAmount, sessionTotal
-        -- Percentual exige aritmética: só existe quando os dois valores são legíveis.
+        -- A percentage needs arithmetic: it only exists when both values are readable.
         if value == nil or total == nil then return nil end
         if issecretvalue(value) or issecretvalue(total) or total <= 0 then return nil end
         return value / total * 100
@@ -617,17 +617,17 @@ local function ValueFromSource(source, def, sessionTotal)
     return nil
 end
 
----Monta as linhas: uma por ator, com um valor por coluna.
+--- Builds the rows: one per actor, with one value per column.
 ---
----A ordem vem da API (consulta da métrica de ordenação) porque ordenar no Lua exigiria comparar
----valores — proibido em combate. `ascending` percorre a lista ao contrário, o que não compara nada.
----@param columns string[] chaves de coluna
----@return table[]|nil rows { source = <combat_source>, values = { [coluna] = número } }
----@return table|nil session
----@param offset number|nil quantas linhas pular no topo (rolagem)
----@return table[]|nil rows
----@return table|nil session
----@return number total quantos atores existem ao todo, para limitar a rolagem
+--- The order comes from the API (the query of the sorting metric) because sorting in Lua would need comparing
+--- values -- forbidden in combat. `ascending` walks the list backwards, which compares nothing.
+--- @param columns string[] column keys
+--- @return table[]|nil rows { source = <combat_source>, values = { [column] = number } }
+--- @return table|nil session
+--- @param offset number|nil how many rows to skip at the top (scrolling)
+--- @return table[]|nil rows
+--- @return table|nil session
+--- @return number total how many actors there are in all, to limit the scrolling
 function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     local sortDef = Data.GetColumn(sortKey)
     if not sortDef then return nil, nil end
@@ -636,8 +636,8 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     local sources = session and session.combatSources
     if not sources then return nil, nil end
 
-    -- Uma consulta por métrica (não por linha): serve para o percentual e para achar a
-    -- linha do próprio jogador quando o GUID está secret.
+    -- One query per metric (not per row): it serves the percentage and finding the
+    -- player's own row when the GUID is secret.
     local sessions = { [sortDef.attr] = session }
     local function SessionFor(attr)
         local cached = sessions[attr]
@@ -657,24 +657,24 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         end
     end
 
-    -- Índice guid -> ator, por métrica.
+    -- An index guid -> actor, per metric.
     --
-    -- O cruzamento antes usava `GetCombatSessionSourceFromType`, que devolve o **contêiner de
-    -- magias** — tem `totalAmount` e `combatSpells`, mas **não tem `amountPerSecond`**. Por isso
-    -- as colunas de taxa cruzada (CPS) ficavam em branco enquanto o total aparecia.
-    -- A lista da sessão traz o ator completo; um índice por métrica resolve, e ainda troca N
-    -- chamadas de API por linha por uma só por coluna.
-    ---Identidade de um ator sem usar o GUID.
+    -- The crossing used to use `GetCombatSessionSourceFromType`, which returns the **spells
+    -- container** -- it has `totalAmount` and `combatSpells`, but **no `amountPerSecond`**. That is why
+    -- the crossed rate columns (HPS) stayed blank while the total showed.
+    -- The session's list brings the whole actor; an index per metric solves it, and also swaps N
+    -- API calls per row for one per column.
+    --- An actor's identity without using the GUID.
     ---
-    ---`classFilename` e `specIconID` são **`NeverSecret`** na documentação da estrutura
-    ---(`DamageMeterCombatSource`), então continuam legíveis onde o GUID não está — dentro de
-    ---combate e durante a chave inteira, que é justamente quando o cruzamento falhava e o
-    ---healer aparecia sem cura nenhuma.
+    --- `classFilename` and `specIconID` are **`NeverSecret`** in the structure's documentation
+    --- (`DamageMeterCombatSource`), so they stay readable where the GUID is not -- inside
+    --- combat and during the whole key, which is exactly when the crossing failed and the
+    --- healer showed with no healing at all.
     ---
-    ---Não é identidade de verdade: dois jogadores da mesma especialização colidem. Por isso a
-    ---chave só é usada quando é **única nas duas listas** — na de origem e na da métrica. Em
-    ---caso de empate o addon devolve nil e a célula fica vazia, que é melhor que trocar os
-    ---números de dois jogadores.
+    --- It is not a real identity: two players of the same specialization collide. That is why the
+    --- key is only used when it is **unique in both lists** -- the source one and the metric's. In
+    --- a tie the addon returns nil and the cell stays empty, which is better than swapping the
+    --- numbers of two players.
     local function IdentityKey(source)
         local class, icon = source.classFilename, source.specIconID
         if class == nil or issecretvalue(class) then return nil end
@@ -682,26 +682,26 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         return tostring(class) .. "/" .. tostring(icon)
     end
 
-    -- A LISTA DE LINHAS É A UNIÃO DOS ATORES DE TODAS AS MÉTRICAS EXIBIDAS.
+    -- THE LIST OF ROWS IS THE UNION OF THE ACTORS OF ALL THE METRICS SHOWN.
     --
-    -- Era a lista de UMA métrica — a que ordena a janela — e isso apagava gente. Duas frases do
-    -- usuário, no mesmo dia, que são a mesma regra vista de dois ângulos:
+    -- It was the list of ONE metric -- the one that sorts the window -- and that erased people. Two phrases of the
+    -- user, on the same day, which are the same rule seen from two angles:
     --
     --   "o healer pode dar 0 dano e curar muito, ele tem que aparecer no medidor"
     --   "pode ter alguém que não cura e nem dá dano, só dá interrupt, tem que aparecer"
     --
-    -- Quem não pontua na métrica ordenada não estava na lista dela, e portanto não tinha linha —
-    -- nem para mostrar zero. O medidor mostrava "quem fez dano", não "quem estava lá".
+    -- Whoever does not score in the sorted metric was not in its list, and so had no row --
+    -- not even to show zero. The meter showed "who did damage", not "who was there".
     --
-    -- CADA ATOR ACRESCENTADO LEMBRA DE QUAL MÉTRICA VEIO (`rowAttr`), e isso é obrigatório: o
-    -- laço de baixo semeia o cache com `cache[sortDef.attr] = source`, o que para um ator vindo
-    -- da cura poria a CURA dele na coluna de dano. O valor da métrica ordenada, para ele, sai da
-    -- busca normal — não acha, é conclusivo, e vira zero. Que é o número certo.
+    -- EACH ACTOR ADDED REMEMBERS WHICH METRIC IT CAME FROM (`rowAttr`), and that is required: the
+    -- loop below seeds the cache with `cache[sortDef.attr] = source`, which for an actor coming
+    -- from healing would put his HEALING in the damage column. The sorted metric's value, for him, comes from the
+    -- normal lookup -- it does not find him, it is conclusive, and it becomes zero. Which is the right number.
     --
-    -- DEDUPLICAÇÃO, e o cuidado é o mesmo do resto do arquivo: por GUID quando ele é legível
-    -- (todo conteúdo fora de mítica+), e por classe+spec quando não é. Onde a identidade não
-    -- serve, o ator NÃO entra — duplicar uma linha é pior que faltar uma, porque os números
-    -- passam a ser contados duas vezes na frente do jogador.
+    -- DEDUPLICATION, and the care is the same as in the rest of the file: by GUID when it is readable
+    -- (all content outside mythic+), and by class+spec when it is not. Where the identity does not
+    -- serve, the actor does NOT come in -- duplicating a row is worse than missing one, because the numbers
+    -- come to be counted twice in front of the player.
     local rowAttr = {}
     do
         local uniao, vistoGuid, vistoIdentidade = {}, {}, {}
@@ -760,8 +760,8 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         sources = uniao
     end
 
-    -- Identidades ambíguas na LISTA DE ORIGEM: se duas linhas têm a mesma classe+spec,
-    -- nenhuma das duas pode ser casada por identidade.
+    -- Ambiguous identities in the SOURCE LIST: if two rows have the same class+spec,
+    -- neither of them can be matched by identity.
     local rowIdentityAmbiguous = {}
     do
         local seen = {}
@@ -774,10 +774,10 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         end
     end
 
-    -- Índice por métrica: ator por GUID, ator por identidade, e CONTAGEM por ambos.
+    -- An index per metric: actor by GUID, actor by identity, and the COUNT by both.
     --
-    -- A contagem existe por causa da métrica de mortes, onde cada entrada é um óbito e não um
-    -- jogador (ver a lição 3 no topo). Nas outras métricas ela não é usada.
+    -- The count exists because of the deaths metric, where each entry is a death and not a
+    -- player (see lesson 3 at the top). In the other metrics it is not used.
     local indexes = {}
     local function IndexFor(attr)
         local index = indexes[attr]
@@ -786,14 +786,14 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
             local other = SessionFor(attr)
             local list = other and other.combatSources
             if list then
-                -- SÓ A MÉTRICA DE MORTES filtra por `deathRecapID`, e a limitação é
-                -- DEFENSIVA, não load-bearing: hoje os mapas de contagem só são lidos pela
-                -- coluna de mortes, então filtrar em todas daria no mesmo. O teste confirma
-                -- isso — sabotar esta linha não reprova nada.
+                -- ONLY THE DEATHS METRIC filters by `deathRecapID`, and the limitation is
+                -- DEFENSIVE, not load-bearing: today the count maps are only read by the
+                -- deaths column, so filtering in all of them would come to the same. The test confirms
+                -- it -- sabotaging this line fails nothing.
                 --
-                -- Fica assim mesmo porque nas outras métricas `deathRecapID` vale 0 para todo
-                -- mundo: no dia em que existir uma segunda métrica de contagem, filtrar sem
-                -- escopo zeraria a coluna dela em silêncio.
+                -- It stays this way anyway because in the other metrics `deathRecapID` is 0 for
+                -- everyone: the day a second count metric exists, filtering without
+                -- scope would zero its column silently.
                 local somenteMortes = Enum and Enum.DamageMeterType
                     and attr == Enum.DamageMeterType.Deaths
 
@@ -813,8 +813,8 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
 
                     local key = IdentityKey(candidate)
                     if key then
-                        -- Repetição só é ambiguidade para BUSCAR ator. Para CONTAR, repetir é
-                        -- o dado: são duas mortes do mesmo jogador.
+                        -- A repeat is only an ambiguity for LOOKING UP an actor. For COUNTING, repeating is
+                        -- the data: they are two deaths of the same player.
                         if identitySeen[key] then
                             index.byIdentity[key] = false
                         elseif index.byIdentity[key] == nil then
@@ -832,8 +832,8 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         return index or nil
     end
 
-    ---Acha o ator desta linha dentro de outra métrica.
-    ---@return table|nil ator, boolean conclusivo  (conclusivo = "não achar" significa zero)
+    --- Finds this row's actor inside another metric.
+    --- @return table|nil actor, boolean conclusive  (conclusive = "not found" means zero)
     local function MatchIn(attr, guid, guidReadable, identityKey)
         local index = IndexFor(attr)
         if not index then return nil, false end
@@ -844,15 +844,15 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
 
         if identityKey and not rowIdentityAmbiguous[identityKey] then
             local hit = index.byIdentity[identityKey]
-            -- `false` = a métrica tem duas linhas com esta classe+spec: ambíguo, não conclusivo.
+            -- `false` = the metric has two rows with this class+spec: ambiguous, not conclusive.
             if hit ~= false then return hit or nil, true end
         end
 
         return nil, false
     end
 
-    ---Quantas entradas esta linha tem na métrica. Só faz sentido em `Deaths`.
-    ---@return number|nil contagem, boolean conclusivo
+    --- How many entries this row has in the metric. It only makes sense in `Deaths`.
+    --- @return number|nil count, boolean conclusive
     local function CountIn(attr, guid, guidReadable, identityKey)
         local index = IndexFor(attr)
         if not index then return nil, false end
@@ -861,8 +861,8 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
             return index.countByGuid[guid] or 0, true
         end
 
-        -- Para CONTAR, repetição na métrica não é ambiguidade — é o próprio dado. O que
-        -- precisa ser único é a identidade da LINHA.
+        -- For COUNTING, a repeat in the metric is not an ambiguity -- it is the data itself. What
+        -- has to be unique is the ROW's identity.
         if identityKey and not rowIdentityAmbiguous[identityKey] then
             return index.countByIdentity[identityKey] or 0, true
         end
@@ -880,24 +880,24 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
     local count = total - offset
     if count > maxRows then count = maxRows end
 
-    -- MONTA TODOS OS ATORES, não só os que cabem na tela.
+    -- BUILDS ALL THE ACTORS, not only those that fit on screen.
     --
-    -- O realce de líder é "o melhor de cada coluna", e isso é uma propriedade do GRUPO, não da
-    -- página. Antes o laço parava em `count` e `MarkColumnLeaders` recebia só a fatia visível:
-    -- rolar a janela trocava quem estava marcado, porque o melhor da fatia mudava junto. Era
-    -- um realce que dizia "o melhor entre os que você está vendo", o que não significa nada.
+    -- The leader highlight is "the best of each column", and that is a property of the GROUP, not of the
+    -- page. Before, the loop stopped at `count` and `MarkColumnLeaders` got only the visible slice:
+    -- scrolling the window changed who was marked, because the slice's best changed along. It was
+    -- a highlight that said "the best among those you are seeing", which means nothing.
     --
-    -- O custo é montar valores para o grupo inteiro em vez de para 5 linhas. É barato: as
-    -- consultas de sessão e os índices por GUID já são memorizados acima, então cada ator a
-    -- mais são apenas buscas em tabela — não chamadas de API.
+    -- The cost is building values for the whole group instead of for 5 rows. It is cheap: the
+    -- session queries and the GUID indexes are already memoised above, so each extra actor
+    -- is only table lookups -- not API calls.
     local built = {}
     for position = 1, total do
         local source = sources[ascending and (total - position + 1) or position]
         local values = {}
 
-        -- O CACHE É SEMEADO NA MÉTRICA DE ONDE O ATOR VEIO, e não sempre na ordenada. Para quem
-        -- entrou pela união, semear na ordenada poria o número dele (cura, interrupções) na
-        -- coluna errada — e o valor da coluna ordenada sairia certo por acidente nunca.
+        -- THE CACHE IS SEEDED IN THE METRIC THE ACTOR CAME FROM, and not always in the sorted one. For whoever
+        -- came in through the union, seeding in the sorted one would put his number (healing, interrupts) in the
+        -- wrong column -- and the sorted column's value would come out right by accident never.
         local fromAttr = rowAttr[source] or sortDef.attr
         local cache = { [fromAttr] = source }
 
@@ -907,16 +907,16 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         isLocal = isLocal ~= nil and not issecretvalue(isLocal) and isLocal == true
         local identityKey = IdentityKey(source)
 
-        -- `conclusive[attr]`: nesta métrica, "não achei o ator" quer dizer **zero** ou quer
-        -- dizer **não sei**? A diferença é visível: escrever `0` onde não se sabe é mentir. Só é conclusivo quando a linha pôde ser identificada — por
-        -- GUID legível, ou por classe+spec única nas duas listas.
+        -- `conclusive[attr]`: in this metric, does "I did not find the actor" mean **zero** or does it
+        -- mean **I do not know**? The difference is visible: writing `0` where one does not know is lying. It is only conclusive when the row could be identified -- by a
+        -- readable GUID, or by a class+spec unique in both lists.
         local conclusive = {}
 
         for c = 1, #columns do
             local def = Data.GetColumn(columns[c])
             if def then
                 if def.field == "count" then
-                    -- Mortes: contagem de entradas, não soma de `totalAmount`.
+                    -- Deaths: a count of entries, not a sum of `totalAmount`.
                     local n, ok = CountIn(def.attr, guid, guidReadable, identityKey)
                     if not ok and isLocal then
                         n = Data.CountLocalPlayerEntries(SessionFor(def.attr))
@@ -928,7 +928,7 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
                     if from == nil then
                         local hit, ok = MatchIn(def.attr, guid, guidReadable, identityKey)
                         if not ok and isLocal then
-                            -- Última cartada em combate: `isLocalPlayer` é `NeverSecret`.
+                            -- The last card in combat: `isLocalPlayer` is `NeverSecret`.
                             hit = Data.GetLocalPlayerSource(SessionFor(def.attr))
                             ok = hit ~= nil
                         end
@@ -938,7 +938,7 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
                     end
 
                     local value = ValueFromSource(from or nil, def, sessionTotals[def.attr] or nil)
-                    -- Ausente numa lista que sabemos ler = o jogador não pontuou ali. É zero.
+                    -- Absent from a list we can read = the player did not score there. It is zero.
                     if value == nil and from == false and conclusive[def.attr]
                         and def.field ~= "percent" then
                         value = 0
@@ -978,10 +978,10 @@ function Data.GetRows(sessionType, sortKey, columns, maxRows, ascending, offset)
         end
     end
 
-    -- Marca sobre a lista COMPLETA: quem lidera não muda ao rolar nem ao trocar a ordenação.
+    -- Marks over the WHOLE list: who leads does not change when scrolling nor when changing the sort.
     Data.MarkColumnLeaders(built, columns)
 
-    -- Só agora recorta a janela visível. `best` já veio decidido de cima.
+    -- Only now it cuts the visible window. `best` already came decided from above.
     local rows = {}
     for i = 1, count do
         rows[i] = built[offset + i]
@@ -1075,40 +1075,40 @@ function Data.GetCastBreakdown(sessionType, source, guid, creatureId)
     return interrupts, control, missed
 end
 
----Marca quem lidera **cada** coluna, não só a ordenada: o healer que cura mais fica realçado
----mesmo estando em terceiro no dano.
+--- Marks who leads **each** column, not only the sorted one: the healer who heals most is highlighted
+--- even being third in damage.
 ---
----Isso exige comparar valores, o que é **proibido com secret values**. Em combate, portanto,
----o realce simplesmente não aparece; ao sair do combate ele volta. Preferível a errar o líder.
----As METRICAS em que a janela mostra uma classificacao, cada uma com a sua propria lista.
+--- That needs comparing values, which is **forbidden with secret values**. In combat, therefore,
+--- the highlight simply does not show; leaving combat it comes back. Better than getting the leader wrong.
+--- The METRICS in which the window shows a ranking, each one with its own list.
 ---
----POR QUE ISTO EXISTE. Pedido: *"qual seria a melhor forma de em uma janela ver uma ordenacao
----onde eu consiga ver quem esta sendo o melhor em Dano/DPS, Cura/CPS e Interrupts"*. Sao **tres
----classificacoes ao mesmo tempo** sobre as mesmas cinco pessoas, e uma tabela ordenada por uma
----coluna so responde a primeira -- nas outras duas o lider fica perdido no meio.
+--- WHY THIS EXISTS. The request: *"qual seria a melhor forma de em uma janela ver uma ordenacao
+--- onde eu consiga ver quem esta sendo o melhor em Dano/DPS, Cura/CPS e Interrupts"*. They are **three
+--- rankings at once** over the same five people, and a table sorted by one
+--- column only answers the first -- in the other two the leader gets lost in the middle.
 ---
----⚑ E A RESTRICAO DO MIDNIGHT DECIDE O DESENHO. Em combate os valores sao secret: comparar
----levanta erro, entao **o addon nao consegue descobrir quem e o maior**. O realce de lider por
----coluna que existia so funcionava fora de combate, e ninguem tinha percebido porque fora de
----combate e onde a gente olha quando esta ajustando.
+--- ⚑ AND MIDNIGHT'S RESTRICTION DECIDES THE DESIGN. In combat the values are secret: comparing
+--- raises an error, so **the addon cannot find out who is the biggest**. The leader highlight per
+--- column that existed only worked out of combat, and nobody had noticed because out of
+--- combat is where we look when we are tuning.
 ---
----O que funciona e perguntar. `C_DamageMeter.GetCombatSessionFromType` **devolve a lista ja
----ordenada** pela metrica pedida -- conferido no proprio medidor da Blizzard, que nao ordena
----nada em Lua: ele percorre `combatSources` na ordem e usa `index = i` como posicao
----(`DamageMeterSessionWindow.lua:621-641`). Uma consulta por metrica = uma classificacao pronta,
----de graca, valida dentro e fora de combate.
+--- What works is asking. `C_DamageMeter.GetCombatSessionFromType` **returns the list already
+--- sorted** by the metric asked for -- checked in Blizzard's own meter, which sorts
+--- nothing in Lua: it walks `combatSources` in order and uses `index = i` as the position
+--- (`DamageMeterSessionWindow.lua:621-641`). One query per metric = one ready ranking,
+--- for free, valid in and out of combat.
 ---
----Entao: **posicao na lista e o unico ranking confiavel**, e uma secao por metrica e a forma de
----ter tres deles. O lider e sempre a primeira linha de cada secao.
+--- So: **the position in the list is the only reliable ranking**, and one section per metric is the way to
+--- have three of them. The leader is always the first row of each section.
 ---
----AS SECOES SAEM DAS COLUNAS QUE O JOGADOR JA ESCOLHEU, agrupadas por metrica (`attr`): marcar
----"Dano total" e "Dano por segundo" nao da duas secoes, da uma secao de Dano que mostra os dois
----numeros. Assim a tela de configuracao continua valendo, e passa a significar algo melhor.
+--- THE SECTIONS COME FROM THE COLUMNS THE PLAYER ALREADY CHOSE, grouped by metric (`attr`): ticking
+--- "Damage total" and "Damage per second" does not give two sections, it gives one Damage section that shows both
+--- numbers. So the settings screen still holds, and comes to mean something better.
 ---
----@param sessionType number
----@param columns string[] as colunas marcadas, na ordem
----@param rowsPerSection number quantas linhas por secao
----@return table[] secoes `{ key, attr, label, columns, rows, session }`
+--- @param sessionType number
+--- @param columns string[] the ticked columns, in order
+--- @param rowsPerSection number how many rows per section
+--- @return table[] sections `{ key, attr, label, columns, rows, session }`
 function Data.GetSections(sessionType, columns, rowsPerSection)
     local out, seen = {}, {}
 
@@ -1122,10 +1122,10 @@ function Data.GetSections(sessionType, columns, rowsPerSection)
             local grupo = seen[def.attr]
             grupo.columns[#grupo.columns + 1] = def.key
 
-            -- A COLUNA QUE ORDENA A SECAO e a de TOTAL, nao a primeira marcada. Quem marca so
-            -- "Dano por segundo" ainda quer a secao ordenada por dano -- e a taxa e derivada do
-            -- total, entao as duas ordens sao a mesma; mas quem marca as duas espera ver o total
-            -- primeiro, porque e o numero que o medidor nativo poe em destaque.
+            -- THE COLUMN THAT SORTS THE SECTION is the TOTAL's, not the first ticked. Whoever ticks only
+            -- "Damage per second" still wants the section sorted by damage -- and the rate is derived from the
+            -- total, so the two orders are the same; but whoever ticks both expects to see the total
+            -- first, because it is the number the native meter highlights.
             if def.field == "total" or def.field == "count" then
                 grupo.key = grupo.key or def.key
                 if def.field == "total" then grupo.key = def.key end
@@ -1139,9 +1139,9 @@ function Data.GetSections(sessionType, columns, rowsPerSection)
         local rows, session = Data.GetRows(sessionType, grupo.key, grupo.columns,
             rowsPerSection, false)
 
-        -- SECAO SEM NINGUEM NAO APARECE. Ninguem interrompeu ainda -> a secao de interrupcoes
-        -- nao existe, em vez de existir vazia. E a regra da skill do workspace: *espaco vazio
-        -- reservado para gente que nao esta la e o que mais faz uma janela parecer quebrada*.
+        -- A SECTION WITH NOBODY DOES NOT SHOW. Nobody interrupted yet -> the interrupts section
+        -- does not exist, instead of existing empty. It is the workspace skill's rule: *empty space
+        -- reserved for people who are not there is what most makes a window look broken*.
         if rows and #rows > 0 then
             secoes[#secoes + 1] = {
                 key = grupo.key,
@@ -1157,20 +1157,20 @@ function Data.GetSections(sessionType, columns, rowsPerSection)
     return secoes
 end
 
----As colunas VISIVEIS: as escolhidas pelo jogador, agrupadas por metrica.
+--- The VISIBLE columns: the ones chosen by the player, grouped by metric.
 ---
----Ideia do usuario: em vez de duas colunas (Dano e DPS, Cura e CPS), mesclar numa so, com o
----cabecalho "Dano - DPS" e o valor "65.1M - 48K".
+--- The user's idea: instead of two columns (Damage and DPS, Healing and HPS), merge them into one, with the
+--- header "Dano - DPS" and the value "65.1M - 48K".
 ---
----Ele esta certo, e o ganho e duplo. O obvio: duas colunas viram uma, entao sobra largura e a
----barra fica maior -- que era a queixa anterior. O menos obvio, e mais importante: **o total e a
----taxa sao a mesma coisa medida de dois jeitos**. Separa-los em colunas obrigava o olho a cruzar
----a linha para juntar "quanto" com "quao rapido"; juntos, a leitura e uma so.
+--- He is right, and the gain is twofold. The obvious one: two columns become one, so width is left and the
+--- bar gets bigger -- which was the complaint before. The less obvious, and more important: **the total and the
+--- rate are the same thing measured two ways**. Separating them into columns forced the eye to cross
+--- the row to join "how much" with "how fast"; together, the reading is one.
 ---
----Cada grupo devolve `keys` na ordem em que o jogador as marcou, e `key` (a primeira) e quem
----ordena o grupo -- clicar no cabecalho "Dano - DPS" ordena por dano.
+--- Each group returns `keys` in the order the player ticked them, and `key` (the first) is what
+--- sorts the group -- clicking the "Dano - DPS" header sorts by damage.
 ---
----@return table[] grupos `{ key, attr, keys }`
+--- @return table[] groups `{ key, attr, keys }`
 function Data.GroupColumns(columns)
     local grupos, porAttr = {}, {}
 
@@ -1197,25 +1197,25 @@ function Data.GroupColumns(columns)
     return grupos
 end
 
----A REGUA DE CADA COLUNA: o maior valor da metrica a que ela pertence.
+--- EACH COLUMN'S RULER: the biggest value of the metric it belongs to.
 ---
----POR QUE ISTO EXISTE, e e o que faz o desenho em colunas funcionar em combate. O pedido foi ver
----**quem esta melhor em Dano, Cura e Interrupcoes ao mesmo tempo**, e em combate o addon nao
----consegue descobrir quem e o maior: os valores sao secret e comparar levanta erro.
+--- WHY THIS EXISTS, and it is what makes the columns design work in combat. The request was to see
+--- **who is best at Damage, Healing and Interrupts at the same time**, and in combat the addon cannot
+--- find out who is the biggest: the values are secret and comparing raises an error.
 ---
----A saida e nao precisar descobrir. Se cada coluna e desenhada como uma BARRA escalada pelo maior
----valor DAQUELA metrica, entao o lider da coluna e a unica barra cheia dela -- a geometria
----responde o que o Lua nao pode calcular. Tres colunas, tres lideres, de relance.
+--- The way out is not needing to find out. If each column is drawn as a BAR scaled by the biggest
+--- value OF THAT metric, then the column's leader is its only full bar -- the geometry
+--- answers what Lua cannot compute. Three columns, three leaders, at a glance.
 ---
----A regua vem de `session.maxAmount`, que o jogo entrega pronto por metrica. Nem ela nem o valor
----sao lidos aqui: os dois vao direto para o widget.
+--- The ruler comes from `session.maxAmount`, which the game gives ready per metric. Neither it nor the value
+--- are read here: both go straight to the widget.
 ---
----⚠️ COLUNA DE TAXA USA A REGUA DO TOTAL, e isso e de proposito -- e o que o medidor nativo faz.
----`DamageMeterSessionWindow.lua:638` atribui o `maxAmount` da sessao a cada ator e desenha a barra
----com ele **mesmo quando mostra o valor por segundo**. A barra e "quanto desta metrica foi seu"; o
----numero e o que voce pediu para ver. Nao ha `maxAmount` de taxa na API para fazer diferente.
+--- ⚠️ A RATE COLUMN USES THE TOTAL'S RULER, and that is on purpose -- it is what the native meter does.
+--- `DamageMeterSessionWindow.lua:638` assigns the session's `maxAmount` to each actor and draws the bar
+--- with it **even when it shows the per-second value**. The bar is "how much of this metric was yours"; the
+--- number is what you asked to see. There is no rate `maxAmount` in the API to do otherwise.
 ---
----@return table por posicao de coluna: a regua daquela coluna
+--- @return table by column position: that column's ruler
 function Data.GetColumnScales(sessionType, columns)
     local scales, porAttr = {}, {}
 
@@ -1249,7 +1249,7 @@ function Data.MarkColumnLeaders(rows, columns)
             end
         end
 
-        -- Zero não é liderança: ninguém "lidera" as mortes quando ninguém morreu.
+        -- Zero is no leadership: nobody "leads" the deaths when nobody died.
         if bestIndex and bestValue and bestValue > 0 then
             local row = rows[bestIndex]
             row.best = row.best or {}
@@ -1261,13 +1261,13 @@ end
 --------------------------------------------------------------------------------
 -- Detalhamento por magia
 --------------------------------------------------------------------------------
----Lista de magias de um ator, somando uma ou mais métricas.
+--- An actor's list of spells, adding one or more metrics.
 ---
----Cura e absorção viram uma seção só; interrupções e dissipações também. Quando a mesma magia
----aparece em duas métricas, os valores somam.
----@param attributes number[] métricas a agregar
----@return table[]|nil spells ordenadas da maior para a menor: { spellID, amount, perSecond }
----@return number|nil total
+--- Healing and absorbs become one section; interrupts and dispels too. When the same spell
+--- shows in two metrics, the values add.
+--- @param attributes number[] the metrics to aggregate
+--- @return table[]|nil spells sorted from biggest to smallest: { spellID, amount, perSecond }
+--- @return number|nil total
 function Data.GetSpellBreakdown(sessionType, attributes, guid, creatureId, limit)
     if not Data.IsAvailable() or guid == nil or issecretvalue(guid) then
         return nil, nil
@@ -1294,7 +1294,7 @@ function Data.GetSpellBreakdown(sessionType, attributes, guid, creatureId, limit
                 local id = spell.spellID
                 local amount = spell.totalAmount
 
-                -- Sem id legível ou com valor secret não há o que somar nem ordenar.
+                -- With no readable id or with a secret value there is nothing to add nor sort.
                 if id ~= nil and not issecretvalue(id)
                     and amount ~= nil and not issecretvalue(amount) then
                     local entry = bySpell[id]
@@ -1415,32 +1415,32 @@ function Data.PureHealingMetric(healing, absorbs)
 end
 
 --------------------------------------------------------------------------------
--- Formatação
+-- Formatting
 --------------------------------------------------------------------------------
 
----@return string|nil texto pronto, ou nil se o valor for secret (aí use SetText direto)
----Formato compacto: `2.9M`, `112K`, `847`.
+--- @return string|nil the ready text, or nil if the value is secret (then use SetText directly)
+--- The compact format: `2.9M`, `112K`, `847`.
 ---
----`AbbreviateNumbers` depende do idioma do cliente e devolve textos longos em pt-BR
----("365.594"), que estouravam a largura da coluna e viravam reticências. O formato que cabe é
----`2.9M` e `112K` — três a quatro caracteres, sempre.
----**Teto rígido de 5 caracteres.** A célula tem 50px e um texto maior não é cortado: vira
----reticências, que é o que o usuário viu numa corrida de 28 minutos. Duas faixas existem só
----por causa disso:
+--- `AbbreviateNumbers` depends on the client's language and returns long texts in pt-BR
+--- ("365.594"), which overflowed the column's width and turned into an ellipsis. The format that fits is
+--- `2.9M` and `112K` -- three to four characters, always.
+--- **A hard ceiling of 5 characters.** The cell is 50px and a bigger text is not cut: it becomes
+--- an ellipsis, which is what the user saw in a 28-minute run. Two bands exist only
+--- because of that:
 ---
----  * **bilhão** — sem ela, 1,2 bilhão de dano dava `"1234.6M"`, sete caracteres. Uma raide
----    longa chega lá.
----  * **centena** — `%.1f` de 339 dá `"339.1M"`, seis. Acima de 100 a casa decimal não
----    informa nada (0,03% do valor) e custa a coluna inteira.
+---  * **billion** -- without it, 1.2 billion damage gave `"1234.6M"`, seven characters. A long
+---    raid gets there.
+---  * **hundred** -- `%.1f` of 339 gives `"339.1M"`, six. Above 100 the decimal place tells
+---    nothing (0.03% of the value) and costs the whole column.
 function Data.FormatAmount(value)
     if value == nil or issecretvalue(value) then
         return nil
     end
 
-    -- Os limiares são o valor JÁ ARREDONDADO, não o redondo. 99.999.999 com `%.1f` vira
-    -- "100.0M" — seis caracteres — porque o arredondamento empurra a mantissa para três
-    -- dígitos antes de o limiar redondo (100.000.000) ser alcançado. Cortar em 99,95M põe
-    -- esse caso na faixa de cima, onde ele vira "100M".
+    -- The thresholds are the value ALREADY ROUNDED, not the round one. 99,999,999 with `%.1f` becomes
+    -- "100.0M" -- six characters -- because the rounding pushes the mantissa to three
+    -- digits before the round threshold (100,000,000) is reached. Cutting at 99.95M puts
+    -- that case in the band above, where it becomes "100M".
     local absolute = value < 0 and -value or value
     if absolute >= 999500000 then
         return format("%.1fB", value / 1000000000)      -- 1.2B
@@ -1456,23 +1456,23 @@ function Data.FormatAmount(value)
     return format("%d", value + 0.5)                    -- 847
 end
 
----Quantos caracteres uma célula aguenta antes de virar reticências.
+--- How many characters a cell takes before turning into an ellipsis.
 ---
----Vale para o texto pronto, venha ele de `FormatAmount` (que respeita isto por construção) ou
----do cliente, no caminho dos valores secret — onde não dá para abreviar na mão e a única
----defesa é **recusar** um formato que volte longo demais.
+--- It holds for the ready text, whether it comes from `FormatAmount` (which respects this by construction) or
+--- from the client, on the secret values' path -- where it cannot be abbreviated by hand and the only
+--- defence is **refusing** a format that comes back too long.
 Data.MAX_CELL_CHARS = 6
 
 --------------------------------------------------------------------------------
--- Formatação de valores secret
+-- Formatting secret values
 --------------------------------------------------------------------------------
--- Abreviar (603K) exige dividir, e aritmética com secret value é proibida em código de addon.
--- A wiki diz que `string.format` é permitido, e `securecallfunction` executa uma função da
--- Blizzard fora do nosso contexto tainted — o que **pode** liberar a conta lá dentro.
+-- Abbreviating (603K) needs dividing, and arithmetic with a secret value is forbidden in addon code.
+-- The wiki says `string.format` is allowed, and `securecallfunction` runs a Blizzard function
+-- outside our tainted context -- which **may** free the arithmetic in there.
 --
--- Nada disso é chute: as estratégias são testadas no próprio jogo, na primeira vez que um
--- valor secret aparece, e a que funcionar fica registrada no log. Se nenhuma funcionar, o
--- número aparece cru, como hoje.
+-- None of this is a guess: the strategies are tested in the game itself, the first time a
+-- secret value shows up, and the one that works is recorded in the log. If none works, the
+-- number shows raw, as today.
 local STRATEGIES = {
     {
         name = "securecallfunction(AbbreviateNumbers)",
@@ -1496,17 +1496,17 @@ local STRATEGIES = {
     },
 }
 
-local chosenStrategy      -- índice da estratégia que funcionou; false = nenhuma
+local chosenStrategy      -- index of the strategy that worked; false = none
 
----A saída desta estratégia cabe na célula?
+--- Does this strategy's output fit in the cell?
 ---
----`AbbreviateNumbers` **só abrevia acima de um limiar**; abaixo dele devolve o número por
----extenso com separador de milhar, e em pt-BR isso é `"365.594"` — sete caracteres numa
----célula que aguenta seis. O aviso já estava escrito no comentário de `FormatAmount`, mas a
----sondagem não o obedecia: `AbbreviateNumbers` é a **primeira** da lista, então bastava
----funcionar para ser escolhida, e a partir daí toda célula grande virava reticências.
+--- `AbbreviateNumbers` **only abbreviates above a threshold**; below it it returns the number in
+--- full with a thousands separator, and in pt-BR that is `"365.594"` -- seven characters in a
+--- cell that takes six. The warning was already written in `FormatAmount`'s comment, but the
+--- probe did not obey it: `AbbreviateNumbers` is the **first** in the list, so it only had to
+--- work to be chosen, and from then on every big cell turned into an ellipsis.
 ---
----Um resultado ainda secret passa: não dá para medir, e o widget é quem vai desenhar.
+--- A result still secret passes: it cannot be measured, and the widget is what will draw.
 local function FitsCell(text)
     if text == nil then return false end
     if issecretvalue(text) then return true end
@@ -1536,17 +1536,17 @@ local function ProbeStrategies(value)
     return nil
 end
 
----Texto de um valor que pode ser secret. Devolve nil quando não há como formatar — aí o
----chamador repassa o valor cru ao FontString, que o motor renderiza.
----A estratégia escolhida vale como **preferência**, não como veredito final.
+--- The text of a value that may be secret. Returns nil when there is no way to format -- then the
+--- caller passes the raw value to the FontString, which the engine renders.
+--- The chosen strategy counts as a **preference**, not a final verdict.
 ---
----Motivo: se cabe ou não depende do VALOR, não só do cliente. `AbbreviateNumbers` devolve
----`"2.9M"` para 2,9 milhões e `"365.594"` para 365 mil — abaixo do limiar de abreviação ela
----escreve o número por extenso. Uma sondagem única, feita com o primeiro valor que aparecer,
----decide errado para metade dos outros: foi assim que a coluna de dano virou reticências
----enquanto a de CPS, com números menores, continuava certa.
+--- The reason: whether it fits depends on the VALUE, not only on the client. `AbbreviateNumbers` returns
+--- `"2.9M"` for 2.9 million and `"365.594"` for 365 thousand -- below the abbreviation threshold it
+--- writes the number in full. A single probe, made with the first value that showed up,
+--- decides wrong for half the others: that is how the damage column turned into an ellipsis
+--- while the HPS one, with smaller numbers, stayed right.
 ---
----Por isso o encaixe é conferido **a cada valor**, e as outras estratégias ficam como reserva.
+--- That is why the fit is checked **at each value**, and the other strategies stay as a fallback.
 function Data.FormatSecretAmount(value)
     if chosenStrategy == nil then
         return ProbeStrategies(value)
@@ -1557,14 +1557,14 @@ function Data.FormatSecretAmount(value)
 
     local ok, result = pcall(STRATEGIES[chosenStrategy].run, value)
     if not ok then
-        -- A restrição pode mudar no meio do caminho: refaz a sondagem uma vez.
+        -- The restriction may change along the way: it redoes the probe once.
         chosenStrategy = nil
         return nil
     end
     if FitsCell(result) then return result end
 
-    -- A preferida não serve para ESTE número. Tenta as outras, sem trocar a preferência —
-    -- ela continua sendo a que serve para a maioria.
+    -- The preferred one does not serve for THIS number. It tries the others, without changing the preference --
+    -- it is still the one that serves for most.
     for index, strategy in ipairs(STRATEGIES) do
         if index ~= chosenStrategy then
             local fine, alternative = pcall(strategy.run, value)
