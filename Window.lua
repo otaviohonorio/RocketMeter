@@ -1319,12 +1319,26 @@ end
 --- That also answers what he offered as an alternative (*"podemos por limite no tamanho da
 --- fonte... o limite por fonte pode mudar"*): with the column measuring its own text, the limit stops
 --- being needed -- it follows any font at any size, instead of assuming one.
-local KICK_ROOM = 26              -- (26/10) the interrupts' clock: the icon and its gap, beside the count (Kicks.lua)
 local KICK_GAP = 3                -- (27/10) between the end of the interrupts' bar and the icon: the bar never runs under it
+
+---(27/10) The interrupt icon's size: the row's height less 1 above and below -- it reaches past the bar's strip --, up
+---to 26 with a large font. The user: *"aumenta um pouco o icone de interrupt"* (it was the strip's height less 2: 19 in a
+---row of 25, now 23).
+local function KickSize()
+    return math.min(RowHeight() - 2, 26)
+end
+ns.KickSize = KickSize
+
+---The room the interrupts' clock adds to its column: the icon, the gaps at its sides, and 2 so the count keeps the room
+---it had before the clock (26 with the icon at 18).
+local function KickRoom()
+    return KickSize() + TEXT_INSET + KICK_GAP + 2
+end
+ns.KickRoom = KickRoom
 
 local function ColumnWidthFor(key)
     if ns.Kicks and ns.Kicks.KindOfColumn(key) and ns.Kicks.Enabled() and key ~= "dispels" then
-        return ColumnWidthFor("dispels") + KICK_ROOM
+        return ColumnWidthFor("dispels") + KickRoom()
     end
     local def = ns.Data.GetColumn(key)
 
@@ -2127,7 +2141,7 @@ local function BuildRow(index)
         faixa.track:ClearAllPoints()
         faixa.track:SetAllPoints()
         if faixa.kickKind then
-            local size = math.min(height - CELL_INSET * 2 - 2, 22)
+            local size = KickSize()
             local b = KickIcon(faixa)
             b:SetSize(size, size)
             b:ClearAllPoints()
