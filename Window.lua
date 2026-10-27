@@ -1055,6 +1055,7 @@ local function KickIcon(faixa)
     faixa.kick = b
     return b
 end
+ns.KickIcon = KickIcon               -- the harness draws one on a strip of its own
 
 ---The seconds left over the icon, while the clock runs (only then: the frame has no OnUpdate when ready).
 local function KickTick(self)
@@ -1073,13 +1074,12 @@ function ns.DrawKick(faixa, state)
     if not b then return end
     if not state then b:Hide(); b:SetScript("OnUpdate", nil); return end
     b.tex:SetTexture(state.icon or 134400)
-    ApplyShape(b.tex)
-    local round = ns.IconShape() == "round"
-    -- the clock's dark slice in the icon's own shape (the round one through the same mask as the icon)
-    if b.cd.SetSwipeTexture then
-        b.cd:SetSwipeTexture(round and ROUND_MASK or "Interface\\Buttons\\WHITE8X8", 0, 0, 0, 0.75)
-    end
-    if b.cd.SetUseCircularEdge then b.cd:SetUseCircularEdge(round) end
+    -- (27/10) ALWAYS SQUARE, whatever the specialization icons' shape option says. The user: *"vamos deixar padrão o
+    -- icone do interrupt quadrado mesmo, sem opção de redondo pra ele"* -- the shape of the action bars and of the
+    -- Cooldown Manager, whose clock and gold frame it uses.
+    b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    if b.cd.SetSwipeTexture then b.cd:SetSwipeTexture("Interface\\Buttons\\WHITE8X8", 0, 0, 0, 0.75) end
+    if b.cd.SetUseCircularEdge then b.cd:SetUseCircularEdge(false) end
     if state.state == "cooldown" then
         b.cd:SetCooldown(state.start, state.duration)
         b.tex:SetDesaturated(true)
@@ -1092,8 +1092,7 @@ function ns.DrawKick(faixa, state)
         b.tex:SetDesaturated(false)
         b.num:SetText("")
         b:SetScript("OnUpdate", nil)
-        -- the gold frame is square: on a round icon "ready" is the lit icon alone
-        b.glow:SetShown(not round)
+        b.glow:Show()                                  -- ready: the Cooldown Manager's gold frame
     end
     b:Show()
 end
