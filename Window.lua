@@ -1030,6 +1030,16 @@ end
 
 local ApplyShape
 
+-- (27/10) THE READY FRAME AROUND THE ICON, measured on the art (`ui-cooldownmanager-activeglow`, 64 x 64, alpha across
+-- its middle: 0 0 5 15 30 51 76 107 142 183 229 255 255, then clear from px 13). The user's print: drawn 4 px past the
+-- icon, the gold line fell 1.3 px INSIDE it and the icon's edge stuck out of the frame. The outer 3 px are cut (alpha up
+-- to 15: cut at 8, mid-fade, the frame showed a hard square edge in the mockup), and the line's inner edge then sits at
+-- f = (13/64 - 3/64) / (58/64) = 0.172 of the drawn art; on the icon's edge, f x (size + 2 pad) = pad, so
+-- pad = f / (1 - 2f) = 0.263 of the icon's size on each side (6 px on the icon of 23).
+local KICK_GLOW_CROP = 3 / 64
+local KICK_GLOW_INNER = (13 / 64 - KICK_GLOW_CROP) / (1 - 2 * KICK_GLOW_CROP)
+local KICK_GLOW_PAD = KICK_GLOW_INNER / (1 - 2 * KICK_GLOW_INNER)
+ns.KICK_GLOW_PAD = KICK_GLOW_PAD
 ---(26/10) The interrupt's icon of a strip: the spell's icon, the game's cooldown clock over it (CooldownFrameTemplate,
 ---the action bars' own), the seconds in the middle, and the Cooldown Manager's gold frame when it is ready.
 local function KickIcon(faixa)
@@ -1049,8 +1059,9 @@ local function KickIcon(faixa)
     b.num:SetPoint("CENTER", 0, 0)
     b.glow = b.over:CreateTexture(nil, "OVERLAY")
     b.glow:SetAtlas("ui-cooldownmanager-activeglow")
-    b.glow:SetPoint("TOPLEFT", -4, 4)
-    b.glow:SetPoint("BOTTOMRIGHT", 4, -4)
+    -- (27/10) the art's faint outer 3 px cut away (KICK_GLOW_CROP).
+    -- After SetAtlas the coords are fractions of the art itself (ui-design skill).
+    b.glow:SetTexCoord(KICK_GLOW_CROP, 1 - KICK_GLOW_CROP, KICK_GLOW_CROP, 1 - KICK_GLOW_CROP)
     b.glow:Hide()
     faixa.kick = b
     return b
@@ -2143,6 +2154,11 @@ local function BuildRow(index)
             local size = KickSize()
             local b = KickIcon(faixa)
             b:SetSize(size, size)
+            -- the gold line's inner edge exactly on the icon's edge (KICK_GLOW_PAD): no corner of the icon outside it
+            local pad = size * KICK_GLOW_PAD
+            b.glow:ClearAllPoints()
+            b.glow:SetPoint("TOPLEFT", b, "TOPLEFT", -pad, pad)
+            b.glow:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", pad, -pad)
             b:ClearAllPoints()
             b:SetPoint("RIGHT", faixa, "RIGHT", -TEXT_INSET, 0)
             -- (27/10) THE BAR STOPS BEFORE THE ICON. The user's print ("a barra do interrupt está em cima do ícone"):
@@ -3312,7 +3328,9 @@ function Window.DebugKickStrip(index)
                 local _, _, _, barX = faixa.bar:GetPoint(2)
                 local _, _, _, trackX = faixa.track:GetPoint(2)
                 local _, _, _, iconX = faixa.kick:GetPoint(1)
-                out = { barRight = barX, trackRight = trackX, iconRight = iconX, iconWidth = faixa.kick:GetWidth() }
+                local _, _, _, glowX = faixa.kick.glow:GetPoint(1)
+                out = { barRight = barX, trackRight = trackX, iconRight = iconX, iconWidth = faixa.kick:GetWidth(),
+                        glowPad = glowX and -glowX, glowCoords = faixa.kick.glow.__texcoord }
             elseif faixa.bar:GetNumPoints() ~= 1 then
                 others = others + 1
             end
