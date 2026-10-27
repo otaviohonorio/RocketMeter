@@ -1320,6 +1320,7 @@ end
 --- fonte... o limite por fonte pode mudar"*): with the column measuring its own text, the limit stops
 --- being needed -- it follows any font at any size, instead of assuming one.
 local KICK_ROOM = 26              -- (26/10) the interrupts' clock: the icon and its gap, beside the count (Kicks.lua)
+local KICK_GAP = 3                -- (27/10) between the end of the interrupts' bar and the icon: the bar never runs under it
 
 local function ColumnWidthFor(key)
     if ns.Kicks and ns.Kicks.KindOfColumn(key) and ns.Kicks.Enabled() and key ~= "dispels" then
@@ -2119,12 +2120,29 @@ local function BuildRow(index)
         if ns.Kicks and ns.Kicks.Enabled() and quantos == 1 then
             faixa.kickKind = ns.Kicks.KindOfColumn(vao.grupo.keys[1])
         end
+        -- the bar and its track take the whole strip, except on the interrupts' one (below). Every drawing says it: a
+        -- strip is reused when the player changes the columns, and it would keep the cut of the column it had
+        faixa.bar:ClearAllPoints()
+        faixa.bar:SetAllPoints()
+        faixa.track:ClearAllPoints()
+        faixa.track:SetAllPoints()
         if faixa.kickKind then
             local size = math.min(height - CELL_INSET * 2 - 2, 22)
             local b = KickIcon(faixa)
             b:SetSize(size, size)
             b:ClearAllPoints()
             b:SetPoint("RIGHT", faixa, "RIGHT", -TEXT_INSET, 0)
+            -- (27/10) THE BAR STOPS BEFORE THE ICON. The user's print ("a barra do interrupt está em cima do ícone"):
+            -- the bar crossed the whole strip, and with 18 or 19 interrupts it ran under the icon, which sank into it
+            -- (measured on the print: the icon was drawn on top, the bar's end behind it). The icon gets its own room
+            -- at the right end; the bar, its track and the count take the rest.
+            local cut = size + TEXT_INSET + KICK_GAP
+            faixa.bar:ClearAllPoints()
+            faixa.bar:SetPoint("TOPLEFT", faixa, "TOPLEFT", 0, 0)
+            faixa.bar:SetPoint("BOTTOMRIGHT", faixa, "BOTTOMRIGHT", -cut, 0)
+            faixa.track:ClearAllPoints()
+            faixa.track:SetPoint("TOPLEFT", faixa, "TOPLEFT", 0, 0)
+            faixa.track:SetPoint("BOTTOMRIGHT", faixa, "BOTTOMRIGHT", -cut, 0)
             ns.ApplyRoleFont(b.num, "body", PAIR_DELTA)
             -- the count stays centred (the user: *"quando a coluna tiver apenas um valor, fica centralizado"*), in the
             -- part of the strip left of the icon
@@ -3266,6 +3284,29 @@ end
 
 function Window.DebugFirstRow()
     return Window.DebugRow(1)
+end
+
+---(27/10) A row's interrupts strip: where its bar and track end and where the icon sits, as offsets from the strip's
+---right edge; nil when no strip carries the interrupts' clock. `others` counts the strips whose bar does not cross the
+---whole strip -- only the interrupts' one may be cut.
+function Window.DebugKickStrip(index)
+    local row = rows and rows[index or 1]
+    if not row or not row:IsShown() then return nil end
+    local out, others = nil, 0
+    for _, faixa in pairs(row.groups) do
+        if faixa:IsShown() then
+            if faixa.kickKind and faixa.kick then
+                local _, _, _, barX = faixa.bar:GetPoint(2)
+                local _, _, _, trackX = faixa.track:GetPoint(2)
+                local _, _, _, iconX = faixa.kick:GetPoint(1)
+                out = { barRight = barX, trackRight = trackX, iconRight = iconX, iconWidth = faixa.kick:GetWidth() }
+            elseif faixa.bar:GetNumPoints() ~= 1 then
+                others = others + 1
+            end
+        end
+    end
+    if out then out.others = others end
+    return out, others
 end
 
 --------------------------------------------------------------------------------
