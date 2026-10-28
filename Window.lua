@@ -1049,6 +1049,16 @@ local CLASS_BORDER_CROP = 11 / 64
 local CLASS_BORDER_INNER = (13 / 64 - CLASS_BORDER_CROP) / (1 - 2 * CLASS_BORDER_CROP)
 local CLASS_BORDER_PAD = CLASS_BORDER_INNER / (1 - 2 * CLASS_BORDER_INNER)
 ns.CLASS_BORDER_PAD = CLASS_BORDER_PAD
+-- (27/10) AND THE ICON'S CORNERS ROUNDED UNDER IT, the way the Cooldown Manager does it (Blizzard_CooldownViewer.xml:
+-- the icon under `UI-HUD-CoolDownManager-Mask`, the frame over it). The user: *"só cuidado para o icone não fazer pra
+-- fora da borda"*. The line's corner is rounded and the icon's is square: simulated at 16x, the square corner showed
+-- 1.3 px2 outside the line on the icon of 23 (1.1 on 21, 1.7 on 26); with the game's mask, 0.08 at most. The mask's
+-- art keeps a clear margin of 3/64 on each side (the game's frame covers it); here that margin would be a dark gap
+-- between the icon and the line, so the mask is drawn larger than the icon by that margin (3/58 of the icon on each
+-- side) and only rounds the corners.
+local CORNER_MASK_ATLAS = "UI-HUD-CoolDownManager-Mask"
+local CORNER_MASK_OUT = 3 / 58
+ns.CORNER_MASK_OUT = CORNER_MASK_OUT
 ---(26/10) The interrupt's icon of a strip: the spell's icon, the game's cooldown clock over it (CooldownFrameTemplate,
 ---the action bars' own), the seconds in the middle, and the Cooldown Manager's gold frame when it is ready.
 local function KickIcon(faixa)
@@ -1892,6 +1902,11 @@ local function BuildRow(index)
         row.iconBorder:SetTexCoord(CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP, CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP)
         row.iconBorder:SetDesaturated(true)
         row.iconBorder:Hide()
+        -- one corner mask per icon texture (CORNER_MASK_OUT), put on and taken off with the shape
+        row.iconCorner = row.text:CreateMaskTexture()
+        row.iconCorner:SetAtlas(CORNER_MASK_ATLAS)
+        row.iconClassCorner = row.text:CreateMaskTexture()
+        row.iconClassCorner:SetAtlas(CORNER_MASK_ATLAS)
 
         row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         -- 2px above the centre: opens breathing room between the text and the coloured strip at the foot.
@@ -1942,6 +1957,12 @@ local function BuildRow(index)
     row.iconClass:SetSize(drawn, drawn)
     row.iconClass:SetPoint("LEFT", 1, 0)
     local pad = drawn * CLASS_BORDER_PAD
+    local out = drawn * CORNER_MASK_OUT
+    for tex, corner in pairs({ [row.icon] = row.iconCorner, [row.iconClass] = row.iconClassCorner }) do
+        corner:ClearAllPoints()
+        corner:SetPoint("TOPLEFT", tex, "TOPLEFT", -out, out)
+        corner:SetPoint("BOTTOMRIGHT", tex, "BOTTOMRIGHT", out, -out)
+    end
     row.iconBorder:ClearAllPoints()
     row.iconBorder:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -pad, pad)
     row.iconBorder:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", pad, -pad)
@@ -2824,11 +2845,19 @@ function Window.Draw()
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
             -- (27/10) the frame in the class colour, on the square icon only (the line is square: on the round one it
             -- would cut across the corners the mask took away)
-            if ns.IconShape() == "square" and (row.icon:IsShown() or row.iconClass:IsShown()) then
+            local square = ns.IconShape() == "square"
+            if square and (row.icon:IsShown() or row.iconClass:IsShown()) then
                 row.iconBorder:SetVertexColor(ns.ClassColor(source.classFilename))
                 row.iconBorder:Show()
             else
                 row.iconBorder:Hide()
+            end
+            -- the corners under the frame (CORNER_MASK_OUT); the round shape has its own mask
+            if row.iconCornered ~= square then
+                local verb = square and "AddMaskTexture" or "RemoveMaskTexture"
+                row.icon[verb](row.icon, row.iconCorner)
+                row.iconClass[verb](row.iconClass, row.iconClassCorner)
+                row.iconCornered = square
             end
             ns.DrawName(row, source.name)
             row.classFilename = source.classFilename
@@ -3235,6 +3264,8 @@ function Window.DebugRow(index)
             shown = row.iconBorder:IsShown(), color = row.iconBorder.__vertex, coords = row.iconBorder.__texcoord,
             pad = select(4, row.iconBorder:GetPoint(1)), iconWidth = row.icon:GetWidth(), rowHeight = row:GetHeight(),
             class = row.classFilename,
+            corner = row.iconCorner and rawget(row.icon, "__masks") ~= nil and rawget(row.icon, "__masks")[row.iconCorner] == true,
+            cornerOut = row.iconCorner and select(4, row.iconCorner:GetPoint(1)),
         },
         bgAlpha = cor and cor[4] or nil,
         rowWidth = row:GetWidth(),
