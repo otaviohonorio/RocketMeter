@@ -1040,6 +1040,15 @@ local KICK_GLOW_CROP = 3 / 64
 local KICK_GLOW_INNER = (13 / 64 - KICK_GLOW_CROP) / (1 - 2 * KICK_GLOW_CROP)
 local KICK_GLOW_PAD = KICK_GLOW_INNER / (1 - 2 * KICK_GLOW_INNER)
 ns.KICK_GLOW_PAD = KICK_GLOW_PAD
+-- (27/10) THE ROW ICON'S FRAME: the same art cut down to its line, in the class colour. The user: *"no icone da classe,
+-- vamos fazer essa borda igual do interrupt mas sem parecer 'brilhar' com a cor da classe"*. The cut keeps px 11-52
+-- (the line is px 11-12; the gold fade outside it is the glow, and goes); desaturated (the line is 255,244,147, which
+-- desaturates to 0.93) and tinted with the class colour. The line's inner edge is at f = 2/42 of the drawn art, so
+-- pad = f / (1 - 2f) = 0.053 of the icon (1.2 px on the icon of 23), the line just outside the icon.
+local CLASS_BORDER_CROP = 11 / 64
+local CLASS_BORDER_INNER = (13 / 64 - CLASS_BORDER_CROP) / (1 - 2 * CLASS_BORDER_CROP)
+local CLASS_BORDER_PAD = CLASS_BORDER_INNER / (1 - 2 * CLASS_BORDER_INNER)
+ns.CLASS_BORDER_PAD = CLASS_BORDER_PAD
 ---(26/10) The interrupt's icon of a strip: the spell's icon, the game's cooldown clock over it (CooldownFrameTemplate,
 ---the action bars' own), the seconds in the middle, and the Cooldown Manager's gold frame when it is ready.
 local function KickIcon(faixa)
@@ -1877,6 +1886,13 @@ local function BuildRow(index)
         row.iconClass:SetPoint("LEFT", 0, 0)
         row.iconClass:Hide()
 
+        -- (27/10) the class-coloured line around the icon (CLASS_BORDER_PAD), over both textures
+        row.iconBorder = row.text:CreateTexture(nil, "OVERLAY", nil, 1)
+        row.iconBorder:SetAtlas("ui-cooldownmanager-activeglow")
+        row.iconBorder:SetTexCoord(CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP, CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP)
+        row.iconBorder:SetDesaturated(true)
+        row.iconBorder:Hide()
+
         row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         -- 2px above the centre: opens breathing room between the text and the coloured strip at the foot.
         row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, TEXT_LIFT)
@@ -1917,9 +1933,18 @@ local function BuildRow(index)
         row:SetBackdropBorderColor(0, 0, 0, 0)
     end
 
-    local iconSize = height          -- preenche a linha inteira
-    row.icon:SetSize(iconSize, iconSize)
-    row.iconClass:SetSize(iconSize, iconSize)
+    local iconSize = height          -- the icon's slot: the whole row
+    -- (27/10) the icon itself 1 px in from every side, like the interrupt's (KickSize): its frame then fits in the row
+    -- and does not touch the next one
+    local drawn = iconSize - 2
+    row.icon:SetSize(drawn, drawn)
+    row.icon:SetPoint("LEFT", 1, 0)
+    row.iconClass:SetSize(drawn, drawn)
+    row.iconClass:SetPoint("LEFT", 1, 0)
+    local pad = drawn * CLASS_BORDER_PAD
+    row.iconBorder:ClearAllPoints()
+    row.iconBorder:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -pad, pad)
+    row.iconBorder:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", pad, -pad)
 
     -- A FULL BAR, and it is worth explaining why it came back.
     --
@@ -2797,6 +2822,14 @@ function Window.Draw()
             row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
+            -- (27/10) the frame in the class colour, on the square icon only (the line is square: on the round one it
+            -- would cut across the corners the mask took away)
+            if ns.IconShape() == "square" and (row.icon:IsShown() or row.iconClass:IsShown()) then
+                row.iconBorder:SetVertexColor(ns.ClassColor(source.classFilename))
+                row.iconBorder:Show()
+            else
+                row.iconBorder:Hide()
+            end
             ns.DrawName(row, source.name)
             row.classFilename = source.classFilename
             row.source = source
@@ -3197,6 +3230,12 @@ function Window.DebugRow(index)
     local cor = row.bg.GetColorTexture and row.bg:GetColorTexture()
     return {
         nameArea = row.nameArea or 0,
+        -- (27/10) the icon's class-coloured frame
+        border = row.iconBorder and {
+            shown = row.iconBorder:IsShown(), color = row.iconBorder.__vertex, coords = row.iconBorder.__texcoord,
+            pad = select(4, row.iconBorder:GetPoint(1)), iconWidth = row.icon:GetWidth(), rowHeight = row:GetHeight(),
+            class = row.classFilename,
+        },
         bgAlpha = cor and cor[4] or nil,
         rowWidth = row:GetWidth(),
         -- THE CLASS COLOUR STAYS ON THE ROW, and now in one place only: the metrics' bars. Without
