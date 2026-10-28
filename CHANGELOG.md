@@ -1,4 +1,4 @@
-# Rocket Meter 0.95.1
+# Rocket Meter 0.95.2
 
-- The interrupts column: the bar now stops before the interrupt icon instead of running under it.
-- The interrupt icon is a little bigger (the height of the row) and always square, like the action bars, with the gold frame when it is ready.
+- The interrupts column: the interrupt icon now comes first, with the count and its bar after it.
+- Each row's specialization icon has a thin frame in the class colour: a square line on square icons, a ring on round ones.
