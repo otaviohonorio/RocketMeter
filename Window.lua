@@ -2138,7 +2138,7 @@ local function BuildRow(index)
 
         for i = #vao.grupo.keys + 1, #faixa.texts do faixa.texts[i]:SetText("") end
 
-        -- (26/10) THE INTERRUPTS' CLOCK (Kicks.lua): on the interrupts' strip, the icon at the right end and the
+        -- (26/10) THE INTERRUPTS' CLOCK (Kicks.lua): on the interrupts' strip, the icon at the left end and the
         -- count beside it; on any other strip, or with the option off, no icon
         faixa.kickKind = nil
         if ns.Kicks and ns.Kicks.Enabled() and quantos == 1 then
@@ -2160,26 +2160,28 @@ local function BuildRow(index)
             b.glow:SetPoint("TOPLEFT", b, "TOPLEFT", -pad, pad)
             b.glow:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", pad, -pad)
             b:ClearAllPoints()
-            b:SetPoint("RIGHT", faixa, "RIGHT", -TEXT_INSET, 0)
+            -- (27/10) THE ICON FIRST, THEN THE COUNT AND ITS BAR (the user: "deixa icone do interrupt na frente do
+            -- valor e o valor com a barra depois, só inverter"): it used to sit at the right end
+            b:SetPoint("LEFT", faixa, "LEFT", TEXT_INSET, 0)
             -- (27/10) THE BAR STOPS BEFORE THE ICON. The user's print ("a barra do interrupt está em cima do ícone"):
             -- the bar crossed the whole strip, and with 18 or 19 interrupts it ran under the icon, which sank into it
             -- (measured on the print: the icon was drawn on top, the bar's end behind it). The icon gets its own room
-            -- at the right end; the bar, its track and the count take the rest.
+            -- at the left end; the bar, its track and the count take the rest, after it.
             local cut = size + TEXT_INSET + KICK_GAP
             faixa.bar:ClearAllPoints()
-            faixa.bar:SetPoint("TOPLEFT", faixa, "TOPLEFT", 0, 0)
-            faixa.bar:SetPoint("BOTTOMRIGHT", faixa, "BOTTOMRIGHT", -cut, 0)
+            faixa.bar:SetPoint("TOPLEFT", faixa, "TOPLEFT", cut, 0)
+            faixa.bar:SetPoint("BOTTOMRIGHT", faixa, "BOTTOMRIGHT", 0, 0)
             faixa.track:ClearAllPoints()
-            faixa.track:SetPoint("TOPLEFT", faixa, "TOPLEFT", 0, 0)
-            faixa.track:SetPoint("BOTTOMRIGHT", faixa, "BOTTOMRIGHT", -cut, 0)
+            faixa.track:SetPoint("TOPLEFT", faixa, "TOPLEFT", cut, 0)
+            faixa.track:SetPoint("BOTTOMRIGHT", faixa, "BOTTOMRIGHT", 0, 0)
             ns.ApplyRoleFont(b.num, "body", PAIR_DELTA)
             -- the count stays centred (the user: *"quando a coluna tiver apenas um valor, fica centralizado"*), in the
-            -- part of the strip left of the icon
+            -- part of the strip right of the icon: over the bar, centred on it
             local fs = faixa.texts[1]
             fs:ClearAllPoints()
             fs:SetJustifyH("CENTER")
-            fs:SetWidth(math.max(10, larguraFaixa - size - TEXT_INSET * 2 - 4))
-            fs:SetPoint("RIGHT", b, "LEFT", -4, 0)
+            fs:SetWidth(math.max(10, larguraFaixa - cut))
+            fs:SetPoint("LEFT", faixa, "LEFT", cut, 0)
         elseif faixa.kick then
             faixa.kick:Hide()
             faixa.kick:SetScript("OnUpdate", nil)
@@ -3315,8 +3317,8 @@ function Window.DebugFirstRow()
     return Window.DebugRow(1)
 end
 
----(27/10) A row's interrupts strip: where its bar and track end and where the icon sits, as offsets from the strip's
----right edge; nil when no strip carries the interrupts' clock. `others` counts the strips whose bar does not cross the
+---(27/10) A row's interrupts strip: where its bar and track start and where the icon sits, as offsets from the strip's
+---left edge; nil when no strip carries the interrupts' clock. `others` counts the strips whose bar does not cross the
 ---whole strip -- only the interrupts' one may be cut.
 function Window.DebugKickStrip(index)
     local row = rows and rows[index or 1]
@@ -3325,11 +3327,14 @@ function Window.DebugKickStrip(index)
     for _, faixa in pairs(row.groups) do
         if faixa:IsShown() then
             if faixa.kickKind and faixa.kick then
-                local _, _, _, barX = faixa.bar:GetPoint(2)
-                local _, _, _, trackX = faixa.track:GetPoint(2)
-                local _, _, _, iconX = faixa.kick:GetPoint(1)
+                local _, _, _, barX = faixa.bar:GetPoint(1)
+                local _, _, _, barEndX = faixa.bar:GetPoint(2)
+                local _, _, _, trackX = faixa.track:GetPoint(1)
+                local iconPoint, _, _, iconX = faixa.kick:GetPoint(1)
+                local _, _, _, textX = faixa.texts[1]:GetPoint(1)
                 local _, _, _, glowX = faixa.kick.glow:GetPoint(1)
-                out = { barRight = barX, trackRight = trackX, iconRight = iconX, iconWidth = faixa.kick:GetWidth(),
+                out = { barLeft = barX, barRight = barEndX, trackLeft = trackX, iconPoint = iconPoint, iconLeft = iconX,
+                        textLeft = textX, iconWidth = faixa.kick:GetWidth(),
                         glowPad = glowX and -glowX, glowCoords = faixa.kick.glow.__texcoord }
             elseif faixa.bar:GetNumPoints() ~= 1 then
                 others = others + 1
