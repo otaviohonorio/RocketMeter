@@ -1057,6 +1057,19 @@ ns.CLASS_BORDER_PAD = CLASS_BORDER_PAD
 -- between the icon and the line, so the mask is drawn larger than the icon by that margin (3/58 of the icon on each
 -- side) and only rounds the corners.
 local CORNER_MASK_ATLAS = "UI-HUD-CoolDownManager-Mask"
+-- (28/10) THE ROUND ICON'S RING, the same idea on the round shape (the user, asked: *"sim"*). The game's thin ring with
+-- the same build as the square frame is the character creation's selection ring (`charactercreate-ring-select-small`,
+-- 44 px, along its middle: glow at px 0-5, the line at px 6-7, lum 0.8, a dark shade at px 8, clear from px 9). Cut at
+-- px 6 (no glow), desaturated and tinted like the square line. The portrait mask's circle touches the icon's edges, so
+-- the icon's edge goes on px 8: under the shade, no dark gap, and half a pixel off either way still under the line.
+-- f = (8 - 6) / 32, pad = f / (1 - 2f) = 0.071 of the icon (1.6 px on the icon of 23).
+-- A square cut of a round art leaves the glow in at the diagonals (seen in the mockup as a halo): the ring also goes
+-- under the portrait mask (ROUND_MASK, a circle touching its edges), which drops everything outside the line.
+local RING_ATLAS = "charactercreate-ring-select-small"
+local RING_CROP = 6 / 44
+local RING_INNER = (8 / 44 - RING_CROP) / (1 - 2 * RING_CROP)
+local RING_PAD = RING_INNER / (1 - 2 * RING_INNER)
+ns.RING_PAD = RING_PAD
 local CORNER_MASK_OUT = 3 / 58
 ns.CORNER_MASK_OUT = CORNER_MASK_OUT
 ---(26/10) The interrupt's icon of a strip: the spell's icon, the game's cooldown clock over it (CooldownFrameTemplate,
@@ -1902,6 +1915,16 @@ local function BuildRow(index)
         row.iconBorder:SetTexCoord(CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP, CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP)
         row.iconBorder:SetDesaturated(true)
         row.iconBorder:Hide()
+        -- the ring of the round shape (RING_PAD)
+        row.iconRing = row.text:CreateTexture(nil, "OVERLAY", nil, 1)
+        row.iconRing:SetAtlas(RING_ATLAS)
+        row.iconRing:SetTexCoord(RING_CROP, 1 - RING_CROP, RING_CROP, 1 - RING_CROP)
+        row.iconRing:SetDesaturated(true)
+        row.iconRing:Hide()
+        row.iconRingMask = row.text:CreateMaskTexture()
+        row.iconRingMask:SetTexture(ROUND_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        row.iconRingMask:SetAllPoints(row.iconRing)
+        row.iconRing:AddMaskTexture(row.iconRingMask)
         -- one corner mask per icon texture (CORNER_MASK_OUT), put on and taken off with the shape
         row.iconCorner = row.text:CreateMaskTexture()
         row.iconCorner:SetAtlas(CORNER_MASK_ATLAS)
@@ -1957,6 +1980,10 @@ local function BuildRow(index)
     row.iconClass:SetSize(drawn, drawn)
     row.iconClass:SetPoint("LEFT", 1, 0)
     local pad = drawn * CLASS_BORDER_PAD
+    local ringPad = drawn * RING_PAD
+    row.iconRing:ClearAllPoints()
+    row.iconRing:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -ringPad, ringPad)
+    row.iconRing:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", ringPad, -ringPad)
     local out = drawn * CORNER_MASK_OUT
     for tex, corner in pairs({ [row.icon] = row.iconCorner, [row.iconClass] = row.iconClassCorner }) do
         corner:ClearAllPoints()
@@ -2843,14 +2870,17 @@ function Window.Draw()
             row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
-            -- (27/10) the frame in the class colour, on the square icon only (the line is square: on the round one it
-            -- would cut across the corners the mask took away)
+            -- (27/10) the frame in the class colour: the square line on the square icon, the ring on the round one
+            -- (28/10; the square line would cut across the corners the mask took away)
             local square = ns.IconShape() == "square"
-            if square and (row.icon:IsShown() or row.iconClass:IsShown()) then
-                row.iconBorder:SetVertexColor(ns.ClassColor(source.classFilename))
-                row.iconBorder:Show()
+            local frameTex = square and row.iconBorder or row.iconRing
+            local otherTex = square and row.iconRing or row.iconBorder
+            otherTex:Hide()
+            if row.icon:IsShown() or row.iconClass:IsShown() then
+                frameTex:SetVertexColor(ns.ClassColor(source.classFilename))
+                frameTex:Show()
             else
-                row.iconBorder:Hide()
+                frameTex:Hide()
             end
             -- the corners under the frame (CORNER_MASK_OUT); the round shape has its own mask
             if row.iconCornered ~= square then
@@ -3266,6 +3296,11 @@ function Window.DebugRow(index)
             class = row.classFilename,
             corner = row.iconCorner and rawget(row.icon, "__masks") ~= nil and rawget(row.icon, "__masks")[row.iconCorner] == true,
             cornerOut = row.iconCorner and select(4, row.iconCorner:GetPoint(1)),
+            ring = row.iconRing and {
+                shown = row.iconRing:IsShown(), color = row.iconRing.__vertex, coords = row.iconRing.__texcoord,
+                pad = select(4, row.iconRing:GetPoint(1)),
+                masked = rawget(row.iconRing, "__masks") ~= nil and rawget(row.iconRing, "__masks")[row.iconRingMask] == true,
+            },
         },
         bgAlpha = cor and cor[4] or nil,
         rowWidth = row:GetWidth(),
