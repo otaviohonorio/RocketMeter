@@ -1365,9 +1365,10 @@ local KICK_GAP = 3                -- (27/10) between the end of the interrupts' 
 
 ---(27/10) The interrupt icon's size: the row's height less 1 above and below -- it reaches past the bar's strip --, up
 ---to 26 with a large font. The user: *"aumenta um pouco o icone de interrupt"* (it was the strip's height less 2: 19 in a
----row of 25, now 23).
+---row of 25, now 23). (28/10) One px smaller, the least there is (the user: *"diminuir, mas o minimo possível"*, then
+---*"1,5px"*): the row less 3, 1.5 above and below -- 22 in a row of 25 --, up to 25.
 local function KickSize()
-    return math.min(RowHeight() - 2, 26)
+    return math.min(RowHeight() - 3, 25)
 end
 ns.KickSize = KickSize
 
