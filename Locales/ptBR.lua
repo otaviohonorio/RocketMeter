@@ -308,7 +308,7 @@ L["No defensive was ready: all of them had been used."] = "Nenhuma defensiva est
 L["Fitted"] = "Cabiam"
 L["Usage"] = "Aproveitamento"
 L["Fitted: how many times a cooldown of 45 s or more was ready in these fights. Usage: the share of those it was pressed; in colour only a damage dealer's burst, defensives and what is pressed on demand are not judged."] =
-    "Cabiam: quantas vezes uma recarga de 45 s ou mais ficou pronta nestas lutas. Aproveitamento: a parte delas em que foi usada. Só a explosão de quem causa dano ganha cor; as defensivas e o que se usa quando precisa não são avaliados."
+    "Cabiam: quantas vezes uma recarga de 45 s ou mais ficou pronta nestas lutas. Aproveitamento: a parte delas em que foi usada. Só o burst de quem causa dano ganha cor; as defensivas e o que se usa quando precisa não são avaliados."
 L["cooldown of %s · idle %s in total"] = "recarga de %s · parada %s no total"
 L["gaps without casting"] = "pausas sem lançar"
 L["%d gaps without casting of more than %d s in combat"] = "%d pausas de mais de %d s sem lançar em combate"
