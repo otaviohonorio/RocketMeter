@@ -251,7 +251,8 @@ end
 --------------------------------------------------------------------------------
 -- The frame
 --------------------------------------------------------------------------------
-local HISTORY_COLS = { 300, 70, 90, 80, 70, 70, 80, 80 }
+-- (30/10) a Burst column after the rate (the user's rule: the burst beside every mean); the window is 1000 wide
+local HISTORY_COLS = { 300, 70, 90, 70, 80, 70, 70, 80, 80 }
 local function BuildHistory(page)
     page.title = Text(page, "GameFontNormalSmall")
     page.title:SetPoint("TOPLEFT", 2, -1)
@@ -593,9 +594,9 @@ local function DrawSummary(page, c)
     -- 4. The four boxes, two by two: damage done, healing done; damage taken, deaths.
     local half = (page.width - GAP) / 2
     local m = c.m
-    local function Box(x, title, rows, total, rateLabel, noAdvance)
+    local function Box(x, title, rows, total, rateLabel, noAdvance, right)
         local y0 = page.y
-        Report.Band(page, title, x, half, nil, true)
+        Report.Band(page, title, x, half, right, true)
         page.y = page.y + Report.Geometry.BAND
         local h
         if #rows == 0 then
@@ -612,7 +613,15 @@ local function DrawSummary(page, c)
     end
     local dmg = AmountRows(m and m.spells and m.spells.damage, c.own, c.seconds)
     local heal = AmountRows(m and m.spells and Win.HealingList(m), c.own, c.seconds)
-    local h1 = Box(0, L["Damage done by ability"], dmg, nil, L["DPS"])
+    -- (30/10) the burst beside the damage (the user's rule): the strongest fight's of the scope, estimated from the
+    -- player's casts and his spells' damage (MyRun.EstimateBurst); the game gives no curve to read it from
+    local best
+    for _, f in ipairs(c.fights or {}) do
+        local b = type(f.burst) == "table" and f.burst
+        if b and type(b.burst) == "number" and (not best or b.burst > best.burst) then best = b end
+    end
+    local h1 = Box(0, L["Damage done by ability"], dmg, nil, L["DPS"], nil,
+        best and L["Burst %s (estimated, %d s)"]:format(Fmt(best.burst), best.secs or 0) or nil)
     local h2 = Box(half + GAP, L["Healing done by ability"], heal, nil, L["HPS"])
     page.y = page.y + math.max(h1, h2) + GAP
     local taken = Win.TakenRows(c)
@@ -935,7 +944,7 @@ local function DrawHistory()
     local b = frame.history
     local list = ns.MyRun.History()
     b.title:SetText(format(L["History — the last %d"], MAX_HISTORY))
-    local labels = { L["Run"], L["Role"], L["Per second"], L["Avoidable"], L["Interr."], L["Deaths"], L["Cooldowns"], L["Casts/min"] }
+    local labels = { L["Run"], L["Role"], L["Per second"], L["Burst"], L["Avoidable"], L["Interr."], L["Deaths"], L["Cooldowns"], L["Casts/min"] }
     for c, cell in ipairs(b.rows[0].cells) do cell:SetText(labels[c]) end
     local ROLE_LABEL = { DAMAGER = L["DAMAGER"], TANK = L["TANK"], HEALER = L["HEALER"] }
     for i = 1, MAX_HISTORY do
@@ -958,11 +967,18 @@ local function DrawHistory()
             cells[1]:SetText((saved.date or "") .. " · " .. (onde ~= "" and onde or "?"))
             cells[2]:SetText(ROLE_LABEL[saved.role] or ROLE_LABEL.DAMAGER)
             cells[3]:SetText(m and m[key] and Fmt(m[key].perSecond) or "-")
-            cells[4]:SetText(share and (share .. "%") or "-")
-            cells[5]:SetText(m and m.interrupts and tostring(m.interrupts.total) or "-")
-            cells[6]:SetText(tostring(#(saved.deaths or {})))
-            cells[7]:SetText(fitted > 0 and format("%d%%", math.floor(used / fitted * 100 + 0.5)) or "-")
-            cells[8]:SetText(own.perMinute and format("%d", math.floor(own.perMinute + 0.5)) or "-")
+            -- the run's strongest fight's burst, estimated (MyRun.EstimateBurst); a run saved before 30/10 has none
+            local burst
+            for _, f in ipairs(saved.fights or {}) do
+                local b = type(f.burst) == "table" and f.burst.burst
+                if type(b) == "number" and (not burst or b > burst) then burst = b end
+            end
+            cells[4]:SetText(key == "damage" and burst and Fmt(burst) or "-")
+            cells[5]:SetText(share and (share .. "%") or "-")
+            cells[6]:SetText(m and m.interrupts and tostring(m.interrupts.total) or "-")
+            cells[7]:SetText(tostring(#(saved.deaths or {})))
+            cells[8]:SetText(fitted > 0 and format("%d%%", math.floor(used / fitted * 100 + 0.5)) or "-")
+            cells[9]:SetText(own.perMinute and format("%d", math.floor(own.perMinute + 0.5)) or "-")
         end
     end
     b.note:SetText(#list == 0 and L["No run saved yet."] or L["Click a line to open it."])

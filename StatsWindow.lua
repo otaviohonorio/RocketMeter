@@ -120,11 +120,14 @@ function Win.Draw()
     local perfRows = {
         { L["Keys recorded"], tostring(p.keys or 0) },
         { L["Damage per second, on average"], p.dps and Kit().Fmt(p.dps) },
+        -- (30/10) the burst beside the mean (the user's rule): each key's strongest fight, estimated (MyRun.EstimateBurst)
+        { L["Burst, on average (estimated)"], p.burst and Kit().Fmt(p.burst) },
         { L["Rank in the group, on average"], Dec(p.rank) },
         { L["Deaths per key"], Dec(p.deaths) },
         { L["Interrupts per key"], Dec(p.interrupts) },
         { L["Raids recorded"], tostring(p.raids or 0) },
         { L["Damage per second on bosses"], p.bossDps and Kit().Fmt(p.bossDps) },
+        { L["Burst on bosses (estimated)"], p.bossBurst and Kit().Fmt(p.bossBurst) },
     }
     local mplusBox = { L["Mythic+"], ratingRight, { columns = PAIRS, rows = Pairs(mplusRows), noHead = true } }
     local perfBox = { L["Your performance"], nil, { columns = PAIRS, rows = Pairs(perfRows), noHead = true } }

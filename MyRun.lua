@@ -416,6 +416,75 @@ function MyRun.IsActive() return run ~= nil and not run.finished end
 ---The run in memory: the one happening, or the last one finished.
 function MyRun.Current() return run end
 
+--------------------------------------------------------------------------------
+-- (30/10) THE BURST OF A FIGHT, ESTIMATED (the user: *"se tiver como mostrar no rocketmeter os burst"*). The game gives
+-- no damage second by second (C_DamageMeter: a session's totals and its spells' totals only), so the burst is put
+-- together from what the addon has: each spell's damage in the fight (the meter, out of combat) spread over the
+-- seconds the player cast it (run.casts, his own casts are readable; the group's are secret, so this is the player's
+-- only). Then the strongest window of the spec's burst cooldown (Data/BurstSecs.lua, measured by the lab; 20 s when
+-- unknown) and the seconds after it while each stays at or above the fight's average, BURST_TAIL at most. The same
+-- method as RocketLab's dummy fights (Analysis.EstimateBurst): 12% under the real burst on average on 18 fights, so it
+-- is said "estimated" wherever shown.
+--------------------------------------------------------------------------------
+local BURST_WINDOW, BURST_TAIL = 20, 5
+
+local function SpecID()
+    local idx = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()
+    local id = idx and C_SpecializationInfo.GetSpecializationInfo and C_SpecializationInfo.GetSpecializationInfo(idx)
+    return type(id) == "number" and id or nil
+end
+
+---{ burst (per second), at (s from the fight's start), secs, estimated = true } of a fight, or nil.
+function MyRun.EstimateBurst(f, casts, spells, specID)
+    if not (f and f.s and f.e and f.e > f.s) or type(spells) ~= "table" then return nil end
+    local secs = math.floor(f.e - f.s) + 1
+    local at = {}
+    for _, c in ipairs(casts or {}) do
+        local t, id = c[1], c[2]
+        if type(t) == "number" and type(id) == "number" and t >= f.s and t <= f.e then
+            local list = at[id] or {}
+            list[#list + 1] = math.floor(t - f.s) + 1
+            at[id] = list
+        end
+    end
+    local series, rest, total = {}, 0, 0
+    for i = 1, secs do series[i] = 0 end
+    for _, sp in ipairs(spells) do
+        local id, amount = sp.spellID, sp.amount
+        if type(amount) == "number" and amount > 0 then
+            total = total + amount
+            local list = type(id) == "number" and at[id]
+            if list and #list > 0 then
+                local each = amount / #list
+                for _, s in ipairs(list) do series[s] = series[s] + each end
+            else
+                rest = rest + amount
+            end
+        end
+    end
+    if total <= 0 then return nil end
+    if rest > 0 then for i = 1, secs do series[i] = series[i] + rest / secs end end
+    local core = ns.BurstSecs and specID and ns.BurstSecs[specID]
+    local window = math.min(core or BURST_WINDOW, secs)
+    local sum = 0
+    for i = 1, window do sum = sum + series[i] end
+    local best, bestAt = sum, 1
+    for i = window + 1, secs do
+        sum = sum + series[i] - series[i - window]
+        if sum > best then best, bestAt = sum, i - window + 1 end
+    end
+    if best <= 0 then return nil end
+    local tail = 0
+    if core then
+        local stop = bestAt + window - 1
+        while tail < BURST_TAIL and stop + tail < secs and series[stop + tail + 1] >= total / secs do
+            tail = tail + 1
+            best = best + series[stop + tail]
+        end
+    end
+    return { burst = best / (window + tail), at = bestAt - 1, secs = window + tail, cooldown = core ~= nil, estimated = true }
+end
+
 function MyRun.OnCombatStart()
     if not run or run.finished or run.open then return end
     run.open = { s = Elapsed(), boss = run.encounter and run.encounter.name or nil, enc = run.encounter and run.encounter.id or nil }
@@ -474,6 +543,9 @@ function MyRun.OnCombatEnd()
         if ok and type(m) == "table" then
             while m.takenSpells and #m.takenSpells > MAX_FIGHT_SPELLS do table.remove(m.takenSpells) end
             f.m = m
+            -- (30/10) the fight's burst, estimated from the player's casts and his spells' damage (MyRun.EstimateBurst)
+            local okB, b = pcall(MyRun.EstimateBurst, f, doRun.casts, m.spells and m.spells.damage, SpecID())
+            if okB and b then f.burst = b end
         end
         -- (14/10) "My run" open shows the fight that just ended (nothing redrew it before): once
         -- per fight, when its numbers are in, and not every frame — a redraw remakes the menus.
@@ -1522,7 +1594,7 @@ local function Compact(r)
                 metrics = r.metrics, bySpell = {}, castCount = #r.casts, finished = true, kinds = r.kinds,
                 stats = r.stats, gear = r.gear, castLog = MyRun.PackCasts(r.casts) }
     for i, f in ipairs(r.fights) do
-        c.fights[i] = { s = f.s, e = f.e, boss = f.boss, enc = f.enc, success = f.success, bySpell = {}, m = f.m }
+        c.fights[i] = { s = f.s, e = f.e, boss = f.boss, enc = f.enc, success = f.success, bySpell = {}, m = f.m, burst = f.burst }
     end
     c.cdCasts = MyRun.CooldownUses(r)
     c.defCasts = MyRun.DefensiveUses(r)

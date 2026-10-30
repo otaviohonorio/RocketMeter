@@ -88,6 +88,11 @@ function Stats.NoteRun(c)
                    deaths = type(c.deaths) == "table" and #c.deaths or 0,
                    interrupts = N((m.interrupts or {}).total) }
     if type(c.result) == "table" then line.onTime, line.sec = c.result.onTime, N(c.result.time) end
+    -- (30/10) the run's burst beside its mean (the user's rule): its strongest fight's, estimated (MyRun.EstimateBurst)
+    for _, f in ipairs(c.fights or {}) do
+        local b = type(f.burst) == "table" and N(f.burst.burst)
+        if b and (not line.burst or b > line.burst) then line.burst, line.burstSecs = b, N(f.burst.secs) end
+    end
     if c.kind == "raid" then
         -- the meter starts again at each boss: the raid's damage is its bosses', each over its own time
         local kills, wipes, dmgSum, secs = 0, 0, 0, 0
@@ -280,18 +285,21 @@ function Stats.Compute(snap, scope)
     local p = { keys = 0, raids = 0 }
     local dps, rank, deaths, interrupts, nDps, nRank, nInt = 0, 0, 0, 0, 0, 0, 0
     local bossDps, nBoss, kills, wipes = 0, 0, 0, 0
+    local burst, nBurst, bossBurst, nBossBurst = 0, 0, 0, 0       -- (30/10) the burst beside each mean (estimated)
     local raidRows = {}
     for _, r in ipairs((snap.seasonLog or {}).runs or {}) do
         if not week or (r.at or 0) >= weekStart then
             if r.kind == "key" then
                 p.keys = p.keys + 1
                 if r.dps then dps, nDps = dps + r.dps, nDps + 1 end
+                if r.burst then burst, nBurst = burst + r.burst, nBurst + 1 end
                 if r.rank then rank, nRank = rank + r.rank, nRank + 1 end
                 deaths = deaths + (r.deaths or 0)
                 if r.interrupts then interrupts, nInt = interrupts + r.interrupts, nInt + 1 end
             elseif r.kind == "raid" then
                 p.raids = p.raids + 1
                 if r.dps then bossDps, nBoss = bossDps + r.dps, nBoss + 1 end
+                if r.burst then bossBurst, nBossBurst = bossBurst + r.burst, nBossBurst + 1 end
                 kills, wipes = kills + (r.kills or 0), wipes + (r.wipes or 0)
                 local key = tostring(r.name) .. "|" .. tostring(r.detail)
                 local row = raidRows[key] or { name = r.name, detail = r.detail, kills = 0, wipes = 0 }
@@ -304,6 +312,7 @@ function Stats.Compute(snap, scope)
     p.deaths = p.keys > 0 and deaths / p.keys or nil
     p.interrupts = Avg(interrupts, nInt)
     p.bossDps, p.kills, p.wipes = Avg(bossDps, nBoss), kills, wipes
+    p.burst, p.bossBurst = Avg(burst, nBurst), Avg(bossBurst, nBossBurst)
     out.perf = p
 
     -- the raids: this week's lockouts (the game), the season's from the runs recorded

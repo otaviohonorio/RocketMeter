@@ -39,6 +39,7 @@ Profile.lua
 Log.lua
 #@end-debug@
 Data\InterruptSpells.lua
+Data\BurstSecs.lua
 Data\SituationalSpells.lua
 Data\DefensiveSpells.lua
 Data\OpenSpells.lua
