@@ -483,7 +483,7 @@ end
 --- The report that exposed it: a hunter showed **19 deaths** in a mythic+ without having died --
 --- he used "Feign Death" many times. **It is not confirmed** that the feigning produces
 --- the extra entries; what is confirmed is that there are entries in the list the game does NOT count
---- as a death, and that we counted. `/rm fontes` shows each entry's `recap`.
+--- as a death, and that we counted. `/rm sources` shows each entry's `recap`.
 ---
 --- `deathRecapID` is **`NeverSecret`** (`DamageMeterDocumentation.lua:207`), so comparing is
 --- safe even in combat and during the whole key -- which is exactly when this shows.

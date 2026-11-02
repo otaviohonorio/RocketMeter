@@ -252,7 +252,7 @@ end
 -- (`DamageMeterDocumentation.lua:199-212`). The NPC ally shows as `Ally` with no class -- and that is
 -- how the native meter draws it, with an ally's colour instead of a class colour
 -- (`DamageMeterEntry.lua:365-369`).
-commands["fontes"] = function()
+commands["sources"] = function()
     if not ns.Data.IsAvailable() then
         ns.Print("|cffff5555C_DamageMeter não está disponível agora.|r")
         return
@@ -339,7 +339,7 @@ commands["help"] = function()
     if ns.Log.enabled then
         print("  /rm atlas [name]                " .. L["checks whether the panel art exists"])
         print("  /rm i18n                        " .. L["checks the labels taken from the game"])
-        print("  /rm fontes                      " .. L["lists who the API reports in each metric"])
+        print("  /rm sources                     " .. L["lists who the API reports in each metric"])
         print("  /rm debug                       " .. L["prints what the API is returning"])
         print("  /rm log [clear]                 " .. L["records a diagnostic snapshot"])
     end
@@ -349,7 +349,7 @@ end
 SLASH_ROCKETMETER1 = "/rocketmeter"
 SLASH_ROCKETMETER2 = "/rm"
 
-local DEV_ONLY = { atlas = true, i18n = true, fontes = true, debug = true }
+local DEV_ONLY = { atlas = true, i18n = true, sources = true, debug = true }
 
 SlashCmdList["ROCKETMETER"] = function(msg)
     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
