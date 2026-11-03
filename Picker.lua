@@ -517,6 +517,8 @@ function Picker.Create()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:Hide()
+    -- (03/11) Esc closes it, as every Rocket window (the user: "a janela do meter nem fecha apertando ESC como as outras")
+    tinsert(UISpecialFrames, frame:GetName())
     if frame.SetTitle then frame:SetTitle(ns.TITLE .. " — " .. L["Configure"]) end
 
     local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
