@@ -65,3 +65,4 @@ Demo.lua
 Scoreboard.lua
 Picker.lua
 Commands.lua
+OptionsEntry.lua
