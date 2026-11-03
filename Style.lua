@@ -54,6 +54,14 @@ local function Tip(owner, title, text)
 end
 Style.Tip = Tip
 
+---A texture made into the system's divider: the game's line, tinted bronze (the app's --edge). For the rules
+---that were drawn by hand (a gold colour at 25%) under the section titles of the denser forms.
+function Style.Divider(texture)
+    texture:SetAtlas(Style.DIVIDER_ATLAS)
+    if Style.BRONZE then texture:SetVertexColor(Style.BRONZE.r, Style.BRONZE.g, Style.BRONZE.b) end
+    return texture
+end
+
 ---A section: the title in gold (GameFontNormalLarge, the app's h2) and the game's divider, tinted bronze, under it.
 function Style.Section(parent, x, y, width, text)
     y = y - Style.SECTION_GAP
@@ -65,7 +73,7 @@ function Style.Section(parent, x, y, width, text)
     line:SetHeight(1)
     line:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y - 26)
     line:SetWidth(width)
-    if Style.BRONZE then line:SetVertexColor(Style.BRONZE:GetRGB()) end
+    if Style.BRONZE then line:SetVertexColor(Style.BRONZE.r, Style.BRONZE.g, Style.BRONZE.b) end
     return y - Style.SECTION_H, t, line
 end
 

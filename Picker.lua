@@ -227,7 +227,7 @@ local function BuildSection(col, y, title)
     rule:SetHeight(1)
     rule:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y - H_LABEL - 4)
     rule:SetPoint("TOPRIGHT", col, "TOPRIGHT", 0, -y - H_LABEL - 4)
-    rule:SetColorTexture(1, 0.82, 0, 0.25)
+    ns.Style.Divider(rule)   -- (03/11) the design system's divider (Style.lua)
     return y + H_SECTION
 end
 
