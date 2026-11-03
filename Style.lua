@@ -141,6 +141,59 @@ function Style.Slider(parent, x, y, col, width, label, tip, min, max, step, fmt,
     return y - Style.ROW, s
 end
 
+---A colour in the control column: the game's own swatch (ColorSwatchTemplate, Blizzard_SharedXMLBase) opening the
+---game's colour picker (ColorPickerFrame). `get()` gives r, g, b (the colour in use: the user's or the game's);
+---`set(r, g, b)` keeps one, `set(nil)` goes back to the game's. A click picks, a right click goes back to the game's
+---colour. Several on one row: pass `dx` (the swatch's offset in the column) and `label = nil` after the first.
+---Returns the next y (the same y when `stay`).
+function Style.Color(parent, x, y, col, label, tip, get, set, dx, stay)
+    local t = label and Style.Label(parent, x, y, label, col - x - 8) or nil
+    local b = CreateFrame("Button", nil, parent, "ColorSwatchTemplate")
+    b:SetSize(24, 24)   -- the swatch is 14; the click target is 24 (WCAG 2.5.8)
+    b:SetPoint("TOPLEFT", parent, "TOPLEFT", col + (dx or 0), y - 1)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    local function Paint()
+        local r, g, bl = get()
+        if b.SetColorRGB then b:SetColorRGB(r or 1, g or 1, bl or 1) end
+    end
+    b:SetScript("OnClick", function(_, button)
+        if button == "RightButton" then
+            set(nil)
+            Paint()
+            return
+        end
+        local r, g, bl = get()
+        ColorPickerFrame:SetupColorPickerAndShow({
+            r = r, g = g, b = bl, hasOpacity = false,
+            swatchFunc = function()
+                set(ColorPickerFrame:GetColorRGB())
+                Paint()
+            end,
+            cancelFunc = function(prev)
+                set(prev.r, prev.g, prev.b)
+                Paint()
+            end,
+        })
+    end)
+    b:SetScript("OnEnter", function(self)
+        if self.SetBorderColor then self:SetBorderColor(NORMAL_FONT_COLOR) end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip_SetTitle(GameTooltip, tip and tip.title or label or "")
+        if tip and tip.text then GameTooltip_AddNormalLine(GameTooltip, tip.text, true) end
+        GameTooltip_AddBlankLineToTooltip(GameTooltip)
+        GameTooltip_AddInstructionLine(GameTooltip, tip and tip.click or "")
+        GameTooltip_AddInstructionLine(GameTooltip, tip and tip.reset or "")
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function(self)
+        if self.SetBorderColor then self:SetBorderColor(HIGHLIGHT_FONT_COLOR) end
+        GameTooltip_Hide()
+    end)
+    Paint()
+    b.label, b.Paint = t, Paint
+    return stay and y or (y - Style.ROW), b
+end
+
 ---The game's red button. Returns the next y.
 function Style.Button(parent, x, y, width, label, tip, onClick)
     local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
