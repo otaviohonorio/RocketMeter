@@ -333,7 +333,8 @@ function ns.DarkBody(frame, alpha, stone)
     local art = frame.__dark
     if not art then
         art = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
-        art:SetAtlas("spec-background")
+        -- (03/11) the design system's body art (Style.lua), the same in every Rocket addon
+        art:SetAtlas(ns.Style and ns.Style.BODY_ATLAS or "spec-background")
         if stone then
             art:SetAllPoints(stone)
             stone:Hide()
