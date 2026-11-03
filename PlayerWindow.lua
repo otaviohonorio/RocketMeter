@@ -307,7 +307,7 @@ function Win.Draw()
     local K = Kit()
     local s = view.source
     local name = Readable(s.name) and s.name or "?"
-    frame:SetTitle(name)
+    frame:SetTitle(ns.TITLE .. " — " .. name)
     local where = view.sessionType == 0 and L["Current fight"] or L["Overall"]
     local class = Readable(s.classFilename) and LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[s.classFilename] or nil
     frame.context:SetText((class and (class .. " · ") or "") .. where)

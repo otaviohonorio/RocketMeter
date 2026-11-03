@@ -305,7 +305,7 @@ local function CreatePanel()
     end)
     frame:Hide()
     ButtonFrameTemplate_HidePortrait(frame)
-    frame:SetTitle(L["My run"])
+    frame:SetTitle(ns.TITLE .. " — " .. L["My run"])
     tinsert(UISpecialFrames, frame:GetName())
     frame:SetScript("OnHide", function()
         if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end

@@ -211,7 +211,7 @@ local function CreatePanel()
     end)
     frame:Hide()
     ButtonFrameTemplate_HidePortrait(frame)
-    frame:SetTitle(L["Statistics"])
+    frame:SetTitle(ns.TITLE .. " — " .. L["Statistics"])
     tinsert(UISpecialFrames, frame:GetName())
 
     local inset = frame.Inset
