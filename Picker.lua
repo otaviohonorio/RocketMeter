@@ -121,6 +121,14 @@ local ORDER_W = 14              -- the position's number, to the left of the arr
 -- go in a pair, and the version before here copied only the 28 -- it fixed the width and left the anchor
 -- wrong, which is what decides where the text starts.
 local CHECK_TEXT_OFFSET = 2
+-- (04/11) THE TEXT GROUP, COMPACT (the user, on the print: "poderia tá tudo melhor categorizado, muito espaço sobrando,
+-- (...) tá muito comprida também"; preview mockup/PREVIA Rocket Meter - Configurar reorganizado.png, approved: "muito
+-- melhor"). Each role: its name (gold, small), the size slider, then the outline and the shadow SIDE BY SIDE.
+local H_SUB = 16                -- the role's name over its controls
+local OUTLINE_W = 130           -- the outline's combo; the shadow box starts SHADOW_X in
+local SHADOW_X = 140
+local ROLE_GAP = 6              -- between two roles of the same section
+local HALF_GAP = 8              -- between the two Scoreboard buttons
 
 local frame, rows
 
@@ -140,6 +148,8 @@ local function Probe(name, widget, x, width, y, height, column, isSection)
         x = x, width = width,
         y = y, height = height, column = column,
         isSection = isSection or false,
+        -- (04/11) a control BESIDE another on the same line (the Text group's shadow, the second Scoreboard button)
+        inline = (x or 0) > 0,
     }
 end
 
@@ -236,16 +246,16 @@ end
 --- In a narrow column, a label on the left would leave ~100px for the text and the rest for the
 --- control, and "Abrir ao fim de uma corrida de Mítico+" does not fit in 100. Above, the label has the
 --- whole column and the control too.
-local function BuildLabelText(col, y)
+local function BuildLabelText(col, y, x, w)
     local text = col:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    text:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
-    text:SetWidth(COL_W)
+    text:SetPoint("TOPLEFT", col, "TOPLEFT", x or 0, -y)
+    text:SetWidth(w or COL_W)
     text:SetJustifyH("LEFT")
     return text
 end
 
-local function BuildLabel(col, y, label)
-    BuildLabelText(col, y):SetText(label)
+local function BuildLabel(col, y, label, x, w)
+    BuildLabelText(col, y, x, w):SetText(label)
     return y + H_LABEL + GAP_LABEL
 end
 
@@ -302,14 +312,15 @@ end
 --- here -- it is always the answer of whoever keeps the setting. If the saved value matches
 --- no item, the button draws **blank**; it happened in 0.58.0, and the fix is migrating the
 --- key, not patching here.
-local function BuildDropdown(col, y, label, entries, get, set)
-    local at = BuildLabel(col, y, label)
+local function BuildDropdown(col, y, label, entries, get, set, x, w)
+    x, w = x or 0, w or COL_W
+    local at = BuildLabel(col, y, label, x, w)
 
     local dropdown = CreateFrame("DropdownButton", nil, col, "WowStyle1DropdownTemplate")
-    dropdown:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -at)
-    dropdown:SetWidth(COL_W)
+    dropdown:SetPoint("TOPLEFT", col, "TOPLEFT", x, -at)
+    dropdown:SetWidth(w)
     dropdown:SetHeight(H_CONTROL)
-    Probe(label, dropdown, 0, COL_W, y, INK_FIELD, col.index)
+    Probe(label, dropdown, x, w, y, INK_FIELD, col.index)
 
     if MenuUtil and MenuUtil.CreateRadioMenu then
         local list = {}
@@ -334,9 +345,10 @@ end
 --- edge. Now the box starts at 0 of the column, and the label gets an EXPLICIT width: what is left
 --- of the column after the box. Without that width, the FontString grows as far as the text asks and
 --- crosses the edge instead of wrapping.
-local function BuildCheck(col, y, label, tip, get, set)
+local function BuildCheck(col, y, label, tip, get, set, x, w)
+    x, w = x or 0, w or COL_W
     local check = CreateFrame("CheckButton", nil, col, "UICheckButtonTemplate")
-    check:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
+    check:SetPoint("TOPLEFT", col, "TOPLEFT", x, -y)
     check:SetSize(CHECK_SIZE, CHECK_SIZE)
 
     -- It tests the TYPE, not only truth: a stub that returns a function here passes the `if` and only
@@ -348,10 +360,10 @@ local function BuildCheck(col, y, label, tip, get, set)
         -- starts is the anchor, and the one inherited from the template is −2 (see `CHECK_TEXT_OFFSET`).
         check.Text:ClearAllPoints()
         check.Text:SetPoint("LEFT", check, "RIGHT", CHECK_TEXT_OFFSET, 0)
-        check.Text:SetWidth(COL_W - CHECK_SIZE - CHECK_TEXT_OFFSET)
+        check.Text:SetWidth(w - CHECK_SIZE - CHECK_TEXT_OFFSET)
         check.Text:SetJustifyH("LEFT")
     end
-    Probe(label, check, 0, COL_W, y, H_CONTROL, col.index)
+    Probe(label, check, x, w, y, H_CONTROL, col.index)
 
     check:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
     check:SetScript("OnEnter", function(self)
@@ -367,10 +379,11 @@ local function BuildCheck(col, y, label, tip, get, set)
     return y + H_CHECK, check
 end
 
-local function BuildButton(col, y, label, tip, onClick)
+local function BuildButton(col, y, label, tip, onClick, x, w)
+    x, w = x or 0, w or COL_W
     local b = CreateFrame("Button", nil, col, "UIPanelButtonTemplate")
-    b:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y)
-    b:SetSize(COL_W, H_CONTROL)
+    b:SetPoint("TOPLEFT", col, "TOPLEFT", x, -y)
+    b:SetSize(w, H_CONTROL)
     b:SetText(label)
     b:SetScript("OnClick", onClick)
     b:SetScript("OnEnter", function(self)
@@ -380,7 +393,7 @@ local function BuildButton(col, y, label, tip, onClick)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", GameTooltip_Hide)
-    Probe(label, b, 0, COL_W, y, H_CONTROL, col.index)
+    Probe(label, b, x, w, y, H_CONTROL, col.index)
     return y + H_BUTTON, b
 end
 
@@ -488,15 +501,17 @@ function Picker.Create()
     -- HEIGHT: the sum of each column, and the window takes the biggest. Counting here, with the SAME
     -- constants that place the controls, is what keeps the window from having space left over or
     -- missing when a line is added.
+    -- (04/11) three balanced columns:
+    --   1. Columns + Display options (the three boxes of what the meter shows, out of Appearance)
+    --   2. Appearance (font, rows, the two distances, the icon) + Session + Combat log
+    --   3. Text (the three roles, compact) + Scoreboard (the two boxes and the two buttons side by side)
     local h1 = H_SECTION + #columns * H_COLUMN_ROW
-    -- Aparencia: fonte, linhas, os dois deslizadores de distancia, (19/10) o formato do icone,
-    -- o reino, (14/10) o botao do minimapa e (26/10) a recarga do interrupt de cada um.
-    local h2 = H_SECTION + H_FIELD * 5 + H_CHECK * 3                   -- Aparencia
+        + GAP_SECTION + H_SECTION + H_CHECK * 3                        -- Opcoes de exibicao
+    local h2 = H_SECTION + H_FIELD * 5                                 -- Aparencia
         + GAP_SECTION + H_SECTION + H_CHECK                            -- Sessao
-        + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON * 2     -- Placar
         + GAP_SECTION + H_SECTION + H_CHECK                            -- (20/10) Registro de combate
-    -- Tres secoes de texto identicas: titulo + deslizador + combo + caixa.
-    local h3 = (H_SECTION + H_FIELD * 2 + H_CHECK) * 3 + GAP_SECTION * 2
+    local h3 = H_SECTION + (H_SUB + H_FIELD + H_FIELD) * 3 + ROLE_GAP * 2   -- Texto: nome, tamanho, contorno + sombra
+        + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON         -- Placar
     local content = math.max(h1, math.max(h2, h3))
 
     frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "DefaultPanelTemplate")
@@ -545,6 +560,8 @@ function Picker.Create()
 
     -- Column 1: which columns the window shows, and in what order.
     frame.columnsTop = BuildSection(colColumns, 0, L["Columns"])
+    local cy = frame.columnsTop + #columns * H_COLUMN_ROW
+    cy = BuildSection(colColumns, cy + GAP_SECTION, L["Display options"])
 
     ----------------------------------------------------------------------------
     -- Coluna 2: a janela e o placar
@@ -596,7 +613,7 @@ function Picker.Create()
         end)
 
     -- (26/10) The interrupts' clock (Kicks.lua): each one's interrupt beside the interrupts column
-    y, frame.kickCheck = BuildCheck(colWindow, y, L["Show each one's interrupt cooldown"],
+    cy, frame.kickCheck = BuildCheck(colColumns, cy, L["Show each one's interrupt cooldown"],
         L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."],
         function() return ns.db.kickClock ~= false end,
         function(v)
@@ -604,7 +621,7 @@ function Picker.Create()
             if ns.Window and ns.Window.Rebuild then ns.Window.Rebuild() end
         end)
 
-    y, frame.realmCheck = BuildCheck(colWindow, y, L["Show the realm next to the name"],
+    cy, frame.realmCheck = BuildCheck(colColumns, cy, L["Show the realm next to the name"],
         L["Off by default: the realm eats the column and the name is what ends up cut."],
         function() return ns.db.showRealm end,
         function(v)
@@ -614,7 +631,7 @@ function Picker.Create()
 
     -- (14/10) `minimap.hide` existed with no way to change it. The addon compartment (the game's
     -- list of addons by the minimap) keeps opening the meter with the button hidden.
-    y, frame.minimapCheck = BuildCheck(colWindow, y, L["Show the minimap button"],
+    cy, frame.minimapCheck = BuildCheck(colColumns, cy, L["Show the minimap button"],
         L["The addon compartment, by the minimap, keeps opening the meter without it."],
         function() return not (ns.db.minimap and ns.db.minimap.hide) end,
         function(v)
@@ -641,30 +658,6 @@ function Picker.Create()
             end
         end)
 
-    y = BuildSection(colWindow, y + GAP_SECTION, L["Scoreboard"])
-
-    y, frame.autoMPlus = BuildCheck(colWindow, y, L["Open at the end of a Mythic+ run"],
-        L["When the keystone ends, the summary of the run opens by itself."],
-        function() return ns.db.autoScoreboardMPlus end,
-        function(v) ns.db.autoScoreboardMPlus = v end)
-
-    y, frame.autoRaid = BuildCheck(colWindow, y, L["Open when a raid boss dies"],
-        L["When an encounter is defeated, the summary of the fight opens by itself."],
-        function() return ns.db.autoScoreboardRaid end,
-        function(v) ns.db.autoScoreboardRaid = v end)
-
-    -- The last two scoreboards. Dimmed when there is no run kept: a button that answers with
-    -- an error in the chat teaches less than a dimmed button.
-    y, frame.lastMPlus = BuildButton(colWindow, y + 4, L["Last Mythic+"],
-        L["Opens the scoreboard of the last Mythic+ run finished on this character."],
-        function() ns.Scoreboard.ShowLast("mplus") end)
-    frame.lastMPlus.hasRun = "mplus"
-
-    y, frame.lastRaid = BuildButton(colWindow, y, L["Last raid"],
-        L["Opens the scoreboard of the last raid boss defeated on this character."],
-        function() ns.Scoreboard.ShowLast("raid") end)
-    frame.lastRaid.hasRun = "raid"
-
     -- (20/10) The game's combat log, on by itself inside an instance (MyRun.CombatLogByPlace). On by default: the
     -- user's choice (*"Ligada"*), so whoever uploads to Warcraft Logs has the file without remembering /combatlog.
     y = BuildSection(colWindow, y + GAP_SECTION, L["Combat log"])
@@ -690,9 +683,13 @@ function Picker.Create()
         header = L["Column header"],
     }
 
-    local ry = 0
+    local ry = BuildSection(colText, 0, L["Text"])
     for i, role in ipairs(ns.ROLES) do
-        ry = BuildSection(colText, ry + (i > 1 and GAP_SECTION or 0), ROLE_LABELS[role])
+        if i > 1 then ry = ry + ROLE_GAP end
+        local name = colText:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        name:SetPoint("TOPLEFT", colText, "TOPLEFT", 0, -ry)
+        name:SetText(ROLE_LABELS[role])
+        ry = ry + H_SUB
 
         local widgets = {}
         ry, widgets.size = BuildSlider(colText, ry, L["Text size"],
@@ -700,17 +697,47 @@ function Picker.Create()
             function() return ns.Window.GetRoleSize(role) end,
             function(v) ns.Window.SetRoleSize(role, v) end)
 
-        ry, widgets.outline = BuildDropdown(colText, ry, L["Font outline"], OutlineEntries(),
+        -- the outline (its label above it, like every field) and the shadow beside it, on the combo's line
+        local rowY = ry
+        ry, widgets.outline = BuildDropdown(colText, rowY, L["Font outline"], OutlineEntries(),
             function() return ns.Window.GetRoleOutline(role) end,
-            function(v) ns.Window.SetRoleOutline(role, v) end)
+            function(v) ns.Window.SetRoleOutline(role, v) end, 0, OUTLINE_W)
 
-        ry, widgets.shadow = BuildCheck(colText, ry, L["Font shadow"],
+        local _
+        _, widgets.shadow = BuildCheck(colText, rowY + H_LABEL + GAP_LABEL - 1, L["Font shadow"],
             L["A 1px black shadow below the text. Carries the letters over any background."],
             function() return ns.Window.GetRoleShadow(role) end,
-            function(v) ns.Window.SetRoleShadow(role, v) end)
+            function(v) ns.Window.SetRoleShadow(role, v) end, SHADOW_X, COL_W - SHADOW_X)
 
         frame.roleWidgets[role] = widgets
     end
+
+    -- (04/11) the Scoreboard moved here, its two buttons side by side
+    local y = ry
+    y = BuildSection(colText, y + GAP_SECTION, L["Scoreboard"])
+
+    y, frame.autoMPlus = BuildCheck(colText, y, L["Open at the end of a Mythic+ run"],
+        L["When the keystone ends, the summary of the run opens by itself."],
+        function() return ns.db.autoScoreboardMPlus end,
+        function(v) ns.db.autoScoreboardMPlus = v end)
+
+    y, frame.autoRaid = BuildCheck(colText, y, L["Open when a raid boss dies"],
+        L["When an encounter is defeated, the summary of the fight opens by itself."],
+        function() return ns.db.autoScoreboardRaid end,
+        function(v) ns.db.autoScoreboardRaid = v end)
+
+    -- The last two scoreboards. Dimmed when there is no run kept: a button that answers with
+    -- an error in the chat teaches less than a dimmed button.
+    local buttonsY = y + 4
+    y, frame.lastMPlus = BuildButton(colText, buttonsY, L["Last Mythic+"],
+        L["Opens the scoreboard of the last Mythic+ run finished on this character."],
+        function() ns.Scoreboard.ShowLast("mplus") end, 0, (COL_W - HALF_GAP) / 2)
+    frame.lastMPlus.hasRun = "mplus"
+
+    y, frame.lastRaid = BuildButton(colText, buttonsY, L["Last raid"],
+        L["Opens the scoreboard of the last raid boss defeated on this character."],
+        function() ns.Scoreboard.ShowLast("raid") end, (COL_W - HALF_GAP) / 2 + HALF_GAP, (COL_W - HALF_GAP) / 2)
+    frame.lastRaid.hasRun = "raid"
 
     return frame
 end

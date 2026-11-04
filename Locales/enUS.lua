@@ -52,6 +52,9 @@ local FROM_GAME = {
     ["Player deaths"]       = "DAMAGE_METER_TYPE_DEATHS",
     ["Damage on enemies"]   = "DAMAGE_METER_TYPE_ENEMY_DAMAGE_TAKEN",
     ["Damage per second"]   = "DAMAGE_PER_SECOND",
+    -- (04/11) the Configure window's new sections, in the game's words
+    ["Display options"]     = "DISPLAY_OPTIONS",
+    ["Text"]                = "LOCALE_TEXT_LABEL",
 
     -- A short header. Only a global that is short in all ELEVEN languages comes in -- see the note on
     -- DPS/HPS right below, which is the reason only this one is left.
