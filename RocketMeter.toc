@@ -38,6 +38,7 @@ Style.lua
 Profile.lua
 #@debug@
 Log.lua
+DevShots.lua
 #@end-debug@
 Data\InterruptSpells.lua
 Data\BurstSecs.lua

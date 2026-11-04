@@ -10,6 +10,7 @@ ignore:
   - .pubignore
   - tests
   - Log.lua
+  - DevShots.lua
 
 # O changelog do CurseForge sai DESTE arquivo, e não dos commits. Sem isto o packager lista as
 # mensagens de commit desde a última tag — em português, longas e escritas para quem mantém.
