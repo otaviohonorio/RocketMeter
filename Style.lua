@@ -13,7 +13,11 @@ local ADDON, ns = ...
 local Style = {}
 ns.Style = Style
 
-Style.BODY_ATLAS = "housing-basic-panel-background"
+-- (04/11/2026) THE BODY IS THE JOURNEYS' STONE (`ui-journeys-bg`), the one the Rocket Mount's window wears and the user
+-- approved with the new cards (*"adorei, agora podemos fazer nos outros addons"*). The housing panel art of 03/11 showed
+-- the world through it in the game (the user, on the Rocket Swap's print: "tá com fundo transparente em toda janela,
+-- completamente fora da identidade visual"). Drawn at the art's own scale, CUT to the window's size: never stretched.
+Style.BODY_ATLAS = "ui-journeys-bg"
 Style.DIVIDER_ATLAS = "Options_HorizontalDivider"
 Style.BRONZE = rawget(_G, "CreateColor") and CreateColor(0x4a / 255, 0x3f / 255, 0x2c / 255, 1) or nil   -- the app's --edge
 Style.ROW = 32              -- one option per 32, as the mockup the user chose
@@ -36,10 +40,26 @@ function Style.Body(frame, alpha, stone)
             art:SetPoint("BOTTOMRIGHT", -3, 3)
         end
         frame.__body = art
+        -- cut again whenever the window changes size
+        if frame.HookScript then frame:HookScript("OnSizeChanged", function() Style.CutBody(art, frame) end) end
     end
+    Style.CutBody(art, frame)
     art:SetAlpha(alpha or 1)
     art:Show()
     return art
+end
+
+---The stone at its own scale: a window of the art the frame's size (after `SetAtlas` the coordinates are fractions of
+---the art itself); scaled up the same on both axes only when the frame is bigger than the art.
+function Style.CutBody(art, frame)
+    local ok, info = pcall(function() return C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(Style.BODY_ATLAS) end)
+    local aw = ok and type(info) == "table" and tonumber(info.width) or 792
+    local ah = ok and type(info) == "table" and tonumber(info.height) or 432
+    local w = tonumber((frame.GetWidth and frame:GetWidth()) or 0) or 0
+    local h = tonumber((frame.GetHeight and frame:GetHeight()) or 0) or 0
+    if not (w > 0 and h > 0 and aw > 0 and ah > 0) then return end
+    local s = math.max(1, w / aw, h / ah)
+    art:SetTexCoord(0, math.min(1, w / s / aw), 0, math.min(1, h / s / ah))
 end
 
 local function Tip(owner, title, text)
