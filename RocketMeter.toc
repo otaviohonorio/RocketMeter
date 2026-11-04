@@ -19,7 +19,6 @@
 ## SavedVariablesPerCharacter: RocketMeterCharDB, RocketMeterRunsDB
 ## IconTexture: Interface\AddOns\RocketMeter\Textures\Logo.png
 ## AddonCompartmentFunc: RocketMeter_OnCompartmentClick
-## X-Donate: PayPal:https://www.paypal.com/donate/?business=HH4PHH48DPG9J&no_recurring=0&currency_code=USD
 
 Locales\enUS.lua
 Locales\ptBR.lua
