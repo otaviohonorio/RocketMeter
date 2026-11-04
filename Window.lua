@@ -1040,23 +1040,20 @@ local KICK_GLOW_CROP = 3 / 64
 local KICK_GLOW_INNER = (13 / 64 - KICK_GLOW_CROP) / (1 - 2 * KICK_GLOW_CROP)
 local KICK_GLOW_PAD = KICK_GLOW_INNER / (1 - 2 * KICK_GLOW_INNER)
 ns.KICK_GLOW_PAD = KICK_GLOW_PAD
--- (27/10) THE ROW ICON'S FRAME: the same art cut down to its line, in the class colour. The user: *"no icone da classe,
--- vamos fazer essa borda igual do interrupt mas sem parecer 'brilhar' com a cor da classe"*. The cut keeps px 11-52
--- (the line is px 11-12; the gold fade outside it is the glow, and goes); desaturated (the line is 255,244,147, which
--- desaturates to 0.93) and tinted with the class colour. The line's inner edge is at f = 2/42 of the drawn art, so
--- pad = f / (1 - 2f) = 0.053 of the icon (1.2 px on the icon of 23), the line just outside the icon.
-local CLASS_BORDER_CROP = 11 / 64
-local CLASS_BORDER_INNER = (13 / 64 - CLASS_BORDER_CROP) / (1 - 2 * CLASS_BORDER_CROP)
-local CLASS_BORDER_PAD = CLASS_BORDER_INNER / (1 - 2 * CLASS_BORDER_INNER)
-ns.CLASS_BORDER_PAD = CLASS_BORDER_PAD
--- (27/10) AND THE ICON'S CORNERS ROUNDED UNDER IT, the way the Cooldown Manager does it (Blizzard_CooldownViewer.xml:
--- the icon under `UI-HUD-CoolDownManager-Mask`, the frame over it). The user: *"só cuidado para o icone não fazer pra
--- fora da borda"*. The line's corner is rounded and the icon's is square: simulated at 16x, the square corner showed
--- 1.3 px2 outside the line on the icon of 23 (1.1 on 21, 1.7 on 26); with the game's mask, 0.08 at most. The mask's
--- art keeps a clear margin of 3/64 on each side (the game's frame covers it); here that margin would be a dark gap
--- between the icon and the line, so the mask is drawn larger than the icon by that margin (3/58 of the icon on each
--- side) and only rounds the corners.
-local CORNER_MASK_ATLAS = "UI-HUD-CoolDownManager-Mask"
+-- (04/11) THE ROW ICON'S FRAME, on whole screen pixels. The user's print (03/11, "contorno do quadrado com a cor da
+-- classe tá ruim"): the frame cut from the ready glow's line (27/10) was 2 px of a 64 px art drawn at ~23 px, about
+-- 1 screen pixel that fell between pixels (thicker on one side, bright dots where the art curves) around an icon with
+-- rounded corners. Now: one SCREEN pixel of the class colour (the game's, ns.ClassColor), one of near-black between it
+-- and the icon, the square icon inside; sizes and offsets in whole pixels (PixelUtil), so every side is equal.
+local FRAME_LINE, FRAME_GAP = 1, 1          -- in screen pixels
+local FRAME_GAP_ALPHA = 0.9
+ns.FRAME_LINE, ns.FRAME_GAP = FRAME_LINE, FRAME_GAP
+---UI units per screen pixel for a region (1 when the game cannot say: the harness).
+local function PixelOf(region)
+    local ok, px = pcall(function() return PixelUtil.GetPixelToUIUnitFactor() / region:GetEffectiveScale() end)
+    return (ok and type(px) == "number" and px > 0) and px or 1
+end
+ns.PixelOf = PixelOf
 -- (28/10) THE ROUND ICON'S RING, the same idea on the round shape (the user, asked: *"sim"*). The game's thin ring with
 -- the same build as the square frame is the character creation's selection ring (`charactercreate-ring-select-small`,
 -- 44 px, along its middle: glow at px 0-5, the line at px 6-7, lum 0.8, a dark shade at px 8, clear from px 9). Cut at
@@ -1070,8 +1067,6 @@ local RING_CROP = 6 / 44
 local RING_INNER = (8 / 44 - RING_CROP) / (1 - 2 * RING_CROP)
 local RING_PAD = RING_INNER / (1 - 2 * RING_INNER)
 ns.RING_PAD = RING_PAD
-local CORNER_MASK_OUT = 3 / 58
-ns.CORNER_MASK_OUT = CORNER_MASK_OUT
 ---(26/10) The interrupt's icon of a strip: the spell's icon, the game's cooldown clock over it (CooldownFrameTemplate,
 ---the action bars' own), the seconds in the middle, and the Cooldown Manager's gold frame when it is ready.
 local function KickIcon(faixa)
@@ -1910,12 +1905,13 @@ local function BuildRow(index)
         row.iconClass:SetPoint("LEFT", 0, 0)
         row.iconClass:Hide()
 
-        -- (27/10) the class-coloured line around the icon (CLASS_BORDER_PAD), over both textures
-        row.iconBorder = row.text:CreateTexture(nil, "OVERLAY", nil, 1)
-        row.iconBorder:SetAtlas("ui-cooldownmanager-activeglow")
-        row.iconBorder:SetTexCoord(CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP, CLASS_BORDER_CROP, 1 - CLASS_BORDER_CROP)
-        row.iconBorder:SetDesaturated(true)
+        -- (04/11) the frame UNDER the icon (FRAME_LINE, FRAME_GAP): the class colour, then near-black, then the icon
+        row.iconBorder = row.text:CreateTexture(nil, "OVERLAY", nil, -2)
+        row.iconBorder:SetColorTexture(1, 1, 1, 1)
         row.iconBorder:Hide()
+        row.iconGap = row.text:CreateTexture(nil, "OVERLAY", nil, -1)
+        row.iconGap:SetColorTexture(0, 0, 0, FRAME_GAP_ALPHA)
+        row.iconGap:Hide()
         -- the ring of the round shape (RING_PAD)
         row.iconRing = row.text:CreateTexture(nil, "OVERLAY", nil, 1)
         row.iconRing:SetAtlas(RING_ATLAS)
@@ -1926,15 +1922,11 @@ local function BuildRow(index)
         row.iconRingMask:SetTexture(ROUND_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         row.iconRingMask:SetAllPoints(row.iconRing)
         row.iconRing:AddMaskTexture(row.iconRingMask)
-        -- one corner mask per icon texture (CORNER_MASK_OUT), put on and taken off with the shape
-        row.iconCorner = row.text:CreateMaskTexture()
-        row.iconCorner:SetAtlas(CORNER_MASK_ATLAS)
-        row.iconClassCorner = row.text:CreateMaskTexture()
-        row.iconClassCorner:SetAtlas(CORNER_MASK_ATLAS)
 
         row.name = row.text:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         -- 2px above the centre: opens breathing room between the text and the coloured strip at the foot.
-        row.name:SetPoint("LEFT", row.icon, "RIGHT", 5, TEXT_LIFT)
+        -- (04/11) from the frame's outside, the same 4 units it had before the frame went to whole pixels
+        row.name:SetPoint("LEFT", row.iconBorder, "RIGHT", 4, TEXT_LIFT)
         row.name:SetJustifyH("LEFT")
         -- A long name cuts instead of wrapping or invading the numbers' column.
         row.name:SetWordWrap(false)
@@ -1973,27 +1965,32 @@ local function BuildRow(index)
     end
 
     local iconSize = height          -- the icon's slot: the whole row
-    -- (27/10) the icon itself 1 px in from every side, like the interrupt's (KickSize): its frame then fits in the row
-    -- and does not touch the next one
-    local drawn = iconSize - 2
-    row.icon:SetSize(drawn, drawn)
-    row.icon:SetPoint("LEFT", 1, 0)
-    row.iconClass:SetSize(drawn, drawn)
-    row.iconClass:SetPoint("LEFT", 1, 0)
-    local pad = drawn * CLASS_BORDER_PAD
+    -- (27/10) the frame 1 unit in from every side, like the interrupt's (KickSize): it fits in the row and does not
+    -- touch the next one. (04/11) In whole screen pixels: the frame's outside, then FRAME_LINE + FRAME_GAP pixels on
+    -- every side down to the icon, which sits centred on the frame (an even number of pixels each way).
+    local px = PixelOf(row)
+    local n = math.max(math.floor((iconSize - 2) / px + 0.5), 2 * (FRAME_LINE + FRAME_GAP) + 4)
+    local outer = n * px
+    local drawn = (n - 2 * (FRAME_LINE + FRAME_GAP)) * px
+    row.iconBorder:ClearAllPoints()
+    row.iconBorder:SetSize(outer, outer)
+    if PixelUtil and PixelUtil.SetPoint then
+        PixelUtil.SetPoint(row.iconBorder, "LEFT", row.text, "LEFT", 1, 0)
+    else
+        row.iconBorder:SetPoint("LEFT", row.text, "LEFT", 1, 0)
+    end
+    row.iconGap:ClearAllPoints()
+    row.iconGap:SetPoint("TOPLEFT", row.iconBorder, "TOPLEFT", FRAME_LINE * px, -FRAME_LINE * px)
+    row.iconGap:SetPoint("BOTTOMRIGHT", row.iconBorder, "BOTTOMRIGHT", -FRAME_LINE * px, FRAME_LINE * px)
+    for _, tex in ipairs({ row.icon, row.iconClass }) do
+        tex:ClearAllPoints()
+        tex:SetSize(drawn, drawn)
+        tex:SetPoint("CENTER", row.iconBorder, "CENTER", 0, 0)
+    end
     local ringPad = drawn * RING_PAD
     row.iconRing:ClearAllPoints()
     row.iconRing:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -ringPad, ringPad)
     row.iconRing:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", ringPad, -ringPad)
-    local out = drawn * CORNER_MASK_OUT
-    for tex, corner in pairs({ [row.icon] = row.iconCorner, [row.iconClass] = row.iconClassCorner }) do
-        corner:ClearAllPoints()
-        corner:SetPoint("TOPLEFT", tex, "TOPLEFT", -out, out)
-        corner:SetPoint("BOTTOMRIGHT", tex, "BOTTOMRIGHT", out, -out)
-    end
-    row.iconBorder:ClearAllPoints()
-    row.iconBorder:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -pad, pad)
-    row.iconBorder:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", pad, -pad)
 
     -- A FULL BAR, and it is worth explaining why it came back.
     --
@@ -2871,25 +2868,15 @@ function Window.Draw()
             row.bg:SetColorTexture(ns.RowBackdropColor())
 
             ns.ApplyRowIcon(row.icon, row.iconClass, source)
-            -- (27/10) the frame in the class colour: the square line on the square icon, the ring on the round one
+            -- (27/10) the frame in the class colour: the square frame on the square icon, the ring on the round one
             -- (28/10; the square line would cut across the corners the mask took away)
             local square = ns.IconShape() == "square"
+            local hasIcon = row.icon:IsShown() or row.iconClass:IsShown()
+            row.iconBorder:SetShown(square and hasIcon)
+            row.iconGap:SetShown(square and hasIcon)
+            row.iconRing:SetShown(not square and hasIcon)
             local frameTex = square and row.iconBorder or row.iconRing
-            local otherTex = square and row.iconRing or row.iconBorder
-            otherTex:Hide()
-            if row.icon:IsShown() or row.iconClass:IsShown() then
-                frameTex:SetVertexColor(ns.ClassColor(source.classFilename))
-                frameTex:Show()
-            else
-                frameTex:Hide()
-            end
-            -- the corners under the frame (CORNER_MASK_OUT); the round shape has its own mask
-            if row.iconCornered ~= square then
-                local verb = square and "AddMaskTexture" or "RemoveMaskTexture"
-                row.icon[verb](row.icon, row.iconCorner)
-                row.iconClass[verb](row.iconClass, row.iconClassCorner)
-                row.iconCornered = square
-            end
+            if hasIcon then frameTex:SetVertexColor(ns.ClassColor(source.classFilename)) end
             ns.DrawName(row, source.name)
             row.classFilename = source.classFilename
             row.source = source
@@ -3292,11 +3279,11 @@ function Window.DebugRow(index)
         nameArea = row.nameArea or 0,
         -- (27/10) the icon's class-coloured frame
         border = row.iconBorder and {
-            shown = row.iconBorder:IsShown(), color = row.iconBorder.__vertex, coords = row.iconBorder.__texcoord,
-            pad = select(4, row.iconBorder:GetPoint(1)), iconWidth = row.icon:GetWidth(), rowHeight = row:GetHeight(),
+            shown = row.iconBorder:IsShown(), color = row.iconBorder.__vertex,
+            iconWidth = row.icon:GetWidth(), outer = row.iconBorder:GetWidth(), rowHeight = row:GetHeight(),
+            gapShown = row.iconGap:IsShown(), gapInset = select(4, row.iconGap:GetPoint(1)), px = PixelOf(row),
+            iconAnchor = select(2, row.icon:GetPoint(1)) == row.iconBorder,
             class = row.classFilename,
-            corner = row.iconCorner and rawget(row.icon, "__masks") ~= nil and rawget(row.icon, "__masks")[row.iconCorner] == true,
-            cornerOut = row.iconCorner and select(4, row.iconCorner:GetPoint(1)),
             ring = row.iconRing and {
                 shown = row.iconRing:IsShown(), color = row.iconRing.__vertex, coords = row.iconRing.__texcoord,
                 pad = select(4, row.iconRing:GetPoint(1)),
