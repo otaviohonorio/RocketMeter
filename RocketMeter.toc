@@ -2,10 +2,9 @@
 
 ## Title: |cffff6a00Rocket|r Meter
 ## Notes: Damage meter built on the official C_DamageMeter API — good-looking by default, easy to set up.
-## Category: Combat
+## Category: Rocket Addons
 
 ## Notes-ptBR: Medidor de dano e estatísticas sobre a API oficial C_DamageMeter — bonito por padrão e fácil de configurar.
-## Category-ptBR: Combate
 
 ## Author: Otto Rocket (Otávio Honório)
 ## Version: 0.95.2
