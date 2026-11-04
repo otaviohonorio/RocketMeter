@@ -256,9 +256,6 @@ L["Width of the total column"] = "Largura da coluna de total"
 
 -- Donation (Donate.lua, 26/09)
 L["Link copied — paste it in your browser."] = "Link copiado — cole no navegador."
-L["Thank you for supporting Rocket Meter! Press Ctrl+C to copy the link, then paste it in your browser."] = "Obrigado por apoiar o Rocket Meter! Aperte Ctrl+C para copiar o link e cole no navegador."
-L["Click: open the donation link, ready to copy"] = "Clique: abrir o link de doação, pronto para copiar"
-L["Support the project"] = "Apoiar o projeto"
 L["Report a problem"] = "Relatar um problema"
 L["Report a problem on"] = "Relatar um problema em"
 L["Click: choose where to report a problem"] = "Clique: escolher onde relatar um problema"
