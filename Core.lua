@@ -330,21 +330,9 @@ end
 -- without one answers nil in the game and a function in the harness); none (a panel on TooltipBorderBackdropTemplate,
 -- the game's tooltip border with an empty centre): the art 3 points in from the frame's edges, inside the border.
 function ns.DarkBody(frame, alpha, stone)
-    local art = frame.__dark
-    if not art then
-        art = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
-        -- (03/11) the design system's body art (Style.lua), the same in every Rocket addon
-        art:SetAtlas(ns.Style and ns.Style.BODY_ATLAS or "spec-background")
-        if stone then
-            art:SetAllPoints(stone)
-            stone:Hide()
-        else
-            art:SetPoint("TOPLEFT", 3, -3)
-            art:SetPoint("BOTTOMRIGHT", -3, 3)
-        end
-        frame.__dark = art
-    end
-    art:SetAlpha(alpha or 1)
-    art:Show()
+    -- (04/11) the design system's body (Style.lua: our stone, cut to the window, never stretched). It used to set the
+    -- same art with SetAtlas and NO cut: the art stretched to the window and spread its dark border over it.
+    local art = ns.Style.Body(frame, alpha, type(stone) == "table" and stone or nil)
+    frame.__dark = art
     return art
 end
