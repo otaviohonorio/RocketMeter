@@ -42,7 +42,9 @@ local COL_W = 262               -- the usable width of each column
 local COLUMNS = 3
 local WIDTH = MARGIN * 2 + COL_W * COLUMNS + GUTTER * (COLUMNS - 1)
 
-local TOP = 36                  -- below the title bar
+-- (04/11) below the round portrait with the logo (the user: "nossos addons tem o icone na janela principal com o icone
+-- redondo no canto superior esquerdo, tem que por em todos"): the portrait reaches about 58 down
+local TOP = 62
 -- Only the bottom margin: the "Clear data" button left here by request -- the data is cleared in
 -- the meter's own window, and a full-width button at the foot of a settings screen
 -- gave it a weight it does not have.
@@ -514,7 +516,9 @@ function Picker.Create()
         + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON         -- Placar
     local content = math.max(h1, math.max(h2, h3))
 
-    frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "DefaultPanelTemplate")
+    -- (04/11) ButtonFrameTemplate, as every main window of the family: the round portrait with the logo, the game's close
+    -- button (it was DefaultPanelTemplate, which has no portrait)
+    frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "ButtonFrameTemplate")
     frame:SetSize(WIDTH, TOP + content + FOOTER)
     ns.DarkBody(frame, 1, frame.Bg)       -- (25/10) the dark body, as every Rocket window (Core.lua: "escuro em tudo")
     frame:SetFrameStrata("DIALOG")
@@ -535,10 +539,8 @@ function Picker.Create()
     -- (03/11) Esc closes it, as every Rocket window (the user: "a janela do meter nem fecha apertando ESC como as outras")
     tinsert(UISpecialFrames, frame:GetName())
     if frame.SetTitle then frame:SetTitle(ns.TITLE .. " — " .. L["Configure"]) end
-
-    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", 2, 1)
-    close:SetScript("OnClick", function() frame:Hide() end)
+    if frame.SetPortraitToAsset then frame:SetPortraitToAsset(ns.LOGO) end
+    if frame.Inset then frame.Inset:Hide() end   -- the columns lie on the window's body, as before
 
     -- "Support the project" (27/09): a line of its own at the very bottom (Donate.lua).
     frame.donate = ns.DonateFooter(frame)
