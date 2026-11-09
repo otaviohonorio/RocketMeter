@@ -583,7 +583,7 @@ local function CreateTip()
     f.foot:SetJustifyH("LEFT")
     f.rows, f.heads = {}, {}
     -- The fight goes on while the mouse rests on the row: the box follows it.
-    f:SetScript("OnUpdate", function(self, elapsed)
+    f:SetScript("OnUpdate", ns.Timed("breakdown:update", function(self, elapsed)
         self.wait = (self.wait or 0) + (elapsed or 0)
         if self.wait < TIP.REFRESH then return end
         self.wait = 0
@@ -592,7 +592,7 @@ local function CreateTip()
         local rowSource = self.owner and self.owner.source
         if rowSource and rowSource ~= self.source then self.source = rowSource end
         if self.source then pcall(Breakdown.FillTooltip) end
-    end)
+    end))
     tipFrame = f
     return f
 end

@@ -309,7 +309,7 @@ function Kicks.Init()
     f:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
     f:RegisterEvent("GROUP_ROSTER_UPDATE")
     f:RegisterEvent("CHALLENGE_MODE_START")
-    f:SetScript("OnEvent", function(_, event, unit, _, spellID)
+    f:SetScript("OnEvent", ns.Timed("kicks", function(_, event, unit, _, spellID)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             pcall(Kicks.OnCast, unit, spellID)
         elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
@@ -319,7 +319,7 @@ function Kicks.Init()
         else
             Kicks.Reset()
         end
-    end)
+    end))
 end
 
 -- For the harness.

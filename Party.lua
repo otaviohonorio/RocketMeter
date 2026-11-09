@@ -424,7 +424,7 @@ listener:RegisterEvent("GROUP_ROSTER_UPDATE")
 listener:RegisterEvent("CHAT_MSG_ADDON")
 listener:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 
-listener:SetScript("OnEvent", function(_, event, ...)
+listener:SetScript("OnEvent", ns.Timed("party", function(_, event, ...)
     if event == "INSPECT_READY" then
         local guid = ...
         -- The event brings the GUID; the reading needs a unit token. Sweeping the group is
@@ -475,6 +475,6 @@ listener:SetScript("OnEvent", function(_, event, ...)
     elseif event == "GROUP_ROSTER_UPDATE" then
         Party.RefreshItemLevels()
     end
-end)
+end))
 
 ns.PartyListener = listener

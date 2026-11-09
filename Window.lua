@@ -2521,13 +2521,13 @@ function Window.Create()
     Window.Rebuild()
     Window.ApplyLock()
 
-    frame:SetScript("OnUpdate", function(_, elapsed)
+    frame:SetScript("OnUpdate", ns.Timed("window:update", function(_, elapsed)
         if not dirty then return end
         throttle = throttle + elapsed
         if throttle < 0.2 then return end
         throttle, dirty = 0, false
         Window.SafeDraw()
-    end)
+    end))
 
     return frame
 end

@@ -1740,7 +1740,7 @@ function MyRun.Init()
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     frame:RegisterEvent("PLAYER_LOGOUT")
-    frame:SetScript("OnEvent", function(_, event, a, b, c, d, e)
+    frame:SetScript("OnEvent", ns.Timed("myrun", function(_, event, a, b, c, d, e)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             pcall(MyRun.OnCast, a, c)
         elseif event == "PLAYER_REGEN_DISABLED" then
@@ -1797,7 +1797,7 @@ function MyRun.Init()
             pcall(MyRun.AutoStop)
             pcall(MyRun.CombatLogByPlace)
         end
-    end)
+    end))
 end
 
 -- For the harness.

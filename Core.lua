@@ -111,6 +111,17 @@ ns.Log = setmetatable({ enabled = false }, {
     __index = function() return function() end end,
 })
 
+-- (05/11) "o rocket meter tem usado mais CPU" in combat. Every entry point of the addon (event handlers, per-frame
+-- updates) goes through ns.Timed: in the package it only calls the function (one extra call); in development
+-- Log.lua sets ns.TimeIt, which measures each entry point in combat and writes the most expensive at the end.
+function ns.Timed(name, fn)
+    return function(...)
+        local timeIt = ns.TimeIt
+        if timeIt then return timeIt(name, fn, ...) end
+        return fn(...)
+    end
+end
+
 -- the name on screen, the same in every Rocket addon (the minimap tooltip, 13/10)
 ns.TITLE = "|cffff6a00Rocket|r Meter"
 
@@ -307,9 +318,9 @@ local frame = CreateFrame("Frame", ADDON .. "EventFrame")
 for event in pairs(handlers) do
     frame:RegisterEvent(event)
 end
-frame:SetScript("OnEvent", function(self, event, ...)
+frame:SetScript("OnEvent", ns.Timed("core", function(self, event, ...)
     handlers[event](self, ...)
-end)
+end))
 
 ns.frame = frame
 

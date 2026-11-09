@@ -216,7 +216,7 @@ function Casts.Init()
     frame:RegisterEvent("GROUP_ROSTER_UPDATE")
     frame:RegisterEvent("DAMAGE_METER_RESET")
     frame:RegisterEvent("PLAYER_REGEN_DISABLED")
-    frame:SetScript("OnEvent", function(_, event, unit, _, spellID)
+    frame:SetScript("OnEvent", ns.Timed("casts", function(_, event, unit, _, spellID)
         -- In `pcall`: this runs at every cast of everyone around.
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             pcall(Casts.OnCast, unit, spellID)
@@ -227,7 +227,7 @@ function Casts.Init()
         elseif event == "PLAYER_REGEN_DISABLED" then
             Casts.OnCombatStart()
         end
-    end)
+    end))
 end
 
 -- For the harness: the tallies as they are.

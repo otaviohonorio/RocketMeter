@@ -382,7 +382,7 @@ function Stats.Init()
     f:RegisterEvent("WEEKLY_REWARDS_UPDATE")
     f:RegisterEvent("UPDATE_INSTANCE_INFO")
     f:RegisterEvent("PLAYER_LOGOUT")
-    f:SetScript("OnEvent", function(_, event)
+    f:SetScript("OnEvent", ns.Timed("stats", function(_, event)
         if event == "PLAYER_ENTERING_WORLD" then
             Stats.Request()
         elseif event == "CHALLENGE_MODE_COMPLETED" then
@@ -391,7 +391,7 @@ function Stats.Init()
             pcall(Stats.Capture, event == "PLAYER_LOGOUT")
             if ns.StatsWindow and ns.StatsWindow.Refresh then pcall(ns.StatsWindow.Refresh) end
         end
-    end)
+    end))
 end
 
 function Stats.__reset() lastCapture = -math.huge end
