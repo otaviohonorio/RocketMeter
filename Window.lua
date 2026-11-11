@@ -1130,7 +1130,9 @@ function ns.DrawKick(faixa, state)
         b.tex:SetDesaturated(false)
         b.num:SetText("")
         b:SetScript("OnUpdate", nil)
-        b.glow:Show()                                  -- ready: the Cooldown Manager's gold frame
+        -- ready: the Cooldown Manager's gold frame; "unknown" (a row with no group token: someone who left, two of a
+        -- class) shows the interrupt without claiming it is ready
+        b.glow:SetShown(state.state == "ready")
     end
     b:Show()
 end

@@ -96,7 +96,8 @@ end
 
 ---The spec id of a specialization icon (the meter's row gives the icon), from the game: every class's specs.
 local function SpecByIcon(icon)
-    if not specByIcon then
+    -- (11/11) built again while empty: asked before the game has the classes, an empty table would stay for the session
+    if not specByIcon or next(specByIcon) == nil then
         specByIcon = {}
         local count = C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID
         if GetNumClasses and count and GetSpecializationInfoForClassID then
@@ -194,7 +195,18 @@ function Kicks.ForRow(source, kind)
     kind = kind or "kick"
     if not Kicks.Enabled() or type(source) ~= "table" or not KINDS[kind] then return nil end
     local token = Kicks.TokenForRow(source)
-    if not token then NoIcon(source, "sem token"); return nil end
+    if not token then
+        -- (11/11) NO TOKEN, THE ICON STAYS, WITHOUT A CLOCK. The user, after a key: "depois do /reload o icone do
+        -- paladino sumiu" -- the paladin had LEFT the group (the Radar's diary: his frame gone at 20:10:49), and the
+        -- key's rows stay on the meter. Two of a class is the same case. The row's specialization still tells which
+        -- interrupt it is; only whether it is ready cannot be known, so neither clock nor the "ready" frame.
+        local icon = source.specIconID
+        local specID = Readable(icon) and SpecByIcon(icon) or nil
+        local spell = Kicks.SpellForSpec(specID, kind)
+        if not (spell and Spells(kind)[spell]) then NoIcon(source, "sem token"); return nil end
+        return { spell = spell, state = "unknown",
+                 icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spell) or nil }
+    end
     local spell
     if token == "player" then
         spell = PlayerSpell(kind)
@@ -384,4 +396,5 @@ end
 -- For the harness.
 function Kicks.__uses() return uses end
 function Kicks.__known() return known end
+function Kicks.__forgetSpecs() specByIcon = nil end
 function Kicks.__attribute(at) return Attribute(at) end
