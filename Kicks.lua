@@ -58,6 +58,29 @@ local known = { kick = {} }     -- [kind][token] = the teammate's spell as his r
 local lastCast = {}               -- [token] = time of its last cast of anything
 local lastInterrupt = -math.huge
 local pending = false
+local history = {}                -- [token] = the times of its last casts (development probe only)
+local lastChoice                  -- what Attribute decided last, for the probe
+local noIconSeen = {}             -- [class/icon/reason] = true: each "no icon" reason logged once
+
+local PROBE_SPAN = 1.5            -- (10/11) the probe writes every cast this close to an enemy's interruption
+local HISTORY = 8
+
+local function Probing() return ns.Log and ns.Log.enabled and ns.Log.Kick end
+
+---(10/11) Why a row got no interrupt icon, once per class/icon/reason: in a key (10/11) a Retribution paladin and a
+---Devourer demon hunter had none while both shamans and the mage had theirs. Development log only.
+local function NoIcon(source, reason)
+    if not Probing() then return end
+    local class, icon = source.classFilename, source.specIconID
+    class = Readable(class) and class or "SECRET"
+    icon = Readable(icon) and icon or "SECRET"
+    local key = tostring(class) .. "/" .. tostring(icon) .. "/" .. reason
+    if noIconSeen[key] then return end
+    noIconSeen[key] = true
+    local name = source.name
+    ns.Log.Kick("sem-icone", { classe = class, icone = icon, motivo = reason,
+                               nomeLegivel = Readable(name) and true or false })
+end
 
 local function CastIndex()
     if castIndex then return castIndex end
@@ -171,7 +194,7 @@ function Kicks.ForRow(source, kind)
     kind = kind or "kick"
     if not Kicks.Enabled() or type(source) ~= "table" or not KINDS[kind] then return nil end
     local token = Kicks.TokenForRow(source)
-    if not token then return nil end
+    if not token then NoIcon(source, "sem token"); return nil end
     local spell
     if token == "player" then
         spell = PlayerSpell(kind)
@@ -181,9 +204,13 @@ function Kicks.ForRow(source, kind)
         spell = Kicks.SpellForSpec(specID, kind)
         -- a spec with no interrupt (Holy, Discipline) is remembered as such: it cannot be the one who kicked
         if specID then known[kind][token] = spell or false end
+        if not specID then NoIcon(source, "especializacao nao achada pelo icone") end
     end
     local k = spell and Spells(kind)[spell]
-    if not k then return nil end
+    if not k then
+        NoIcon(source, spell and ("magia " .. spell .. " fora da tabela") or ("sem interrupt (" .. token .. ")"))
+        return nil
+    end
     local out = { spell = spell, token = token,
                   icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spell) or nil }
     local u = uses[kind][token]
@@ -227,6 +254,7 @@ local function Attribute(at)
     for token, u in pairs(uses.kick) do
         if u.at >= at - WINDOW_BEFORE and u.at <= at + WINDOW_AFTER then
             if ns.Log and ns.Log.Add then ns.Log.Add("kick-correlacao", { candidatos = "", escolhido = token .. " (lido)" }) end
+            lastChoice = token .. " (lido)"
             return
         end
     end
@@ -243,15 +271,43 @@ local function Attribute(at)
         local spell = known.kick[found]
         if spell then Use("kick", found, spell, "correlacao") end
     end
+    lastChoice = (found or "ninguem") .. " [" .. table.concat(candidates, ",") .. "]"
     if ns.Log and ns.Log.Add then
         ns.Log.Add("kick-correlacao", { candidatos = table.concat(candidates, ","), escolhido = found or "ninguem" })
     end
+end
+
+---(10/11) THE PROBE OF ONE INTERRUPTION, written 1.5 s after it: every group member's casts within 1.5 s of it, as
+---"party2(PALADIN) -0.31 +0.05". It answers what the empty candidate lists could not: do the teammates' casts come
+---at all near an interruption, how far from it, and how many at once (the window is -0.4 to +0.15 s).
+local function Probe(at)
+    if not Probing() then return end
+    local parts, near = {}, 0
+    for _, t in ipairs({ "player", "party1", "party2", "party3", "party4" }) do
+        if UnitExists and UnitExists(t) then
+            local deltas = {}
+            for _, c in ipairs(history[t] or {}) do
+                if c >= at - PROBE_SPAN and c <= at + PROBE_SPAN then
+                    deltas[#deltas + 1] = string.format("%+.2f", c - at)
+                    if c >= at - WINDOW_BEFORE and c <= at + WINDOW_AFTER then near = near + 1 end
+                end
+            end
+            parts[#parts + 1] = t .. "(" .. (ClassOf(t) or "?") .. ") " .. (#deltas > 0 and table.concat(deltas, " ") or "-")
+        end
+    end
+    ns.Log.Kick("corte", { lancamentos = table.concat(parts, " | "), naJanela = near, escolhido = lastChoice or "?" })
 end
 
 function Kicks.OnCast(unit, spellID)
     local owner = FRIENDLY[unit]
     if not owner then return end
     lastCast[owner] = Now()
+    if Probing() then
+        local h = history[owner] or {}
+        history[owner] = h
+        h[#h + 1] = lastCast[owner]
+        while #h > HISTORY do table.remove(h, 1) end
+    end
     if Readable(spellID) then
         local hit = CastIndex()[spellID]
         if hit then Use(hit[1], owner, hit[2], owner == "player" and "proprio" or "lido") end
@@ -268,13 +324,16 @@ function Kicks.OnInterrupted(unit)
     local at = Now()
     if at - lastInterrupt < SAME_INTERRUPT then return end
     lastInterrupt = at
+    if Probing() and C_Timer and C_Timer.After then
+        C_Timer.After(PROBE_SPAN, function() pcall(Probe, at) end)
+    end
     if pending then return end
     pending = true
     if C_Timer and C_Timer.After then C_Timer.After(WINDOW_AFTER, function() Attribute(at) end) else Attribute(at) end
 end
 
 function Kicks.Reset()
-    uses, lastCast, pending = { kick = {} }, {}, false
+    uses, lastCast, pending, history = { kick = {} }, {}, false, {}
 end
 
 function Kicks.ForgetRoster()
