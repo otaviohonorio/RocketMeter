@@ -200,8 +200,11 @@ function handlers:DAMAGE_METER_CURRENT_SESSION_UPDATED()
 end
 
 -- A recorded session changed (end of combat, a new segment).
+-- (12/11) Measured in a key (cpu-meter, 19 fights): it also fires ~150 times a second DURING combat, and drawing the
+-- window at once each time cost ~2.8 ms -> ~430 ms of every second, almost all of the addon's CPU. In combat it only
+-- marks the window to be drawn (the 0.2 s throttle, like the current session's update); out of combat, at once.
 function handlers:DAMAGE_METER_COMBAT_SESSION_UPDATED()
-    ns.Window.Refresh(true)
+    ns.Window.Refresh(not InCombatLockdown())
 end
 
 function handlers:DAMAGE_METER_RESET()
