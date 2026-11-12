@@ -67,6 +67,86 @@ local HISTORY = 8
 
 local function Probing() return ns.Log and ns.Log.enabled and ns.Log.Kick end
 
+--------------------------------------------------------------------------------
+-- (12/11) A CUT BY CROWD CONTROL IS NOT A KICK. The user: "se identificar com 100% de certeza que usou outra skill
+-- para o interrupt, o icone da skill nativa de interrupt dele nao entra em CD". Checked against the combat log of a
+-- key (11/11): of 18 teammate clocks the guess started, 13 were on the wrong one, many of them a stun or a fear that
+-- cut the cast while the stunner "cast something" in that instant.
+-- HOW: one hidden AuraContainer per enemy plate (nameplate1..40), HARMFUL, filtered by the marks a control leaves
+-- (Data/CutMarks.lua). The game lets an addon filter an ENEMY's harmful auras by id, and the container grows when one
+-- is there: `IsMouseOver` reads that geometry (the technique proven in a key on 11/11, 45 of 45 screenshots, workspace
+-- skill wow-grupo-recargas). The answer is SECRET in combat: Lua never learns it. It goes straight to the screen --
+-- C_CurveUtil.EvaluateColorValueFromBoolean picks the clock's alpha (0 with the mark) and the "ready" look (1 with
+-- it) -- so a teammate cut by control keeps his interrupt shown as ready, and nothing else changes.
+-- The interrupts whose own mark is the interrupt (Silence, Solar Beam, Avenger's Shield, Axe Toss) are not in the
+-- list. Lost: the credit cannot go to the right one (Lua does not know), and the guessed teammate still counts as
+-- "on cooldown" for the next guesses.
+--------------------------------------------------------------------------------
+local CUT_PLATES = 40
+local WIDE = 50000
+local E = C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
+local cutSensors = {}             -- [plate index] = container on nameplate<index>
+local cutBuilt = false            -- tried (once: a failure is logged, not retried every interruption)
+local cutPlate                    -- the plate of the interruption being attributed
+
+local function Quiet(button)
+    pcall(button.SetSize, button, 1, 1)
+    pcall(button.SetAlpha, button, 0)
+    pcall(button.EnableMouse, button, false)
+end
+
+---Builds the 40 sensors, out of combat (a container is not created in combat). Idempotent.
+function Kicks.BuildCutSensors()
+    if cutBuilt or not ns.CUT_MARKS or not E then return end
+    if InCombatLockdown and InCombatLockdown() then return end
+    cutBuilt = true
+    if C_AddOns and C_AddOns.LoadAddOn then pcall(C_AddOns.LoadAddOn, "Blizzard_AuraContainer") end
+    local ids = {}
+    for _, id in ipairs(ns.CUT_MARKS) do ids[id] = true end
+    for i = 1, CUT_PLATES do
+        local ok, c = pcall(CreateFrame, "AuraContainer", nil, UIParent, "CustomAuraContainerTemplate")
+        if not ok or not c then
+            if ns.Log and ns.Log.Add then ns.Log.Add("kick-sensor", { erro = tostring(c), placa = i }) end
+            return
+        end
+        c:SetSize(1, 1)
+        c:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -11, 0)  -- one pixel wide, left of the screen
+        pcall(c.EnableMouse, c, false)
+        local okG, err = pcall(c.AddAuraGroup, c, "cut", "HARMFUL", {
+            maxFrameCount = 1,
+            candidateFilters = { includeSpellIDs = ids },
+            initializeFrame = Quiet,
+            layout = { elementWidth = WIDE, elementHeight = 1, elementSpacing = 0, lineSpacing = 0 },
+        })
+        if not okG then
+            if ns.Log and ns.Log.Add then ns.Log.Add("kick-sensor", { erro = tostring(err), placa = i }) end
+            return
+        end
+        pcall(c.SetUnit, c, "nameplate" .. i)
+        pcall(c.SetEnabled, c, true)
+        pcall(c.UpdateAllAuras, c)
+        cutSensors[i] = c
+    end
+end
+
+local function PlateIndex(unit)
+    return type(unit) == "string" and tonumber(unit:match("^nameplate(%d+)$")) or nil
+end
+
+---A plate came: its sensor reads the new enemy at once (proven in combat on 11/11).
+function Kicks.OnPlate(unit)
+    local c = cutSensors[PlateIndex(unit) or 0]
+    if c then pcall(c.UpdateAllAuras, c) end
+end
+
+---"The interrupted enemy carries a control's mark": a boolean, SECRET in combat; nil when it cannot be read (no plate).
+local function CutByControl()
+    local c = cutSensors[cutPlate or 0]
+    if not c then return nil end
+    local ok, lit = pcall(c.IsMouseOver, c, 1e5, -1e5, 0, 0)
+    if ok then return lit end
+end
+
 ---(10/11) Why a row got no interrupt icon, once per class/icon/reason: in a key (10/11) a Retribution paladin and a
 ---Devourer demon hunter had none while both shamans and the mage had theirs. Development log only.
 local function NoIcon(source, reason)
@@ -227,7 +307,7 @@ function Kicks.ForRow(source, kind)
                   icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spell) or nil }
     local u = uses[kind][token]
     if u and Now() < u.at + k.cd then
-        out.state, out.start, out.duration = "cooldown", u.at, k.cd
+        out.state, out.start, out.duration, out.veto = "cooldown", u.at, k.cd, u.veto
     else
         out.state = "ready"
     end
@@ -251,9 +331,14 @@ local function Changed(kind, token)
     end
 end
 
-local function Use(kind, token, spell, how)
-    uses[kind][token] = { at = Now(), spell = spell }
-    if ns.Log and ns.Log.Add then ns.Log.Add("kick", { tipo = kind, quem = token, magia = spell, como = how }) end
+local function Use(kind, token, spell, how, veto)
+    uses[kind][token] = { at = Now(), spell = spell, veto = veto }
+    if ns.Log and ns.Log.Add then
+        local marca = veto == nil and "-" or (issecretvalue(veto) and "secreta" or tostring(veto))
+        ns.Log.Add("kick", { tipo = kind, quem = token, magia = spell, como = how, placa = cutPlate, marca = marca })
+    end
+    -- development: a screenshot of the meter a moment later, to check the veto against the combat log
+    if veto ~= nil and Probing() and ns.DevShot then pcall(ns.DevShot, "kick-veto") end
     Changed(kind, token)
 end
 
@@ -281,7 +366,7 @@ local function Attribute(at)
     if #candidates == 1 then
         found = candidates[1]
         local spell = known.kick[found]
-        if spell then Use("kick", found, spell, "correlacao") end
+        if spell then Use("kick", found, spell, "correlacao", CutByControl()) end
     end
     lastChoice = (found or "ninguem") .. " [" .. table.concat(candidates, ",") .. "]"
     if ns.Log and ns.Log.Add then
@@ -334,8 +419,14 @@ function Kicks.OnInterrupted(unit)
         if ok and Readable(friend) and friend == true then return end
     end
     local at = Now()
-    if at - lastInterrupt < SAME_INTERRUPT then return end
+    local plate = PlateIndex(unit)
+    if at - lastInterrupt < SAME_INTERRUPT then
+        -- the same interruption through another token (target first, its plate after): keep the plate
+        if plate and not cutPlate then cutPlate = plate end
+        return
+    end
     lastInterrupt = at
+    if not pending then cutPlate = plate end
     if Probing() and C_Timer and C_Timer.After then
         C_Timer.After(PROBE_SPAN, function() pcall(Probe, at) end)
     end
@@ -380,8 +471,16 @@ function Kicks.Init()
     f:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
     f:RegisterEvent("GROUP_ROSTER_UPDATE")
     f:RegisterEvent("CHALLENGE_MODE_START")
+    f:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("PLAYER_REGEN_ENABLED")
+    Kicks.BuildCutSensors()
     f:SetScript("OnEvent", ns.Timed("kicks", function(_, event, unit, _, spellID)
-        if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        if event == "NAME_PLATE_UNIT_ADDED" then
+            pcall(Kicks.OnPlate, unit)
+        elseif event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_REGEN_ENABLED" then
+            pcall(Kicks.BuildCutSensors)
+        elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
             pcall(Kicks.OnCast, unit, spellID)
         elseif event == "UNIT_SPELLCAST_INTERRUPTED" then
             pcall(Kicks.OnInterrupted, unit)
@@ -398,3 +497,6 @@ function Kicks.__uses() return uses end
 function Kicks.__known() return known end
 function Kicks.__forgetSpecs() specByIcon = nil end
 function Kicks.__attribute(at) return Attribute(at) end
+function Kicks.__cutSensors() return cutSensors end
+function Kicks.__setCurve(f) E = f end
+function Kicks.__rebuildCut() cutBuilt = false; cutSensors = {} end

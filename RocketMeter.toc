@@ -45,6 +45,7 @@ Data\DefensiveSpells.lua
 Data\OpenSpells.lua
 Data\SpellOrigin.lua
 Data\Kicks.lua
+Data\CutMarks.lua
 Data.lua
 Casts.lua
 Kicks.lua

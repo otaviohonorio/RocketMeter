@@ -1075,6 +1075,11 @@ local function KickIcon(faixa)
     b:EnableMouse(false)                               -- the row's click and tooltip go through
     b.tex = b:CreateTexture(nil, "ARTWORK")
     b.tex:SetAllPoints()
+    -- (12/11) the icon in colour over the grey one, shown only when the cut was a control's (Kicks.lua, CUT BY CROWD
+    -- CONTROL): its alpha is picked by the game from a secret answer
+    b.bright = b:CreateTexture(nil, "ARTWORK", nil, 1)
+    b.bright:SetAllPoints()
+    b.bright:SetAlpha(0)
     b.cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
     b.cd:SetAllPoints()
     b.cd:SetDrawEdge(false)
@@ -1116,12 +1121,35 @@ function ns.DrawKick(faixa, state)
     -- icone do interrupt quadrado mesmo, sem opção de redondo pra ele"* -- the shape of the action bars and of the
     -- Cooldown Manager, whose clock and gold frame it uses.
     b.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    if b.bright then
+        b.bright:SetTexture(state.icon or 134400)
+        b.bright:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+    -- (12/11) THE VETO: the interrupted enemy carried a control's mark, so the guessed teammate did not kick. The answer
+    -- is secret in combat; C_CurveUtil turns it into alphas the game applies (clock and seconds off, colour and the
+    -- "ready" frame on). Without a veto everything stays at its plain alpha.
+    local E = C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
+    local veto = nil   -- (not "x and y or nil": a false veto must stay false)
+    if state.state == "cooldown" and E then veto = state.veto end
+    local okV = veto ~= nil and pcall(function()
+        local off, on = E(veto, 0, 1), E(veto, 1, 0)
+        b.cd:SetAlpha(off)
+        b.num:SetAlpha(off)
+        if b.bright then b.bright:SetAlpha(on) end
+        b.glow:SetAlpha(on)
+    end)
+    if not okV then
+        b.cd:SetAlpha(1)
+        b.num:SetAlpha(1)
+        if b.bright then b.bright:SetAlpha(0) end
+        b.glow:SetAlpha(1)
+    end
     if b.cd.SetSwipeTexture then b.cd:SetSwipeTexture("Interface\\Buttons\\WHITE8X8", 0, 0, 0, 0.75) end
     if b.cd.SetUseCircularEdge then b.cd:SetUseCircularEdge(false) end
     if state.state == "cooldown" then
         b.cd:SetCooldown(state.start, state.duration)
         b.tex:SetDesaturated(true)
-        b.glow:Hide()
+        b.glow:SetShown(okV and true or false)
         b.endAt = state.start + state.duration
         b:SetScript("OnUpdate", KickTick)
         KickTick(b)
