@@ -1,9 +1,5 @@
-# Rocket Meter 0.96.0
+# Rocket Meter 0.97.0
 
-- Estimated **burst** of your fights, beside the average, in My combat, the history and the statistics.
-- The Configure window is reorganized in three balanced columns, and it closes with Esc like the other windows.
-- The options live in the addon's own window. Options > AddOns has a button that opens it.
-- Slash commands are English only; `/rm help` lists every command.
-- The class border around the row icon is drawn on whole pixels, so it stays even on every side.
-- New Rocket family logo in the AddOns list, the minimap button and the window portrait. The Rocket addons now sit together in the game's AddOns list.
-- The window footer keeps only **Report a problem**.
+- Much lighter in combat: the window no longer redraws on every update the game's meter sends during a fight (it could send about 150 a second). Measured in a Mythic+ key, from about 10 ms to about 0.15 ms per frame.
+- The interrupt icon stays on the row of a player who left the group after the key.
+- When an enemy's cast is cut by crowd control (a stun, fear or similar left on it), a teammate's interrupt is not put on cooldown.
