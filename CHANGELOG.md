@@ -1,5 +1,4 @@
-# Rocket Meter 0.97.0
+# Rocket Meter 0.98.0
 
-- Much lighter in combat: the window no longer redraws on every update the game's meter sends during a fight (it could send about 150 a second). Measured in a Mythic+ key, from about 10 ms to about 0.15 ms per frame.
-- The interrupt icon stays on the row of a player who left the group after the key.
-- When an enemy's cast is cut by crowd control (a stun, fear or similar left on it), a teammate's interrupt is not put on cooldown.
+- Column widths: drag the edge of a column title on the meter to make that column wider (the cursor changes over the edge). Right-click the edge to go back to the default width.
+- Now also for WoW Forever: the same addon loads there, with interrupts and defensives taken from Forever's game data. The Statistics window (Mythic+ and season) is not part of the Forever version.

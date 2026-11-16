@@ -337,8 +337,6 @@ local function Use(kind, token, spell, how, veto)
         local marca = veto == nil and "-" or (issecretvalue(veto) and "secreta" or tostring(veto))
         ns.Log.Add("kick", { tipo = kind, quem = token, magia = spell, como = how, placa = cutPlate, marca = marca })
     end
-    -- development: a screenshot of the meter a moment later, to check the veto against the combat log
-    if veto ~= nil and Probing() and ns.DevShot then pcall(ns.DevShot, "kick-veto") end
     Changed(kind, token)
 end
 
