@@ -1831,8 +1831,17 @@ local function BuildColumnHeader()
             grip:SetWidth(6)
             grip:SetFrameLevel(button:GetFrameLevel() + 2)
             grip:RegisterForClicks("RightButtonUp")
+            -- (16/11) THE MARK IS A THIN LINE, not the cursor: the game's resize cursor came out too big over a header
+            -- this small (the user: "esse botão ficou muito grande"). A 2 px line in the game's gold (NORMAL_FONT_COLOR,
+            -- the colour of the sorted column's label) while the mouse is over the edge and while dragging.
+            grip.line = grip:CreateTexture(nil, "OVERLAY")
+            grip.line:SetPoint("TOP", grip, "TOP", 0, -2)
+            grip.line:SetPoint("BOTTOM", grip, "BOTTOM", 0, 2)
+            grip.line:SetWidth(2)
+            grip.line:SetColorTexture(NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b, 0.9)
+            grip.line:Hide()
             grip:SetScript("OnEnter", function(self)
-                SetCursor("UI_RESIZE_CURSOR")
+                self.line:Show()
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 GameTooltip_SetTitle(GameTooltip, ns.Data.GetAttributeLabel(self:GetParent().sortKey))
                 GameTooltip_AddInstructionLine(GameTooltip, L["Drag: change this column's width"])
@@ -1840,7 +1849,7 @@ local function BuildColumnHeader()
                 GameTooltip:Show()
             end)
             grip:SetScript("OnLeave", function(self)
-                if not self.dragging then ResetCursor() end
+                if not self.dragging then self.line:Hide() end
                 GameTooltip_Hide()
             end)
             grip:SetScript("OnMouseDown", function(self, mouse)
@@ -1860,7 +1869,7 @@ local function BuildColumnHeader()
             local function EndDrag(self)
                 if not self.dragging then return end
                 self.dragging = false
-                ResetCursor()
+                if not self:IsMouseOver() then self.line:Hide() end
                 Window.Refresh(true)
             end
             grip.EndDrag = EndDrag
