@@ -1749,8 +1749,10 @@ local function BuildColumnHeader()
     headerRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, -HEADER_HEIGHT)
     headerRow:SetHeight(COLHEAD_HEIGHT)
 
-    for _, button in pairs(headerRow.labels) do
-        button:Hide()
+    -- (16/11) only the labels past the columns in use are hidden: hiding one that is shown again a line later
+    -- cancelled a column drag in the middle (lesson L-099)
+    for c, button in pairs(headerRow.labels) do
+        if c > #ns.db.columns then button:Hide() end
     end
 
     local offsets = ColumnOffsets()
@@ -1850,13 +1852,22 @@ local function BuildColumnHeader()
                 self.next = 0
             end)
             grip:SetScript("OnMouseUp", function(self, mouse)
-                if mouse ~= "LeftButton" or not self.dragging then return end
+                if mouse == "LeftButton" and self.EndDrag then self:EndDrag() end
+            end)
+            -- ⚑ (16/11, the user: "na segunda tive que dar um /reload por que ficou preso") the drag ENDS when the game
+            -- says the left button is up, asked at every step -- never only by OnMouseUp: a redraw that hides the
+            -- header in the middle of the drag cancels the mouse capture and the "up" never arrives (lesson L-099)
+            local function EndDrag(self)
+                if not self.dragging then return end
                 self.dragging = false
                 ResetCursor()
                 Window.Refresh(true)
-            end)
+            end
+            grip.EndDrag = EndDrag
+            grip:SetScript("OnHide", EndDrag)
             grip:SetScript("OnUpdate", function(self, elapsed)
                 if not self.dragging then return end
+                if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then return EndDrag(self) end
                 self.next = (self.next or 0) - elapsed
                 if self.next > 0 then return end
                 self.next = 0.05   -- redraw at most 20 times a second while dragging
@@ -3197,6 +3208,12 @@ function Window.DebugHeaders()
         end
     end
     return out
+end
+
+--- The resize edge of a column's header (16/11): the test drags it as the player would.
+function Window.DebugGrip(index)
+    local button = headerRow and headerRow.labels and headerRow.labels[index]
+    return button and button.grip or nil
 end
 
 --- Fires the click on a column's header, as the player would.
