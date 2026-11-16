@@ -1404,9 +1404,24 @@ local function KickRoom()
 end
 ns.KickRoom = KickRoom
 
+-- (16/11/2026) EACH COLUMN'S OWN WIDTH, dragged on the meter's header (the user: "não consegui ajustar a largura das
+-- colunas duplas de Dano e DPS e a outra de Cura e CPS, parecem fixa (...) o ajuste da largura de cada coluna"; he
+-- chose dragging on the meter). `ns.db.colWidths[key]` overrides the computed width of THAT column only; never below
+-- what its text asks (the rule: no cut text), and right-click on the edge takes the override away.
+local COLUMN_DRAG_MAX = 240
+local ColumnWidthBase
+
 local function ColumnWidthFor(key)
+    local base = ColumnWidthBase(key)
+    local mine = type(ns.db) == "table" and type(ns.db.colWidths) == "table" and ns.db.colWidths[key]
+    if type(mine) ~= "number" then return base end
+    local floor = ns.ColumnTextFloor and ns.ColumnTextFloor(key) or 44
+    return math.floor(math.max(floor, math.min(COLUMN_DRAG_MAX, mine)) + 0.5)
+end
+
+ColumnWidthBase = function(key)
     if ns.Kicks and ns.Kicks.KindOfColumn(key) and ns.Kicks.Enabled() and key ~= "dispels" then
-        return ColumnWidthFor("dispels") + KickRoom()
+        return ColumnWidthBase("dispels") + KickRoom()
     end
     local def = ns.Data.GetColumn(key)
 
@@ -1447,6 +1462,20 @@ local function ColumnWidthFor(key)
 
     larguraCache[formato] = largura
     return largura
+end
+
+--- The narrowest a column can be dragged: what its number asks, measured (never a cut number), and 44 for the label;
+--- the interrupts' column keeps its clock's room.
+function ns.ColumnTextFloor(key)
+    local room = 0
+    if ns.Kicks and ns.Kicks.KindOfColumn(key) and ns.Kicks.Enabled() and key ~= "dispels" then
+        room, key = KickRoom(), "dispels"
+    end
+    local def = ns.Data.GetColumn(key)
+    local formato = (def and def.counts) and "count" or (def and def.field) or "total"
+    local tinta = MedirTexto(COLUMN_SAMPLE[formato] or COLUMN_SAMPLE.total)
+    local pedido = tinta and math.ceil(tinta + TEXT_INSET * 2 + TEXT_ROOM) or 0
+    return math.max(44, pedido) + room
 end
 
 --- A GROUP's width: the SUM of its columns.
@@ -1790,6 +1819,57 @@ local function BuildColumnHeader()
                 GameTooltip:Show()
             end)
             button:SetScript("OnLeave", GameTooltip_Hide)
+
+            -- (16/11) THE EDGE THAT RESIZES this column: a thin strip on the label's LEFT (the columns are laid
+            -- from the right, so the left edge is the one that moves). The game's own resize cursor over it;
+            -- dragging left widens, right narrows; right-click gives the default back.
+            local grip = CreateFrame("Button", nil, button)
+            grip:SetPoint("TOPLEFT", button, "TOPLEFT", -3, 0)
+            grip:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", -3, 0)
+            grip:SetWidth(6)
+            grip:SetFrameLevel(button:GetFrameLevel() + 2)
+            grip:RegisterForClicks("RightButtonUp")
+            grip:SetScript("OnEnter", function(self)
+                SetCursor("UI_RESIZE_CURSOR")
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip_SetTitle(GameTooltip, ns.Data.GetAttributeLabel(self:GetParent().sortKey))
+                GameTooltip_AddInstructionLine(GameTooltip, L["Drag: change this column's width"])
+                GameTooltip_AddInstructionLine(GameTooltip, L["Right-click: the default width"])
+                GameTooltip:Show()
+            end)
+            grip:SetScript("OnLeave", function(self)
+                if not self.dragging then ResetCursor() end
+                GameTooltip_Hide()
+            end)
+            grip:SetScript("OnMouseDown", function(self, mouse)
+                if mouse ~= "LeftButton" then return end
+                local key = self:GetParent().sortKey
+                self.dragging, self.key = true, key
+                self.startX = GetCursorPosition() / UIParent:GetEffectiveScale()
+                self.startW = ColumnWidthFor(key)
+                self.next = 0
+            end)
+            grip:SetScript("OnMouseUp", function(self, mouse)
+                if mouse ~= "LeftButton" or not self.dragging then return end
+                self.dragging = false
+                ResetCursor()
+                Window.Refresh(true)
+            end)
+            grip:SetScript("OnUpdate", function(self, elapsed)
+                if not self.dragging then return end
+                self.next = (self.next or 0) - elapsed
+                if self.next > 0 then return end
+                self.next = 0.05   -- redraw at most 20 times a second while dragging
+                local x = GetCursorPosition() / UIParent:GetEffectiveScale()
+                ns.db.colWidths = type(ns.db.colWidths) == "table" and ns.db.colWidths or {}
+                ns.db.colWidths[self.key] = self.startW + (self.startX - x)
+                Window.Refresh(true)
+            end)
+            grip:SetScript("OnClick", function(self)
+                if type(ns.db.colWidths) == "table" then ns.db.colWidths[self:GetParent().sortKey] = nil end
+                Window.Refresh(true)
+            end)
+            button.grip = grip
             headerRow.labels[c] = button
         end
 
