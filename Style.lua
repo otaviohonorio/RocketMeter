@@ -98,19 +98,19 @@ function Style.Divider(texture)
     return texture
 end
 
----A section: the title in gold (GameFontNormalLarge, the app's h2) and the game's divider, tinted bronze, under it.
+---A section: the title in gold (GameFontNormalLarge) on the band of the game's quest tracker secondary header (18/11,
+---the modern identity; at its own proportion, 300 x 30, never stretched). Returns the next y, the title, the band.
 function Style.Section(parent, x, y, width, text)
     y = y - Style.SECTION_GAP
     local t = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x + 8, y - 4)
     t:SetText(text)
-    local line = parent:CreateTexture(nil, "ARTWORK")
-    line:SetAtlas(Style.DIVIDER_ATLAS)
-    line:SetHeight(1)
-    line:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y - 26)
-    line:SetWidth(width)
-    if Style.BRONZE then line:SetVertexColor(Style.BRONZE.r, Style.BRONZE.g, Style.BRONZE.b) end
-    return y - Style.SECTION_H, t, line
+    local band = parent:CreateTexture(nil, "ARTWORK", nil, -1)
+    band:SetAtlas("ui-questtracker-secondary-objective-header")
+    local bw = math.min(320, math.max(120, (width or 300) * 0.92))
+    band:SetSize(bw, bw * 30 / 300)
+    band:SetPoint("TOPLEFT", parent, "TOPLEFT", x - 4, y + 2)
+    return y - Style.SECTION_H, t, band
 end
 
 ---An option's name, in white (the app's text), on the left of its row.
@@ -129,6 +129,7 @@ function Style.Check(parent, x, y, col, label, tip, get, set)
     local c = CreateFrame("CheckButton", nil, parent, "MinimalCheckboxTemplate")
     c:SetSize(30, 29)
     c:SetPoint("TOPLEFT", parent, "TOPLEFT", col, y + 1)
+    Style.SkinCheck(c)
     c:SetChecked(get() and true or false)
     c:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
     Tip(c, label, tip)
@@ -142,6 +143,7 @@ function Style.Dropdown(parent, x, y, col, width, label, tip, values, get, set)
     local d = CreateFrame("DropdownButton", nil, parent, "WowStyle1DropdownTemplate")
     d:SetPoint("TOPLEFT", parent, "TOPLEFT", col, y)
     d:SetWidth(width)
+    Style.SkinDropdown(d)
     d:SetupMenu(function(_, root)
         for _, v in ipairs(values) do
             root:CreateRadio(v.text, function() return get() == v.value end, function() set(v.value) end)
@@ -162,6 +164,7 @@ function Style.Slider(parent, x, y, col, width, label, tip, min, max, step, fmt,
     s:SetPoint("TOPLEFT", parent, "TOPLEFT", col, y - 1)
     s:SetWidth(width - 40)
     s:SetHeight(26)
+    Style.SkinSlider(s)
     local function Write() value:SetText((fmt or "%d"):format(get())) end
     if s.Init and MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Event then
         s:Init(get(), min, max, math.floor((max - min) / step + 0.5))
@@ -230,13 +233,395 @@ function Style.Color(parent, x, y, col, label, tip, get, set, dx, stay)
     return stay and y or (y - Style.ROW), b
 end
 
----The game's red button. Returns the next y.
+---The bronze button (Style.NewButton). Returns the next y.
 function Style.Button(parent, x, y, width, label, tip, onClick)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    b:SetSize(width, 22)
+    local b = Style.NewButton(parent, label, width, Style.BUTTON_H)
     b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y - 4)
-    b:SetText(label)
     b:SetScript("OnClick", onClick)
     Tip(b, label, tip)
     return y - 4 - 22 - 10, b
+end
+
+-- (18/11/2026) THE MODERN ROCKET IDENTITY (the user approved the component sheet, mockup/PREVIA Rocket componentes.png,
+-- and the mockup of every addon: "ficou lindo, parabéns, pode fazer"). The pieces below dress the windows and the
+-- controls in our own art (tools/rocket_pele.py, the same Textures/Rocket*.png in every addon): the window is our dark
+-- panel with a light-bronze filete, the body stone, a header with the SEAL (the logo round in the game's gold ring), the
+-- name and a subtitle on the band of the game's quest tracker; the buttons, drop-downs, check boxes, sliders and fields
+-- are the bronze button with volume and its family; tabs are a segmented row on top; sections sit on the tracker's
+-- secondary band. The game's own templates stay underneath (behaviour, menus, scroll bars, tooltips): only their art
+-- changes, with one call (Style.Skin*). Skill wow-ui-design, "A IDENTIDADE MODERNA".
+Style.MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\"
+Style.ART_SCALE = 0.5            -- our art is drawn at 2 pixels per point
+Style.BUTTON_H = 22
+Style.HEAD = 58                  -- the header: the seal (9..47) and the band; the content starts under it
+Style.INSET = 4                  -- the body, inside the panel's filete
+Style.SEAL = 38
+Style.ORANGE = { 1, 0x6a / 255, 0 }
+Style.BRONZE_LIGHT = { 0x80 / 255, 0x6c / 255, 0x4a / 255 }
+
+---Our 9-slice art at half scale: the corners keep their size in points. `margin` in the file's pixels; `pad` in points,
+---how far the art goes past the frame (negative: inside it).
+function Style.Slice(parent, file, margin, pad, layer, sub)
+    local t = parent:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -7)
+    t:SetTexture(Style.MEDIA .. file)
+    t:SetTextureSliceMargins(margin, margin, margin, margin)
+    t:SetScale(Style.ART_SCALE)
+    local o = (pad or 0) / Style.ART_SCALE
+    t:SetPoint("TOPLEFT", parent, "TOPLEFT", -o, o)
+    t:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", o, -o)
+    return t
+end
+
+local function Hide(p)
+    if type(p) == "table" and p.Hide then p:Hide() end
+end
+local function Clear(p)
+    if type(p) == "table" and p.SetAlpha then p:SetAlpha(0) end
+end
+
+---The button's three looks on any Button: our art under it (normal), the gold border on the HIGHLIGHT layer (the game
+---shows it under the mouse, no script), sunk while pressed (hooks: the callers keep their own scripts), grey disabled.
+local function ButtonArt(b, pad)
+    b.__bg = Style.Slice(b, "RocketButton.png", 10, pad or 0)
+    b.__hover = Style.Slice(b, "RocketButtonHover.png", 10, pad or 0, "HIGHLIGHT", 0)
+    b.__pressed = Style.Slice(b, "RocketButtonPressed.png", 10, pad or 0, "BACKGROUND", -6)
+    b.__pressed:Hide()
+    b:HookScript("OnMouseDown", function(self)
+        if self.IsEnabled and not self:IsEnabled() then return end
+        self.__pressed:Show()
+        self.__hover:Hide()
+    end)
+    local function Up(self)
+        self.__pressed:Hide()
+        self.__hover:Show()
+    end
+    b:HookScript("OnMouseUp", Up)
+    b:HookScript("OnHide", Up)
+    local function Paint(self)
+        local on = not self.IsEnabled or self:IsEnabled()
+        self.__bg:SetDesaturated(not on)
+        self.__bg:SetAlpha(on and 1 or 0.6)
+    end
+    b:HookScript("OnDisable", Paint)
+    b:HookScript("OnEnable", Paint)
+    b.__paint = Paint
+    Paint(b)
+end
+
+---A new button: the bronze with volume, the text in the game's gold 12 (white under the mouse). `width`: at least it;
+---it grows to the text plus 30.
+function Style.NewButton(parent, text, width, height)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(width or 90, height or Style.BUTTON_H)
+    ButtonArt(b)
+    b:SetNormalFontObject("GameFontNormal")
+    b:SetHighlightFontObject("GameFontHighlight")
+    b:SetDisabledFontObject("GameFontDisable")
+    if b.SetPushedTextOffset then b:SetPushedTextOffset(0, -1) end
+    b:SetText(text or "")
+    local fs = b:GetFontString()
+    if width and fs and fs.GetStringWidth then b:SetWidth(math.max(width, (fs:GetStringWidth() or 0) + 30)) end
+    return b
+end
+
+---A button made with the game's UIPanelButtonTemplate, dressed as ours: its red pieces cleared (the template keeps
+---changing their file on press and on show; their alpha stays 0), our art under it.
+function Style.SkinButton(b)
+    if rawget(b, "__bg") then return b end
+    for _, k in ipairs({ "Left", "Middle", "Right" }) do Clear(b[k]) end
+    if b.ClearHighlightTexture then b:ClearHighlightTexture() end
+    ButtonArt(b)
+    return b
+end
+
+---A check box (the game's MinimalCheckboxTemplate or UICheckButtonTemplate) dressed as ours: an 18-point box of the
+---button's art (gold under the mouse) with the game's own gold tick (checkmark-minimal).
+function Style.SkinCheck(c)
+    if rawget(c, "__bg") then return c end
+    for _, f in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture" }) do
+        local t = c[f] and c[f](c)
+        Clear(t)
+    end
+    local w = c.GetWidth and c:GetWidth() or 24
+    local pad = -math.max(0, ((w > 0 and w or 24) - 18) / 2)
+    c.__bg = Style.Slice(c, "RocketButton.png", 10, pad)
+    c.__hover = Style.Slice(c, "RocketButtonHover.png", 10, pad, "HIGHLIGHT", 0)
+    for _, f in ipairs({ "GetCheckedTexture", "GetDisabledCheckedTexture" }) do
+        local t = c[f] and c[f](c)
+        if t and t.SetAtlas then
+            t:SetAtlas(f == "GetCheckedTexture" and "checkmark-minimal" or "checkmark-minimal-disabled")
+            t:ClearAllPoints()
+            t:SetPoint("CENTER")
+            t:SetSize(22, 21)
+            t:SetAlpha(1)
+        end
+    end
+    c:HookScript("OnDisable", function(self) self.__bg:SetDesaturated(true); self.__bg:SetAlpha(0.6) end)
+    c:HookScript("OnEnable", function(self) self.__bg:SetDesaturated(false); self.__bg:SetAlpha(1) end)
+    return c
+end
+
+-- The drop-down's open menu: our panel (with the filete) instead of the game's background; the items stay the game's.
+local menuMixin
+local function MenuMixin()
+    if menuMixin then return menuMixin end
+    local base = rawget(_G, "MenuStyle1Mixin") or rawget(_G, "MenuStyleMixin")
+    if not (base and CreateFromMixins) then return nil end
+    menuMixin = CreateFromMixins(base)
+    function menuMixin:Generate()
+        local t = self:AttachTexture()
+        t:SetTexture(Style.MEDIA .. "RocketPanel.png")
+        t:SetTextureSliceMargins(28, 28, 28, 28)
+        t:SetScale(Style.ART_SCALE)
+        local o = 8 / Style.ART_SCALE
+        t:SetPoint("TOPLEFT", self, "TOPLEFT", -o + 2, o - 2)
+        t:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", o - 2, -o + 2)
+    end
+    return menuMixin
+end
+
+---A drop-down (the game's WowStyle1DropdownTemplate) dressed as ours: the bronze button, the value in white on the left,
+---the game's minimal arrow on the right (up while the menu is open), the menu on our panel.
+function Style.SkinDropdown(d)
+    if rawget(d, "__bg") then return d end
+    Clear(d.Background)
+    Clear(d.Arrow)
+    if d.SetHeight then d:SetHeight(Style.BUTTON_H) end
+    ButtonArt(d)
+    local arrow = d:CreateTexture(nil, "OVERLAY")
+    arrow:SetAtlas("minimal-scrollbar-arrow-bottom")
+    arrow:SetSize(13, 8)
+    arrow:SetPoint("RIGHT", -9, 0)
+    d.__arrow = arrow
+    if type(d.Text) == "table" then
+        d.Text:ClearAllPoints()
+        d.Text:SetPoint("LEFT", 9, 0)
+        d.Text:SetPoint("RIGHT", arrow, "LEFT", -4, 0)
+        d.Text:SetJustifyH("LEFT")
+        if d.Text.SetFontObject then d.Text:SetFontObject("GameFontHighlight") end
+    end
+    local mm = MenuMixin()
+    if mm then d.menuMixin = mm end
+    local ev = rawget(_G, "DropdownButtonMixin") and DropdownButtonMixin.Event
+    if ev and d.RegisterCallback then
+        d:RegisterCallback(ev.OnMenuOpen, function()
+            arrow:SetAtlas("minimal-scrollbar-arrow-top")
+            d.__pressed:Show()
+        end, d)
+        d:RegisterCallback(ev.OnMenuClose, function()
+            arrow:SetAtlas("minimal-scrollbar-arrow-bottom")
+            d.__pressed:Hide()
+        end, d)
+    end
+    return d
+end
+
+---A slider (the game's MinimalSliderWithSteppersTemplate) dressed as ours: a dark track with a bronze border, the
+---part up to the value in bronze-gold, our round thumb (gold ring under the mouse); the game's minimal steppers stay.
+function Style.SkinSlider(s)
+    local sl = type(s.Slider) == "table" and s.Slider or s
+    if rawget(sl, "__track") then return s end
+    for _, k in ipairs({ "Left", "Middle", "Right" }) do Clear(sl[k]) end
+    local track = CreateFrame("Frame", nil, sl)
+    track:SetPoint("LEFT", sl, "LEFT", 0, 0)
+    track:SetPoint("RIGHT", sl, "RIGHT", 0, 0)
+    track:SetHeight(6)
+    track:SetFrameLevel(math.max(0, (sl:GetFrameLevel() or 1) - 1))
+    track.bg = Style.Slice(track, "RocketField.png", 6, 0)
+    sl.__track = track
+    local thumb = sl.GetThumbTexture and sl:GetThumbTexture()
+    if type(thumb) == "table" then
+        thumb:SetTexture(Style.MEDIA .. "RocketKnob.png")
+        thumb:SetSize(14, 14)
+        local fill = sl:CreateTexture(nil, "ARTWORK", nil, -1)
+        fill:SetColorTexture(1, 1, 1, 1)
+        if fill.SetGradient and CreateColor then
+            fill:SetGradient("VERTICAL", CreateColor(0.55, 0.40, 0.18, 1), CreateColor(0.80, 0.62, 0.30, 1))
+        end
+        fill:SetPoint("LEFT", track, "LEFT", 1, 0)
+        fill:SetPoint("RIGHT", thumb, "CENTER", 0, 0)
+        fill:SetHeight(4)
+        sl.__fill = fill
+        sl:HookScript("OnEnter", function() thumb:SetTexture(Style.MEDIA .. "RocketKnobHover.png") end)
+        sl:HookScript("OnLeave", function() thumb:SetTexture(Style.MEDIA .. "RocketKnob.png") end)
+    end
+    return s
+end
+
+local function FieldArt(e, left)
+    e.__bg = Style.Slice(e, "RocketField.png", 8, 0, "BACKGROUND", -7)
+    e.__focus = Style.Slice(e, "RocketFieldFocus.png", 8, 0, "BACKGROUND", -6)
+    for _, t in ipairs({ e.__bg, e.__focus }) do
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", e, "TOPLEFT", -(left or 0) / Style.ART_SCALE, 0)
+        t:SetPoint("BOTTOMRIGHT", e, "BOTTOMRIGHT", 0, 0)
+    end
+    e.__focus:Hide()
+    e:HookScript("OnEditFocusGained", function(self) self.__focus:Show() end)
+    e:HookScript("OnEditFocusLost", function(self) self.__focus:Hide() end)
+end
+
+---A text field (the game's InputBoxTemplate or SearchBoxTemplate) dressed as ours: dark, a bronze border, gold with the
+---focus; the search box keeps the game's magnifying glass and clear button.
+function Style.SkinField(e)
+    if rawget(e, "__bg") then return e end
+    for _, k in ipairs({ "Left", "Middle", "Right" }) do Clear(e[k]) end
+    FieldArt(e, type(e.searchIcon) == "table" and 0 or 5)       -- InputBoxTemplate draws its border 5 to the left of the text
+    return e
+end
+
+---A new text field of ours (an EditBox with the field's art), `width` x 22.
+function Style.NewField(parent, width)
+    local e = CreateFrame("EditBox", nil, parent)
+    e:SetSize(width, 22)
+    e:SetAutoFocus(false)
+    e:SetFontObject("GameFontHighlight")
+    e:SetTextInsets(8, 8, 0, 0)
+    e:SetScript("OnEscapePressed", e.ClearFocus)
+    FieldArt(e, 0)
+    return e
+end
+
+---The tabs: a segmented row of buttons on top (one per tab). The active one sunk, its text gold with a gold line under
+---it; the others light grey (white under the mouse). `onSelect(i)`. Returns the row (row.tabs, row:Select(i), its width).
+function Style.Tabs(parent, x, y, labels, onSelect)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+    row:SetHeight(24)
+    row.tabs = {}
+    local xx = 0
+    for i, text in ipairs(labels) do
+        local b = CreateFrame("Button", nil, row)
+        b:SetHeight(24)
+        ButtonArt(b)
+        b:SetNormalFontObject("GameFontHighlight")
+        b:SetHighlightFontObject("GameFontHighlight")
+        b:SetText(text)
+        local fs = b:GetFontString()
+        b:SetWidth(((fs and fs:GetStringWidth()) or 60) + 28)
+        b:SetPoint("TOPLEFT", row, "TOPLEFT", xx, 0)
+        b.line = b:CreateTexture(nil, "OVERLAY")
+        b.line:SetColorTexture(NORMAL_FONT_COLOR:GetRGB())
+        b.line:SetHeight(2)
+        b.line:SetPoint("BOTTOMLEFT", 6, 2)
+        b.line:SetPoint("BOTTOMRIGHT", -6, 2)
+        b.index = i
+        b:SetScript("OnClick", function(self) row:Select(self.index, true) end)
+        row.tabs[i] = b
+        xx = xx + b:GetWidth() + 2
+    end
+    row:SetWidth(math.max(1, xx - 2))
+    function row:Select(i, user)
+        self.selected = i
+        for j, b in ipairs(self.tabs) do
+            local on = (j == i)
+            b.line:SetShown(on)
+            b.__pressed:SetShown(on)
+            local fs = b:GetFontString()
+            if fs then fs:SetTextColor((on and NORMAL_FONT_COLOR or LIGHTGRAY_FONT_COLOR):GetRGB()) end
+        end
+        if user and onSelect then onSelect(i) end
+    end
+    return row
+end
+
+---A list row / card of ours: the card art; under the mouse a light-bronze ring (HIGHLIGHT layer); selected
+---(card:SetSelected(true)) a gold ring and the family's orange accent on the left.
+function Style.Card(parent, template)
+    local c = CreateFrame("Button", nil, parent, template)
+    c.__bg = Style.Slice(c, "RocketCard.png", 16, 0)
+    c.__hover = Style.Slice(c, "RocketCardRing.png", 16, 0, "HIGHLIGHT", 0)
+    c.__hover:SetVertexColor(Style.BRONZE_LIGHT[1], Style.BRONZE_LIGHT[2], Style.BRONZE_LIGHT[3])
+    c.__ring = Style.Slice(c, "RocketCardRing.png", 16, 0, "OVERLAY", 7)
+    c.__ring:SetVertexColor(NORMAL_FONT_COLOR:GetRGB())
+    c.__ring:Hide()
+    c.__accent = c:CreateTexture(nil, "BORDER")
+    c.__accent:SetColorTexture(Style.ORANGE[1], Style.ORANGE[2], Style.ORANGE[3], 1)
+    c.__accent:SetWidth(3)
+    c.__accent:SetPoint("TOPLEFT", 1, -4)
+    c.__accent:SetPoint("BOTTOMLEFT", 1, 4)
+    c.__accent:Hide()
+    function c:SetSelected(on)
+        self.__ring:SetShown(on and true or false)
+        self.__accent:SetShown(on and true or false)
+    end
+    return c
+end
+
+---THE WINDOW in the modern identity, over a frame made with the game's ButtonFrameTemplate (or any frame): the
+---template's frame, portrait, title bar, red close and stone hidden (the template stays for its Inset and behaviour);
+---our panel with the filete, the body stone 4 in, the header (the seal, ns.TITLE or `opts.title` in 12, a subtitle in
+---gold 16 on the tracker's band) and the close X 10 from the edge. opts: { subtitle, title, seal = false (a small
+---notice: no seal, the title at the left), onClose, noClose, noBody }. Returns the header (head:SetSubtitle(text)).
+function Style.Window(f, opts)
+    opts = opts or {}
+    for _, p in ipairs({ f.NineSlice, f.Bg, f.TopTileStreaks, f.PortraitContainer, f.TitleContainer, f.CloseButton,
+                         rawget(f, "portrait"), rawget(f, "TitleBg") }) do
+        Hide(p)
+    end
+    if type(f.Inset) == "table" then
+        Hide(f.Inset.Bg)
+        Hide(f.Inset.NineSlice)
+    end
+    f.__panel = Style.Slice(f, "RocketPanel.png", 28, 8, "BACKGROUND", -8)
+    if not opts.noBody then
+        local body = Style.Body(f, 1)
+        body:ClearAllPoints()
+        body:SetPoint("TOPLEFT", Style.INSET, -Style.INSET)
+        body:SetPoint("BOTTOMRIGHT", -Style.INSET, Style.INSET)
+    end
+    local head = CreateFrame("Frame", nil, f)
+    head:SetPoint("TOPLEFT")
+    head:SetPoint("TOPRIGHT")
+    local seal = opts.seal ~= false
+    head:SetHeight(seal and Style.HEAD or 34)
+    local tx = seal and 62 or 14
+    if seal then
+        head.logo = head:CreateTexture(nil, "ARTWORK")
+        head.logo:SetTexture(ns.LOGO)
+        head.logo:SetSize(Style.SEAL * 0.8, Style.SEAL * 0.8)
+        head.logo:SetPoint("CENTER", head, "TOPLEFT", 10 + Style.SEAL / 2, -(9 + Style.SEAL / 2))
+        if head.CreateMaskTexture then
+            local mask = head:CreateMaskTexture()
+            mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            mask:SetAllPoints(head.logo)
+            head.logo:AddMaskTexture(mask)
+        end
+        head.ring = head:CreateTexture(nil, "OVERLAY")
+        head.ring:SetAtlas("communities-ring-gold")
+        head.ring:SetSize(Style.SEAL, Style.SEAL)
+        head.ring:SetPoint("TOPLEFT", 10, -9)
+        head.banner = head:CreateTexture(nil, "BORDER")
+        head.banner:SetAtlas("ui-questtracker-primary-objective-header")
+        head.banner:SetSize(240, 32)
+        head.banner:SetPoint("TOPLEFT", 42, -21)
+    end
+    head.title = head:CreateFontString(nil, "ARTWORK", seal and "GameFontNormal" or "GameFontNormalLarge")
+    head.title:SetPoint("TOPLEFT", tx, -10)
+    head.title:SetText(opts.title or ns.TITLE)
+    head.subtitle = head:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    head.subtitle:SetPoint("TOPLEFT", tx, -29)
+    head.subtitle:SetPoint("RIGHT", head, "RIGHT", -40, 0)
+    head.subtitle:SetJustifyH("LEFT")
+    head.subtitle:SetWordWrap(false)
+    function head.SetSubtitle(text)
+        head.subtitle:SetText(text or "")
+    end
+    head.SetSubtitle(opts.subtitle)
+    if not opts.noClose then
+        local close = CreateFrame("Button", nil, f)
+        close:SetSize(20, 20)
+        close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6, -7)
+        close.icon = close:CreateTexture(nil, "ARTWORK")
+        close.icon:SetAtlas("common-icon-redx")
+        close.icon:SetSize(14, 14)
+        close.icon:SetPoint("CENTER")
+        close:SetScript("OnClick", function() if opts.onClose then opts.onClose() else f:Hide() end end)
+        close:SetScript("OnEnter", function(self) self.icon:SetAlpha(0.75) end)
+        close:SetScript("OnLeave", function(self) self.icon:SetAlpha(1) end)
+        f.__close = close
+        head.close = close
+    end
+    f.__head = head
+    return head
 end
