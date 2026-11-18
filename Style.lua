@@ -376,6 +376,14 @@ local function MenuMixin()
         local o = 8 / Style.ART_SCALE
         t:SetPoint("TOPLEFT", self, "TOPLEFT", -o + 2, o - 2)
         t:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", o - 2, -o + 2)
+        -- (18/11) an open menu is SOLID: the panel's art is 94% opaque and the controls under the menu showed through it
+        -- (seen on the Rocket Swap's page image). The panel's own fill colour, opaque, inside its border.
+        local fill = self:AttachTexture()
+        fill:SetColorTexture(17 / 255, 14 / 255, 11 / 255, 1)
+        fill:SetPoint("TOPLEFT", self, "TOPLEFT", 3, -3)
+        fill:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -3, 3)
+        local layer, sub = t:GetDrawLayer()
+        if layer then fill:SetDrawLayer(layer, math.max(-8, (sub or 0) - 1)) end
     end
     return menuMixin
 end
