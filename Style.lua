@@ -56,7 +56,10 @@ end
 function Style.Paint(tex, owner)
     tex:SetTexture(Style.BODY_FILE)
     Style.CutBody(tex, owner or tex)
-    if owner and owner.HookScript and not rawget(tex, "__cutHooked") then
+    -- (17/11) only a FRAME has OnSizeChanged: a texture given as its own owner (the Lab's Talents tab, Window.lua)
+    -- made the game raise "Cannot assign script handler for 'onsizechanged'" five times on 04/11
+    local isFrame = owner and owner.GetObjectType and owner:GetObjectType() ~= "Texture"
+    if isFrame and owner.HookScript and not rawget(tex, "__cutHooked") then
         tex.__cutHooked = true
         owner:HookScript("OnSizeChanged", function()
             if tex.GetTexture and tex:GetTexture() ~= nil then Style.CutBody(tex, owner) end
