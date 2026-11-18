@@ -17,6 +17,7 @@ local function Register(open)
     button:SetText(SETTINGS)
     local label = button:GetFontString()
     button:SetSize(math.max(160, (label and label:GetStringWidth() or 0) + 40), 22)
+    ns.Style.SkinButton(button)   -- (18/11) the family's bronze button, as in its windows
     button:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
     button:SetScript("OnClick", open)
     local category = Settings.RegisterCanvasLayoutCategory(panel, name)

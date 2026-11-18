@@ -42,9 +42,9 @@ local COL_W = 262               -- the usable width of each column
 local COLUMNS = 3
 local WIDTH = MARGIN * 2 + COL_W * COLUMNS + GUTTER * (COLUMNS - 1)
 
--- (04/11) below the round portrait with the logo (the user: "nossos addons tem o icone na janela principal com o icone
--- redondo no canto superior esquerdo, tem que por em todos"): the portrait reaches about 58 down
-local TOP = 62
+-- (18/11) below the header of the modern Rocket identity (Style.Window: the seal, the title and the subtitle on the band,
+-- Style.HEAD = 58), with the air the approved mockup gives it (mockup/PREVIA Identidade Rocket - Rocket Meter.png)
+local TOP = 70
 -- Only the bottom margin: the "Clear data" button left here by request -- the data is cleared in
 -- the meter's own window, and a full-width button at the foot of a settings screen
 -- gave it a weight it does not have.
@@ -227,7 +227,9 @@ end
 --------------------------------------------------------------------------------
 -- Componentes
 --------------------------------------------------------------------------------
---- A section title, in gold, with the thin rule the scoreboard already uses.
+--- A section title, in gold, on the band of the game's quest tracker secondary header (18/11, the modern Rocket
+--- identity, as Style.Section draws it: the art at its own proportion, 300 x 30, never stretched). The geometry of the
+--- slot stays this screen's (the harness measures it); only the rule became the band.
 local function BuildSection(col, y, title)
     Probe("secao: " .. title, nil, 0, COL_W, y, INK_SECTION, col.index, true)
     local text = col:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -235,11 +237,12 @@ local function BuildSection(col, y, title)
     text:SetText(title)
     text:SetTextColor(1, 0.82, 0)
 
-    local rule = col:CreateTexture(nil, "ARTWORK")
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -y - H_LABEL - 4)
-    rule:SetPoint("TOPRIGHT", col, "TOPRIGHT", 0, -y - H_LABEL - 4)
-    ns.Style.Divider(rule)   -- (03/11) the design system's divider (Style.lua)
+    local band = col:CreateTexture(nil, "ARTWORK", nil, -1)
+    band:SetAtlas("ui-questtracker-secondary-objective-header")
+    local bw = math.min(320, math.max(120, COL_W * 0.92))
+    band:SetSize(bw, bw * 30 / 300)
+    band:SetPoint("TOPLEFT", col, "TOPLEFT", -12, -y + 6)
+    text.band = band
     return y + H_SECTION
 end
 
@@ -279,6 +282,7 @@ local function BuildSlider(col, y, label, low, high, suffix, get, set)
     slider:SetPoint("TOPLEFT", col, "TOPLEFT", 0, -at)
     slider:SetWidth(COL_W)
     slider:SetHeight(H_CONTROL)
+    ns.Style.SkinSlider(slider)   -- (18/11) our track and knob; the game's steppers stay
     Probe(label, slider, 0, COL_W, y, INK_FIELD, col.index)
 
     local function write()
@@ -319,9 +323,10 @@ local function BuildDropdown(col, y, label, entries, get, set, x, w)
     local at = BuildLabel(col, y, label, x, w)
 
     local dropdown = CreateFrame("DropdownButton", nil, col, "WowStyle1DropdownTemplate")
-    dropdown:SetPoint("TOPLEFT", col, "TOPLEFT", x, -at)
     dropdown:SetWidth(w)
-    dropdown:SetHeight(H_CONTROL)
+    -- (18/11) the family's drop-down (Style.SkinDropdown: the bronze button, 22 high), in the middle of the 26 slot
+    ns.Style.SkinDropdown(dropdown)
+    dropdown:SetPoint("TOPLEFT", col, "TOPLEFT", x, -at - (H_CONTROL - ns.Style.BUTTON_H) / 2)
     Probe(label, dropdown, x, w, y, INK_FIELD, col.index)
 
     if MenuUtil and MenuUtil.CreateRadioMenu then
@@ -352,6 +357,7 @@ local function BuildCheck(col, y, label, tip, get, set, x, w)
     local check = CreateFrame("CheckButton", nil, col, "UICheckButtonTemplate")
     check:SetPoint("TOPLEFT", col, "TOPLEFT", x, -y)
     check:SetSize(CHECK_SIZE, CHECK_SIZE)
+    ns.Style.SkinCheck(check)   -- (18/11) the family's box with the game's gold tick
 
     -- It tests the TYPE, not only truth: a stub that returns a function here passes the `if` and only
     -- blows up at `SetText`. It already happened in this project, with `frame.Inset`.
@@ -386,6 +392,7 @@ local function BuildButton(col, y, label, tip, onClick, x, w)
     local b = CreateFrame("Button", nil, col, "UIPanelButtonTemplate")
     b:SetPoint("TOPLEFT", col, "TOPLEFT", x, -y)
     b:SetSize(w, H_CONTROL)
+    ns.Style.SkinButton(b)   -- (18/11) the family's bronze button
     b:SetText(label)
     b:SetScript("OnClick", onClick)
     b:SetScript("OnEnter", function(self)
@@ -402,6 +409,23 @@ end
 --------------------------------------------------------------------------------
 -- Linha da lista de colunas
 --------------------------------------------------------------------------------
+---(18/11) An arrow of the list: the game's minimal arrow at its own size (13 x 8) in the middle of the 18 target, white
+---under the mouse (an ADD copy on the HIGHLIGHT layer), grey and faded when it cannot move.
+local function Arrow(b, atlas)
+    local t = b:CreateTexture(nil, "ARTWORK")
+    t:SetAtlas(atlas)
+    t:SetSize(13, 8)
+    t:SetPoint("CENTER")
+    b.icon = t
+    local hi = b:CreateTexture(nil, "HIGHLIGHT")
+    hi:SetAtlas(atlas)
+    hi:SetSize(13, 8)
+    hi:SetPoint("CENTER")
+    hi:SetBlendMode("ADD")
+    b:HookScript("OnDisable", function(self) self.icon:SetDesaturated(true); self.icon:SetAlpha(0.4) end)
+    b:HookScript("OnEnable", function(self) self.icon:SetDesaturated(false); self.icon:SetAlpha(1) end)
+end
+
 local function BuildRow(index, item, col, y)
     local row = rows[index]
     if not row then
@@ -410,6 +434,7 @@ local function BuildRow(index, item, col, y)
 
         row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
         row.check:SetSize(ROW_CHECK, ROW_CHECK)
+        ns.Style.SkinCheck(row.check)
         row.check:SetPoint("LEFT", 0, 0)
         row.check:SetScript("OnClick", function(self)
             ns.Window.ToggleColumn(self.columnKey)
@@ -423,8 +448,8 @@ local function BuildRow(index, item, col, y)
         row.down = CreateFrame("Button", nil, row)
         row.down:SetSize(ARROW, ARROW)
         row.down:SetPoint("RIGHT", -2, 0)
-        row.down:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
-        row.down:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+        -- (18/11) the game's minimal arrow, the one of the family's drop-down (Style.SkinDropdown)
+        Arrow(row.down, "minimal-scrollbar-arrow-bottom")
         row.down:SetScript("OnClick", function(self)
             local at = IndexOf(self.item)
             if at then
@@ -436,8 +461,7 @@ local function BuildRow(index, item, col, y)
         row.up = CreateFrame("Button", nil, row)
         row.up:SetSize(ARROW, ARROW)
         row.up:SetPoint("RIGHT", row.down, "LEFT", -ARROW_GAP, 0)
-        row.up:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
-        row.up:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
+        Arrow(row.up, "minimal-scrollbar-arrow-top")
         row.up:SetScript("OnClick", function(self)
             local at = IndexOf(self.item)
             if at then
@@ -516,11 +540,11 @@ function Picker.Create()
         + GAP_SECTION + H_SECTION + H_CHECK * 2 + 4 + H_BUTTON         -- Placar
     local content = math.max(h1, math.max(h2, h3))
 
-    -- (04/11) ButtonFrameTemplate, as every main window of the family: the round portrait with the logo, the game's close
-    -- button (it was DefaultPanelTemplate, which has no portrait)
+    -- (18/11) THE MODERN ROCKET IDENTITY (Style.Window): our panel, the body stone, the header with the seal, the title
+    -- "Rocket Meter — Configurar" and the subtitle in the game's words (ACCOUNT_OPTIONS: these settings are the
+    -- account's, RocketMeterDB). ButtonFrameTemplate stays underneath for its behaviour; its art is hidden.
     frame = CreateFrame("Frame", ADDON .. "Picker", UIParent, "ButtonFrameTemplate")
     frame:SetSize(WIDTH, TOP + content + FOOTER)
-    ns.DarkBody(frame, 1, frame.Bg)       -- (25/10) the dark body, as every Rocket window (Core.lua: "escuro em tudo")
     frame:SetFrameStrata("DIALOG")
     -- IN FRONT WHEN OPENED OR CLICKED (27/09). Every Rocket window shares the HIGH strata, and
     -- inside a strata the order is the frame LEVEL: without this, the rows of a window opened
@@ -538,9 +562,8 @@ function Picker.Create()
     frame:Hide()
     -- (03/11) Esc closes it, as every Rocket window (the user: "a janela do meter nem fecha apertando ESC como as outras")
     tinsert(UISpecialFrames, frame:GetName())
-    if frame.SetTitle then frame:SetTitle(ns.TITLE .. " — " .. L["Configure"]) end
-    if frame.SetPortraitToAsset then frame:SetPortraitToAsset(ns.LOGO) end
-    if frame.Inset then frame.Inset:Hide() end   -- the columns lie on the window's body, as before
+    frame.head = ns.Style.Window(frame, { title = ns.TITLE .. " — " .. L["Configure"], subtitle = L["Account Options"] })
+    if type(frame.Inset) == "table" then frame.Inset:Hide() end   -- the columns lie on the window's body, as before
 
     -- "Support the project" (27/09): a line of its own at the very bottom (Donate.lua).
     frame.donate = ns.DonateFooter(frame)
@@ -559,6 +582,10 @@ function Picker.Create()
 
     local colColumns, colWindow, colText = Column(1), Column(2), Column(3)
     frame.leftColumn = colColumns
+
+    -- (18/11) THE LIST OF COLUMNS ON THE DARK (lists sit on the dark, the visual identity): 4 around its rows, drawn on
+    -- the column itself, under them.
+    frame.columnsList = ns.DarkArea(colColumns, -4, H_SECTION - 4, -4, #columns * H_COLUMN_ROW + 8)
 
     -- Column 1: which columns the window shows, and in what order.
     frame.columnsTop = BuildSection(colColumns, 0, L["Columns"])

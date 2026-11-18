@@ -5,6 +5,14 @@
 -- A tall row with the specialization icon and a bar in the class colour, a header with the key level's
 -- star, a footer with the run's timeline. It closes only on the X -- ESC does not close it.
 --
+-- (18/11) THE MODERN ROCKET IDENTITY (the user approved mockup/PREVIA Identidade Rocket - Rocket Meter.png, "the placar
+-- with the family stone instead of the dungeon art"): the window is ns.Style.Window -- our panel, the body stone, the
+-- header with the seal, "Rocket Meter — Placar" and the dungeon's name as the subtitle with the key level's star beside
+-- it --; the context line (out of combat, item level, deaths, affixes) under the header; the table on the dark
+-- (ns.DarkArea); your own row with a light-bronze ring and the family's orange accent; the sorted column underlined in
+-- gold; the timeline and the "Report a problem" line at the foot. The dungeon's art, the meter's header strip and the
+-- BossBanner filigrees around the star went away with the old header.
+--
 -- WHERE THE LOOK COMES FROM. The reference is Blizzard's official end-of-M+ panel, and its art
 -- was surveyed in the client's own textures. Three decisions came from that reading,
 -- against what I would have done by guess:
@@ -39,8 +47,11 @@ ns.Scoreboard = Scoreboard
 local ROW_HEIGHT = 46            -- the row's height
 local ROW_SPACING = 1            -- 1px between one row and the next
 local LINE_INSET = 2             -- recuo da linha dentro do painel
-local SIDE = 5                   -- margem lateral do painel
-local HEADER_HEIGHT = 65         -- the rows start 65 below the top
+-- (18/11) 5 -> 14: the table sits inside our panel's filete with the air of the approved mockup (it was the old
+-- scoreboard's padding, on a panel with no frame)
+local SIDE = 14                  -- margem lateral do painel
+-- (18/11) 65 -> 96: the family's header (Style.HEAD, the seal and the band) and the context line under it
+local HEADER_HEIGHT = ns.Style.HEAD + 38
 -- (!) TWO LINES (30/09): the header carries the family's name
 -- on the first line and the part of each column on the second ("Damage" over "per s" and
 -- "total"), so 2 x 16. The user, on "Interr - Missed - CC" in one line: *"só errou na coluna
@@ -83,7 +94,10 @@ local ROW_TINT_EVEN = { 1, 1, 1, 0.05 }
 local COLHEAD_TINT = { 0, 0, 0, 0.5 }
 local COLHEAD_TINT_SORTED = { 0.3, 0.3, 0.3, 0.5 }
 
-local TITLE_Y = -12              -- nome da masmorra, 12 abaixo do topo
+-- (18/11) the dungeon's name is the subtitle of the family's header (Style.Window: 29 below the top, at 62 from the left,
+-- beside the seal), in its font (GameFontNormalLarge, 16)
+local TITLE_Y = -29
+local TITLE_X = 62
 
 -- ⚑ THE SIZES WENT UP 2, by request (*"aumente só um pouco a fonte"*, 10/09/2026). And they ALL went up
 -- together, on purpose: the header's hierarchy is the ratio between them (20/16/11 ≈ 1.8 and 1.45), and
@@ -92,7 +106,7 @@ local TITLE_Y = -12              -- nome da masmorra, 12 abaixo do topo
 --
 -- The time is what gains most in relative presence, and that is intended: it stopped being the
 -- title's second line and became the right-hand block, where it has to hold up alone.
-local TITLE_SIZE = 22            -- era 20
+local TITLE_SIZE = 16            -- era 22: (18/11) the family header's subtitle, GameFontNormalLarge
 local CLOCK_SIZE = 18            -- era 16
 local IDLE_SIZE = 13             -- era 11
 
@@ -111,16 +125,12 @@ local RESULT_SIZE = 13           -- legenda do tempo: mesmo corpo da faixa de co
 -- panel's side margin (**5**). With it the block sits **over the last column** instead of
 -- hanging in the corner -- that is, aligned to an edge that already exists on screen, and not to an
 -- invented distance. If the columns' width changes, this number has a place to come from.
-local CLOCK_RIGHT_INSET = 65
+local CLOCK_RIGHT_INSET = 60 + SIDE
 
--- The key level's star: 100x100 centred at ("center", frame, "top", 0, 27). The numbers
--- were measured against the official panel -- kept, not recalibrated.
-local STAR_SIZE = 100
-local STAR_OFFSET_Y = 27
-local FILIGREE_SIDE_W, FILIGREE_SIDE_H = 72, 43
-local FILIGREE_SIDE_X = 50
-local FILIGREE_BOTTOM_W, FILIGREE_BOTTOM_H = 66, 28
-local FILIGREE_BOTTOM_Y = -19
+-- The key level's star. (18/11) It was 100x100 biting the top edge of the old header, between three BossBanner
+-- filigrees; in the family's header it is a seal of 46 right after the dungeon's name, on the band (the approved mockup).
+local STAR_SIZE = 46
+local STAR_GAP = -6              -- its spikes overlap the name's last letter's air, not the letter
 
 -- The timeline: a 4px rail, boss markers above, deaths below, the axis last.
 local RAIL_HEIGHT = 4
@@ -136,9 +146,6 @@ local CHEST_ICON = 26            -- native 257x226 scaled; here only the height 
 -- once instead of finding one broken name per test round.
 ns.SCOREBOARD_ATLASES = {
     "ChallengeMode-SpikeyStar",
-    "BossBanner-LeftFillagree",
-    "BossBanner-RightFillagree",
-    "BossBanner-BottomFillagree",
     "BossBanner-SkullCircle",
     "gficon-chest-evergreen-greatvault-collect",
     "gficon-chest-evergreen-greatvault-complete",
@@ -388,24 +395,8 @@ local function RoleFor(name)
     return nil
 end
 
---- The panel's background: the dungeon's own art, desaturated and faded.
----
---- `GetMapUIInfo`'s 5th return is the dungeon's `backgroundTexture` -- it works for any
---- dungeon, present or future, with no table tied to a season (the other way out, a folder
---- of `.jpg` per dungeon, stops covering the season as soon as it changes). With no mapID -- which is the
---- simulation's case -- there is simply no background, and the panel stays on the plain dark.
-local function ApplyBackdropArt(texture, mapID)
-    texture:SetTexture(nil)
-    if not mapID or not C_ChallengeMode or not C_ChallengeMode.GetMapUIInfo then return false end
-
-    local ok, _, _, _, _, background = pcall(C_ChallengeMode.GetMapUIInfo, mapID)
-    if not ok or not background then return false end
-
-    texture:SetTexture(background)
-    texture:SetDesaturation(0.5)
-    texture:SetAlpha(0.16)
-    return true
-end
+-- (18/11) The panel's background was the dungeon's own art (GetMapUIInfo's backgroundTexture), desaturated and faded;
+-- in the modern identity it is the family's stone, as the user approved in the mockup.
 
 --------------------------------------------------------------------------------
 -- Dados
@@ -872,6 +863,12 @@ local function BuildColumnHeader()
             button.bg = button:CreateTexture(nil, "BACKGROUND")
             button.bg:SetAllPoints()
             button.bg:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+            -- (18/11) the sorted column underlined in gold (the family's tabs mark the chosen one the same way)
+            button.line = button:CreateTexture(nil, "OVERLAY")
+            button.line:SetColorTexture(NORMAL_FONT_COLOR:GetRGB())
+            button.line:SetHeight(2)
+            button.line:SetPoint("BOTTOMLEFT", 2, 0)
+            button.line:SetPoint("BOTTOMRIGHT", -2, 0)
             -- The PART of the column, on the second line; the family goes on the first, over
             -- the whole group (`headerRow.families`, below).
             button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -914,6 +911,7 @@ local function BuildColumnHeader()
 
         local sorted = group ~= nil and group == sortedGroup
         button.bg:SetVertexColor(unpack(sorted and COLHEAD_TINT_SORTED or COLHEAD_TINT))
+        button.line:SetShown(columns[c].key == sortBy)
 
         -- Size 10, applied by the addon's ladder so the font picker
         -- still holds.
@@ -1190,6 +1188,15 @@ local function BuildRow(index)
 
         row.bg = row:CreateTexture(nil, "BACKGROUND")
         row.bg:SetAllPoints()
+
+        -- (18/11) YOUR OWN ROW, as the family's selected card: a light-bronze ring and the orange accent on the left
+        row.mine = ns.Style.Slice(row, "RocketCardRing.png", 16, 0, "OVERLAY", 6)
+        row.mine:SetVertexColor(ns.Style.BRONZE_LIGHT[1], ns.Style.BRONZE_LIGHT[2], ns.Style.BRONZE_LIGHT[3])
+        row.accent = row:CreateTexture(nil, "OVERLAY", nil, 7)
+        row.accent:SetColorTexture(ns.Style.ORANGE[1], ns.Style.ORANGE[2], ns.Style.ORANGE[3], 1)
+        row.accent:SetWidth(3)
+        row.accent:SetPoint("TOPLEFT", 1, -3)
+        row.accent:SetPoint("BOTTOMLEFT", 1, 3)
 
         row.cells = {}
         rows[index] = row
@@ -1521,11 +1528,11 @@ end
 -- Building the panel
 --------------------------------------------------------------------------------
 local function CreateHeaderArt()
-    -- The level star: it sits OUTSIDE the frame, biting the top edge. It is what gives the
-    -- official panel's air; without it the header is just a dark strip with gold text.
+    -- The level star, right after the dungeon's name on the family header's band (18/11; it used to bite the top edge
+    -- of the old header, between three filigrees).
     frame.star = frame:CreateTexture(nil, "OVERLAY")
     frame.star:SetSize(STAR_SIZE, STAR_SIZE)
-    frame.star:SetPoint("CENTER", frame, "TOP", 0, STAR_OFFSET_Y)
+    frame.star:SetPoint("LEFT", frame.title, "RIGHT", STAR_GAP, 0)
     if not Atlas(frame.star, "ChallengeMode-SpikeyStar") then
         frame.star:Hide()
     end
@@ -1533,22 +1540,6 @@ local function CreateHeaderArt()
     frame.level = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     frame.level:SetPoint("CENTER", frame.star, "CENTER", 0, 0)
     frame.level:SetTextColor(1, 0.94, 0.72)
-
-    local function Filigree(atlas, w, h, point, relPoint, x, y)
-        local tex = frame:CreateTexture(nil, "ARTWORK")
-        tex:SetSize(w, h)
-        tex:SetPoint(point, frame, relPoint, x, y)
-        if not Atlas(tex, atlas) then tex:Hide() end
-        return tex
-    end
-
-    -- The spelling `Fillagree` with two L's: that is how it is in the client. `Filigree` vanishes without warning.
-    frame.filigreeLeft = Filigree("BossBanner-LeftFillagree",
-        FILIGREE_SIDE_W, FILIGREE_SIDE_H, "BOTTOM", "TOP", -FILIGREE_SIDE_X, -2)
-    frame.filigreeRight = Filigree("BossBanner-RightFillagree",
-        FILIGREE_SIDE_W, FILIGREE_SIDE_H, "BOTTOM", "TOP", FILIGREE_SIDE_X, -2)
-    frame.filigreeBottom = Filigree("BossBanner-BottomFillagree",
-        FILIGREE_BOTTOM_W, FILIGREE_BOTTOM_H, "BOTTOM", "BOTTOM", 0, FILIGREE_BOTTOM_Y)
 end
 
 local function CreateTimeline()
@@ -1583,10 +1574,9 @@ end
 local function CreatePanel()
     if frame then return frame end
 
-    -- (25/10) the game's tooltip border (TooltipBorderBackdropTemplate: a NineSlice, an empty centre) around the
-    -- dark art (ns.DarkBody), instead of a flat WHITE8X8 backdrop with a 1-pixel black edge: the workspace rules
-    -- (no hand-painted panel; "escuro em tudo", the app as the reference). The dungeon's own art stays above it
-    frame = CreateFrame("Frame", ADDON .. "Scoreboard", UIParent, "TooltipBorderBackdropTemplate")
+    -- (18/11) the family's window (ns.Style.Window, below): our panel and the body stone. It was the game's tooltip
+    -- border (TooltipBorderBackdropTemplate) around the dark art, with the dungeon's own art over it
+    frame = CreateFrame("Frame", ADDON .. "Scoreboard", UIParent)
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
     frame:SetFrameStrata("HIGH")
     -- IN FRONT WHEN OPENED OR CLICKED (27/09). Every Rocket window shares the HIGH strata, and
@@ -1602,23 +1592,10 @@ local function CreatePanel()
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-    -- A reading panel, not an overlay: here the background is required, or the text competes with the
-    -- scenery. `ns.Skin.scoreboardAlpha` is the value reserved for that.
-    ns.DarkBody(frame, ns.Skin.scoreboardAlpha)
+    -- A reading panel, not an overlay: the background is required, or the text competes with the scenery. (18/11)
+    -- The family's window, the close X its own (it hides the panel, as the X before).
+    frame.head = ns.Style.Window(frame, { title = ns.TITLE .. " — " .. L["Scoreboard"] })
     frame:Hide()
-
-    frame.art = frame:CreateTexture(nil, "BACKGROUND")
-    frame.art:SetPoint("TOPLEFT", 3, -3)
-    frame.art:SetPoint("BOTTOMRIGHT", -3, 3)
-
-    frame.headerArt = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
-    frame.headerArt:SetPoint("TOPLEFT", 3, -3)
-    frame.headerArt:SetPoint("TOPRIGHT", -3, -3)
-    frame.headerArt:SetHeight(HEADER_HEIGHT - 6)
-    ns.ApplyHeaderArt(frame.headerArt)
-    frame.headerArt:SetAlpha(0.9)
-
-    CreateHeaderArt()
 
     -- ⚑ THE CENTRAL STACK BECAME TWO COLUMNS, and the measurement on the print of 10/09 is the reason.
     --
@@ -1635,9 +1612,12 @@ local function CreatePanel()
     -- result under it. It is what the user asked for (*"o tempo da dungeon não está em um lugar
     -- bom, pode ficar melhor alinhado na direita"*), and it is also the right way out: the left is already a
     -- context strip (out of combat, ilvl, deaths), so the right was the screen's empty space.
-    frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    frame.title:SetPoint("TOP", frame, "TOP", 0, TITLE_Y)
-    frame.title:SetTextColor(1, 0.82, 0)
+    -- (18/11) THE DUNGEON'S NAME IS THE HEADER'S SUBTITLE, beside the seal on the band, in the family's font; anchored
+    -- by one point only, so it is as wide as the name and the star follows it.
+    frame.title = frame.head.subtitle
+    frame.title:ClearAllPoints()
+    frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT", TITLE_X, TITLE_Y)
+    CreateHeaderArt()
 
     -- THE TIME, on the right, aligned by the edge. Below the close button so as not to compete with
     -- it, and with the same side margin as the rest of the panel.
@@ -1656,7 +1636,7 @@ local function CreatePanel()
     -- spent walking, and with what gear the group came in.
     frame.idleIcon = frame:CreateTexture(nil, "ARTWORK")
     frame.idleIcon:SetSize(24, 24)
-    frame.idleIcon:SetPoint("TOPLEFT", SIDE, -5)
+    frame.idleIcon:SetPoint("TOPLEFT", SIDE, -(ns.Style.HEAD + 4))   -- (18/11) the context line, under the family header
     -- `auctionhouse-icon-clock` is not a clock picked by eye: it is what Blizzard uses in
     -- three places (`Blizzard_AuctionHouseUtil.lua:8`, `CovenantMissionTemplates.xml:588`,
     -- `Blizzard_ProfessionsTemplates.lua:114`), checked in the 12.1.0 source.
@@ -1691,7 +1671,8 @@ local function CreatePanel()
     for i = 1, 4 do
         local icon = frame:CreateTexture(nil, "OVERLAY")
         icon:SetSize(18, 18)
-        icon:SetPoint("TOPLEFT", SIDE + (i - 1) * 21, -34)
+        -- (18/11) at the right end of the context line, under the result (they were under the old header's corner)
+        icon:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(CLOCK_RIGHT_INSET + (4 - i) * 21), -(ns.Style.HEAD + 7))
         icon:Hide()
         frame.affixes[i] = icon
     end
@@ -1705,17 +1686,7 @@ local function CreatePanel()
     frame.deaths:SetPoint("LEFT", frame.ilvl, "RIGHT", 24, 0)
     frame.deaths:SetJustifyH("LEFT")
 
-    -- A flat glyph, not a framed button: the addon's icon family is flat.
-    local close = CreateFrame("Button", nil, frame)
-    close:SetSize(16, 16)
-    close:SetPoint("TOPRIGHT", -8, -8)
-    local closeTex = close:CreateTexture(nil, "ARTWORK")
-    closeTex:SetAllPoints()
-    if not Atlas(closeTex, "common-icon-redx") then
-        closeTex:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-    end
-    close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
-    close:SetScript("OnClick", function() frame:Hide() end)
+    -- (18/11) the close X is the family window's (Style.Window): the same red X, 10 from the edge.
 
     -- The hint (and the simulation notice) goes in the HEADER, not in the footer: down there it would compete
     -- for space with the time axis, and the axis is information, the hint is only a hint.
@@ -1733,6 +1704,9 @@ local function CreatePanel()
     frame.footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -SIDE - 6, 6)
     frame.footer:SetJustifyH("RIGHT")
 
+    -- (18/11) the window's last line, as in every Rocket window: "Report a problem", centred (Donate.lua)
+    frame.donate = ns.DonateFooter(frame)
+
     CreateTimeline()
 
     rows = {}
@@ -1745,7 +1719,7 @@ end
 local function DrawHeader()
     -- The header's sizes, applied by the addon's ladder so the font picker still
     -- holds: title 20, time 16, idle clock 11.
-    ns.ApplyScoreboardFont(frame.title, TITLE_SIZE - ns.Skin.scoreboardFontSize, "")
+    -- (18/11) the title is the family header's subtitle: its font is the family's, not the scoreboard's ladder
     ns.ApplyScoreboardFont(frame.clock, CLOCK_SIZE - ns.Skin.scoreboardFontSize, "")
     -- THE RESULT WAS LEFT OUT of this list, and so it was the only header text that did not
     -- follow the font the player chose -- it stayed on the template's `GameFontNormalSmall`. It went
@@ -1764,7 +1738,7 @@ local function DrawHeader()
     if badge and badge ~= "" then
         frame.level:SetText(badge)
         -- Three characters ("LFR") do not fit in the same size as a two-digit number.
-        frame.level:SetFont(ns.Skin.font, #badge > 2 and 20 or 28, "OUTLINE")
+        frame.level:SetFont(ns.Skin.font, #badge > 2 and 11 or 15, "OUTLINE")   -- (18/11) the star is 46 now
         frame.level:Show()
         if frame.star:GetTexture() then frame.star:Show() end
     else
@@ -1835,8 +1809,6 @@ local function DrawHeader()
         end
         if not shown then icon:Hide() end
     end
-
-    ApplyBackdropArt(frame.art, context.mapID)
 end
 
 --------------------------------------------------------------------------------
@@ -2042,6 +2014,10 @@ local function DrawRows(list, rowCount)
             -- The alternating background, and only it. The class strip at the foot of the row went away. The class's identity
             -- stays in three places on the same row -- portrait, icon and the name's colour.
             row.bg:SetColorTexture(unpack(i % 2 == 1 and ROW_TINT_ODD or ROW_TINT_EVEN))
+            local mine = entry.row and entry.row.isLocalPlayer
+            mine = mine ~= nil and not issecretvalue(mine) and mine == true
+            row.mine:SetShown(mine)
+            row.accent:SetShown(mine)
 
             for c = 1, #columns do
                 local cell = row.cells[c]
@@ -2182,6 +2158,11 @@ function Scoreboard.DebugHeader()
 end
 
 --- A row's drawn cells, so the test can state that it really exists.
+---(18/11) The row's frame itself, for the harness (your own row's ring and accent).
+function Scoreboard.__rowFrame(index)
+    return rows and rows[index] or nil
+end
+
 function Scoreboard.DebugRow(index)
     local row = rows and rows[index]
     return row and row.cells or nil
@@ -2214,6 +2195,9 @@ function Scoreboard.Draw()
     if rowCount < 1 then rowCount = 1 end
 
     frame:SetSize(PanelWidth(), PanelHeight(rowCount))
+    -- (18/11) the table on the dark: the column header and the rows, 4 around them
+    ns.DarkArea(frame, SIDE - 4, HEADER_HEIGHT - 4, SIDE - 4,
+        COLHEAD_HEIGHT + rowCount * (ROW_HEIGHT + ROW_SPACING) + 8)
 
     DrawHeader()
     BuildColumnHeader()

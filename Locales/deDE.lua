@@ -368,3 +368,5 @@ L["Show each one's interrupt cooldown"] = "Abklingzeit jeder Unterbrechung anzei
 L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."] = "Neben der Spalte der Unterbrechungen: die Unterbrechung jedes Spielers mit ihrer Abklingzeit. Deine ist genau; die der Gruppenmitglieder wird aus dem abgeleitet, was das Spiel zeigt (ein unterbrochener Gegner und wer in diesem Moment etwas gewirkt hat), und wirken zwei gleichzeitig, wird sie niemandem zugeschrieben."
 L["No raid lockout this week."] = "Keine Schlachtzugssperre diese Woche."
 L["No raid recorded this season."] = "Diese Saison wurde kein Schlachtzug erfasst."
+-- (18/11) the Configure window's subtitle (the modern Rocket identity)
+L["Account Options"] = "Account-Optionen"  -- the game's ACCOUNT_OPTIONS

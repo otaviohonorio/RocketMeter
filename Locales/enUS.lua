@@ -55,6 +55,8 @@ local FROM_GAME = {
     -- (04/11) the Configure window's new sections, in the game's words
     ["Display options"]     = "DISPLAY_OPTIONS",
     ["Text"]                = "LOCALE_TEXT_LABEL",
+    -- (18/11) the Configure window's subtitle, in the modern Rocket identity
+    ["Account Options"]     = "ACCOUNT_OPTIONS",
 
     -- A short header. Only a global that is short in all ELEVEN languages comes in -- see the note on
     -- DPS/HPS right below, which is the reason only this one is left.

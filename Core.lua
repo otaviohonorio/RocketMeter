@@ -336,17 +336,27 @@ function RocketMeter_OnCompartmentClick(_, buttonName)
 end
 
 
--- (25/10) DARK EVERYWHERE (the workspace rules, visual identity: the user chose the app's look as the reference and,
--- asked, "escuro em tudo"): a window's body wears the Specialization tab's dark art (spec-background), as the
--- RocketLab's tabs. Over a template's panel stone (ButtonFrameTemplate's or DefaultPanelTemplate's `Bg`, tiled): a
--- texture of its own at the stone's place, and the stone hidden -- one texture tiled and then given an atlas shows the
--- whole atlas file (RocketLab, 13/10). `stone`: the template's stone to cover (its `Bg`, said by the caller: a frame
--- without one answers nil in the game and a function in the harness); none (a panel on TooltipBorderBackdropTemplate,
--- the game's tooltip border with an empty centre): the art 3 points in from the frame's edges, inside the border.
-function ns.DarkBody(frame, alpha, stone)
-    -- (04/11) the design system's body (Style.lua: our stone, cut to the window, never stretched). It used to set the
-    -- same art with SetAtlas and NO cut: the art stretched to the window and spread its dark border over it.
-    local art = ns.Style.Body(frame, alpha, type(stone) == "table" and stone or nil)
-    frame.__dark = art
-    return art
+-- (18/11) THE MODERN ROCKET IDENTITY (the user approved mockup/PREVIA Identidade Rocket - Rocket Meter.png): every window
+-- but the meter is ns.Style.Window (our panel, the body stone, the header with the seal). What is a TABLE or a LIST
+-- still sits on the dark (the visual identity of 13/10, "lists on dark"): our field art, dark with the bronze border,
+-- a little translucent over the stone (0.88, the mockup's 225 of 255). It is a texture OF `frame` itself (BACKGROUND,
+-- over the body stone at -6), so every child of the frame (rows, headers) draws over it: a sibling frame of the rows
+-- would have no defined order against them. With no rectangle it fills the frame; with one, `left`/`right` are the
+-- insets from the frame's sides (negative: outside it), `top` how far below its top it starts, `height` its height.
+function ns.DarkArea(frame, left, top, right, height)
+    local t = rawget(frame, "__darkArea")
+    if not t then
+        t = ns.Style.Slice(frame, "RocketField.png", 8, 0, "BACKGROUND", -5)
+        t:SetAlpha(0.88)
+        frame.__darkArea = t
+    end
+    if left then
+        local s = ns.Style.ART_SCALE      -- the slice is drawn at half scale: its offsets are in its own units
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", frame, "TOPLEFT", left / s, -(top or 0) / s)
+        t:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(right or left) / s, -(top or 0) / s)
+        t:SetHeight(height / s)
+    end
+    t:Show()
+    return t
 end

@@ -2,9 +2,9 @@
 -- (26/10) The Statistics window: this week and the season, side by side in two tabs (the data is Stats.lua). Opened by
 -- the trophy in the meter's header. The same pieces as "My run" (the game's skin, the rule of 27/09):
 --
---   frame     `ButtonFrameTemplate` without the portrait, the dark body (ns.DarkBody, "escuro em tudo")
+--   frame     `ButtonFrameTemplate` dressed as the family's window (18/11, ns.Style.Window), the page on the dark
 --   body      its `Inset`, one page that scrolls (Report.Page)
---   tabs      `PanelTabButtonTemplate` under the frame: the game's "This Week" and our "Season"
+--   tabs      the family's segmented tabs on top (ns.Style.Tabs): the game's "This Week" and our "Season"
 --   boxes     Report.Band (`InsetFrameTemplate3`) over each table, Report.Table, Report.Note
 local ADDON, ns = ...
 local L = ns.L
@@ -14,7 +14,8 @@ ns.StatsWindow = Win
 
 local WIDTH = 760
 local PAD = 12
-local TOP_BAND = 30
+local TOP_BAND = 92              -- (18/11) the family header (Style.HEAD, 58) and the tabs (24 + 10)
+local TABS_Y = -62
 local BODY_HEIGHT = 520
 local GAP = 10
 local INNER = WIDTH - 16 - PAD * 2
@@ -196,7 +197,6 @@ local function CreatePanel()
     if frame then return frame end
     frame = CreateFrame("Frame", ADDON .. "Stats", UIParent, "ButtonFrameTemplate")
     frame:SetWidth(WIDTH)
-    ns.DarkBody(frame, 1, frame.Bg)
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
@@ -210,14 +210,17 @@ local function CreatePanel()
         if ns.db and type(point) == "string" then ns.db.statsPos = { point = point, relPoint = relPoint, x = x, y = y } end
     end)
     frame:Hide()
-    ButtonFrameTemplate_HidePortrait(frame)
-    frame:SetTitle(ns.TITLE .. " — " .. L["Statistics"])
+    -- (18/11) the family's window: "Rocket Meter — Estatísticas", the character as the subtitle (the numbers are its own)
+    frame.head = ns.Style.Window(frame, { title = ns.TITLE .. " — " .. L["Statistics"] })
+    local me = UnitName and UnitName("player")
+    if type(me) == "string" and not (issecretvalue and issecretvalue(me)) then frame.head.SetSubtitle(me) end
     tinsert(UISpecialFrames, frame:GetName())
 
     local inset = frame.Inset
     inset:ClearAllPoints()
     inset:SetPoint("TOPLEFT", 8, -TOP_BAND)
     inset:SetPoint("BOTTOMRIGHT", -8, ns.DONATE_ROW + 6)
+    ns.DarkArea(inset)   -- (18/11) the tables on the dark
     frame.body = CreateFrame("Frame", nil, inset)
     frame.body:SetPoint("TOPLEFT", PAD, -PAD)
     frame.body:SetPoint("BOTTOMRIGHT", -PAD, PAD)
@@ -228,25 +231,17 @@ local function CreatePanel()
     frame:SetHeight(TOP_BAND + PAD + BODY_HEIGHT + PAD + ns.DONATE_ROW + 6)
     ns.DonateFooter(frame)
 
-    frame.tabs = {}
-    for i, key in ipairs(TABS) do
-        local tab = CreateFrame("Button", frame:GetName() .. "Tab" .. i, frame, "PanelTabButtonTemplate")
-        tab:SetID(i)
-        tab:SetText(TAB_LABEL[key])
-        tab:SetScript("OnClick", function() Win.SetTab(key) end)
-        if i == 1 then tab:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2)
-        else tab:SetPoint("LEFT", frame.tabs[i - 1], "RIGHT", 3, 0) end
-        PanelTemplates_TabResize(tab, 0)
-        frame.tabs[i] = tab
-    end
-    PanelTemplates_SetNumTabs(frame, #TABS)
+    local labels = {}
+    for i, key in ipairs(TABS) do labels[i] = TAB_LABEL[key] end
+    frame.tabRow = ns.Style.Tabs(frame, 10, TABS_Y, labels, function(i) Win.SetTab(TABS[i]) end)
+    frame.tabs = frame.tabRow.tabs
     return frame
 end
 
 function Win.SetTab(tab)
     if not frame then return end
     view.tab = tab
-    for i, key in ipairs(TABS) do if key == tab then PanelTemplates_SetTab(frame, i) end end
+    for i, key in ipairs(TABS) do if key == tab then frame.tabRow:Select(i) end end
     if frame.page.scroll and frame.page.scroll.SetVerticalScroll then frame.page.scroll:SetVerticalScroll(0) end
     Win.Draw()
 end

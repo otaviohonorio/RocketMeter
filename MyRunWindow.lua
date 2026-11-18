@@ -6,11 +6,12 @@
 -- (!) THE GAME'S SKIN (01/10). The first version was painted by hand, and the user called it: *"os addons que estou
 -- criando seguem o padrão de skin blizzard, tem que revisar"*. Every piece is the game's (12.1.0):
 --
---   frame     `ButtonFrameTemplate` without the portrait: title, close button, Esc
---   body      its `Inset`, each tab a page that scrolls (`ScrollFrameTemplate`)
---   tabs      `PanelTabButtonTemplate` under the frame, `PanelTemplates_SetNumTabs` / `_SetTab`
+--   frame     `ButtonFrameTemplate` dressed as the family's window (18/11, ns.Style.Window): the seal, the title, the
+--             run's place as the subtitle, the close X, Esc
+--   body      its `Inset` on the dark (ns.DarkArea), each tab a page that scrolls (`ScrollFrameTemplate`)
+--   tabs      the family's segmented tabs ON TOP (ns.Style.Tabs; they were `PanelTabButtonTemplate` under the frame)
 --   boxes     `InsetFrameTemplate3` for the title band of each table
---   combos    `WowStyle1DropdownTemplate`
+--   combos    `WowStyle1DropdownTemplate`, dressed as the family's (ns.Style.SkinDropdown)
 --   text      the game's font objects and colour objects; the game's glyphs (tombstone, avoidable, deadly)
 --
 -- (!) WARCRAFT LOGS, TAB BY TAB (20/10). The user: *"eu falei para deixar igual ao warcraft logs, mas tu manteve
@@ -57,7 +58,10 @@ ns.MyRunWindow = Win
 -- Measured on the print, the nine that stay take about 760 px.
 local WIDTH = 1000
 local PAD = 12                   -- inside the inset
-local TOP_BAND = 60              -- title bar + the row of the combos
+-- (18/11) the family header (Style.HEAD, 58), the tabs (24 + 6) and the row of the context and the combos (32)
+local TOP_BAND = 120
+local TABS_Y = -62               -- the tabs, right under the header
+local BAND_Y = -91               -- the combos' row (the context's text sits 5 lower, on the combos' middle)
 local BODY_HEIGHT = 560
 local TITLE = 16
 local ITEM_HEIGHT = 30
@@ -225,6 +229,7 @@ end
 local function Dropdown(parent, width)
     local dd = CreateFrame("DropdownButton", nil, parent, "WowStyle1DropdownTemplate")
     dd:SetSize(width, 25)
+    ns.Style.SkinDropdown(dd)   -- (18/11) the family's drop-down (22 high)
     return dd
 end
 
@@ -289,7 +294,6 @@ local function CreatePanel()
 
     frame = CreateFrame("Frame", ADDON .. "MyRun", UIParent, "ButtonFrameTemplate")
     frame:SetWidth(WIDTH)
-    ns.DarkBody(frame, 1, frame.Bg)       -- (25/10) the dark body, as every Rocket window (Core.lua: "escuro em tudo")
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
@@ -304,8 +308,8 @@ local function CreatePanel()
         if ns.db and type(point) == "string" then ns.db.myRunPos = { point = point, relPoint = relPoint, x = x, y = y } end
     end)
     frame:Hide()
-    ButtonFrameTemplate_HidePortrait(frame)
-    frame:SetTitle(ns.TITLE .. " — " .. L["My run"])
+    -- (18/11) the family's window: "Rocket Meter — Meu combate", the run's place as the subtitle (Win.Draw)
+    frame.head = ns.Style.Window(frame, { title = ns.TITLE .. " — " .. L["My run"] })
     tinsert(UISpecialFrames, frame:GetName())
     frame:SetScript("OnHide", function()
         if ns.Breakdown and ns.Breakdown.Unembed then ns.Breakdown.Unembed() end
@@ -313,9 +317,9 @@ local function CreatePanel()
 
     -- The band above the inset: who and what at the left, the two combos at the right (the site's report and fight).
     frame.context = Text(frame, "GameFontHighlightSmall")
-    frame.context:SetPoint("TOPLEFT", 14, -36)
+    frame.context:SetPoint("TOPLEFT", 14, BAND_Y - 5)
     frame.fightCombo = Dropdown(frame, 190)
-    frame.fightCombo:SetPoint("TOPRIGHT", -12, -30)
+    frame.fightCombo:SetPoint("TOPRIGHT", -12, BAND_Y)
     frame.runCombo = Dropdown(frame, 290)
     frame.runCombo:SetPoint("RIGHT", frame.fightCombo, "LEFT", -6, 0)
     frame.context:SetPoint("RIGHT", frame.runCombo, "LEFT", -10, 0)
@@ -340,6 +344,7 @@ local function CreatePanel()
     inset:ClearAllPoints()
     inset:SetPoint("TOPLEFT", 8, -TOP_BAND)
     inset:SetPoint("BOTTOMRIGHT", -8, ns.DONATE_ROW + 6)
+    ns.DarkArea(inset)   -- (18/11) the tables on the dark (the template's own inset art is hidden by Style.Window)
     frame.body = CreateFrame("Frame", nil, inset)
     frame.body:SetPoint("TOPLEFT", PAD, -PAD)
     frame.body:SetPoint("BOTTOMRIGHT", -PAD, PAD)
@@ -357,21 +362,13 @@ local function CreatePanel()
     frame:SetHeight(TOP_BAND + PAD + BODY_HEIGHT + PAD + ns.DONATE_ROW + 6)
     ns.DonateFooter(frame)
 
-    -- The tabs, under the frame, as in the game's own windows.
-    frame.tabs = {}
-    for i, key in ipairs(TABS) do
-        local tab = CreateFrame("Button", frame:GetName() .. "Tab" .. i, frame, "PanelTabButtonTemplate")
-        tab:SetID(i)
-        tab:SetText(TAB_LABEL[key])
-        tab:SetScript("OnClick", function() Win.SetTab(key) end)
-        if i == 1 then tab:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2) end
-        PanelTemplates_TabResize(tab, 0)
-        frame.tabs[i] = tab
-        frame["tab" .. key:sub(1, 1):upper() .. key:sub(2)] = tab
-    end
-    -- `parentArray="Tabs"` in the template fills `frame.Tabs` in the game; the functions below
-    -- find the tabs there, or by the global name `<frame>Tab<i>` given above.
-    PanelTemplates_SetNumTabs(frame, #TABS)
+    -- (18/11) The tabs: the family's segmented row ON TOP, right under the header (ns.Style.Tabs; they were the game's
+    -- PanelTabButtonTemplate hanging under the frame).
+    local labels = {}
+    for i, key in ipairs(TABS) do labels[i] = TAB_LABEL[key] end
+    frame.tabRow = ns.Style.Tabs(frame, 10, TABS_Y, labels, function(i) Win.SetTab(TABS[i]) end)
+    frame.tabs = frame.tabRow.tabs
+    for i, key in ipairs(TABS) do frame["tab" .. key:sub(1, 1):upper() .. key:sub(2)] = frame.tabs[i] end
     return frame
 end
 
@@ -381,7 +378,7 @@ function Win.SetTab(tab)
     view.tab = tab
     for i, key in ipairs(TABS) do
         frame.pages[key]:SetShown(key == tab)
-        if key == tab then PanelTemplates_SetTab(frame, i) end
+        if key == tab then frame.tabRow:Select(i) end
     end
     local scoped = tab ~= "history"
     frame.fightCombo:SetShown(scoped)
@@ -1030,8 +1027,10 @@ function Win.Draw()
         if where ~= "" then parts[#parts + 1] = where end
         if r.elapsed then parts[#parts + 1] = Clock(r.elapsed) end
         frame.context:SetText(table.concat(parts, " · "))
+        frame.head.SetSubtitle(where)   -- (18/11) the header's subtitle: where the run was
     else
         frame.context:SetText(L["Nothing recorded yet: it starts at your next fight."])
+        frame.head.SetSubtitle("")
     end
     frame.fightCombo:GenerateMenu()
     frame.runCombo:GenerateMenu()

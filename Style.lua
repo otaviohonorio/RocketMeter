@@ -400,6 +400,11 @@ function Style.SkinDropdown(d)
         d.Text:SetJustifyH("LEFT")
         if d.Text.SetFontObject then d.Text:SetFontObject("GameFontHighlight") end
     end
+    -- (18/11, found on the Rocket Mount's Filter) the game paints the text gold again when the drop-down is enabled:
+    -- the value stays white (an option's value is white in the family)
+    if type(d.Text) == "table" then
+        d:HookScript("OnEnable", function(self) self.Text:SetTextColor(HIGHLIGHT_FONT_COLOR:GetRGB()) end)
+    end
     local mm = MenuMixin()
     if mm then d.menuMixin = mm end
     local ev = rawget(_G, "DropdownButtonMixin") and DropdownButtonMixin.Event

@@ -5,8 +5,9 @@
 -- It is a panel opened by a click, which stays where it is and follows the fight. It shows the three fronts at once -- damage, healing and
 -- control -- instead of only the window's metric.
 --
--- **All its look comes from `ns.Skin`** (defined in `Window.lua`): the same header art,
--- the same row height, the same colours. Copying values between screens is what makes them drift apart.
+-- **Its rows' look comes from `ns.Skin`** (defined in `Window.lua`): the same row height, the same colours. Copying
+-- values between screens is what makes them drift apart. (18/11) The window itself is the family's (ns.Style.Window
+-- with no seal: a small window beside the meter), the player's line under its header.
 local ADDON, ns = ...
 local L = ns.L
 
@@ -15,6 +16,7 @@ ns.Breakdown = Breakdown
 
 local WIDTH = 350
 local HEADER_HEIGHT = 25
+local WINDOW_HEAD = 34           -- (18/11) the family header with no seal (Style.Window, seal = false)
 local SECTION_TITLE = 16
 local SECTION_GAP = 8
 local SIDE = 4
@@ -250,11 +252,9 @@ end
 --------------------------------------------------------------------------------
 local function CreatePanel()
     if frame then return frame end
-    local skin = Skin()
 
-    -- (25/10) the game's tooltip border around the dark art (ns.DarkBody), not a flat WHITE8X8 backdrop (the
-    -- workspace rules); embedded in the meter it shows neither (Embed)
-    frame = CreateFrame("Frame", ADDON .. "Breakdown", UIParent, "TooltipBorderBackdropTemplate")
+    -- (18/11) the family's window (ns.Style.Window, no seal); embedded in "My run" it shows none of it (Embed)
+    frame = CreateFrame("Frame", ADDON .. "Breakdown", UIParent)
     frame:SetSize(WIDTH, 400)
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
@@ -264,48 +264,33 @@ local function CreatePanel()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
 
-    -- A dark background: without it, the text would compete with the game's scenery.
-    ns.DarkBody(frame, skin.panelAlpha)
+    -- A background: without it, the text would compete with the game's scenery. (18/11) The family's window, "Rocket
+    -- Meter — Spells", its close X the family's.
+    frame.head = ns.Style.Window(frame, { seal = false, title = ns.TITLE .. " — " .. L["Spells"] })
     frame:Hide()
 
+    -- The player's line, under the window's header: the icon, the name in the class colour, the session.
     local header = CreateFrame("Frame", nil, frame)
-    header:SetPoint("TOPLEFT", 0, 0)
-    header:SetPoint("TOPRIGHT", 0, 0)
+    header:SetPoint("TOPLEFT", 0, -WINDOW_HEAD)
+    header:SetPoint("TOPRIGHT", 0, -WINDOW_HEAD)
     header:SetHeight(HEADER_HEIGHT)
     frame.header = header
 
-    header.bg = header:CreateTexture(nil, "BACKGROUND")
-    header.bg:SetAllPoints()
-    ns.ApplyHeaderArt(header.bg)
-
     frame.icon = header:CreateTexture(nil, "OVERLAY")
     frame.icon:SetSize(HEADER_HEIGHT - 8, HEADER_HEIGHT - 8)
-    frame.icon:SetPoint("LEFT", 5, 0)
+    frame.icon:SetPoint("LEFT", 10, 0)
 
     frame.iconClass = header:CreateTexture(nil, "OVERLAY")
     frame.iconClass:SetSize(HEADER_HEIGHT - 8, HEADER_HEIGHT - 8)
-    frame.iconClass:SetPoint("LEFT", 5, 0)
+    frame.iconClass:SetPoint("LEFT", 10, 0)
     frame.iconClass:Hide()
 
     frame.title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     frame.title:SetPoint("LEFT", frame.icon, "RIGHT", 6, 0)
 
     frame.scope = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    frame.scope:SetPoint("RIGHT", -24, 0)
-
-    frame.close = CreateFrame("Button", nil, header)
-    frame.close:SetSize(14, 14)
-    frame.close:SetPoint("RIGHT", -5, 0)
-    -- Mesmo X do conjunto da janela, no mesmo tom e tamanho.
-    frame.close:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-    local closeTexture = frame.close:GetNormalTexture()
-    if closeTexture then
-        if closeTexture.SetAtlas then closeTexture:SetAtlas("common-icon-redx", false) end
-        if closeTexture.SetDesaturated then closeTexture:SetDesaturated(true) end
-        closeTexture:SetVertexColor(0.78, 0.73, 0.58)
-    end
-    frame.close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight")
-    frame.close:SetScript("OnClick", function() frame:Hide() end)
+    frame.scope:SetPoint("RIGHT", -12, 0)
+    frame.close = frame.__close   -- the family window's X (Style.Window)
 
     sections = {}
     for _, spec in ipairs(SectionSpecs()) do
@@ -336,13 +321,13 @@ function Breakdown.Draw()
     frame.title:SetTextColor(ns.ClassColor(current.classFilename))
 
     frame.scope:SetText(current.sessionType == 0 and L["Current fight"] or L["Overall"])
-    -- Light: the header art darkens towards the right, and dark text vanished right there.
-    frame.scope:SetTextColor(0.82, 0.76, 0.56)
+    -- (18/11) secondary text on the stone: the game's light grey (the rule of 13/10)
+    frame.scope:SetTextColor(LIGHTGRAY_FONT_COLOR:GetRGB())
 
     ns.ApplyRowIcon(frame.icon, frame.iconClass, current.source)
 
     -- Embedded in "Minha corrida" there is no header of its own: the sections start at the top.
-    local offset = (frame.embedded and 0 or HEADER_HEIGHT) + 4
+    local offset = (frame.embedded and 0 or (WINDOW_HEAD + HEADER_HEIGHT)) + 4
     for _, spec in ipairs(SectionSpecs()) do
         local section = sections[spec.key]
 
@@ -358,7 +343,7 @@ function Breakdown.Draw()
         offset = offset + DrawSection(section, spec)
     end
 
-    frame:SetHeight(offset + 4)
+    frame:SetHeight(offset + (frame.embedded and 4 or 10))
     -- Embedded, the container is the child of a scroll frame: it takes the panel's height, and
     -- what does not fit in the window is reached by scrolling.
     if frame.embedded and frame.embedContainer then frame.embedContainer:SetHeight(offset + 4) end
@@ -382,8 +367,8 @@ function Breakdown.Embed(container, source, sessionType)
     frame:SetParent(container)
     frame:SetFrameStrata(container:GetFrameStrata())
     frame:SetFrameLevel(container:GetFrameLevel() + 1)
-    frame.__dark:Hide()
-    if frame.NineSlice then frame.NineSlice:Hide() end
+    -- (18/11) none of the family window's pieces: the screen around it has its own
+    for _, p in ipairs({ frame.__panel, frame.__body, frame.__head, frame.__close }) do p:Hide() end
     frame:EnableMouse(false)
     frame.header:Hide()
     -- (!) AS TALL AS ITS CONTENT, NOT AS THE WINDOW (01/10). Anchored to the four corners of the
@@ -400,15 +385,13 @@ end
 ---Back to a panel of its own, beside the meter's rows.
 function Breakdown.Unembed()
     if not frame or not frame.embedded then return end
-    local skin = Skin()
     frame.embedded = nil
     frame.embedContainer = nil
     frame:Hide()
     frame:SetParent(UIParent)
     frame:SetClampedToScreen(true)
     frame:SetFrameStrata("DIALOG")
-    ns.DarkBody(frame, skin.panelAlpha)
-    if frame.NineSlice then frame.NineSlice:Show() end
+    for _, p in ipairs({ frame.__panel, frame.__body, frame.__head, frame.__close }) do p:Show() end
     frame:EnableMouse(true)
     frame.header:Show()
     frame:ClearAllPoints()
