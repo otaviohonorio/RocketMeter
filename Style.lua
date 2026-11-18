@@ -520,18 +520,34 @@ function Style.Tabs(parent, x, y, labels, onSelect)
         b.line:SetPoint("BOTTOMRIGHT", -6, 2)
         b.index = i
         b:SetScript("OnClick", function(self) row:Select(self.index, true) end)
+        -- (18/11, the user in the game: "o texto cinza fica ruim e passando o mouse em cima ele fica marrom (...) e some
+        -- na aba pq o fundo é marrom") the tab's text is the button's: gold, white under the mouse and when active
+        b:HookScript("OnEnter", function(self)
+            local fs = self:GetFontString()
+            if fs and self:IsEnabled() then fs:SetTextColor(HIGHLIGHT_FONT_COLOR:GetRGB()) end
+        end)
+        b:HookScript("OnLeave", function(self) if row.Paint then row:Paint(self) end end)
+        b:HookScript("OnDisable", function(self) if row.Paint then row:Paint(self) end end)
+        b:HookScript("OnEnable", function(self) if row.Paint then row:Paint(self) end end)
         row.tabs[i] = b
         xx = xx + b:GetWidth() + 2
     end
     row:SetWidth(math.max(1, xx - 2))
+    ---The text of one tab: white when active, gold otherwise, grey when disabled (never the light grey on bronze).
+    function row:Paint(b)
+        local fs = b:GetFontString()
+        if not fs then return end
+        local color = (not b:IsEnabled() and DISABLED_FONT_COLOR) or (b.index == self.selected and HIGHLIGHT_FONT_COLOR)
+            or NORMAL_FONT_COLOR
+        fs:SetTextColor(color:GetRGB())
+    end
     function row:Select(i, user)
         self.selected = i
         for j, b in ipairs(self.tabs) do
             local on = (j == i)
             b.line:SetShown(on)
             b.__pressed:SetShown(on)
-            local fs = b:GetFontString()
-            if fs then fs:SetTextColor((on and NORMAL_FONT_COLOR or LIGHTGRAY_FONT_COLOR):GetRGB()) end
+            self:Paint(b)
         end
         if user and onSelect then onSelect(i) end
     end
