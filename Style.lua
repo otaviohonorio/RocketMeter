@@ -614,7 +614,7 @@ function Style.Window(f, opts)
     local tx = seal and 62 or 14
     if seal then
         head.logo = head:CreateTexture(nil, "ARTWORK")
-        head.logo:SetTexture(ns.LOGO)
+        head.logo:SetTexture(ns.LOGO_SEAL or ns.LOGO)   -- (19/11) the round symbol where the addon has one
         head.logo:SetSize(Style.SEAL * 0.8, Style.SEAL * 0.8)
         head.logo:SetPoint("CENTER", head, "TOPLEFT", 10 + Style.SEAL / 2, -(9 + Style.SEAL / 2))
         if head.CreateMaskTexture then
