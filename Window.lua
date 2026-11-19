@@ -632,7 +632,10 @@ local TRACKER_W, TRACKER_H = 300, 40
 local FLARE_ATLAS_C60 = "common-dropdown-bg-c60"
 local FLARE_ATLAS = "common-dropdown-bg"
 local FLARE_TINT = { 1.0, 0.86, 0.55 }
-local FLARE_ALPHA = 0.82
+local FLARE_ALPHA = 0.88       -- the chat's line on the print: 137,105,60 (156,123,80 x 0.88 = 137,108,70)
+-- (19/11, "algumas cores") the chat's tab text and icons on the print: bronze, not the meter's gold and grey
+local FLARE_TITLE = { 0.81, 0.62, 0.36 }   -- "Geral" on the print: 206,158,93
+local FLARE_ICON = { 0.80, 0.64, 0.40 }    -- the chat's icons on the print: 201,161,100
 local FLARE_SIDE = 18          -- the panel past the window on the left, right and bottom: room for the table
 local FLARE_TOP = 6            -- the art's top line is its 7th row: 6 up puts it on the title strip's top
 -- the divider as the chat's under its tabs: a neutral dark grey (52,50,55 on the print). Options_HorizontalDivider is
@@ -2505,14 +2508,28 @@ function Window.ApplyTheme()
     -- the Midnight strip, only in its theme (and the fallback when an art is missing)
     header.bg:SetShown(not forever and not flare)
 
-    -- the title: the tracker's own font in the Forever (and its indent past the rod's knob), the role font otherwise
+    -- the title: the tracker's own font in the Forever (and its indent past the rod's knob); the Flare in the game's
+    -- Friz in the chat tab's bronze; the role font otherwise
     header.segment:ClearAllPoints()
     if forever and _G.ObjectiveTrackerHeaderFont then
         header.segment:SetPoint("LEFT", 18, 0)
         header.segment.text:SetFontObject(_G.ObjectiveTrackerHeaderFont)
         header.segment.text:SetTextColor(1, 0.82, 0)
+    elseif flare and _G.GameFontNormal then
+        header.segment:SetPoint("LEFT", 7, 1)
+        header.segment.text:SetFontObject(_G.GameFontNormal)
+        header.segment.text:SetTextColor(FLARE_TITLE[1], FLARE_TITLE[2], FLARE_TITLE[3])
     else
         header.segment:SetPoint("LEFT", 7, 1)
+        header.segment.text:SetTextColor(1, 0.82, 0)
+    end
+
+    -- the header's icons: bronze in the Flare, as the chat's; the meter's own tint otherwise
+    for _, b in ipairs({ frame.gearButton, frame.resetButton, frame.boardButton, frame.statsButton, frame.lockButton }) do
+        if b and b.SetTint then
+            b.baseTint = flare and FLARE_ICON or b.meterTint or b.baseTint
+            if not b.activeTint then b:SetTint(b.baseTint) end
+        end
     end
 end
 
@@ -2614,11 +2631,12 @@ function Window.Create()
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
-            self:SetTint(self.activeTint or ICON_TINT)
+            self:SetTint(self.activeTint or self.baseTint or ICON_TINT)
             GameTooltip_Hide()
         end)
 
         b.baseTint = ICON_TINT
+        b.meterTint = ICON_TINT     -- (19/11) the theme puts it back after the Flare's bronze
         return b
     end
 
