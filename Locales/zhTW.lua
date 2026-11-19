@@ -112,6 +112,7 @@ L["When an encounter is defeated, the summary of the fight opens by itself."] = 
 L["Record the combat log in instances"] = "在副本中記錄戰鬥紀錄"
 L["On in dungeons, raids and delves, off when leaving: the file Warcraft Logs uploads (its own app sends it; it also asks for the game's advanced combat log). A log you turned on yourself is left alone."] = "在地城、團隊副本和探究中開啟，離開時關閉：這是Warcraft Logs上傳的檔案（由它自己的程式上傳，它還要求開啟遊戲的進階戰鬥紀錄）。你自己開啟的紀錄不會被改動。"
 L["Specialization icon"] = "專精圖示"
+L["Theme"] = "主題"
 L["Square"] = "方形"
 L["Round"] = "圓形"
 L["Show the realm next to the name"] = "在名字旁顯示伺服器"

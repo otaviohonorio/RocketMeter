@@ -605,6 +605,39 @@ function ns.ApplyHeaderArt(texture)
 end
 
 local HEADER_HEIGHT = 27        -- medido no nativo: faixa de y=41 a y=67
+
+-- (19/11) THE WINDOW'S THEME (the user: "coloca uma opção de skin, e coloca o blizzard midnight e blizzard forever (...)
+-- muda só a barra de cima" and "um terceiro tema, chama de Flare"; approved on mockup/PREVIA Meter temas v6.png).
+--   midnight  the game's damage-meter header art (ns.ApplyHeaderArt), as always
+--   forever   the title strip in the art of the game's quest-tracker header, as the Forever shows it ("Todos os
+--             objetivos"): the same atlas name and file in both clients, a different picture in each (in the Forever,
+--             bronze rods with knobs). Cut in five, NEVER stretched where it has a drawing: the left end, a flat
+--             stretch, the ornament (just left of the header's buttons, where the tracker shows it), a flat stretch,
+--             the right end. Drawn at the strip's height (27 of its 40). The title in the tracker's own font.
+--   flare     no strip art: the whole window in the game's dropdown-menu panel (common-dropdown-bg, which the game
+--             slices by itself), its line tinted gold and the body translucent; room around the table, the top
+--             line on the title strip's top; a divider between the title row and the table, as long as the strip
+ns.THEMES = {
+    { key = "midnight", label = "Blizzard Midnight" },
+    { key = "forever", label = "Blizzard Forever" },
+    { key = "flare", label = "Flare" },
+}
+local TRACKER_ATLAS = "ui-questtracker-primary-objective-header"   -- 300 x 40
+-- art px of the tracker header, x: the left end | flat | the ornament | flat | the right end
+local TRACKER_CUTS = { { 0, 30 }, { 160, 170 }, { 170, 252 }, { 252, 262 }, { 262, 300 } }
+local TRACKER_W, TRACKER_H = 300, 40
+local FLARE_ATLAS = "common-dropdown-bg"
+local FLARE_TINT = { 1.0, 0.86, 0.55 }
+local FLARE_ALPHA = 0.82
+local FLARE_SIDE = 18          -- the panel past the window on the left, right and bottom: room for the table
+local FLARE_TOP = 6            -- the art's top line is its 7th row: 6 up puts it on the title strip's top
+local FLARE_LINE = { 0.62, 0.53, 0.34 }   -- the divider in the panel line's tint (157 grey x FLARE_TINT)
+
+function ns.Theme()
+    local t = ns.db and ns.db.theme
+    if t == "forever" or t == "flare" then return t end
+    return "midnight"
+end
 local COLHEAD_HEIGHT = 12
 local NAME_MIN_WIDTH = 96
 -- The minimum width of the button that switches session ("Combate atual" / "Geral"). It is a MINIMUM, not fixed:
@@ -2393,6 +2426,84 @@ end
 --------------------------------------------------------------------------------
 -- Montagem
 --------------------------------------------------------------------------------
+--- (19/11) Draws the chosen theme (ns.Theme): the title strip's art, the Flare panel and divider, the title's font.
+function Window.ApplyTheme()
+    if not frame then return end
+    local header, theme = frame.header, ns.Theme()
+
+    -- the Forever's strip: five pieces of the tracker header, cut by TRACKER_CUTS
+    if not header.pieces then
+        header.pieces = {}
+        for i = 1, #TRACKER_CUTS do
+            header.pieces[i] = header:CreateTexture(nil, "BACKGROUND")
+        end
+    end
+    local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(TRACKER_ATLAS)
+    local forever = theme == "forever" and info and (info.file or info.filename) and true or false
+    local k = HEADER_HEIGHT / TRACKER_H
+    for i, cut in ipairs(TRACKER_CUTS) do
+        local t = header.pieces[i]
+        t:ClearAllPoints()
+        if forever then
+            local l, r = info.leftTexCoord or 0, info.rightTexCoord or 1
+            local w = r - l
+            t:SetTexture(info.file or info.filename)
+            t:SetTexCoord(l + w * cut[1] / TRACKER_W, l + w * cut[2] / TRACKER_W,
+                info.topTexCoord or 0, info.bottomTexCoord or 1)
+            t:SetVertexColor(1, 1, 1)
+        end
+        t:SetShown(forever)
+    end
+    if forever then
+        local p = header.pieces
+        local wOf = function(i) return (TRACKER_CUTS[i][2] - TRACKER_CUTS[i][1]) * k end
+        p[1]:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
+        p[1]:SetSize(wOf(1), HEADER_HEIGHT)
+        p[5]:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
+        p[5]:SetSize(wOf(5), HEADER_HEIGHT)
+        p[3]:SetPoint("RIGHT", frame.lockButton, "LEFT", -6, -1)
+        p[3]:SetSize(wOf(3), HEADER_HEIGHT)
+        p[2]:SetPoint("TOPLEFT", p[1], "TOPRIGHT")
+        p[2]:SetPoint("BOTTOMRIGHT", p[3], "BOTTOMLEFT")
+        p[4]:SetPoint("TOPLEFT", p[3], "TOPRIGHT")
+        p[4]:SetPoint("BOTTOMRIGHT", p[5], "BOTTOMLEFT")
+    end
+
+    -- the Flare: the panel around the window and the divider under the title row
+    if not frame.flare then
+        frame.flare = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+        frame.flare:SetPoint("TOPLEFT", frame, "TOPLEFT", -FLARE_SIDE, FLARE_TOP)
+        frame.flare:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", FLARE_SIDE, -FLARE_SIDE)
+        header.line = header:CreateTexture(nil, "ARTWORK")
+        header.line:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+        header.line:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
+        header.line:SetHeight(1)
+    end
+    local flare = theme == "flare" and ns.AtlasExists(FLARE_ATLAS)
+    if flare then
+        frame.flare:SetAtlas(FLARE_ATLAS)
+        frame.flare:SetVertexColor(FLARE_TINT[1], FLARE_TINT[2], FLARE_TINT[3])
+        frame.flare:SetAlpha(FLARE_ALPHA)
+        if ns.Style and ns.Style.Divider then ns.Style.Divider(header.line) end
+        header.line:SetVertexColor(FLARE_LINE[1], FLARE_LINE[2], FLARE_LINE[3])
+    end
+    frame.flare:SetShown(flare and true or false)
+    header.line:SetShown(flare and true or false)
+
+    -- the Midnight strip, only in its theme (and the fallback when an art is missing)
+    header.bg:SetShown(not forever and not flare)
+
+    -- the title: the tracker's own font in the Forever (and its indent past the rod's knob), the role font otherwise
+    header.segment:ClearAllPoints()
+    if forever and _G.ObjectiveTrackerHeaderFont then
+        header.segment:SetPoint("LEFT", 18, 0)
+        header.segment.text:SetFontObject(_G.ObjectiveTrackerHeaderFont)
+        header.segment.text:SetTextColor(1, 0.82, 0)
+    else
+        header.segment:SetPoint("LEFT", 7, 1)
+    end
+end
+
 function Window.Create()
     -- `ns.Skin` is born with the default (the files load before `ns.db` exists). Here the
     -- settings have already been read, so the values derived from the size have to be redone --
@@ -2550,6 +2661,8 @@ function Window.Create()
         end)
     frame.lockButton:SetPoint("RIGHT", leftmost, "LEFT", -5, 0)
 
+    Window.ApplyTheme()
+
     Window.ApplyPosition()
 
     frame:SetMovable(true)
@@ -2669,6 +2782,7 @@ function Window.Rebuild()
     -- Title and clock have a size of their own: in the native one they are smaller than the row's text.
     ns.ApplyRoleFont(frame.header.segment.text, "title", 0)
     ns.ApplyRoleFont(frame.header.clock, "title", CLOCK_DELTA)
+    Window.ApplyTheme()
 
     for i = 1, ns.db.rows do
         BuildRow(i)

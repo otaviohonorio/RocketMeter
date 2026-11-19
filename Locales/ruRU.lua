@@ -112,6 +112,7 @@ L["When an encounter is defeated, the summary of the fight opens by itself."] = 
 L["Record the combat log in instances"] = "Записывать журнал боя в подземельях"
 L["On in dungeons, raids and delves, off when leaving: the file Warcraft Logs uploads (its own app sends it; it also asks for the game's advanced combat log). A log you turned on yourself is left alone."] = "Включается в подземельях, рейдах и вылазках и выключается при выходе: это файл, который загружает Warcraft Logs (его собственное приложение отправляет файл и также просит расширенный журнал боя игры). Журнал, который вы включили сами, не трогается."
 L["Specialization icon"] = "Значок специализации"
+L["Theme"] = "Тема"
 L["Square"] = "Квадратный"
 L["Round"] = "Круглый"
 L["Show the realm next to the name"] = "Показывать мир рядом с именем"

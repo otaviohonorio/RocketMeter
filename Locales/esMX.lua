@@ -112,6 +112,7 @@ L["When an encounter is defeated, the summary of the fight opens by itself."] = 
 L["Record the combat log in instances"] = "Grabar el registro de combate en las estancias"
 L["On in dungeons, raids and delves, off when leaving: the file Warcraft Logs uploads (its own app sends it; it also asks for the game's advanced combat log). A log you turned on yourself is left alone."] = "Se activa en calabozos, bandas y abismos y se desactiva al salir: es el archivo que envía Warcraft Logs (con su propio programa, que también pide el registro de combate avanzado del juego). Un registro que activaste tú no se toca."
 L["Specialization icon"] = "Ícono de la especialización"
+L["Theme"] = "Tema"
 L["Square"] = "Cuadrado"
 L["Round"] = "Redondo"
 L["Show the realm next to the name"] = "Mostrar el reino junto al nombre"

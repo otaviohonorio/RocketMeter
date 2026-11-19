@@ -112,6 +112,7 @@ L["When an encounter is defeated, the summary of the fight opens by itself."] = 
 L["Record the combat log in instances"] = "인스턴스에서 전투 기록 저장"
 L["On in dungeons, raids and delves, off when leaving: the file Warcraft Logs uploads (its own app sends it; it also asks for the game's advanced combat log). A log you turned on yourself is left alone."] = "던전, 공격대, 구렁에서 켜고 나가면 끕니다. Warcraft Logs가 올리는 파일입니다 (Warcraft Logs의 앱이 올리며, 게임의 고급 전투 기록도 켜 달라고 합니다). 직접 켠 기록은 건드리지 않습니다."
 L["Specialization icon"] = "전문화 아이콘"
+L["Theme"] = "테마"
 L["Square"] = "사각형"
 L["Round"] = "원형"
 L["Show the realm next to the name"] = "이름 옆에 서버 표시"

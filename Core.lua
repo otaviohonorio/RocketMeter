@@ -76,6 +76,8 @@ ns.defaults = {
     -- game's meter, the default) or "round" (the user's option). Not the old `roundIcons`, which
     -- nothing read since 14/10: a saved value of it would flip nobody's icons now.
     iconShape = "square",
+    -- (19/11) the window's theme (Window.lua, ns.THEMES): "midnight" (the default), "forever" or "flare"
+    theme = "midnight",
     -- (26/10) the interrupts' clock beside the interrupts column (Kicks.lua): on by default
     kickClock = true,
 

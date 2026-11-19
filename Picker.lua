@@ -641,6 +641,16 @@ function Picker.Create()
             if ns.Scoreboard and ns.Scoreboard.Refresh then ns.Scoreboard.Refresh() end
         end)
 
+    -- (19/11) The window's theme (Window.lua, ns.THEMES): only the title strip changes, or the Flare panel
+    local themeEntries = {}
+    for _, t in ipairs(ns.THEMES or {}) do themeEntries[#themeEntries + 1] = { label = t.label, value = t.key } end
+    y, frame.themeDrop = BuildDropdown(colWindow, y, L["Theme"], themeEntries,
+        function() return ns.Theme() end,
+        function(v)
+            ns.db.theme = v
+            ns.Window.Rebuild()
+        end)
+
     -- (26/10) The interrupts' clock (Kicks.lua): each one's interrupt beside the interrupts column
     cy, frame.kickCheck = BuildCheck(colColumns, cy, L["Show each one's interrupt cooldown"],
         L["Beside the interrupts column: each one's interrupt with its cooldown. Yours is exact; a teammate's is put together from what the game shows (an enemy interrupted and who cast in that instant), and two casting at once credit nobody."],
@@ -855,7 +865,7 @@ end
 function Picker.Refresh()
     if not frame or not frame:IsShown() then return end
 
-    for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.iconShapeDrop, frame.kickCheck, frame.realmCheck, frame.minimapCheck,
+    for _, widget in ipairs({ frame.rowsSlider, frame.fontDrop, frame.iconShapeDrop, frame.themeDrop, frame.kickCheck, frame.realmCheck, frame.minimapCheck,
                              frame.gapSlider, frame.pairSlider,
                              frame.autoSession, frame.autoMPlus, frame.autoRaid, frame.combatLog }) do
         if widget and widget.Refresh then widget.Refresh() end
