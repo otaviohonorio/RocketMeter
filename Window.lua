@@ -632,7 +632,12 @@ local TRACKER_W, TRACKER_H = 300, 40
 local FLARE_ATLAS_C60 = "common-dropdown-bg-c60"
 local FLARE_ATLAS = "common-dropdown-bg"
 local FLARE_TINT = { 1.0, 0.86, 0.55 }
-local FLARE_ALPHA = 0.88       -- the chat's line on the print: 137,105,60 (156,123,80 x 0.88 = 137,108,70)
+-- (19/11, "a transparência tbm tá diferente") measured on the print through the grass behind: the chat's body lets
+-- ~30% of the scene through, ours at 0.82 ~21%. The line and the body are one art, so a lower alpha dims the line too:
+-- the panel at 0.72 (the chat's body) and the SAME art again in ADD at 0.17 -- black adds nothing, so only the line
+-- comes back (156 x 0.72 + 156 x 0.17 = 139 against the chat's 137)
+local FLARE_ALPHA = 0.72
+local FLARE_LINE_BOOST = 0.17
 -- (19/11, "algumas cores") the chat's tab text and icons on the print: bronze, not the meter's gold and grey
 local FLARE_TITLE = { 0.81, 0.62, 0.36 }   -- "Geral" on the print: 206,158,93
 local FLARE_ICON = { 0.80, 0.64, 0.40 }    -- the chat's icons on the print: 201,161,100
@@ -2483,6 +2488,9 @@ function Window.ApplyTheme()
         frame.flare = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
         frame.flare:SetPoint("TOPLEFT", frame, "TOPLEFT", -FLARE_SIDE, FLARE_TOP)
         frame.flare:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", FLARE_SIDE, -FLARE_SIDE)
+        frame.flareLine = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
+        frame.flareLine:SetAllPoints(frame.flare)
+        frame.flareLine:SetBlendMode("ADD")
         header.line = header:CreateTexture(nil, "ARTWORK")
         header.line:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
         header.line:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
@@ -2491,18 +2499,22 @@ function Window.ApplyTheme()
     local c60 = ns.AtlasExists(FLARE_ATLAS_C60)
     local flare = theme == "flare" and (c60 or ns.AtlasExists(FLARE_ATLAS))
     if flare then
-        if c60 then
-            frame.flare:SetAtlas(FLARE_ATLAS_C60)
-            frame.flare:SetVertexColor(1, 1, 1)
-        else
-            frame.flare:SetAtlas(FLARE_ATLAS)
-            frame.flare:SetVertexColor(FLARE_TINT[1], FLARE_TINT[2], FLARE_TINT[3])
+        for _, t in ipairs({ frame.flare, frame.flareLine }) do
+            if c60 then
+                t:SetAtlas(FLARE_ATLAS_C60)
+                t:SetVertexColor(1, 1, 1)
+            else
+                t:SetAtlas(FLARE_ATLAS)
+                t:SetVertexColor(FLARE_TINT[1], FLARE_TINT[2], FLARE_TINT[3])
+            end
         end
+        frame.flareLine:SetAlpha(FLARE_LINE_BOOST)
         frame.flare:SetAlpha(FLARE_ALPHA)
         if ns.Style and ns.Style.Divider then ns.Style.Divider(header.line) end
         header.line:SetVertexColor(FLARE_LINE[1], FLARE_LINE[2], FLARE_LINE[3])
     end
     frame.flare:SetShown(flare and true or false)
+    frame.flareLine:SetShown(flare and true or false)
     header.line:SetShown(flare and true or false)
 
     -- the Midnight strip, only in its theme (and the fallback when an art is missing)
