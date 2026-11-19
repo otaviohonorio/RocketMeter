@@ -580,21 +580,11 @@ function Data.RequestReset(skipConfirm)
         return
     end
 
-    StaticPopupDialogs["ROCKETMETER_RESET"] = StaticPopupDialogs["ROCKETMETER_RESET"] or {
-        text = L["Clear the current fight and the overall? This cannot be undone."],
-        button1 = YES,
-        button2 = NO,
-        OnAccept = function()
-            Data.ResetAll()
-            if ns.Window then ns.Window.Refresh(true) end
-            ns.Print(L["sessions cleared."])
-        end,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-        preferredIndex = 3,
-    }
-    StaticPopup_Show("ROCKETMETER_RESET")
+    -- (18/11) the family's question box (Style.Ask), never the game's dialog (Style.lua has why)
+    ns.Style.Ask("reset", { text = L["Clear the current fight and the overall? This cannot be undone."], buttons = {
+        { text = YES, onClick = function() Data.RequestReset(true) end },
+        { text = NO },
+    } })
 end
 
 --------------------------------------------------------------------------------

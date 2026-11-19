@@ -13,8 +13,9 @@
 -- asks for donation requests to stay off the game; it is his call.
 --
 -- An addon cannot open a browser. So the link goes in a box, already selected: Ctrl+C copies it,
--- and the dialog closes by itself after the copy. The box is the game's own popup (`StaticPopup`
--- with an edit box, reached through `GetEditBox()` in 12.x).
+-- and the dialog closes by itself after the copy. (18/11/2026) The box is the family's (`Style.Ask` in Style.lua), never
+-- the game's `StaticPopup`: a game dialog opened by an addon joins the game's one list of dialogs, and the game then
+-- blamed the addon for its own protected calls (measured in the Rocket Swap, RocketSwap/Dialog.lua).
 --
 -- Currency: BRL when the game is in Portuguese (Brazil), USD everywhere else (user's rule).
 local ADDON, ns = ...
@@ -23,64 +24,17 @@ local L = ns.L
 local REPORT_POPUP = "ROCKETMETER_REPORT"
 
 
-local function EditBoxOf(dialog)
-    if dialog.GetEditBox then return dialog:GetEditBox() end
-    return dialog.editBox or (dialog.GetName and _G[dialog:GetName() .. "EditBox"])
-end
-
----The game's popup with a link in its box, already selected.
----@param text string what the dialog says
----@param url function the link, asked for when the dialog opens
-local function CopyBox(text, url)
-    return {
-        text = text,
-        button2 = CLOSE,
-        hasEditBox = true,
-        editBoxWidth = 350,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-        preferredIndex = 3,
-        OnShow = function(self)
-            local box = EditBoxOf(self)
-            if not box then return end
-            box:SetText(url())
-            box:HighlightText()
-            box:SetFocus()
-            -- The popup's box is SHARED with every other popup of the game. (14/10) Its own
-            -- OnTextChanged is the game's (it feeds "DELETE" to destroy an item, and the name
-            -- autocomplete): never replaced, the dialog's EditBoxOnTextChanged below is the hook.
-            -- It has no OnKeyDown of its own; ours goes on here and the original comes back in
-            -- OnHide.
-            -- Shown again while open (another place chosen): the original was already kept.
-            if not self.rocketHooked then
-                self.rocketKeyDown, self.rocketHooked = box:GetScript("OnKeyDown"), true
-            end
-            box:SetScript("OnKeyDown", function(_, key)
-                if key == "C" and IsControlKeyDown and IsControlKeyDown() then
-                    C_Timer.After(0.1, function()
-                        self:Hide()
-                        ns.Print(L["Link copied — paste it in your browser."])
-                    end)
-                end
-            end)
-        end,
-        -- Typing over it would lose the link: whatever is typed, the link comes back.
-        EditBoxOnTextChanged = function(box)
-            if box:GetText() ~= url() then
-                box:SetText(url())
-                box:HighlightText()
-            end
-        end,
-        OnHide = function(self)
-            local box = EditBoxOf(self)
-            if box then
-                box:SetScript("OnKeyDown", self.rocketKeyDown)
-                self.rocketKeyDown, self.rocketHooked = nil, nil
-            end
-        end,
-        EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
-    }
+---The box with a link in it, already selected, ready for Ctrl+C (the family's box, `Style.Ask`). Without the box,
+---the link goes to the chat.
+---@param key string what the box is (Style.AskHide(key) closes only it)
+---@param text string what the box says
+---@param url string the link
+local function CopyBox(key, text, url)
+    if ns.Style and ns.Style.Ask(key, { text = text, url = url, copied = L["Link copied — paste it in your browser."] }) then
+        return true
+    end
+    ns.Print(url)
+    return false
 end
 
 
@@ -101,9 +55,6 @@ ns.REPORT = {
     { name = "CurseForge", url = "https://www.curseforge.com/wow/addons/rocketmeter/comments" },
 }
 
--- The place chosen, for the dialog that is open.
-local reporting
-
 ---The addon's version, which is the first thing a report needs.
 function ns.ReportVersion()
     local v = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")
@@ -112,14 +63,8 @@ end
 
 ---The box with the link of one place, ready to copy.
 function ns.ShowReport(site)
-    if not (site and StaticPopupDialogs and StaticPopup_Show) then return end
-    reporting = site
-    if not StaticPopupDialogs[REPORT_POPUP] then
-        StaticPopupDialogs[REPORT_POPUP] = CopyBox(
-            L["Rocket Meter %s — report a problem on %s.|n|nPress Ctrl+C to copy the link, then paste it in your browser. Say what you were doing and what happened."],
-            function() return reporting and reporting.url or "" end)
-    end
-    StaticPopup_Show(REPORT_POPUP, ns.ReportVersion(), site.name)
+    if not site then return end
+    CopyBox(REPORT_POPUP, L["Rocket Meter %s — report a problem on %s.|n|nPress Ctrl+C to copy the link, then paste it in your browser. Say what you were doing and what happened."]:format(ns.ReportVersion(), site.name), site.url or "")
 end
 
 ---The player chooses where: the game's menu with the places. With one place only, or on a

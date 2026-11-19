@@ -661,3 +661,222 @@ function Style.Window(f, opts)
     f.__head = head
     return head
 end
+
+-- (18/11/2026) THE FAMILY'S QUESTION BOX. The user's print: the Rocket Guide's "Start the route at step 306 (...)? You are
+-- level 25 and now at step 174." came in the game's dialog (StaticPopup, red buttons), out of the modern identity that
+-- every window already wears. And there is a second reason, measured in the Rocket Swap on 05/10 (RocketSwap/Dialog.lua
+-- has the story): a dialog an addon opens with StaticPopup_Show joins the game's ONE list of dialogs on screen, and the
+-- game, walking that list for its own protected calls (the guild window's C_Discord.IsUserOAuthed), blames the addon
+-- with ADDON_ACTION_FORBIDDEN. So every question, notice and "copy this link" of the family is THIS frame of ours: it
+-- never enters that list, and it wears the notice header (Style.Window with no seal: ns.TITLE at the left, the X).
+-- The game's measures (client 12.1.0, as RocketSwap/Dialog.lua read them): 320 wide, the text 290 (GameDialog.xml:52,
+-- GameDialog.lua:558), 410 with a box of 350 (Mainline/GameDialog.lua, GetInitialWidth); the button 128 x 22; the box 45
+-- above the bottom (GameDialog.xml:210); the first dialog 135 below the top of the screen (GameDialog.xml:336).
+-- Guard: tools/identidade.py refuses StaticPopupDialogs[ and StaticPopup_Show( in our code (the exceptions are listed).
+Style.ASK = { width = 320, wide = 410, textWidth = 290, head = 34, top = 16, gap = 16, bottom = 16, buttonWidth = 128,
+              buttonHeight = 22, buttonGap = 8, boxWidth = 350, boxHeight = 20, boxFromBottom = 45, fromScreenTop = 135 }
+
+local askFrame, askState, askFailed
+
+---Where the box hangs: where the game's first dialog does, or under the game's dialogs when some are on screen. Their
+---frames are only READ (shown or not, and where the bottom is).
+local function AskPlace(f)
+    f:ClearAllPoints()
+    local lowest, lowestBottom
+    for i = 1, 4 do
+        local g = rawget(_G, "StaticPopup" .. i)   -- the game's dialog frames (StaticPopup1..4), only read
+        if type(g) == "table" and g.IsShown and g:IsShown() and g.GetBottom then
+            local b = g:GetBottom()
+            if type(b) == "number" and (not lowestBottom or b < lowestBottom) then
+                lowest, lowestBottom = g, b
+            end
+        end
+    end
+    if lowest then
+        f:SetPoint("TOP", lowest, "BOTTOM", 0, 0)
+    else
+        f:SetPoint("TOP", UIParent, "TOP", 0, -Style.ASK.fromScreenTop)
+    end
+end
+
+---The answer: the box closes FIRST (an answer that opens another question gets the box back), then the button's action.
+local function AskAnswer(i)
+    local st = askState
+    if not (st and askFrame) then return end
+    local text = st.input and askFrame.box:GetText() or nil
+    st.answered = true
+    askFrame:Hide()
+    local b = st.buttons[i]
+    if not b then return end
+    if b.onClick then
+        b.onClick(st.data, text)
+    elseif i == 1 and st.input and st.input.onAccept then
+        st.input.onAccept(text or "", st.data)
+    end
+end
+
+local function AskBuild()
+    if askFrame or askFailed then return askFrame end
+    local A = Style.ASK
+    local name = ADDON .. "Ask"
+    local ok, f = pcall(CreateFrame, "Frame", name, UIParent)
+    if not ok or not f then
+        askFailed = true
+        return nil
+    end
+    f:EnableMouse(true)
+    f:SetFrameStrata("DIALOG")
+    f:SetClampedToScreen(true)
+    f:Hide()
+    f.head = Style.Window(f, { seal = false })
+    f.text = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    f.text:SetPoint("TOP", 0, -(A.head + A.top))
+    f.text:SetWidth(A.textWidth)
+    f.buttons = {}
+    for i = 1, 2 do
+        local b = Style.NewButton(f, "", A.buttonWidth, A.buttonHeight)
+        b:SetScript("OnClick", function() AskAnswer(i) end)
+        b:Hide()
+        f.buttons[i] = b
+    end
+    f.box = Style.SkinField(CreateFrame("EditBox", nil, f, "InputBoxTemplate"))
+    f.box:SetSize(A.boxWidth, A.boxHeight)
+    f.box:SetPoint("BOTTOM", 0, A.boxFromBottom)
+    f.box:SetAutoFocus(false)
+    f.box:Hide()
+    f.box:SetScript("OnEscapePressed", function() f:Hide() end)
+    -- Enter: a link closes the box; a field to fill answers with the first button.
+    f.box:SetScript("OnEnterPressed", function()
+        if askState and askState.input then AskAnswer(1) else f:Hide() end
+    end)
+    f.box:SetScript("OnKeyDown", function(_, key)
+        local st = askState
+        if not (st and st.url and key == "C" and IsControlKeyDown and IsControlKeyDown()) then return end
+        C_Timer.After(0.1, function()
+            if askState == st and f:IsShown() then
+                f:Hide()
+                if st.copied and ns.Print then ns.Print(st.copied) end
+            end
+        end)
+    end)
+    -- A link is read only: whatever is typed over it, the link comes back, selected.
+    f.box:SetScript("OnTextChanged", function(b, userInput)
+        local st = askState
+        if userInput and st and st.url then
+            b:SetText(st.url)
+            b:HighlightText()
+        end
+    end)
+    -- Closed with no answer (the X, Esc): onCancel.
+    f:SetScript("OnHide", function()
+        local st = askState
+        askState = nil
+        if st and not st.answered and st.onCancel then st.onCancel(st.data) end
+    end)
+    if UISpecialFrames and tinsert then tinsert(UISpecialFrames, name) end   -- Esc closes it, as every box of the game
+    askFrame = f
+    return f
+end
+
+---THE FAMILY'S QUESTION BOX (see above). `key` names what is asked: AskHide(key) closes only it. A new question takes the
+---place of the one on screen (that one is not cancelled). opts:
+---  text     what it says (`|n` or a real line break);
+---  buttons  1 or 2 { text = ..., onClick = function(data, inputText) }, side by side and centred; a click closes the box
+---           and then runs onClick. With none: one OKAY (CLOSE with `url`; ACCEPT and CANCEL with `input`);
+---  url      a text to copy, in a field, selected, with the focus: Ctrl+C closes the box and prints `copied`; typing over
+---           it brings it back;
+---  copied   the chat line once copied (each addon's own translation);
+---  input    { default = "...", maxLetters = n, onAccept = function(text, data) }: an editable field; Enter answers with
+---           the first button, and the first button with no onClick of its own calls onAccept;
+---  data     handed to every onClick and to onCancel;
+---  onCancel function(data), when the box closes with no button (the X, Esc).
+---@return boolean shown false when the game gave no frame: the caller says it some other way
+function Style.Ask(key, opts)
+    local f = AskBuild()
+    if not f then return false end
+    opts = opts or {}
+    local A = Style.ASK
+    local url = type(opts.url) == "string" and opts.url or nil
+    local input = type(opts.input) == "table" and opts.input or nil
+    local buttons = opts.buttons
+    if type(buttons) ~= "table" or #buttons == 0 then
+        if input then
+            buttons = { { text = ACCEPT }, { text = CANCEL } }
+        else
+            buttons = { { text = url and CLOSE or OKAY } }
+        end
+    end
+    -- the question on screen gives its place without being cancelled
+    if askState then askState.answered = true end
+    if f:IsShown() then f:Hide() end
+    askState = { key = key, url = url, input = input, buttons = buttons, data = opts.data, onCancel = opts.onCancel,
+                 copied = opts.copied }
+
+    local width = (url or input) and A.wide or A.width
+    f:SetWidth(width)
+    f.text:SetWidth(width - (A.width - A.textWidth))
+    f.text:SetText((tostring(opts.text or ""):gsub("|n", "\n")))
+
+    local total = 0
+    for i, b in ipairs(f.buttons) do
+        local spec = buttons[i]
+        b:SetShown(spec ~= nil)
+        if spec then
+            b:SetText(spec.text or "")
+            local fs = b:GetFontString()
+            local w = fs and fs.GetStringWidth and fs:GetStringWidth()
+            b:SetWidth(math.max(A.buttonWidth, (type(w) == "number" and w or 0) + 30))
+            total = total + b:GetWidth() + (i > 1 and A.buttonGap or 0)
+        end
+    end
+    local x = -total / 2
+    for i, b in ipairs(f.buttons) do
+        if buttons[i] then
+            b:ClearAllPoints()
+            b:SetPoint("BOTTOMLEFT", f, "BOTTOM", x, A.bottom)
+            x = x + b:GetWidth() + A.buttonGap
+        end
+    end
+
+    local textHeight = f.text:GetStringHeight()
+    if type(textHeight) ~= "number" then textHeight = 0 end
+    if url or input then
+        f:SetHeight(A.head + A.top + textHeight + A.gap + A.boxHeight + A.boxFromBottom)
+        f.box:SetMaxLetters(input and input.maxLetters or 0)
+        f.box:Show()
+    else
+        f:SetHeight(A.head + A.top + textHeight + A.gap + A.buttonHeight + A.bottom)
+        f.box:Hide()
+    end
+
+    AskPlace(f)
+    f:Show()
+    f:Raise()
+    if url or input then
+        f.box:SetText(url or (input.default and tostring(input.default)) or "")
+        f.box:HighlightText()
+        f.box:SetFocus()
+    end
+    if PlaySound and SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN then
+        pcall(PlaySound, SOUNDKIT.IG_MAINMENU_OPEN)
+    end
+    return true
+end
+
+---Closes the box when it is the one named (with no name: whatever is shown). Closing so is not an answer: onCancel runs.
+function Style.AskHide(key)
+    if askFrame and askFrame:IsShown() and askState and (key == nil or key == askState.key) then
+        askFrame:Hide()
+        return true
+    end
+    return false
+end
+
+---Is the box named on screen? (With no name: is any?)
+function Style.AskShown(key)
+    return askFrame ~= nil and askFrame:IsShown() and askState ~= nil and (key == nil or key == askState.key)
+end
+
+-- For the harnesses: the frame (text, box, buttons) and the key on screen.
+function Style.AskFrame() return askFrame end
+function Style.AskKey() return askState and askState.key end
