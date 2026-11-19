@@ -626,12 +626,18 @@ local TRACKER_ATLAS = "ui-questtracker-primary-objective-header"   -- 300 x 40
 -- art px of the tracker header, x: the left end | flat | the ornament | flat | the right end
 local TRACKER_CUTS = { { 0, 30 }, { 160, 170 }, { 170, 252 }, { 252, 262 }, { 262, 300 } }
 local TRACKER_W, TRACKER_H = 300, 40
+-- (19/11, the user's print of the Forever: "Compare as bordas do chat e do nosso meter, deixa igual ao do chat") the
+-- Forever's chat wears `common-dropdown-bg-c60`, the same panel with a bronze line (156,123,80; measured on the print
+-- through the alpha: chat 128,98,56, ours with it 128,101,66). The retail has no c60: there the plain one, tinted.
+local FLARE_ATLAS_C60 = "common-dropdown-bg-c60"
 local FLARE_ATLAS = "common-dropdown-bg"
 local FLARE_TINT = { 1.0, 0.86, 0.55 }
 local FLARE_ALPHA = 0.82
 local FLARE_SIDE = 18          -- the panel past the window on the left, right and bottom: room for the table
 local FLARE_TOP = 6            -- the art's top line is its 7th row: 6 up puts it on the title strip's top
-local FLARE_LINE = { 0.62, 0.53, 0.34 }   -- the divider in the panel line's tint (157 grey x FLARE_TINT)
+-- the divider as the chat's under its tabs: a neutral dark grey (52,50,55 on the print). Options_HorizontalDivider is
+-- white at alpha 0.31: x this tint gives 51,50,54 over the dark body
+local FLARE_LINE = { 0.66, 0.64, 0.70 }
 
 function ns.Theme()
     local t = ns.db and ns.db.theme
@@ -2479,10 +2485,16 @@ function Window.ApplyTheme()
         header.line:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
         header.line:SetHeight(1)
     end
-    local flare = theme == "flare" and ns.AtlasExists(FLARE_ATLAS)
+    local c60 = ns.AtlasExists(FLARE_ATLAS_C60)
+    local flare = theme == "flare" and (c60 or ns.AtlasExists(FLARE_ATLAS))
     if flare then
-        frame.flare:SetAtlas(FLARE_ATLAS)
-        frame.flare:SetVertexColor(FLARE_TINT[1], FLARE_TINT[2], FLARE_TINT[3])
+        if c60 then
+            frame.flare:SetAtlas(FLARE_ATLAS_C60)
+            frame.flare:SetVertexColor(1, 1, 1)
+        else
+            frame.flare:SetAtlas(FLARE_ATLAS)
+            frame.flare:SetVertexColor(FLARE_TINT[1], FLARE_TINT[2], FLARE_TINT[3])
+        end
         frame.flare:SetAlpha(FLARE_ALPHA)
         if ns.Style and ns.Style.Divider then ns.Style.Divider(header.line) end
         header.line:SetVertexColor(FLARE_LINE[1], FLARE_LINE[2], FLARE_LINE[3])
