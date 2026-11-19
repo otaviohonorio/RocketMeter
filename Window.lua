@@ -614,9 +614,9 @@ local HEADER_HEIGHT = 27        -- medido no nativo: faixa de y=41 a y=67
 --             bronze rods with knobs). Cut in five, NEVER stretched where it has a drawing: the left end, a flat
 --             stretch, the ornament (just left of the header's buttons, where the tracker shows it), a flat stretch,
 --             the right end. Drawn at the strip's height (27 of its 40). The title in the tracker's own font.
---   flare     no strip art: the whole window in the game's dropdown-menu panel (common-dropdown-bg, which the game
---             slices by itself), its line tinted gold and the body translucent; room around the table, the top
---             line on the title strip's top; a divider between the title row and the table, as long as the strip
+--   flare     no strip art: the whole window in a thin bronze frame (OUR art, FlareBorder.png, see FLARE_TEXTURE),
+--             the body translucent; room around the table, the top line on the title strip's top; a divider between
+--             the title row and the table, as long as the strip; the title and the icons in bronze
 ns.THEMES = {
     { key = "midnight", label = "Blizzard Midnight" },
     { key = "forever", label = "Blizzard Forever" },
@@ -626,23 +626,18 @@ local TRACKER_ATLAS = "ui-questtracker-primary-objective-header"   -- 300 x 40
 -- art px of the tracker header, x: the left end | flat | the ornament | flat | the right end
 local TRACKER_CUTS = { { 0, 30 }, { 160, 170 }, { 170, 252 }, { 252, 262 }, { 262, 300 } }
 local TRACKER_W, TRACKER_H = 300, 40
--- (19/11, the user's print of the Forever: "Compare as bordas do chat e do nosso meter, deixa igual ao do chat") the
--- Forever's chat wears `common-dropdown-bg-c60`, the same panel with a bronze line (156,123,80; measured on the print
--- through the alpha: chat 128,98,56, ours with it 128,101,66). The retail has no c60: there the plain one, tinted.
-local FLARE_ATLAS_C60 = "common-dropdown-bg-c60"
-local FLARE_ATLAS = "common-dropdown-bg"
-local FLARE_TINT = { 1.0, 0.86, 0.55 }
--- (19/11, "a transparência tbm tá diferente") measured on the print through the grass behind: the chat's body lets
--- ~30% of the scene through, ours at 0.82 ~21%. The line and the body are one art, so a lower alpha dims the line too:
--- the panel at 0.72 (the chat's body) and the SAME art again in ADD at 0.17 -- black adds nothing, so only the line
--- comes back (156 x 0.72 + 156 x 0.17 = 139 against the chat's 137)
-local FLARE_ALPHA = 0.72
-local FLARE_LINE_BOOST = 0.17
+-- (19/11) THE FLARE'S BORDER IS OUR OWN ART, only for this window (the user: "é somente para essa janela do meter
+-- isso"): matched to the chat on his print, which no art of the game reproduces (the dropdown panel's corner is a 5 px
+-- chamfer; the chat's, 3 px, with a 1 px line). Textures/FlareBorder.png, drawn by tools/arte_flare_borda.py: the
+-- bronze line (137,105,60), the 3 px chamfer, the black body at 75% (the scene through it: 21-30% on the print), cut by
+-- the game's own nine-slice (6 px margins).
+local FLARE_TEXTURE = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\FlareBorder.png"
+local FLARE_SLICE = 6
 -- (19/11, "algumas cores") the chat's tab text and icons on the print: bronze, not the meter's gold and grey
 local FLARE_TITLE = { 0.81, 0.62, 0.36 }   -- "Geral" on the print: 206,158,93
 local FLARE_ICON = { 0.80, 0.64, 0.40 }    -- the chat's icons on the print: 201,161,100
-local FLARE_SIDE = 18          -- the panel past the window on the left, right and bottom: room for the table
-local FLARE_TOP = 6            -- the art's top line is its 7th row: 6 up puts it on the title strip's top
+local FLARE_SIDE = 9           -- the line past the window on the left, right and bottom (the approved preview v6)
+local FLARE_TOP = 0            -- the top line on the title strip's top
 -- the divider as the chat's under its tabs: a neutral dark grey (52,50,55 on the print). Options_HorizontalDivider is
 -- white at alpha 0.31: x this tint gives 51,50,54 over the dark body
 local FLARE_LINE = { 0.66, 0.64, 0.70 }
@@ -2488,33 +2483,21 @@ function Window.ApplyTheme()
         frame.flare = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
         frame.flare:SetPoint("TOPLEFT", frame, "TOPLEFT", -FLARE_SIDE, FLARE_TOP)
         frame.flare:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", FLARE_SIDE, -FLARE_SIDE)
-        frame.flareLine = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
-        frame.flareLine:SetAllPoints(frame.flare)
-        frame.flareLine:SetBlendMode("ADD")
         header.line = header:CreateTexture(nil, "ARTWORK")
         header.line:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
         header.line:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
         header.line:SetHeight(1)
     end
-    local c60 = ns.AtlasExists(FLARE_ATLAS_C60)
-    local flare = theme == "flare" and (c60 or ns.AtlasExists(FLARE_ATLAS))
+    local flare = theme == "flare"
     if flare then
-        for _, t in ipairs({ frame.flare, frame.flareLine }) do
-            if c60 then
-                t:SetAtlas(FLARE_ATLAS_C60)
-                t:SetVertexColor(1, 1, 1)
-            else
-                t:SetAtlas(FLARE_ATLAS)
-                t:SetVertexColor(FLARE_TINT[1], FLARE_TINT[2], FLARE_TINT[3])
-            end
-        end
-        frame.flareLine:SetAlpha(FLARE_LINE_BOOST)
-        frame.flare:SetAlpha(FLARE_ALPHA)
+        frame.flare:SetTexture(FLARE_TEXTURE)
+        frame.flare:SetTextureSliceMargins(FLARE_SLICE, FLARE_SLICE, FLARE_SLICE, FLARE_SLICE)
+        frame.flare:SetVertexColor(1, 1, 1)
+        frame.flare:SetAlpha(1)
         if ns.Style and ns.Style.Divider then ns.Style.Divider(header.line) end
         header.line:SetVertexColor(FLARE_LINE[1], FLARE_LINE[2], FLARE_LINE[3])
     end
     frame.flare:SetShown(flare and true or false)
-    frame.flareLine:SetShown(flare and true or false)
     header.line:SetShown(flare and true or false)
 
     -- the Midnight strip, only in its theme (and the fallback when an art is missing)
