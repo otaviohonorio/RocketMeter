@@ -1,3 +1,3 @@
-# Rocket Meter 0.99.1
+# Rocket Meter 0.99.2
 
-- New icon: the rocket flying over the addon's own symbol, in the Rocket family's new colours. The minimap button and the seal of every window show the symbol alone.
+- Fixed: during combat, DPS and HPS could show as a long raw number (like "36.07...") instead of the short format ("36.1K"). They now use the same short format in and out of combat.
