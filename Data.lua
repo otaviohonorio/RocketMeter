@@ -1463,7 +1463,33 @@ Data.MAX_CELL_CHARS = 6
 -- None of this is a guess: the strategies are tested in the game itself, the first time a
 -- secret value shows up, and the one that works is recorded in the log. If none works, the
 -- number shows raw, as today.
+-- (19/11, the user's print in WoW Forever: "durante o combate os numeros do meter quebram a formatação" -- the DPS
+-- cell showed "36.07..." and the HPS "2.962...") The per-second values are fractions, and AbbreviateNumbers below its
+-- first threshold writes them whole. The game's own meter (Blizzard_DamageMeter/DamageMeterEntry.lua) and the API
+-- documentation (LocalizationDocumentation.lua: AbbreviateNumbers takes secret arguments "AllowedWhenTainted" and an
+-- options table; LocalizationSharedDocumentation.lua: NumberAbbreviationBreakpoint) give the way: the CLIENT does the
+-- division with OUR bands -- the same as FormatAmount's, an integer below a thousand.
+local function Band(breakpoint, abbreviation, significand, fraction)
+    return { breakpoint = breakpoint, abbreviation = abbreviation, significandDivisor = significand,
+             fractionDivisor = fraction, abbreviationIsGlobal = false }
+end
+Data.ABBREVIATE = { breakpointData = {           -- largest first, as the documentation asks
+    Band(1000000000, "B", 100000000, 10),        -- 1.2B
+    Band(100000000, "M", 1000000, 1),            -- 339M
+    Band(1000000, "M", 100000, 10),              -- 33.9M
+    Band(10000, "K", 1000, 1),                   -- 786K
+    Band(1000, "K", 100, 10),                    -- 9.6K
+    Band(0, "", 1, 1),                           -- 847 (36.07 -> 36)
+} }
+
 local STRATEGIES = {
+    {
+        name = "AbbreviateNumbers(value, our bands)",
+        run = function(value)
+            if not AbbreviateNumbers then return nil end
+            return AbbreviateNumbers(value, Data.ABBREVIATE)
+        end,
+    },
     {
         name = "securecallfunction(AbbreviateNumbers)",
         run = function(value)
